@@ -1,0 +1,2 @@
+# フックは bash で実行するため改行を LF に固定する
+.githooks/* text eol=lf

@@ -1,0 +1,15 @@
+#!/bin/bash
+# prepare-commit-msg がバージョンを入れるため、エディタで何も書かずに閉じても
+# メッセージが空にならずコミットされてしまう。本文がバージョンだけなら中止する。
+COMMIT_MSG_FILE=$1
+
+# git commit -v の差分（はさみ線以降）とコメント行は除く
+BODY=$(sed -E '/^# -+ >8 -+$/,$d' "$COMMIT_MSG_FILE" \
+    | grep -v '^#' \
+    | sed -E '1s/^[0-9]{8}-[DR][0-9]{2}:[[:space:]]*//' \
+    | tr -d '[:space:]')
+
+if [[ -z "$BODY" ]]; then
+    echo "コミットメッセージが空のため中止しました（バージョンのみ）。" >&2
+    exit 1
+fi
