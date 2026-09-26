@@ -43,6 +43,8 @@ fun DebugScreen(
     onSourceMode: (SourceMode) -> Unit,
     onToggleWp: (Int) -> Unit,
     onClose: () -> Unit,
+    canLoadTemporaryWaypoints: Boolean,
+    onLoadTemporaryWaypoints: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val zone = ZoneId.systemDefault()
@@ -59,6 +61,8 @@ fun DebugScreen(
     ) {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = onClose) { Text("メイン画面へ") }
+            // WP リストが空のときだけ、トラックから仮 WP を入れられる
+            OutlinedButton(onClick = onLoadTemporaryWaypoints, enabled = canLoadTemporaryWaypoints) { Text("仮 WP を入れる") }
             OutlinedButton(onClick = onPickTrack) { Text("track.csv を選ぶ") }
             Button(onClick = onTogglePlay, enabled = replay.ready && !replay.finished) {
                 Text(

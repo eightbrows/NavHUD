@@ -10,9 +10,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -20,16 +24,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.eightbrows.navhud.core.nav.DisplayMode
 import io.github.eightbrows.navhud.core.nav.NavState
+import io.github.eightbrows.navhud.core.nav.ScreenSide
 import io.github.eightbrows.navhud.core.nav.SourceKind
 import io.github.eightbrows.navhud.core.view.HudFormat
+import io.github.eightbrows.navhud.core.view.HudInsets
 import java.time.ZoneId
 
 private val Caption = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 11.sp, color = HudColors.Caption)
@@ -47,28 +55,131 @@ fun MainScreen(
     onToggleDisplay: () -> Unit,
     onCycleRate: () -> Unit,
     onOpenDebug: () -> Unit,
+    wpUi: WaypointUiState,
+    onToggleWpButtons: () -> Unit,
+    onOpenWpSettings: () -> Unit,
+    onToggleReached: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val zone = ZoneId.systemDefault()
     // LOST 中は最後の値をグレーで出し続ける
     val valueColor = if (state.positionLost) HudColors.Stale else HudColors.Scale
+    val buttonsRight = state.settings.wpButtonsSide == ScreenSide.RIGHT
+    val showReplay = state.sourceKind == SourceKind.REPLAY
+
+    // 画面外の矢印を置かない帯。ボタン列を出しているときはリプレイ操作もボタン列の下に入るので、その側の帯だけ。
+    // ボタン列を隠しているときは、リプレイ操作のある下端の帯
+    val density = LocalDensity.current
+    val reserved = with(density) {
+        val column = if (wpUi.showButtons) WpColumnWidth.toPx() else 0f
+        HudInsets(
+            left = if (!buttonsRight) column else 0f,
+            right = if (buttonsRight) column else 0f,
+            bottom = if (showReplay && !wpUi.showButtons) ReplayBandHeight.toPx() else 0f,
+        )
+    }
 
     Column(modifier.fillMaxSize().background(HudColors.Background)) {
-        TopBar(state, onCycleSource, onToggleDisplay, onOpenDebug)
+        TopBar(state, wpUi.showButtons, onCycleSource, onToggleWpButtons, onToggleDisplay, onOpenDebug)
         InfoStrip(state, zone, valueColor, onCycleRate)
         Box(Modifier.fillMaxWidth().weight(1f)) {
-            HudCanvas(state, Modifier.fillMaxSize())
+            HudCanvas(state, Modifier.fillMaxSize(), reserved)
             if (state.positionLost) LostBox(replay, Modifier.align(Alignment.Center))
-            if (state.sourceKind == SourceKind.REPLAY) {
-                ReplayControls(state, replay, onPickTrack, onTogglePlay, Modifier.align(Alignment.BottomEnd).padding(8.dp))
+            if (wpUi.showButtons) {
+                WpButtonColumn(
+                    state,
+                    onOpenWpSettings,
+                    onToggleReached,
+                    Modifier.align(if (buttonsRight) Alignment.TopEnd else Alignment.TopStart),
+                ) {
+                    if (showReplay) ReplayControls(state, replay, onPickTrack, onTogglePlay, stacked = true)
+                }
+            } else if (showReplay) {
+                ReplayControls(
+                    state, replay, onPickTrack, onTogglePlay,
+                    Modifier.align(if (buttonsRight) Alignment.BottomEnd else Alignment.BottomStart).padding(8.dp),
+                )
             }
         }
         BottomPanel(state, zone, valueColor)
     }
 }
 
+private val WpColumnWidth = 84.dp
+private val ReplayBandHeight = 46.dp
+
+/**
+ * WP ボタン列（§6.4）。最上部に固定の「WP設定」、その下は下から上へ WP1, WP2…（スクロール可能）。
+ * タップで到達済みを個別に切り替える（到達済みは色反転）。無効 WP はグレーで押せない。
+ */
 @Composable
-private fun TopBar(state: NavState, onCycleSource: () -> Unit, onToggleDisplay: () -> Unit, onOpenDebug: () -> Unit) {
+private fun WpButtonColumn(
+    state: NavState,
+    onOpenSettings: () -> Unit,
+    onToggleReached: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+    bottom: @Composable () -> Unit = {},
+) {
+    Column(
+        modifier
+            .width(WpColumnWidth)
+            .fillMaxHeight()
+            .padding(6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        WpColumnButton("WP設定", onOpenSettings, HudColors.Scale, inverted = false, enabled = true)
+        Box(Modifier.fillMaxWidth().weight(1f)) {
+            Column(
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .verticalScroll(rememberScrollState(), reverseScrolling = true),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                for (i in state.waypoints.indices.reversed()) {
+                    val wp = state.waypoints[i]
+                    val color = when {
+                        !wp.enabled -> HudColors.WpDisabled
+                        i == state.nextWpIndex -> HudColors.Active
+                        else -> HudColors.Wp
+                    }
+                    WpColumnButton(wp.name, { onToggleReached(i) }, color, inverted = wp.reached && wp.enabled, enabled = wp.enabled)
+                }
+            }
+        }
+        bottom()
+    }
+}
+
+@Composable
+private fun WpColumnButton(text: String, onClick: () -> Unit, color: Color, inverted: Boolean, enabled: Boolean) {
+    val shape = RoundedCornerShape(4.dp)
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .border(1.dp, color, shape)
+            .background(if (inverted) color else HudColors.Background, shape)
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 4.dp, vertical = 7.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text,
+            style = ButtonText.copy(color = if (inverted) HudColors.Background else color, fontSize = 12.sp),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
+private fun TopBar(
+    state: NavState,
+    showWpButtons: Boolean,
+    onCycleSource: () -> Unit,
+    onToggleWpButtons: () -> Unit,
+    onToggleDisplay: () -> Unit,
+    onOpenDebug: () -> Unit,
+) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -80,8 +191,8 @@ private fun TopBar(state: NavState, onCycleSource: () -> Unit, onToggleDisplay: 
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         HudButton("SRC ${state.sourceMode.name}", onCycleSource)
-        // WP メニューはステップ5（今は枠だけ）
-        HudButton("WP", onClick = {}, enabled = false)
+        // WP ボタン列の表示/非表示（出ているときは反転）
+        HudButton("WP", onToggleWpButtons, inverted = showWpButtons)
         Spacer(Modifier.weight(1f))
         HudButton(if (state.settings.displayMode == DisplayMode.ARC) "ARC" else "N-UP", onToggleDisplay)
     }
@@ -185,32 +296,46 @@ private fun ReplayControls(
     onPickTrack: () -> Unit,
     onTogglePlay: () -> Unit,
     modifier: Modifier = Modifier,
+    stacked: Boolean = false,
 ) {
-    Row(modifier, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        HudButton("FILE", onPickTrack, small = true)
-        HudButton(
-            when {
-                replay.finished -> "END"
-                state.playing -> "❚❚"
-                else -> "▶"
-            },
-            onTogglePlay,
-            enabled = replay.ready && !replay.finished,
-            small = true,
-        )
+    val play = when {
+        replay.finished -> "END"
+        state.playing -> "❚❚"
+        else -> "▶"
+    }
+    val playEnabled = replay.ready && !replay.finished
+    if (stacked) {
+        // ボタン列の一番下に、列の幅いっぱいで縦に並べる
+        Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            HudButton(play, onTogglePlay, enabled = playEnabled, small = true, fill = true)
+            HudButton("FILE", onPickTrack, small = true, fill = true)
+        }
+    } else {
+        Row(modifier, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            HudButton("FILE", onPickTrack, small = true)
+            HudButton(play, onTogglePlay, enabled = playEnabled, small = true)
+        }
     }
 }
 
 @Composable
-private fun HudButton(text: String, onClick: () -> Unit, enabled: Boolean = true, small: Boolean = false) {
+internal fun HudButton(
+    text: String,
+    onClick: () -> Unit,
+    enabled: Boolean = true,
+    small: Boolean = false,
+    inverted: Boolean = false,
+    fill: Boolean = false,
+) {
     val color = if (enabled) HudColors.Scale else HudColors.WpReached
     Box(
-        Modifier
+        (if (fill) Modifier.fillMaxWidth() else Modifier)
             .border(1.dp, color, RoundedCornerShape(4.dp))
-            .background(HudColors.Background, RoundedCornerShape(4.dp))
+            .background(if (inverted) color else HudColors.Background, RoundedCornerShape(4.dp))
             .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = if (small) 8.dp else 10.dp, vertical = if (small) 3.dp else 5.dp),
+        contentAlignment = Alignment.Center,
     ) {
-        Text(text, style = ButtonText.copy(color = color, fontSize = if (small) 12.sp else 13.sp))
+        Text(text, style = ButtonText.copy(color = if (inverted) HudColors.Background else color, fontSize = if (small) 12.sp else 13.sp))
     }
 }

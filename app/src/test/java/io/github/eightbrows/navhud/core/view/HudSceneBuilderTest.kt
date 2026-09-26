@@ -221,6 +221,45 @@ class HudSceneBuilderTest {
     }
 
     @Test
+    fun arrowsStayInsideReservedBands() {
+        // 左にボタン列（84px）、下にリプレイ操作（46px）がある
+        val reserved = HudInsets(left = 84f, bottom = 46f)
+        val wps = listOf(wp("N", 5_000.0), wp("S", -5_000.0))
+        val scene = HudSceneBuilder.build(state(headingDeg = 90f, wps = wps, next = 0), rect, m, reserved)
+        val byName = scene.arrows.associateBy { it.text.substringBefore(' ') }
+        // 機首 090 で北 → 左端。ボタン列の内側
+        assertEquals(84f + m.edgeInset, byName.getValue("N").at.x, 1e-3f)
+        // 機首 090 で南 → 右端（下の帯は関係ない）
+        assertEquals(720f - m.edgeInset, byName.getValue("S").at.x, 1e-3f)
+        // 真後ろ → 下端。リプレイ操作の帯の上
+        val behind = HudSceneBuilder.build(state(headingDeg = 0f, wps = listOf(wp("B", -5_000.0)), next = 0), rect, m, reserved)
+        assertEquals(900f - 46f - m.edgeInset, behind.arrows.single().at.y, 1e-3f)
+    }
+
+    @Test
+    fun arrowTextIsInsideAndDoesNotOverlap() {
+        // ほぼ同じ方向の WP 3つ → 矢印はほぼ同じ位置。文字は自機側へずれて重ならない
+        val wps = listOf(wp("AAA", 5_000.0, 5_000.0), wp("BBB", 6_000.0, 6_100.0), wp("CCC", 7_000.0, 7_000.0))
+        val arrows = build(state(headingDeg = 0f, wps = wps, next = 0)).arrows
+        assertEquals(3, arrows.size)
+        val frame = rect.inset(m.edgeInset)
+        for (a in arrows) {
+            // 文字は枠の内側
+            val half = a.text.length * m.labelCharWidth / 2
+            assertTrue(a.text, a.textAt.x - half >= frame.left - 1e-3f && a.textAt.x + half <= frame.right + 1e-3f)
+            // 文字は矢印より自機側（自機は下にある）
+            assertTrue(a.text, a.textAt.y > a.at.y)
+        }
+        for (i in arrows.indices) for (j in i + 1 until arrows.size) {
+            val a = arrows[i]
+            val b = arrows[j]
+            val apart = abs(a.textAt.y - b.textAt.y) >= m.arrowLabelLine - 1e-3f ||
+                abs(a.textAt.x - b.textAt.x) >= (a.text.length + b.text.length) * m.labelCharWidth / 2 - 1e-3f
+            assertTrue("${a.text} / ${b.text}", apart)
+        }
+    }
+
+    @Test
     fun noFixNoWaypoints() {
         val s = state(wps = listOf(wp("WP1", 1_000.0)), next = 0).copy(fix = null)
         val scene = build(s)

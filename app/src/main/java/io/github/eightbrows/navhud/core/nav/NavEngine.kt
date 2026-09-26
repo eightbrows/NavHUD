@@ -24,6 +24,7 @@ class NavEngine(
 
     private val headingSelector = HeadingSelector(settings.minGpsSpeedMps, settings.maxGpsAccM)
     private val rateTracker = RateTracker(maxWindowSec = NavSettings.RATE_WINDOW_CHOICES_SEC.max())
+    private val passDetector = PassDetector()
 
     private var lastFix: Fix? = null
     private var compassDeg: Float? = null
@@ -45,6 +46,7 @@ class NavEngine(
         lastFix = fix
         rateTracker.add(fix)
         waypoints = WaypointNav.autoReach(waypoints, fix.lat, fix.lon, settings.reachRadiusM)
+        checkPass(fix)
         this.nowMs = nowMs
         return recompute()
     }
@@ -99,10 +101,24 @@ class NavEngine(
         return recompute()
     }
 
+    /** 通過判定（§5.4）。次の WP に最接近したあと離れていったら到達にする。 */
+    private fun checkPass(fix: Fix) {
+        val i = WaypointNav.nextIndex(waypoints)
+        if (!settings.passDetection || i == null) {
+            passDetector.reset()
+            return
+        }
+        val wp = waypoints[i]
+        if (passDetector.update(fix, wp, Triple(i, wp.lat, wp.lon), settings)) {
+            waypoints = waypoints.toMutableList().also { it[i] = wp.copy(reached = true) }
+        }
+    }
+
     private fun clearHistory() {
         lastFix = null
         rateTracker.clear()
         headingSelector.reset()
+        passDetector.reset()
     }
 
     private fun recompute(): NavState {

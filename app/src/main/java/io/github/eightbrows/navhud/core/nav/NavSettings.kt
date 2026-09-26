@@ -18,6 +18,14 @@ data class NavSettings(
     val maxGpsAccM: Float = 15f,
     /** 到達半径 [m]。50 / 100 / 200 / 500 から選ぶ（§5.4） */
     val reachRadiusM: Double = 100.0,
+    /** 通過判定（§5.4 のオプション）。最接近後に離れていったら到達とみなす */
+    val passDetection: Boolean = true,
+    /** 通過判定: 最接近距離の上限 [m] */
+    val passMaxApproachM: Double = 300.0,
+    /** 通過判定: 最接近距離からこれだけ離れたら「離れた」[m] */
+    val passDepartM: Double = 50.0,
+    /** 通過判定: 離れた状態がこれだけ続いたら到達 [秒] */
+    val passHoldSec: Int = 5,
     /** RATE の窓 [秒]。10 / 30 / 60 から選ぶ（§5.3） */
     val rateWindowSec: Int = 60,
     /** POSITION LOST とみなす秒数（§5.5） */

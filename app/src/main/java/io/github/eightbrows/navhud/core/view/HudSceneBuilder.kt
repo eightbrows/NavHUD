@@ -12,7 +12,16 @@ import kotlin.math.hypot
  */
 object HudSceneBuilder {
 
-    fun build(state: NavState, rect: HudRect, m: HudMetrics = HudMetrics()): HudScene {
+    /**
+     * @param reserved 画面外の矢印を置かない帯（WP ボタン列、リプレイ操作）[px]。矢印はその内側に置く
+     */
+    fun build(state: NavState, rect: HudRect, m: HudMetrics = HudMetrics(), reserved: HudInsets = HudInsets()): HudScene {
+        val arrowFrame = HudRect(
+            rect.left + reserved.left,
+            rect.top + reserved.top,
+            rect.right - reserved.right,
+            rect.bottom - reserved.bottom,
+        ).inset(m.edgeInset)
         val s = state.settings
         val headingDeg = state.heading.deg?.toDouble()
         val lost = state.positionLost
@@ -38,7 +47,7 @@ object HudSceneBuilder {
             }
         }
 
-        val (wpMarks, arrows) = buildWaypoints(state, proj, rect, m, segments)
+        val (wpMarks, arrows) = buildWaypoints(state, proj, arrowFrame, m, segments)
 
         val scene = HudScene(
             rect = rect,
@@ -153,7 +162,7 @@ object HudSceneBuilder {
     private fun buildWaypoints(
         state: NavState,
         proj: HudProjection,
-        rect: HudRect,
+        inner: HudRect,
         m: HudMetrics,
         segments: MutableList<Segment>,
     ): Pair<List<WpMark>, List<EdgeArrow>> {
@@ -176,7 +185,7 @@ object HudSceneBuilder {
         // 自機から次の WP への線（マゼンタ）
         if (next != null) segments += Segment(proj.origin, pts[next], Ink.ACTIVE, bold = true)
 
-        val inner = rect.inset(m.edgeInset)
+        // inner: 矢印を置く枠（ボタン列・リプレイ操作の帯を除いた内側）
         val marks = mutableListOf<WpMark>()
         val arrows = mutableListOf<EdgeArrow>()
         wps.forEachIndexed { i, wp ->
@@ -184,21 +193,53 @@ object HudSceneBuilder {
             if (inner.contains(pts[i])) {
                 marks += WpMark(pts[i], wp.name, ink, dashed = !wp.enabled)
             } else if (wp.enabled && !wp.reached) {
-                // 画面外: 表示枠の縁に方位方向の矢印と距離
+                // 画面外: 表示枠の縁に方位方向の矢印と距離。文字は矢印の内側（自機側）
                 val a = HudGeometry.angleOf(proj.origin, pts[i])
                 val at = HudGeometry.rayToRect(proj.origin, a, inner)
                 val dist = Geo.distanceM(fix.lat, fix.lon, wp.lat, wp.lon)
+                val text = "${wp.name} ${HudFormat.distance(dist)}"
                 arrows += EdgeArrow(
                     at = at,
                     angleDeg = a.toFloat(),
-                    text = "${wp.name} ${HudFormat.distance(dist)}",
-                    textAt = HudGeometry.pointAt(at, a + 180, m.arrowTextGap),
+                    text = text,
+                    // 自機への線（マゼンタ）と重ならないよう、線と直角に少しずらす
+                    textAt = placeArrowText(
+                        text,
+                        HudGeometry.pointAt(HudGeometry.pointAt(at, a + 180, m.arrowTextGap), a + 90, m.arrowLabelLine * 0.75f),
+                        a, inner, arrows, m,
+                    ),
                     ink = ink,
                 )
             }
         }
         return marks to arrows
     }
+
+    /**
+     * 矢印の文字の位置。枠からはみ出さないよう横位置を詰め、先に置いた文字と重なるなら自機側へ1行ずつずらす（最大3回）。
+     * 凝った配置計算はしない。
+     */
+    private fun placeArrowText(text: String, start: P, angleDeg: Double, frame: HudRect, placed: List<EdgeArrow>, m: HudMetrics): P {
+        val half = textHalfWidth(text, m)
+        fun clamp(p: P) = P(
+            p.x.coerceIn(frame.left + half, maxOf(frame.left + half, frame.right - half)),
+            p.y.coerceIn(frame.top + m.arrowLabelLine / 2, maxOf(frame.top, frame.bottom - m.arrowLabelLine / 2)),
+        )
+        var p = clamp(start)
+        repeat(3) {
+            val hit = placed.any { o ->
+                kotlin.math.abs(o.textAt.x - p.x) < half + textHalfWidth(o.text, m) &&
+                    kotlin.math.abs(o.textAt.y - p.y) < m.arrowLabelLine
+            }
+            if (!hit) return p
+            p = clamp(HudGeometry.pointAt(p, angleDeg + 180, m.arrowLabelLine))
+        }
+        return p
+    }
+
+    /** 文字の幅の半分の目安。全角（日本語など）は半角2文字分として数える。 */
+    internal fun textHalfWidth(text: String, m: HudMetrics): Float =
+        text.sumOf { c -> if (c.code >= 0x2E80) 2 else 1 }.toInt() * m.labelCharWidth / 2
 
     private fun wpInk(wp: Waypoint, isNext: Boolean): Ink = when {
         isNext -> Ink.ACTIVE

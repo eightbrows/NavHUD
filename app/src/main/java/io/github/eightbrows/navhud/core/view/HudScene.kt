@@ -72,9 +72,16 @@ data class HudMetrics(
     val arcOriginFromBottom: Float = 90f,
     val northUpMargin: Float = 48f,
     val pointerSize: Float = 14f,
+    /** 矢印の文字の1行の高さ（重なったときにずらす量） */
+    val arrowLabelLine: Float = 16f,
+    /** 矢印の文字の1文字の幅の目安（等幅 11sp） */
+    val labelCharWidth: Float = 7f,
 ) {
     fun scaled(k: Float) = HudMetrics(
         tickMinor * k, tickMajor * k, labelGap * k, edgeInset * k, arrowTextGap * k,
-        arcOriginFromBottom * k, northUpMargin * k, pointerSize * k,
+        arcOriginFromBottom * k, northUpMargin * k, pointerSize * k, arrowLabelLine * k, labelCharWidth * k,
     )
 }
+
+/** 地図の領域のうち、画面外の矢印を置かない帯の幅 [px]。 */
+data class HudInsets(val left: Float = 0f, val top: Float = 0f, val right: Float = 0f, val bottom: Float = 0f)

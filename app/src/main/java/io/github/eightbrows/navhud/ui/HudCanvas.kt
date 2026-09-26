@@ -26,6 +26,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.sp
 import io.github.eightbrows.navhud.core.nav.NavState
+import io.github.eightbrows.navhud.core.view.HudInsets
 import io.github.eightbrows.navhud.core.view.HudMetrics
 import io.github.eightbrows.navhud.core.view.HudRect
 import io.github.eightbrows.navhud.core.view.HudScene
@@ -34,13 +35,13 @@ import io.github.eightbrows.navhud.core.view.P
 
 /** HUD の図。座標は core（HudSceneBuilder）で計算済みのものを描くだけ。 */
 @Composable
-fun HudCanvas(state: NavState, modifier: Modifier = Modifier) {
+fun HudCanvas(state: NavState, modifier: Modifier = Modifier, reserved: HudInsets = HudInsets()) {
     val density = LocalDensity.current.density
     val metrics = remember(density) { HudMetrics().scaled(density) }
     var size by remember { mutableStateOf(IntSize.Zero) }
-    val scene = remember(state, size, metrics) {
+    val scene = remember(state, size, metrics, reserved) {
         if (size == IntSize.Zero) null
-        else HudSceneBuilder.build(state, HudRect(0f, 0f, size.width.toFloat(), size.height.toFloat()), metrics)
+        else HudSceneBuilder.build(state, HudRect(0f, 0f, size.width.toFloat(), size.height.toFloat()), metrics, reserved)
     }
     val textMeasurer = rememberTextMeasurer()
     Canvas(
