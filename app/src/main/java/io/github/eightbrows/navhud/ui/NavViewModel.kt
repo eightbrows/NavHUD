@@ -101,7 +101,7 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
 
     init {
         store.savedUri?.let { load(it, isSaved = true) }
-        // 時計の tick。Fix が来ない欠損区間でも POSITION LOST とカウントダウンを進める
+        // 時計の tick。Fix が来ない欠損区間でも NO FIX とカウントダウンを進める
         viewModelScope.launch {
             while (isActive) {
                 delay(TICK_MS)

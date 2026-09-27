@@ -26,7 +26,7 @@ enum class Ink {
     /** 自機・ラバーライン・機首方位の三角（白） */
     OWNSHIP,
 
-    /** POSITION LOST 中の、最後の値（グレー） */
+    /** NO FIX 中の、最後の値（グレー） */
     STALE,
 }
 

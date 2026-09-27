@@ -24,7 +24,7 @@ object HudSceneBuilder {
         ).inset(m.edgeInset)
         val s = state.settings
         val headingDeg = state.heading.deg?.toDouble()
-        val lost = state.positionLost
+        val noFix = state.noFix
 
         val arcs = mutableListOf<Arc>()
         val segments = mutableListOf<Segment>()
@@ -59,7 +59,7 @@ object HudSceneBuilder {
             pointers = pointers,
             ownShip = OwnShip(proj.origin, ownShipAngle, Ink.OWNSHIP),
         )
-        return if (lost) scene.stale() else scene
+        return if (noFix) scene.stale() else scene
     }
 
     /** ARC: 前方 180° の距離環、縁に置く方位目盛り、30° ごとの方位線、ラバーライン、上部中央の三角。 */
@@ -248,7 +248,7 @@ object HudSceneBuilder {
         else -> Ink.WP
     }
 
-    /** POSITION LOST 中: 自機と位置に依存するもの（次の WP、自機の線）をグレーにする。 */
+    /** NO FIX 中: 自機と位置に依存するもの（次の WP、自機の線）をグレーにする。 */
     private fun HudScene.stale(): HudScene {
         fun Ink.s() = if (this == Ink.ACTIVE || this == Ink.OWNSHIP) Ink.STALE else this
         return copy(

@@ -29,13 +29,13 @@ object HudColors {
     /** 自機 */
     val OwnShip = Color(0xFFFFFFFF)
 
-    /** LOST 中の最後の値 */
+    /** NO FIX 中の最後の値 */
     val Stale = Color(0xFF6E6E6E)
 
     /** 数値の見出し */
     val Caption = Color(0xFF8FA3B8)
 
-    /** 注意（締切が近いなど）と警告（POSITION LOST、締切超過） */
+    /** 注意（締切が近いなど）と警告（NO FIX、締切超過） */
     val Caution = Color(0xFFFFC107)
     val Warning = Color(0xFFFF5252)
 

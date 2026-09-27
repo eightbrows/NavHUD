@@ -28,10 +28,10 @@ class NavEngineTest {
         Fix(timeMs = t, lat = lat, lon = 133.0, altRawM = alt, speedMps = speed, bearingDeg = bearing, horizAccM = 5f)
 
     @Test
-    fun initialStateIsLostWithoutTime() {
+    fun initialStateIsNoFixWithoutTime() {
         val s = engine().state
         assertNull(s.nowMs)
-        assertTrue(s.positionLost)
+        assertTrue(s.noFix)
         assertEquals(Heading.NONE, s.heading)
     }
 
@@ -41,7 +41,7 @@ class NavEngineTest {
         assertEquals(SourceMode.HYBRID, s.sourceMode)
         assertEquals(1.4f, s.minGpsSpeedMps)
         assertEquals(15f, s.maxGpsAccM)
-        assertEquals(10, s.lostTimeoutSec)
+        assertEquals(10, s.noFixTimeoutSec)
         assertEquals(36.0, s.altOffsetM, 0.0)
         assertEquals(2_000.0, s.arcRangeM, 0.0)
         assertEquals(1_000.0, s.ringIntervalM, 0.0)
@@ -53,29 +53,29 @@ class NavEngineTest {
     fun fixValuesAndAltitudeOffset() {
         val s = engine().onFix(fix(t0, alt = 1000.0, speed = 12.5f), t0)
         assertEquals(t0, s.nowMs)
-        assertFalse(s.positionLost)
+        assertFalse(s.noFix)
         assertEquals(964.0, s.altM!!, 1e-9)
         assertEquals(12.5f, s.groundSpeedMps)
         assertEquals(Heading(0f, HeadingSrc.GPS), s.heading)
     }
 
     @Test
-    fun tickAloneUpdatesPositionLost() {
+    fun tickAloneUpdatesNoFix() {
         val e = engine()
         e.onFix(fix(t0), t0)
-        assertFalse(e.onTick(t0 + 10_000).positionLost)
-        assertTrue(e.onTick(t0 + 10_001).positionLost)
+        assertFalse(e.onTick(t0 + 10_000).noFix)
+        assertTrue(e.onTick(t0 + 10_001).noFix)
         // 最後の値は残る（画面はグレーで出し続ける）
         assertNotNull(e.state.fix)
         assertNotNull(e.state.altM)
     }
 
     @Test
-    fun lostTimeoutFollowsSettings() {
-        val e = engine(NavSettings(lostTimeoutSec = 30))
+    fun noFixTimeoutFollowsSettings() {
+        val e = engine(NavSettings(noFixTimeoutSec = 30))
         e.onFix(fix(t0), t0)
-        assertFalse(e.onTick(t0 + 30_000).positionLost)
-        assertTrue(e.onTick(t0 + 30_001).positionLost)
+        assertFalse(e.onTick(t0 + 30_000).noFix)
+        assertTrue(e.onTick(t0 + 30_001).noFix)
     }
 
     @Test
@@ -125,7 +125,7 @@ class NavEngineTest {
     }
 
     @Test
-    fun hybridUsesCompassWhenLostOrStopped() {
+    fun hybridUsesCompassWhenNoFixOrStopped() {
         val e = engine()
         e.onCompass(45f, t0)
         assertEquals(Heading(90f, HeadingSrc.GPS), e.onFix(fix(t0, bearing = 90f), t0).heading)
@@ -164,7 +164,7 @@ class NavEngineTest {
         val s = e.resetPosition()
         assertNull(s.fix)
         assertNull(s.nowMs)
-        assertTrue(s.positionLost)
+        assertTrue(s.noFix)
         assertEquals(1, s.waypoints.size)
         assertEquals(SourceMode.GPS, s.sourceMode)
     }
@@ -184,7 +184,7 @@ class NavEngineTest {
         assertNull(live.rate)
         assertNull(live.fix)
         assertNull(live.nowMs)
-        assertTrue(live.positionLost)
+        assertTrue(live.noFix)
         assertTrue(live.waypoints[0].reached)
         assertEquals(1, live.nextWpIndex)
     }

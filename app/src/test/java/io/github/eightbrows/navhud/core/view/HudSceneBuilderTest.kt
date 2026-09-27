@@ -38,11 +38,11 @@ class HudSceneBuilderTest {
         wps: List<Waypoint> = emptyList(),
         next: Int? = null,
         mode: DisplayMode = DisplayMode.ARC,
-        lost: Boolean = false,
+        noFix: Boolean = false,
     ) = NavState(
         nowMs = 0,
         fix = Fix(timeMs = 0, lat = lat0, lon = lon0),
-        positionLost = lost,
+        noFix = noFix,
         heading = if (headingDeg == null) Heading.NONE else Heading(headingDeg, HeadingSrc.GPS),
         waypoints = wps,
         nextWpIndex = next,
@@ -211,8 +211,8 @@ class HudSceneBuilderTest {
     }
 
     @Test
-    fun lostMakesPositionDependentPartsGray() {
-        val scene = build(state(wps = listOf(wp("WP1", 1_000.0)), next = 0, lost = true))
+    fun noFixMakesPositionDependentPartsGray() {
+        val scene = build(state(wps = listOf(wp("WP1", 1_000.0)), next = 0, noFix = true))
         assertEquals(Ink.STALE, scene.ownShip.ink)
         assertEquals(Ink.STALE, scene.wpMarks.single().ink)
         assertTrue(scene.segments.none { it.ink == Ink.ACTIVE || it.ink == Ink.OWNSHIP })

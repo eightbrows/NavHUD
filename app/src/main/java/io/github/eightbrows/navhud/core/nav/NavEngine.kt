@@ -62,7 +62,7 @@ class NavEngine(
         return recompute()
     }
 
-    /** 時刻だけを進める。Fix が来なくても POSITION LOST とカウントダウンが更新される。 */
+    /** 時刻だけを進める。Fix が来なくても NO FIX とカウントダウンが更新される。 */
     fun onTick(nowMs: Long): NavState {
         this.nowMs = nowMs
         return recompute()
@@ -139,9 +139,9 @@ class NavEngine(
     private fun recompute(): NavState {
         val now = nowMs
         val fix = lastFix
-        val lost = now == null || isPositionLost(now, fix?.timeMs, settings.lostTimeoutSec * 1000L)
-        // LOST 中の古い Fix の方位は「今使える GPS 方位」として扱わない
-        val heading = headingSelector.select(settings.sourceMode, fix?.takeIf { !lost }, compassDeg)
+        val noFix = now == null || isNoFix(now, fix?.timeMs, settings.noFixTimeoutSec * 1000L)
+        // NO FIX 中の古い Fix の方位は「今使える GPS 方位」として扱わない
+        val heading = headingSelector.select(settings.sourceMode, fix?.takeIf { !noFix }, compassDeg)
         val rate = rateTracker.rate(settings.rateWindowSec)
 
         val next = WaypointNav.nextIndex(waypoints)
@@ -153,7 +153,7 @@ class NavEngine(
         state = NavState(
             nowMs = now,
             fix = fix,
-            positionLost = lost,
+            noFix = noFix,
             heading = heading,
             sourceMode = settings.sourceMode,
             groundSpeedMps = fix?.speedMps,

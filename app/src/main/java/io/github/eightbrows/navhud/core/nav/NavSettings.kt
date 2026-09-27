@@ -28,8 +28,8 @@ data class NavSettings(
     val passHoldSec: Int = 5,
     /** RATE の窓 [秒]。10 / 30 / 60 から選ぶ（§5.3） */
     val rateWindowSec: Int = 60,
-    /** POSITION LOST とみなす秒数（§5.5） */
-    val lostTimeoutSec: Int = 10,
+    /** NO FIX とみなす秒数（§5.5） */
+    val noFixTimeoutSec: Int = 10,
     /** 標高オフセット [m]。標高 = 楕円体高 − これ（§6.8） */
     val altOffsetM: Double = 36.0,
     /** 表示モード（§6.1） */

@@ -25,11 +25,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.eightbrows.navhud.core.model.HeadingSrc
@@ -67,8 +70,8 @@ fun MainScreen(
     modifier: Modifier = Modifier,
 ) {
     val zone = ZoneId.systemDefault()
-    // LOST 中は最後の値をグレーで出し続ける
-    val valueColor = if (state.positionLost) HudColors.Stale else HudColors.Scale
+    // NO FIX 中は最後の値をグレーで出し続ける
+    val valueColor = if (state.noFix) HudColors.Stale else HudColors.Scale
     val buttonsRight = state.settings.wpButtonsSide == ScreenSide.RIGHT
     val showReplay = state.sourceKind == SourceKind.REPLAY
 
@@ -104,14 +107,28 @@ fun MainScreen(
                     Modifier.align(if (buttonsRight) Alignment.BottomEnd else Alignment.BottomStart).padding(8.dp),
                 )
             }
-            // 案内の枠はボタン列より前面に描く
+            // 案内の枠: ボタン列とリプレイ操作を除いた領域の中央に置き、その幅で折り返す
             val permissionMissing = state.sourceKind == SourceKind.LIVE &&
                 (live.permission == LocationPermission.DENIED || live.permission == LocationPermission.APPROXIMATE_ONLY)
-            val center = Modifier.align(Alignment.Center).padding(horizontal = 16.dp)
-            if (permissionMissing) {
-                PermissionBox(live.permission, onRequestPermission, onOpenAppSettings, onToggleSourceKind, center)
-            } else if (state.positionLost) {
-                LostBox(lostHint(state, replay, live), center)
+            if (permissionMissing || state.noFix) {
+                val column = if (wpUi.showButtons) WpColumnWidth else 0.dp
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .padding(
+                            start = if (buttonsRight) 0.dp else column,
+                            end = if (buttonsRight) column else 0.dp,
+                            bottom = if (showReplay && !wpUi.showButtons) ReplayBandHeight else 0.dp,
+                        )
+                        .padding(horizontal = 12.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (permissionMissing) {
+                        PermissionBox(live.permission, onRequestPermission, onOpenAppSettings, onToggleSourceKind)
+                    } else {
+                        NoFixBox(noFixHint(state, replay, live))
+                    }
+                }
             }
         }
         BottomPanel(state, zone, valueColor, onToggleSourceKind)
@@ -203,7 +220,8 @@ private fun TopBar(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        HudButton("SRC ${state.sourceMode.name}", onCycleSource)
+        // 方位ソースの選択（HYBRID / GPS / COMPASS）
+        HudButton("HDG ${state.sourceMode.name}", onCycleSource)
         // WP ボタン列の表示/非表示（出ているときは反転）
         HudButton("WP", onToggleWpButtons, inverted = showWpButtons)
         Spacer(Modifier.weight(1f))
@@ -232,12 +250,41 @@ private fun InfoStrip(state: NavState, zone: ZoneId, valueColor: Color, onCycleR
     }
 }
 
-/** SRC の表示。コンパスのときは CAL（精度が低い）・MAG（偏角が分からず磁北のまま）の印を付ける。 */
-private fun srcText(state: NavState): String {
-    val src = state.heading.src
+/** HDG の値の横に付ける、実際に使っている方位ソース（GPS / CMP）。方位がなければ空。 */
+private fun headingSourceLabel(state: NavState): String = when (state.heading.src) {
+    HeadingSrc.GPS -> "GPS"
+    HeadingSrc.COMPASS -> "CMP"
+    HeadingSrc.NONE -> ""
+}
+
+/** コンパスの印: MAG（偏角が分からず磁北のまま）、CAL（精度が低い）。コンパスを使っているときだけ。 */
+private fun compassMarks(state: NavState): String {
     val q = state.compass
-    if (src != HeadingSrc.COMPASS || q == null) return src.name
-    return listOfNotNull("COMPASS", "MAG".takeIf { q.declinationUnknown }, "CAL".takeIf { q.lowAccuracy }).joinToString(" ")
+    if (state.heading.src != HeadingSrc.COMPASS || q == null) return ""
+    return listOfNotNull("MAG".takeIf { q.declinationUnknown }, "CAL".takeIf { q.lowAccuracy }).joinToString(" ")
+}
+
+/** HDG 欄: 値の横に実際のソース（小さく）と、コンパスの印（黄色）。 */
+@Composable
+private fun RowScope.HeadingCell(state: NavState, valueColor: Color, weight: Float) {
+    val src = headingSourceLabel(state)
+    val marks = compassMarks(state)
+    val small = SpanStyle(fontSize = 11.sp)
+    Column(Modifier.weight(weight).padding(vertical = 2.dp)) {
+        Text("HDG", style = Caption, maxLines = 1)
+        Text(
+            buildAnnotatedString {
+                append(HudFormat.bearing(state.heading.deg))
+                if (src.isNotEmpty()) withStyle(small) { append(" $src") }
+                if (marks.isNotEmpty()) {
+                    // コンパス自体の状態なので、NO FIX 中も黄色のまま
+                    withStyle(small.copy(color = HudColors.Caution)) { append(" $marks") }
+                }
+            },
+            style = Value.copy(color = valueColor),
+            maxLines = 1,
+        )
+    }
 }
 
 @Composable
@@ -257,13 +304,11 @@ private fun BottomPanel(state: NavState, zone: ZoneId, valueColor: Color, onTogg
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         Row {
-            Cell("HDG", HudFormat.bearing(state.heading.deg), valueColor)
+            HeadingCell(state, valueColor, weight = 2f)
             Cell("GS", HudFormat.speedKmh(state.groundSpeedMps), valueColor)
-            val marked = state.compass?.let { it.lowAccuracy || it.declinationUnknown } == true && state.heading.src == HeadingSrc.COMPASS
-            Cell("SRC", srcText(state), if (marked && !state.positionLost) HudColors.Caution else valueColor)
         }
         Row {
-            Cell("NEXT ${next?.name ?: ""}".trim(), nextText(state), if (next != null && !state.positionLost) HudColors.Active else valueColor, weight = 2f)
+            Cell("NEXT ${next?.name ?: ""}".trim(), nextText(state), if (next != null && !state.noFix) HudColors.Active else valueColor, weight = 2f)
             Cell("ETA", HudFormat.time(state.etaMs, zone), valueColor)
         }
         Row {
@@ -271,7 +316,7 @@ private fun BottomPanel(state: NavState, zone: ZoneId, valueColor: Color, onTogg
             Cell("DDL", HudFormat.countdown(deadline), deadlineColor)
             // タップで LIVE ⇔ REPLAY
             Cell(
-                "SOURCE ⇄",
+                "INPUT ⇄",
                 if (state.sourceKind == SourceKind.LIVE) "LIVE" else "REPLAY " + if (state.playing) "▶" else "❚❚",
                 HudColors.Scale,
                 Modifier
@@ -297,7 +342,7 @@ private fun RowScope.Cell(caption: String, value: String, color: Color, modifier
 }
 
 @Composable
-private fun LostBox(hint: String?, modifier: Modifier = Modifier) {
+private fun NoFixBox(hint: String?, modifier: Modifier = Modifier) {
     Column(
         modifier
             .background(HudColors.Background)
@@ -305,13 +350,13 @@ private fun LostBox(hint: String?, modifier: Modifier = Modifier) {
             .padding(horizontal = 18.dp, vertical = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text("POSITION LOST", style = Value.copy(color = HudColors.Warning, fontWeight = FontWeight.Bold, fontSize = 18.sp))
+        Text("NO FIX", style = Value.copy(color = HudColors.Warning, fontWeight = FontWeight.Bold, fontSize = 18.sp))
         hint?.let { Text(it, style = Caption.copy(color = HudColors.Caution), textAlign = TextAlign.Center) }
     }
 }
 
-/** POSITION LOST の枠に添える案内。 */
-private fun lostHint(state: NavState, replay: ReplayUiState, live: LiveUiState): String? =
+/** NO FIX の枠に添える案内。 */
+private fun noFixHint(state: NavState, replay: ReplayUiState, live: LiveUiState): String? =
     if (state.sourceKind == SourceKind.LIVE) {
         when {
             live.permission == LocationPermission.UNKNOWN -> "位置情報の許可を待っています"

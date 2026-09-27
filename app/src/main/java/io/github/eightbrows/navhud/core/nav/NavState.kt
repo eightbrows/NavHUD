@@ -14,7 +14,7 @@ data class NavState(
     val nowMs: Long? = null,
     /** 最後に受け取った Fix */
     val fix: Fix? = null,
-    val positionLost: Boolean = true,
+    val noFix: Boolean = true,
     val heading: Heading = Heading.NONE,
     val sourceMode: SourceMode = SourceMode.HYBRID,
     /** 対地速度 [m/s] */

@@ -29,7 +29,7 @@ import java.util.Locale
 import kotlin.math.abs
 
 private val Mono = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 14.sp, color = Color(0xFFE0E0E0))
-private val Lost = Mono.copy(color = Color(0xFF808080))
+private val Stale = Mono.copy(color = Color(0xFF808080))
 private val Warn = Mono.copy(color = Color(0xFFFFB300))
 private val TimeFmt: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss")
 
@@ -48,8 +48,8 @@ fun DebugScreen(
     modifier: Modifier = Modifier,
 ) {
     val zone = ZoneId.systemDefault()
-    // LOST 中は最後の値をグレーで出し続ける（§6.1）
-    val value = if (state.positionLost) Lost else Mono
+    // NO FIX 中は最後の値をグレーで出し続ける（§6.1）
+    val value = if (state.noFix) Stale else Mono
 
     Column(
         modifier
@@ -89,9 +89,9 @@ fun DebugScreen(
         if (replay.loading) Line("", "読み込み中…", Warn)
         replay.message?.let { Line("", it, Warn) }
 
-        Line("SRC", "${state.sourceKind}  ${if (state.playing) "PLAY" else "PAUSE"}", Mono)
+        Line("INPUT", "${state.sourceKind}  ${if (state.playing) "PLAY" else "PAUSE"}", Mono)
         Line("TIME", state.nowMs?.let { local(it, zone) } ?: "---", Mono)
-        if (state.positionLost) Line("", "POSITION LOST", Warn)
+        if (state.noFix) Line("", "NO FIX", Warn)
         val fix = state.fix
         Line("FIX", fix?.let { local(it.timeMs, zone) } ?: "---", value)
         Line("LAT/LON", fix?.let { "%.5f, %.5f".format(Locale.US, it.lat, it.lon) } ?: "---", value)

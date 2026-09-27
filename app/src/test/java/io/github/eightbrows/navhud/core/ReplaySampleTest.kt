@@ -43,10 +43,10 @@ class ReplaySampleTest {
             return track!!
         }
 
-    private fun engine() = NavEngine(NavSettings(lostTimeoutSec = 10), JST, SourceKind.REPLAY)
+    private fun engine() = NavEngine(NavSettings(noFixTimeoutSec = 10), JST, SourceKind.REPLAY)
 
     @Test
-    fun positionLostDuringLongGap() {
+    fun noFixDuringLongGap() {
         // 62秒欠損（01:06:52Z → 01:07:54Z）の前後だけをリプレイする
         val part = fixes.filter { it.timeMs in ms("2026-08-14T01:06:00Z")..ms("2026-08-14T01:09:00Z") }
         val h = ReplayHarness(part, engine())
@@ -54,36 +54,36 @@ class ReplaySampleTest {
 
         val gapStart = ms("2026-08-14T01:06:52Z")
         val atGapStart = h.advanceTo(gapStart)
-        assertFalse(atGapStart.positionLost)
+        assertFalse(atGapStart.noFix)
         assertEquals(gapStart, atGapStart.fix!!.timeMs)
 
-        // 欠損開始からちょうど 10 秒は LOST ではない、それを超えたら LOST
-        assertFalse(h.advanceTo(gapStart + 10_000).positionLost)
-        val lost = h.advanceTo(gapStart + 10_001)
-        assertTrue(lost.positionLost)
-        assertEquals("欠損中は Fix が来ない", gapStart, lost.fix!!.timeMs)
-        assertEquals("時計は進む", gapStart + 10_001, lost.nowMs)
+        // 欠損開始からちょうど 10 秒は NO FIX ではない、それを超えたら NO FIX
+        assertFalse(h.advanceTo(gapStart + 10_000).noFix)
+        val stalled = h.advanceTo(gapStart + 10_001)
+        assertTrue(stalled.noFix)
+        assertEquals("欠損中は Fix が来ない", gapStart, stalled.fix!!.timeMs)
+        assertEquals("時計は進む", gapStart + 10_001, stalled.nowMs)
 
-        // 欠損中も時計は進み、LOST のまま
+        // 欠損中も時計は進み、NO FIX のまま
         val beforeFix = h.advanceTo(ms("2026-08-14T01:07:53.900Z"))
-        assertTrue(beforeFix.positionLost)
+        assertTrue(beforeFix.noFix)
         assertEquals(gapStart, beforeFix.fix!!.timeMs)
 
         // 01:07:54Z の Fix で戻る
         val back = h.advanceTo(ms("2026-08-14T01:07:54Z"))
-        assertFalse(back.positionLost)
+        assertFalse(back.noFix)
         assertEquals(ms("2026-08-14T01:07:54Z"), back.fix!!.timeMs)
     }
 
     @Test
-    fun pausedReplayDoesNotGoLost() {
+    fun pausedReplayDoesNotGoNoFix() {
         val part = fixes.filter { it.timeMs in ms("2026-08-14T01:06:00Z")..ms("2026-08-14T01:09:00Z") }
         val h = ReplayHarness(part, engine())
         h.play()
         h.advanceTo(ms("2026-08-14T01:06:30Z"))
         h.pause()
         val paused = h.advanceBy(60_000)
-        assertFalse(paused.positionLost)
+        assertFalse(paused.noFix)
         assertEquals(ms("2026-08-14T01:06:30Z"), paused.nowMs)
         assertFalse(paused.playing)
     }

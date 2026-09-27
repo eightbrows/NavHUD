@@ -12,7 +12,7 @@
 - `core/model` データ型（Fix, Waypoint, enum, PositionSource / HeadingSource）
 - `core/io` ファイルの読み込み（トラックCSV）
 - `core/geo` 地理計算
-- `core/nav` ナビ計算（RATE、方位選択、WP、ETA、カウントダウン、POSITION LOST、欠損検出）
+- `core/nav` ナビ計算（RATE、方位選択、WP、ETA、カウントダウン、NO FIX、欠損検出）
 - 画面は Jetpack Compose の Canvas で描く。画面は `NavState`（計算済みの値）だけを見る。
 
 ## サンプルデータ（track.csv）
