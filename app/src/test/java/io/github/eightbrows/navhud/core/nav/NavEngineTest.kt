@@ -38,13 +38,17 @@ class NavEngineTest {
     @Test
     fun defaultSettings() {
         val s = NavSettings()
-        assertEquals(SourceMode.HYBRID, s.sourceMode)
-        assertEquals(1.4f, s.minGpsSpeedMps)
+        assertEquals(SourceMode.GPS, s.sourceMode)
+        assertEquals(2.0f, s.holdEnterSpeedMps)
+        assertEquals(3.0f, s.holdExitSpeedMps)
         assertEquals(15f, s.maxGpsAccM)
+        assertEquals(20f, s.maxGpsBearingAccDeg)
         assertEquals(10, s.noFixTimeoutSec)
         assertEquals(36.0, s.altOffsetM, 0.0)
-        assertEquals(2_000.0, s.arcRangeM, 0.0)
-        assertEquals(1_000.0, s.ringIntervalM, 0.0)
+        assertEquals(listOf(0.5, 1.0, 2.0, 5.0, 10.0), s.rangeStepsKm)
+        assertEquals(1.0, s.initialRangeKm, 0.0)
+        assertTrue(s.autoRange)
+        assertTrue(s.rangeStepsKm.all { it in RangeAuto.ALL_STEPS_KM })
         assertTrue(s.reachRadiusM in NavSettings.REACH_RADIUS_CHOICES_M)
         assertTrue(s.rateWindowSec in NavSettings.RATE_WINDOW_CHOICES_SEC)
     }
@@ -104,6 +108,20 @@ class NavEngineTest {
     }
 
     @Test
+    fun etaFromShortHistory() {
+        val e = engine()
+        e.setWaypoints(listOf(Waypoint("N", 33.0 + 2000 / mPerDegLat, 133.0)))
+        // 走り始めて 9 秒: RATE（60 秒）はまだなく、ETA も出さない
+        for (s in 0..9) e.onFix(fix(t0 + s * 1000L, lat = 33.0 + 10.0 * s / mPerDegLat), t0 + s * 1000L)
+        assertNull(e.state.rate)
+        assertNull(e.state.etaMs)
+        // 10 秒分たまれば、その平均速度（10 m/s）で ETA。残り 1900m → 190 秒後
+        val s = e.onFix(fix(t0 + 10_000, lat = 33.0 + 100.0 / mPerDegLat), t0 + 10_000)
+        assertNull(s.rate)
+        assertEquals((t0 + 10_000 + 190_000).toDouble(), s.etaMs!!.toDouble(), 100.0)
+    }
+
+    @Test
     fun autoReachAdvancesNextWaypoint() {
         val e = engine(NavSettings(reachRadiusM = 50.0))
         e.setWaypoints(listOf(Waypoint("A", 33.0, 133.0), Waypoint("B", 33.1, 133.0)))
@@ -126,7 +144,7 @@ class NavEngineTest {
 
     @Test
     fun hybridUsesCompassWhenNoFixOrStopped() {
-        val e = engine()
+        val e = engine(NavSettings(sourceMode = SourceMode.HYBRID))
         e.onCompass(45f, t0)
         assertEquals(Heading(90f, HeadingSrc.GPS), e.onFix(fix(t0, bearing = 90f), t0).heading)
         // 欠損中は古い Fix の方位を使わない
@@ -191,7 +209,7 @@ class NavEngineTest {
 
     @Test
     fun compassQualityIsExposedOnlyWithACompassValue() {
-        val e = engine()
+        val e = engine(NavSettings(sourceMode = SourceMode.HYBRID))
         assertNull(e.state.compass)
         val q = io.github.eightbrows.navhud.core.sensor.CompassQuality(lowAccuracy = true, declinationUnknown = true)
         val s = e.onCompass(45f, t0, q)
@@ -201,6 +219,30 @@ class NavEngineTest {
         assertNull(e.onCompass(null, null).compass)
         // 時刻を渡さなければ時刻は進めない
         assertEquals(t0, e.state.nowMs)
+    }
+
+    @Test
+    fun rangeFollowsNextWaypointAndManualZoomTurnsAutoOff() {
+        val e = engine()
+        assertEquals(1_000.0, e.state.rangeM, 0.0)
+        assertTrue(e.state.rangeAuto)
+        // 次の WP が 3.9km 先 → すぐ 5km に広げる
+        e.setWaypoints(listOf(Waypoint("A", 33.0 + 3_900 / mPerDegLat, 133.0)))
+        assertEquals(5_000.0, e.onFix(fix(t0), t0).rangeM, 0.0)
+        // ＋ で 2km、AUTO は OFF
+        val z = e.zoomIn()
+        assertEquals(2_000.0, z.rangeM, 0.0)
+        assertFalse(z.rangeAuto)
+        // AUTO を戻すと、また 5km
+        assertEquals(5_000.0, e.toggleAutoRange().rangeM, 0.0)
+    }
+
+    @Test
+    fun heldGpsHeadingAfterStopping() {
+        val e = engine()
+        e.onFix(fix(t0, speed = 10f, bearing = 90f), t0)
+        val s = e.onFix(fix(t0 + 1_000, speed = 0f, bearing = null), t0 + 1_000)
+        assertEquals(Heading(90f, HeadingSrc.GPS, held = true), s.heading)
     }
 
     @Test

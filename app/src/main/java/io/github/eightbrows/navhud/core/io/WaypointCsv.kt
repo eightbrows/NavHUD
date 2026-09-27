@@ -16,7 +16,7 @@ data class WaypointParseResult(val waypoints: List<Waypoint>, val skippedLines: 
  */
 object WaypointCsv {
 
-    val HEADER = listOf("lat", "lon", "ele", "name", "target_time", "deadline_time", "enabled")
+    val HEADER = listOf("lat", "lon", "ele", "name", "target_time", "deadline_time", "enabled", "radius")
 
     private const val BOM = '﻿'
     private val UTF8_BOM = byteArrayOf(0xEF.toByte(), 0xBB.toByte(), 0xBF.toByte())
@@ -55,6 +55,7 @@ object WaypointCsv {
         val iTarget = col["target_time"]
         val iDeadline = col["deadline_time"]
         val iEnabled = col["enabled"]
+        val iRadius = col["radius"]
 
         val wps = ArrayList<Waypoint>()
         var skipped = 0
@@ -71,6 +72,8 @@ object WaypointCsv {
                     "0", "false" -> false
                     else -> return@run null
                 }
+                // 到達半径: 空欄なら全体の設定。0 以下・数値でなければ読めない行
+                val radius = raw(iRadius).trim().let { if (it.isEmpty()) null else it.toDoubleOrNull()?.takeIf { r -> r.isFinite() && r > 0 } ?: return@run null }
                 Waypoint(
                     name = raw(iName).ifBlank { "WP${wps.size + 1}" },
                     lat = lat,
@@ -79,6 +82,7 @@ object WaypointCsv {
                     targetTime = target,
                     deadlineTime = deadline,
                     enabled = enabled,
+                    radiusM = radius,
                 )
             }
             if (wp == null) skipped++ else wps += wp
@@ -100,6 +104,7 @@ object WaypointCsv {
                 w.targetTime?.let(TimeText::format).orEmpty(),
                 w.deadlineTime?.let(TimeText::format).orEmpty(),
                 if (w.enabled) "1" else "0",
+                w.radiusM?.let(::number).orEmpty(),
             )
             append(fields.joinToString(",") { quote(it) }).append("\r\n")
         }

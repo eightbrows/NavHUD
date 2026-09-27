@@ -29,13 +29,23 @@ class WaypointNavTest {
     fun autoReachWithinRadius() {
         // WP3 の約33m南
         val lat = 33.42 - 33.0 / 111_195.0
-        val reached = WaypointNav.autoReach(wps, lat, 133.00, radiusM = 50.0)
+        val reached = WaypointNav.autoReach(wps, lat, 133.00, defaultRadiusM = 50.0)
         assertEquals(true, reached[2].reached)
         assertEquals(3, WaypointNav.nextIndex(reached))
 
-        val notYet = WaypointNav.autoReach(wps, lat, 133.00, radiusM = 20.0)
+        val notYet = WaypointNav.autoReach(wps, lat, 133.00, defaultRadiusM = 20.0)
         assertEquals(wps, notYet)
         assertEquals(2, WaypointNav.nextIndex(notYet))
+    }
+
+    @Test
+    fun perWaypointRadiusOverridesDefault() {
+        // WP3 の約33m南。WP3 だけ半径 20m → 全体が 50m でも到達しない。半径 40m なら到達
+        val lat = 33.42 - 33.0 / 111_195.0
+        val tight = wps.toMutableList().also { it[2] = it[2].copy(radiusM = 20.0) }
+        assertEquals(tight, WaypointNav.autoReach(tight, lat, 133.00, defaultRadiusM = 50.0))
+        val wide = wps.toMutableList().also { it[2] = it[2].copy(radiusM = 40.0) }
+        assertEquals(true, WaypointNav.autoReach(wide, lat, 133.00, defaultRadiusM = 20.0)[2].reached)
     }
 
     @Test

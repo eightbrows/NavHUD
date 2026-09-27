@@ -45,10 +45,9 @@ import io.github.eightbrows.navhud.core.io.CoordinateText
 import io.github.eightbrows.navhud.core.io.TimeText
 import io.github.eightbrows.navhud.core.model.Waypoint
 import io.github.eightbrows.navhud.core.nav.NavState
-import io.github.eightbrows.navhud.core.nav.ScreenSide
 
-private val Body = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 14.sp, color = HudColors.Scale)
-private val Small = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 12.sp, color = HudColors.ScaleDim)
+private val Body get() = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 14.sp, color = HudColors.Scale)
+private val Small get() = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 12.sp, color = HudColors.ScaleDim)
 
 /**
  * WP設定画面（§6.5）。≡ のドラッグで並べ替え、有効/無効スイッチ、タップで編集。
@@ -68,7 +67,6 @@ fun WaypointSettingsScreen(
     onPaste: () -> Unit,
     onImport: () -> Unit,
     onExport: () -> Unit,
-    onToggleButtonsSide: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val wps = state.waypoints
@@ -91,10 +89,6 @@ fun WaypointSettingsScreen(
             HudButton("貼り付け", onPaste)
             HudButton("インポート", onImport)
             HudButton("エクスポート", onExport, enabled = wps.isNotEmpty())
-            HudButton(
-                "ボタン列: " + if (state.settings.wpButtonsSide == ScreenSide.RIGHT) "右" else "左",
-                onToggleButtonsSide,
-            )
         }
         Text(
             "リスト: " + (wpUi.listName ?: "なし") + if (wpUi.dirty) "（未エクスポートの変更あり）" else "",
@@ -238,6 +232,7 @@ private fun ReorderableWaypointList(
                         wp.eleM?.let { "標高 %.0f m".format(it) },
                         wp.targetTime?.let { "目標 ${TimeText.format(it)}" },
                         wp.deadlineTime?.let { "締切 ${TimeText.format(it)}" },
+                        wp.radiusM?.let { "半径 %.0f m".format(it) },
                     )
                     if (details.isNotEmpty()) Text(details.joinToString("  "), style = Small, maxLines = 1)
                 }
@@ -276,6 +271,7 @@ private fun WaypointEditDialog(
     var ele by remember { mutableStateOf(initial.eleM?.let { java.math.BigDecimal.valueOf(it).stripTrailingZeros().toPlainString() }.orEmpty()) }
     var target by remember { mutableStateOf(initial.targetTime?.let(TimeText::format).orEmpty()) }
     var deadline by remember { mutableStateOf(initial.deadlineTime?.let(TimeText::format).orEmpty()) }
+    var radius by remember { mutableStateOf(initial.radiusM?.let { java.math.BigDecimal.valueOf(it).stripTrailingZeros().toPlainString() }.orEmpty()) }
     var error by remember { mutableStateOf<String?>(null) }
 
     fun save() {
@@ -287,6 +283,8 @@ private fun WaypointEditDialog(
             ?: return run { error = "目標時刻は 9:30 や 09:30:00 の形で入力してください（空欄可）" }
         val d = if (deadline.isBlank()) null else TimeText.parse(deadline)
             ?: return run { error = "締切時刻は 9:30 や 09:30:00 の形で入力してください（空欄可）" }
+        val r = if (radius.isBlank()) null else radius.trim().toDoubleOrNull()?.takeIf { it > 0 }
+            ?: return run { error = "到達半径は 0 より大きい数値で入力してください（空欄で全体の設定）" }
         onSave(
             initial.copy(
                 name = name.trim().ifEmpty { initial.name },
@@ -295,6 +293,7 @@ private fun WaypointEditDialog(
                 eleM = eleM,
                 targetTime = t,
                 deadlineTime = d,
+                radiusM = r,
             ),
         )
     }
@@ -319,6 +318,12 @@ private fun WaypointEditDialog(
                 )
                 OutlinedTextField(target, { target = it }, label = { Text("目標時刻 H:mm（空欄可）") }, singleLine = true)
                 OutlinedTextField(deadline, { deadline = it }, label = { Text("締切時刻 H:mm（空欄可）") }, singleLine = true)
+                OutlinedTextField(
+                    radius, { radius = it },
+                    label = { Text("到達半径 m（空欄で全体の設定）") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                )
                 error?.let { Text(it, color = HudColors.Warning, fontSize = 13.sp) }
             }
         },

@@ -38,8 +38,8 @@ data class Arc(val center: P, val radius: Float, val startDeg: Float, val sweepD
 /** 文字。at は文字の中心。 */
 data class Label(val text: String, val at: P, val ink: Ink, val small: Boolean = false)
 
-/** 画面内の WP。 */
-data class WpMark(val at: P, val name: String, val ink: Ink, val dashed: Boolean)
+/** 画面内の WP。nameAt は名前の中心（自機の記号と重なるなら null で、名前を描かない）。 */
+data class WpMark(val at: P, val name: String, val ink: Ink, val dashed: Boolean, val nameAt: P? = null)
 
 /** 画面外の WP を示す、表示枠の縁の矢印。angleDeg は矢印の向き（上が 0、時計回り）。 */
 data class EdgeArrow(val at: P, val angleDeg: Float, val text: String, val textAt: P, val ink: Ink)
@@ -69,17 +69,29 @@ data class HudMetrics(
     val labelGap: Float = 12f,
     val edgeInset: Float = 22f,
     val arrowTextGap: Float = 34f,
+    /** ARC の自機の位置（下端からの距離）: 標準 */
     val arcOriginFromBottom: Float = 90f,
+    /** ARC の自機の位置（下端からの距離）: 高め。後方の WP・矢印に余裕を持たせる */
+    val arcOriginFromBottomHigh: Float = 150f,
     val northUpMargin: Float = 48f,
     val pointerSize: Float = 14f,
     /** 矢印の文字の1行の高さ（重なったときにずらす量） */
     val arrowLabelLine: Float = 16f,
     /** 矢印の文字の1文字の幅の目安（等幅 11sp） */
     val labelCharWidth: Float = 7f,
+    /** AUTO 縮尺: 次の WP を、矢印の枠からさらにこれだけ内側に収める（名前の文字の分） */
+    val fitMargin: Float = 16f,
+    /** 自機の記号の大きさの目安（半幅・半高）。WP の名前・矢印の文字はここを避ける */
+    val ownShipClear: Float = 16f,
+    /** WP の印の中心から名前の中心まで（上、入らなければ下） */
+    val wpNameOffset: Float = 18f,
+    /** 方位目盛りの文字の大きさの目安（矢印の文字を避けるときに使う）: 半幅・半高 */
+    val compassLabelHalf: Float = 10f,
 ) {
     fun scaled(k: Float) = HudMetrics(
         tickMinor * k, tickMajor * k, labelGap * k, edgeInset * k, arrowTextGap * k,
-        arcOriginFromBottom * k, northUpMargin * k, pointerSize * k, arrowLabelLine * k, labelCharWidth * k,
+        arcOriginFromBottom * k, arcOriginFromBottomHigh * k, northUpMargin * k, pointerSize * k,
+        arrowLabelLine * k, labelCharWidth * k, fitMargin * k, ownShipClear * k, wpNameOffset * k, compassLabelHalf * k,
     )
 }
 

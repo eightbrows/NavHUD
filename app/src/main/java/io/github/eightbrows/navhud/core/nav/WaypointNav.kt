@@ -20,11 +20,11 @@ object WaypointNav {
     fun nextIndex(wps: List<Waypoint>): Int? =
         wps.indexOfFirst { it.enabled && !it.reached }.takeIf { it >= 0 }
 
-    /** 次の目標との距離が radiusM 以下なら reached にする。 */
-    fun autoReach(wps: List<Waypoint>, lat: Double, lon: Double, radiusM: Double): List<Waypoint> {
+    /** 次の目標との距離が到達半径（WP ごとの値、なければ defaultRadiusM）以下なら reached にする。 */
+    fun autoReach(wps: List<Waypoint>, lat: Double, lon: Double, defaultRadiusM: Double): List<Waypoint> {
         val i = nextIndex(wps) ?: return wps
         val wp = wps[i]
-        if (Geo.distanceM(lat, lon, wp.lat, wp.lon) > radiusM) return wps
+        if (Geo.distanceM(lat, lon, wp.lat, wp.lon) > (wp.radiusM ?: defaultRadiusM)) return wps
         return wps.toMutableList().also { it[i] = wp.copy(reached = true) }
     }
 

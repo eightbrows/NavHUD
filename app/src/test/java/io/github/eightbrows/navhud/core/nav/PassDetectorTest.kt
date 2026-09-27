@@ -38,6 +38,16 @@ class PassDetectorTest {
     }
 
     @Test
+    fun waypointRadiusWidensMaxApproach() {
+        // 道から 400m の WP: 全体の上限 300m では通過しない。WP の半径 200m（× 3 = 600m）なら通過
+        assertEquals(null, passTime(wp(1_000.0, 400.0), straight))
+        assertEquals(true, passTime(wp(1_000.0, 400.0).copy(radiusM = 200.0), straight) != null)
+        // 半径が小さければ全体の上限のまま
+        assertEquals(300.0, PassDetector.maxApproachM(wp(0.0, 0.0).copy(radiusM = 50.0), s), 0.0)
+        assertEquals(600.0, PassDetector.maxApproachM(wp(0.0, 0.0).copy(radiusM = 200.0), s), 0.0)
+    }
+
+    @Test
     fun farWaypointIsNotPassed() {
         assertEquals(null, passTime(wp(1_000.0, 400.0), straight))
     }

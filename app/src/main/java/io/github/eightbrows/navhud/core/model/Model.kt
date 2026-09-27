@@ -14,6 +14,8 @@ data class Fix(
     /** 進行方位（真北, 0..360）。null = 方位なし。 */
     val bearingDeg: Float? = null,
     val horizAccM: Float? = null,
+    /** 方位の精度 [°]。端末が出さなければ null */
+    val bearingAccDeg: Float? = null,
 )
 
 data class Waypoint(
@@ -25,6 +27,8 @@ data class Waypoint(
     val deadlineTime: LocalTime? = null,
     val enabled: Boolean = true,
     val reached: Boolean = false,
+    /** この WP の到達半径 [m]。null なら全体の設定（NavSettings.reachRadiusM） */
+    val radiusM: Double? = null,
 )
 
 /** ユーザーが選ぶ方位ソース。 */

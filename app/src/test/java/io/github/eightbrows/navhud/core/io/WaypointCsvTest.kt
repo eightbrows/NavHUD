@@ -21,6 +21,7 @@ class WaypointCsvTest {
             Waypoint("A, \"B\" 地点", -33.8688, 151.2093, null, LocalTime.of(9, 5, 30), null, enabled = false),
             Waypoint("  前後に空白  ", 0.00001, -0.5, -12.5),
             Waypoint("改行\n入り", 89.999999, 179.9999999, 1234.0),
+            Waypoint("半径つき", 34.0, 135.0, radiusM = 250.0),
         )
         val back = WaypointCsv.parse(WaypointCsv.encode(wps))
         assertEquals(0, back.skippedLines)
@@ -40,7 +41,7 @@ class WaypointCsvTest {
         assertArrayEquals(byteArrayOf(0xEF.toByte(), 0xBB.toByte(), 0xBF.toByte()), bytes.copyOfRange(0, 3))
         val text = String(bytes, 3, bytes.size - 3, Charsets.UTF_8)
         assertEquals(
-            "lat,lon,ele,name,target_time,deadline_time,enabled\r\n34.6937,135.5023,15,大阪駅,09:30,,1\r\n",
+            "lat,lon,ele,name,target_time,deadline_time,enabled,radius\r\n34.6937,135.5023,15,大阪駅,09:30,,1,\r\n",
             text,
         )
         // 改行はすべて CRLF
@@ -135,6 +136,15 @@ class WaypointCsvTest {
         val r = WaypointCsv.parse(csv)
         assertEquals(6, r.skippedLines)
         assertEquals("読める", r.waypoints.single().name)
+    }
+
+    @Test
+    fun radiusColumnIsOptional() {
+        val r = WaypointCsv.parse("lat,lon,name,radius\n1,1,a,200\n1,1,b,\n1,1,c, 50.5 \n1,1,d,0\n1,1,e,abc\n")
+        assertEquals(2, r.skippedLines) // 0 と abc は読めない
+        assertEquals(listOf(200.0, null, 50.5), r.waypoints.map { it.radiusM })
+        // 列がなければ全体の設定（null）
+        assertNull(WaypointCsv.parse("lat,lon\n1,1\n").waypoints.single().radiusM)
     }
 
     @Test

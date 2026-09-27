@@ -41,15 +41,17 @@ import io.github.eightbrows.navhud.source.TrackDocumentStore
 import io.github.eightbrows.navhud.source.WaypointDocumentStore
 import io.github.eightbrows.navhud.ui.DebugScreen
 import io.github.eightbrows.navhud.ui.HudColors
+import io.github.eightbrows.navhud.ui.HudPalette
 import io.github.eightbrows.navhud.ui.LocationPermission
 import io.github.eightbrows.navhud.ui.MainScreen
 import io.github.eightbrows.navhud.ui.NavViewModel
+import io.github.eightbrows.navhud.ui.SettingsScreen
 import io.github.eightbrows.navhud.ui.WaypointSettingsScreen
 import io.github.eightbrows.navhud.ui.WaypointUiState
 import io.github.eightbrows.navhud.ui.theme.NavHUDTheme
 
 /** 画面の切り替え（ライブラリは使わない）。 */
-private enum class Screen { MAIN, WAYPOINTS, DEBUG }
+private enum class Screen { MAIN, WAYPOINTS, SETTINGS, DEBUG }
 
 class MainActivity : ComponentActivity() {
 
@@ -98,6 +100,9 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(Unit) {
                     if (state.sourceKind == SourceKind.LIVE && live.permission == LocationPermission.UNKNOWN) onRequestPermission()
                 }
+                // 色テーマ（基本色だけ切り替える）
+                val theme = state.settings.colorTheme
+                LaunchedEffect(theme) { HudColors.palette = HudPalette.of(theme) }
                 // 画面常時点灯（§6.8）
                 val keepScreenOn = state.settings.keepScreenOn
                 DisposableEffect(keepScreenOn) {
@@ -132,6 +137,11 @@ class MainActivity : ComponentActivity() {
                             onToggleSourceKind = vm::toggleSourceKind,
                             onRequestPermission = onRequestPermission,
                             onOpenAppSettings = ::openAppSettings,
+                            onZoomIn = vm::zoomIn,
+                            onZoomOut = vm::zoomOut,
+                            onToggleAutoRange = vm::toggleAutoRange,
+                            onViewport = vm::setViewport,
+                            onOpenSettings = { screen = Screen.SETTINGS },
                             modifier = modifier,
                         )
                         Screen.WAYPOINTS -> WaypointSettingsScreen(
@@ -147,7 +157,15 @@ class MainActivity : ComponentActivity() {
                             onPaste = { vm.pasteCoordinates(clipboardText(context)) },
                             onImport = onImport,
                             onExport = { exportWaypoints.launch(WaypointDocumentStore.EXPORT_DEFAULT_NAME) },
-                            onToggleButtonsSide = vm::toggleWaypointButtonsSide,
+                            modifier = modifier,
+                        )
+                        Screen.SETTINGS -> SettingsScreen(
+                            settings = state.settings,
+                            input = state.sourceKind,
+                            onChange = vm::updateSettings,
+                            onInput = vm::setSourceKind,
+                            onReset = vm::resetSettings,
+                            onBack = { screen = Screen.MAIN },
                             modifier = modifier,
                         )
                         Screen.DEBUG -> DebugScreen(

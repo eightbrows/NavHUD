@@ -23,7 +23,8 @@ class NavEngine(
     var settings: NavSettings = settings
         private set
 
-    private val headingSelector = HeadingSelector(settings.minGpsSpeedMps, settings.maxGpsAccM)
+    private val headingSelector = HeadingSelector()
+    private val rangeSelector = RangeSelector(settings.rangeStepsKm, settings.initialRangeKm, settings.autoRange)
     private val rateTracker = RateTracker(maxWindowSec = NavSettings.RATE_WINDOW_CHOICES_SEC.max())
     private val passDetector = PassDetector()
 
@@ -34,11 +35,14 @@ class NavEngine(
     private var nowMs: Long? = null
     private var sourceKind = sourceKind
     private var playing = sourceKind == SourceKind.LIVE
+    /** 画面の表示枠（AUTO 縮尺の判定用）。まだ分からなければ距離で判定する。 */
+    private var rangeFit: RangeFit? = null
 
     var state: NavState = NavState()
         private set
 
     init {
+        applySettings(settings)
         recompute()
     }
 
@@ -46,6 +50,7 @@ class NavEngine(
         // リプレイの巻き戻し・別ファイルなどで時刻が戻ったら、位置に関する履歴を捨てる
         lastFix?.let { if (fix.timeMs < it.timeMs) clearHistory() }
         lastFix = fix
+        headingSelector.update(fix)
         rateTracker.add(fix)
         waypoints = WaypointNav.autoReach(waypoints, fix.lat, fix.lon, settings.reachRadiusM)
         checkPass(fix)
@@ -70,8 +75,40 @@ class NavEngine(
 
     fun updateSettings(s: NavSettings): NavState {
         settings = s
-        headingSelector.minSpeedMps = s.minGpsSpeedMps
+        applySettings(s)
+        return recompute()
+    }
+
+    private fun applySettings(s: NavSettings) {
+        headingSelector.holdEnterSpeedMps = s.holdEnterSpeedMps
+        headingSelector.holdExitSpeedMps = s.holdExitSpeedMps
         headingSelector.maxAccM = s.maxGpsAccM
+        headingSelector.maxBearingAccDeg = s.maxGpsBearingAccDeg
+        rangeSelector.setSteps(s.rangeStepsKm)
+        rangeSelector.zoomInDelayMs = s.autoRangeZoomInDelaySec * 1000L
+    }
+
+    /** 画面の大きさ・帯が変わったとき（AUTO 縮尺は、次の WP がこの表示枠に収まる最小の段を選ぶ）。 */
+    fun setViewport(fit: RangeFit?): NavState {
+        rangeFit = fit
+        return recompute()
+    }
+
+    /** 縮尺の ＋（1段狭く）。AUTO は OFF。 */
+    fun zoomIn(): NavState {
+        rangeSelector.zoomIn()
+        return recompute()
+    }
+
+    /** 縮尺の −（1段広く）。AUTO は OFF。 */
+    fun zoomOut(): NavState {
+        rangeSelector.zoomOut()
+        return recompute()
+    }
+
+    /** 縮尺の AUTO の ON / OFF。 */
+    fun toggleAutoRange(): NavState {
+        rangeSelector.setAuto(!rangeSelector.auto)
         return recompute()
     }
 
@@ -141,14 +178,26 @@ class NavEngine(
         val fix = lastFix
         val noFix = now == null || isNoFix(now, fix?.timeMs, settings.noFixTimeoutSec * 1000L)
         // NO FIX 中の古い Fix の方位は「今使える GPS 方位」として扱わない
-        val heading = headingSelector.select(settings.sourceMode, fix?.takeIf { !noFix }, compassDeg)
+        val heading = headingSelector.select(settings.sourceMode, noFix, compassDeg, compassQuality.lowAccuracy)
         val rate = rateTracker.rate(settings.rateWindowSec)
 
         val next = WaypointNav.nextIndex(waypoints)
         val wp = next?.let { waypoints[it] }
         val dist = if (fix != null && wp != null) Geo.distanceM(fix.lat, fix.lon, wp.lat, wp.lon) else null
         val bearing = if (fix != null && wp != null) Geo.bearingDeg(fix.lat, fix.lon, wp.lat, wp.lon) else null
-        val eta = if (now != null && dist != null) WaypointNav.etaMs(now, dist, rate?.avgSpeedMps) else null
+        // ETA: RATE の窓の平均速度。履歴が窓に足りなければ、ある分（最低 10 秒）の平均速度
+        val eta = if (now != null && dist != null) WaypointNav.etaMs(now, dist, rateTracker.etaSpeed(settings.rateWindowSec)) else null
+        // 縮尺の AUTO: 次の WP を画面に投影して、表示枠に余白付きで収まる最小の段。画面が分からなければ距離で判定
+        val viewport = rangeFit
+        val rangeM = when {
+            now == null -> rangeSelector.rangeM
+            viewport != null && fix != null && wp != null -> {
+                val target = Geo.toEN(fix.lat, fix.lon, wp.lat, wp.lon)
+                val headingDeg = heading.deg?.toDouble()
+                rangeSelector.update({ r: Double -> viewport.fits(r, target, headingDeg, settings) }, now)
+            }
+            else -> rangeSelector.update(dist, fix?.speedMps, now)
+        }
 
         state = NavState(
             nowMs = now,
@@ -170,6 +219,8 @@ class NavEngine(
             playing = playing,
             settings = settings,
             compass = if (compassDeg != null) compassQuality else null,
+            rangeM = rangeM,
+            rangeAuto = rangeSelector.auto,
         )
         return state
     }

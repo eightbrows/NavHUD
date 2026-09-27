@@ -6,16 +6,24 @@ enum class DisplayMode { ARC, NORTH_UP }
 
 enum class ScreenSide { LEFT, RIGHT }
 
-enum class ProfileSize { SMALL, MEDIUM, LARGE }
+/** 基本色（目盛り・距離環・文字・自機）。マゼンタ・警告色・グレーは固定 */
+enum class ColorTheme { WHITE, GREEN, AMBER }
+
+/** ARC の自機の位置（下端からの距離）。高めは後方の矢印に余裕を持たせる */
+enum class OwnshipPosition { STANDARD, HIGH }
 
 /** 仕様の設定値（既定値つき）。保存はまだしない。 */
 data class NavSettings(
-    /** 方位ソース（§5.2） */
-    val sourceMode: SourceMode = SourceMode.HYBRID,
-    /** GPS 方位を使う最低速度 [m/s]（§5.2） */
-    val minGpsSpeedMps: Float = 1.4f,
+    /** 方位ソース（§5.2）。既定は GPS（車内ではコンパスが不安定なため。HYBRID と COMPASS は歩行用） */
+    val sourceMode: SourceMode = SourceMode.GPS,
+    /** GPS 方位の保持に入る速度 [m/s]（これ未満で保持。≒ 7km/h） */
+    val holdEnterSpeedMps: Float = 2.0f,
+    /** GPS 方位の保持を解く速度 [m/s]（これを超えたら GPS 方位に戻る。≒ 11km/h） */
+    val holdExitSpeedMps: Float = 3.0f,
     /** GPS 方位を使う最大の水平精度 [m]（§5.2） */
     val maxGpsAccM: Float = 15f,
+    /** GPS 方位を使う最大の方位の精度 [°]（値を出している端末のみ） */
+    val maxGpsBearingAccDeg: Float = 20f,
     /** 到達半径 [m]。50 / 100 / 200 / 500 から選ぶ（§5.4） */
     val reachRadiusM: Double = 100.0,
     /** 通過判定（§5.4 のオプション）。最接近後に離れていったら到達とみなす */
@@ -34,18 +42,35 @@ data class NavSettings(
     val altOffsetM: Double = 36.0,
     /** 表示モード（§6.1） */
     val displayMode: DisplayMode = DisplayMode.ARC,
-    /** 距離環の間隔 [m]（§6.1） */
-    val ringIntervalM: Double = 1_000.0,
-    /** ARC モードの基準距離環 [m]（§6.2） */
-    val arcRangeM: Double = 2_000.0,
+    /**
+     * 使う縮尺の段 [km]（RangeAuto.ALL_STEPS_KM の中から）。縮尺は ARC では基準の距離環が左右端に接する距離、
+     * North Up では最外周の距離環。距離環の間隔は縮尺の 1/2
+     */
+    val rangeStepsKm: List<Double> = listOf(0.5, 1.0, 2.0, 5.0, 10.0),
+    /** 起動時の縮尺 [km] */
+    val initialRangeKm: Double = 1.0,
+    /** 縮尺の AUTO（次の WP が収まる最小の段）を起動時に ON にする */
+    val autoRange: Boolean = true,
+    /** AUTO: 狭める（拡大する）方向は、条件がこれだけ続いてから切り替える [秒] */
+    val autoRangeZoomInDelaySec: Int = 5,
     /** WP ボタン列を置く側（§6.4） */
     val wpButtonsSide: ScreenSide = ScreenSide.RIGHT,
-    /** 標高プロファイルの表示サイズ（§6.6） */
-    val profileSize: ProfileSize = ProfileSize.MEDIUM,
+    /** WP ボタン列に一度に見せる数（超える分はスクロール） */
+    val wpButtonsMax: Int = 5,
+    /** HUD に描く WP の数（次の WP から先） */
+    val hudWpCount: Int = 3,
+    /** 色テーマ */
+    val colorTheme: ColorTheme = ColorTheme.WHITE,
+    /** ARC の自機の位置 */
+    val ownshipPosition: OwnshipPosition = OwnshipPosition.STANDARD,
+    /** 起動時に前回の WP リストを自動で開く（起動時の選択を出さない） */
+    val autoOpenLastList: Boolean = false,
     /** 画面常時点灯（§6.8） */
     val keepScreenOn: Boolean = true,
 ) {
     companion object {
+        val WP_BUTTONS_MAX_RANGE = 1..10
+        val HUD_WP_COUNT_RANGE = 1..10
         val REACH_RADIUS_CHOICES_M = listOf(50.0, 100.0, 200.0, 500.0)
         val RATE_WINDOW_CHOICES_SEC = listOf(10, 30, 60)
     }

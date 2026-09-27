@@ -78,4 +78,28 @@ class RateTrackerTest {
         t.add(Fix(timeMs = 0, lat = 33.0, lon = 133.0))
         assertNull(t.rate(10))
     }
+
+    @Test
+    fun etaSpeedUsesAvailableHistoryWhenWindowIsShort() {
+        // 窓 60 秒に足りない: 9 秒分では出さない、10 秒分ならある分の平均速度
+        assertNull(steady(9).etaSpeed(60))
+        assertEquals(10.0, steady(10).etaSpeed(60)!!, 1e-9)
+        assertEquals(10.0, steady(30).etaSpeed(60)!!, 1e-9)
+        // 窓に足りていれば RATE の平均速度そのもの
+        val t = steady(100)
+        assertEquals(t.rate(60)!!.avgSpeedMps, t.etaSpeed(60)!!, 1e-9)
+        assertNull(RateTracker().etaSpeed(60))
+    }
+
+    @Test
+    fun etaSpeedAfterGapUsesFixesInsideTheWindow() {
+        // 0..100 秒のあと 50 秒欠損して、150..165 秒: 窓 60 秒の起点（105 秒）には Fix がない → RATE は null
+        val t = steady(100)
+        for (s in 150..165) {
+            t.add(Fix(timeMs = 1_000_000L + s * 1000L, lat = 34.0 + 5.0 * (s - 150) / mPerDegLat, lon = 133.0, speedMps = 5f))
+        }
+        assertNull(t.rate(60))
+        // 窓の中にある 150..165 秒（15 秒）の平均 = 5 m/s
+        assertEquals(5.0, t.etaSpeed(60)!!, 1e-9)
+    }
 }

@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -20,6 +22,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -42,11 +45,12 @@ import io.github.eightbrows.navhud.core.nav.ScreenSide
 import io.github.eightbrows.navhud.core.nav.SourceKind
 import io.github.eightbrows.navhud.core.view.HudFormat
 import io.github.eightbrows.navhud.core.view.HudInsets
+import io.github.eightbrows.navhud.core.view.HudViewport
 import java.time.ZoneId
 
-private val Caption = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 11.sp, color = HudColors.Caption)
-private val Value = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 15.sp, color = HudColors.Scale)
-private val ButtonText = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 13.sp, color = HudColors.Scale)
+private val Caption get() = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 11.sp, color = HudColors.Caption)
+private val Value get() = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 15.sp, color = HudColors.Scale)
+private val ButtonText get() = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 13.sp, color = HudColors.Scale)
 
 /** メイン画面（§6.1〜6.3）。NavState だけを見て描く。 */
 @Composable
@@ -67,6 +71,11 @@ fun MainScreen(
     onToggleSourceKind: () -> Unit,
     onRequestPermission: () -> Unit,
     onOpenAppSettings: () -> Unit,
+    onZoomIn: () -> Unit,
+    onZoomOut: () -> Unit,
+    onToggleAutoRange: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onViewport: (HudViewport) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val zone = ZoneId.systemDefault()
@@ -88,10 +97,13 @@ fun MainScreen(
     }
 
     Column(modifier.fillMaxSize().background(HudColors.Background)) {
-        TopBar(state, wpUi.showButtons, onCycleSource, onToggleWpButtons, onToggleDisplay, onOpenDebug)
-        InfoStrip(state, zone, valueColor, onCycleRate)
+        TopBar(state, wpUi.showButtons, onCycleSource, onToggleWpButtons, onToggleDisplay, onOpenSettings, onOpenDebug)
+        // 縮尺の操作は地図の外（情報欄の LAT/LON の右）に置く。地図の上の方位目盛り・矢印・WP と重ならない
+        InfoStrip(state, zone, valueColor, onCycleRate) {
+            RangeControls(state, onZoomIn, onZoomOut, onToggleAutoRange)
+        }
         Box(Modifier.fillMaxWidth().weight(1f)) {
-            HudCanvas(state, Modifier.fillMaxSize(), reserved)
+            HudCanvas(state, Modifier.fillMaxSize(), reserved, onViewport)
             if (wpUi.showButtons) {
                 WpButtonColumn(
                     state,
@@ -136,6 +148,8 @@ fun MainScreen(
 }
 
 private val WpColumnWidth = 84.dp
+private val WpButtonHeight = 32.dp
+private val WpButtonGap = 6.dp
 private val ReplayBandHeight = 46.dp
 
 /**
@@ -158,12 +172,31 @@ private fun WpButtonColumn(
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         WpColumnButton("WP設定", onOpenSettings, HudColors.Scale, inverted = false, enabled = true)
+        // 一度に見せるのは wpButtonsMax 個まで。超える分はスクロールし、次の WP が見える位置へ自動で動かす
+        val scroll = rememberScrollState()
+        val itemPx = with(LocalDensity.current) { (WpButtonHeight + WpButtonGap).toPx() }
+        val visible = state.settings.wpButtonsMax
+        val next = state.nextWpIndex
+        LaunchedEffect(next, visible, state.waypoints.size) {
+            if (next == null) return@LaunchedEffect
+            // 下から next 番目（WP1 が一番下）。見える範囲 [value, value + visible 個] に入るよう最小限動かす
+            val top = next * itemPx
+            val bottom = (next + 1) * itemPx
+            val view = visible * itemPx
+            val target = when {
+                top < scroll.value -> top
+                bottom > scroll.value + view -> bottom - view
+                else -> return@LaunchedEffect
+            }
+            scroll.animateScrollTo(target.toInt().coerceIn(0, scroll.maxValue))
+        }
         Box(Modifier.fillMaxWidth().weight(1f)) {
             Column(
                 Modifier
                     .align(Alignment.BottomCenter)
-                    .verticalScroll(rememberScrollState(), reverseScrolling = true),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
+                    .heightIn(max = (WpButtonHeight + WpButtonGap) * visible - WpButtonGap)
+                    .verticalScroll(scroll, reverseScrolling = true),
+                verticalArrangement = Arrangement.spacedBy(WpButtonGap),
             ) {
                 for (i in state.waypoints.indices.reversed()) {
                     val wp = state.waypoints[i]
@@ -186,10 +219,11 @@ private fun WpColumnButton(text: String, onClick: () -> Unit, color: Color, inve
     Box(
         Modifier
             .fillMaxWidth()
+            .height(WpButtonHeight)
             .border(1.dp, color, shape)
             .background(if (inverted) color else HudColors.Background, shape)
             .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 4.dp, vertical = 7.dp),
+            .padding(horizontal = 4.dp),
         contentAlignment = Alignment.Center,
     ) {
         Text(
@@ -208,6 +242,7 @@ private fun TopBar(
     onCycleSource: () -> Unit,
     onToggleWpButtons: () -> Unit,
     onToggleDisplay: () -> Unit,
+    onOpenSettings: () -> Unit,
     onOpenDebug: () -> Unit,
 ) {
     Row(
@@ -226,11 +261,19 @@ private fun TopBar(
         HudButton("WP", onToggleWpButtons, inverted = showWpButtons)
         Spacer(Modifier.weight(1f))
         HudButton(if (state.settings.displayMode == DisplayMode.ARC) "ARC" else "N-UP", onToggleDisplay)
+        // 設定画面（開発用画面は、バーの空いている所の長押しのまま）
+        HudButton("⚙", onOpenSettings)
     }
 }
 
 @Composable
-private fun InfoStrip(state: NavState, zone: ZoneId, valueColor: Color, onCycleRate: () -> Unit) {
+private fun InfoStrip(
+    state: NavState,
+    zone: ZoneId,
+    valueColor: Color,
+    onCycleRate: () -> Unit,
+    trailing: @Composable () -> Unit,
+) {
     val fix = state.fix
     Column(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp)) {
         Row {
@@ -244,15 +287,16 @@ private fun InfoStrip(state: NavState, zone: ZoneId, valueColor: Color, onCycleR
                 weight = 1.4f,
             )
         }
-        Row {
-            Cell("LAT/LON", HudFormat.latLon(fix?.lat, fix?.lon), valueColor, weight = 3.4f)
+        Row(verticalAlignment = Alignment.Bottom) {
+            Cell("LAT/LON", HudFormat.latLon(fix?.lat, fix?.lon), valueColor, weight = 1f)
+            trailing()
         }
     }
 }
 
-/** HDG の値の横に付ける、実際に使っている方位ソース（GPS / CMP）。方位がなければ空。 */
+/** HDG の値の横に付ける、実際に使っている方位ソース（GPS / CMP、GPS 方位を保持中は HLD）。方位がなければ空。 */
 private fun headingSourceLabel(state: NavState): String = when (state.heading.src) {
-    HeadingSrc.GPS -> "GPS"
+    HeadingSrc.GPS -> if (state.heading.held) "HLD" else "GPS"
     HeadingSrc.COMPASS -> "CMP"
     HeadingSrc.NONE -> ""
 }
@@ -456,5 +500,21 @@ internal fun HudButton(
         contentAlignment = Alignment.Center,
     ) {
         Text(text, style = ButtonText.copy(color = if (inverted) HudColors.Background else color, fontSize = if (small) 12.sp else 13.sp))
+    }
+}
+
+/** 縮尺の表示と ＋ / −。表示をタップすると AUTO の ON / OFF。 */
+@Composable
+private fun RangeControls(
+    state: NavState,
+    onZoomIn: () -> Unit,
+    onZoomOut: () -> Unit,
+    onToggleAutoRange: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(modifier, horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+        HudButton(HudFormat.range(state.rangeM, state.rangeAuto), onToggleAutoRange, small = true, inverted = state.rangeAuto)
+        HudButton("−", onZoomOut, small = true)
+        HudButton("＋", onZoomIn, small = true)
     }
 }

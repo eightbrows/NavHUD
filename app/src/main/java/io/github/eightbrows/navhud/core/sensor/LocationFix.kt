@@ -34,6 +34,7 @@ object LocationFix {
             speedMps = speedMps?.takeIf { it.isFinite() && it >= 0f },
             bearingDeg = if (bearingValid) bearingDeg?.takeIf { it.isFinite() }?.let(::normalizeDeg) else null,
             horizAccM = horizAccM?.takeIf { it.isFinite() },
+            bearingAccDeg = if (bearingValid) bearingAccDeg?.takeIf { it.isFinite() } else null,
         )
     }
 

@@ -47,6 +47,8 @@ class HudSceneBuilderTest {
         waypoints = wps,
         nextWpIndex = next,
         settings = NavSettings(displayMode = mode),
+        // 2km 縮尺（ステップ4の既定）で座標を確かめる
+        rangeM = 2_000.0,
     )
 
     private fun build(s: NavState) = HudSceneBuilder.build(s, rect, m)
@@ -153,7 +155,7 @@ class HudSceneBuilderTest {
         val scene = build(state(wps = wps, next = 1))
         val route = scene.segments.filter { it.ink in setOf(Ink.WP, Ink.WP_DISABLED, Ink.WP_REACHED) }
         assertEquals(3, route.size)
-        assertEquals(Ink.WP, route[0].ink) // A → B（B は未到達）
+        assertEquals(Ink.WP_REACHED, route[0].ink) // A → B（A は直前に到達した WP なので薄く）
         assertEquals(Ink.WP_DISABLED, route[1].ink)
         assertTrue(route[1].dashed)
         assertEquals(Ink.WP_DISABLED, route[2].ink)
@@ -260,10 +262,96 @@ class HudSceneBuilderTest {
     }
 
     @Test
+    fun visibleWaypointsAreNextNPlusLastReached() {
+        val r = { n: String -> wp(n, 100.0, reached = true) }
+        val u = { n: String -> wp(n, 100.0) }
+        val wps = listOf(r("A"), r("B"), u("C"), u("D"), u("E"), u("F"))
+        assertEquals(listOf(1, 2, 3, 4), HudSceneBuilder.visibleWaypoints(wps, 2, 3))
+        assertEquals(listOf(1, 2), HudSceneBuilder.visibleWaypoints(wps, 2, 1))
+        // 端を越えない
+        assertEquals(listOf(1, 2, 3, 4, 5), HudSceneBuilder.visibleWaypoints(wps, 2, 10))
+        // まだどれも到達していない
+        assertEquals(listOf(0, 1, 2), HudSceneBuilder.visibleWaypoints(wps.map { it.copy(reached = false) }, 0, 3))
+        // 全部到達したら、最後に到達した WP だけ
+        assertEquals(listOf(5), HudSceneBuilder.visibleWaypoints(wps.map { it.copy(reached = true) }, null, 3))
+        // 直前の WP が無効なら、その前の到達済みを探す
+        val withDisabled = listOf(r("A"), wp("B", 100.0, enabled = false), u("C"))
+        assertEquals(listOf(0, 2), HudSceneBuilder.visibleWaypoints(withDisabled, 2, 1))
+        // 数えるのは目標（有効かつ未到達）だけ。間の無効 WP は数えずに描き、最後の目標の後ろの無効 WP は描かない
+        val gap = listOf(u("C"), wp("X", 100.0, enabled = false), u("D"), wp("Y", 100.0, enabled = false), u("E"))
+        assertEquals(listOf(0, 1, 2), HudSceneBuilder.visibleWaypoints(gap, 0, 2))
+        assertEquals(listOf(0), HudSceneBuilder.visibleWaypoints(gap, 0, 1))
+    }
+
+    @Test
+    fun sceneDrawsOnlyVisibleWaypoints() {
+        val wps = listOf(
+            wp("A", 100.0, reached = true), wp("B", 200.0, reached = true),
+            wp("C", 300.0), wp("D", 400.0), wp("E", 500.0), wp("F", 600.0),
+        )
+        val s = state(wps = wps, next = 2).let { it.copy(settings = it.settings.copy(hudWpCount = 3)) }
+        val scene = build(s)
+        assertEquals(listOf("B", "C", "D", "E"), scene.wpMarks.map { it.name })
+        assertEquals(Ink.WP_REACHED, scene.wpMarks.first().ink)
+        // 線も描く範囲だけ（B→C, C→D, D→E）
+        assertEquals(3, scene.segments.count { it.ink in setOf(Ink.WP, Ink.WP_REACHED, Ink.WP_DISABLED) })
+    }
+
+    @Test
     fun noFixNoWaypoints() {
         val s = state(wps = listOf(wp("WP1", 1_000.0)), next = 0).copy(fix = null)
         val scene = build(s)
         assertTrue(scene.wpMarks.isEmpty())
         assertTrue(scene.arrows.isEmpty())
+    }
+
+    @Test
+    fun ringLabelsHaveUnitsAndAreSmall() {
+        // 2km 縮尺: 1km ごとの距離環。文字は単位付きで、方位目盛りより小さく薄い
+        val rings = build(state()).labels.filter { it.small }
+        assertTrue(rings.map { it.text }.containsAll(listOf("1km", "2km")))
+        assertTrue(rings.all { it.ink == Ink.SCALE_DIM })
+        assertTrue(build(state()).labels.filter { !it.small }.all { it.ink == Ink.SCALE })
+    }
+
+    @Test
+    fun waypointNameAvoidsOwnShip() {
+        val own = P(360f, 900f - m.arcOriginFromBottom)
+        val ownBox = HudSceneBuilder.Box(own, m.ownShipClear, m.ownShipClear)
+        // 離れた WP: 名前は印の上
+        assertEquals(P(360f, 100f - m.wpNameOffset), HudSceneBuilder.placeWpName("A", P(360f, 100f), ownBox, m))
+        // 自機のすぐ下の WP: 上に置くと自機に重なるので下
+        val below = P(360f, own.y + 20f)
+        assertEquals(P(360f, below.y + m.wpNameOffset), HudSceneBuilder.placeWpName("A", below, ownBox, m))
+        // 自機とほぼ同じ位置（到達直後の WP）: 名前は描かない
+        assertNull(HudSceneBuilder.placeWpName("峠の入口", P(own.x + 2f, own.y + 3f), ownBox, m))
+
+        // シーン全体: 到達済みの WP が自機の 10m 後ろにあっても、名前は自機に重ならない
+        val scene = build(state(wps = listOf(wp("峠の入口", -10.0, reached = true), wp("B", 5_000.0)), next = 1))
+        val mark = scene.wpMarks.single { it.name == "峠の入口" }
+        assertNull(mark.nameAt)
+    }
+
+    @Test
+    fun arrowTextAvoidsCompassLabelsAndOwnShip() {
+        // 西・東・後方に遠い WP（画面外の矢印）: 文字は方位目盛りの文字（W など）・自機・ほかの矢印の文字と重ならない
+        val wps = listOf(
+            wp("ダム", 200.0, -9_000.0),
+            wp("道の駅", -9_000.0, 300.0),
+            wp("終点", -3_000.0, -20_000.0),
+            wp("東", -100.0, 9_000.0),
+        )
+        for (mode in DisplayMode.entries) {
+            val scene = build(state(wps = wps, next = 0, mode = mode).let { it.copy(settings = it.settings.copy(hudWpCount = 4)) })
+            assertEquals(4, scene.arrows.size)
+            val obstacles = scene.labels.map { l ->
+                HudSceneBuilder.Box(l.at, HudSceneBuilder.textHalfWidth(l.text, m) * (if (l.small) 1f else 13f / 11f) + 2f, m.compassLabelHalf)
+            } + HudSceneBuilder.Box(scene.ownShip.at, m.ownShipClear, m.ownShipClear)
+            val texts = scene.arrows.map { HudSceneBuilder.Box(it.textAt, HudSceneBuilder.textHalfWidth(it.text, m), m.arrowLabelLine / 2) }
+            for ((i, t) in texts.withIndex()) {
+                assertTrue("$mode ${scene.arrows[i].text}", obstacles.none { it.overlaps(t) })
+                assertTrue("$mode ${scene.arrows[i].text}", texts.filterIndexed { j, _ -> j != i }.none { it.overlaps(t) })
+            }
+        }
     }
 }

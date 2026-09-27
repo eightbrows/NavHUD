@@ -32,6 +32,7 @@ class PassDetector {
      * @param key 次の WP を見分けるキー（番号と座標など）。変わったら記録をリセットする
      */
     fun update(fix: Fix, wp: Waypoint, key: Any, s: NavSettings): Boolean {
+        val maxApproachM = maxApproachM(wp, s)
         if (key != targetKey) {
             reset()
             targetKey = key
@@ -42,7 +43,7 @@ class PassDetector {
         val seg = if (p == null) now else segmentDistanceM(p, fix, wp)
         if (seg < minDistM) minDistM = seg
 
-        if (minDistM > s.passMaxApproachM) {
+        if (minDistM > maxApproachM) {
             farSinceMs = null
             return false
         }
@@ -55,6 +56,10 @@ class PassDetector {
     }
 
     companion object {
+        /** 最接近距離の上限。WP ごとの到達半径があれば max(全体の上限, 半径 × 3)。 */
+        fun maxApproachM(wp: Waypoint, s: NavSettings): Double =
+            maxOf(s.passMaxApproachM, (wp.radiusM ?: 0.0) * 3)
+
         /** WP から線分 a→b への最短距離 [m]（WP を原点とする平面近似）。 */
         fun segmentDistanceM(a: Fix, b: Fix, wp: Waypoint): Double {
             val pa = Geo.toEN(wp.lat, wp.lon, a.lat, a.lon)

@@ -3,6 +3,7 @@ package io.github.eightbrows.navhud.core
 import io.github.eightbrows.navhud.core.io.TrackCsv
 import io.github.eightbrows.navhud.core.model.Fix
 import io.github.eightbrows.navhud.core.model.HeadingSrc
+import io.github.eightbrows.navhud.core.model.SourceMode
 import io.github.eightbrows.navhud.core.nav.Heading
 import io.github.eightbrows.navhud.core.nav.NavEngine
 import io.github.eightbrows.navhud.core.nav.NavSettings
@@ -101,7 +102,7 @@ class ReplaySampleTest {
         }
         assertTrue(run >= 61)
 
-        val e = engine()
+        val e = NavEngine(NavSettings(sourceMode = SourceMode.HYBRID, noFixTimeoutSec = 10), JST, SourceKind.REPLAY)
         e.onCompass(COMPASS_DEG, all.first().timeMs)
         val states = all.subList(0, runStart + 61).map { e.onFix(it, it.timeMs) }
 
@@ -114,8 +115,9 @@ class ReplaySampleTest {
         }
     }
 
+    /** 保持を解く速度（3 m/s）を超えていて、GPS 方位が使える Fix（この時点では保持していない）。 */
     private fun isUsable(f: Fix): Boolean =
-        f.bearingDeg != null && (f.speedMps ?: 99f) >= 1.4f && (f.horizAccM ?: 0f) <= 15f
+        f.bearingDeg != null && (f.speedMps ?: 99f) > 3.0f && (f.horizAccM ?: 0f) <= 15f && (f.bearingAccDeg ?: 0f) <= 20f
 
     @Test
     fun temporaryWaypointsArePassedInOrder() {

@@ -68,6 +68,7 @@ object TrackCsv {
                 speedMps = speed,
                 bearingDeg = if (bearingValid) flt(iBearing) else null,
                 horizAccM = flt(iHorizAcc),
+                bearingAccDeg = if (bearingValid) flt(iBearingAcc) else null,
             )
         }
         return TrackParseResult(fixes, skipped)

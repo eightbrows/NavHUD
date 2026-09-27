@@ -48,9 +48,31 @@ class RateTracker(private val maxWindowSec: Int = 60) {
         return Rate(windowSec, dist, altDiff, if (durSec > 0) dist / durSec else 0.0)
     }
 
+    /**
+     * ETA に使う平均速度 [m/s]。窓 windowSec 秒の RATE があればその平均速度。
+     * 履歴が窓に足りない（走り始め・欠損のあと）ときは、窓の中にある分の平均速度。ある分が minSec 秒未満なら null。
+     */
+    fun etaSpeed(windowSec: Int, minSec: Int = MIN_ETA_HISTORY_SEC): Double? {
+        rate(windowSec)?.let { return it.avgSpeedMps }
+        val latest = history.lastOrNull() ?: return null
+        val startMs = latest.timeMs - windowSec * 1000L
+        val baseIdx = history.indexOfFirst { it.timeMs >= startMs }
+        val base = history[baseIdx]
+        val durMs = latest.timeMs - base.timeMs
+        if (durMs < minSec * 1000L) return null
+        var dist = 0.0
+        for (i in baseIdx until history.lastIndex) {
+            dist += segmentM(history[i], history[i + 1])
+        }
+        return dist / (durMs / 1000.0)
+    }
+
     companion object {
         /** base が窓の起点よりこれを超えて古ければ欠損とみなす。 */
         const val BASE_MAX_LAG_MS = 2_000L
+
+        /** 窓に足りない履歴で ETA を出すときの、最低の長さ [秒]。 */
+        const val MIN_ETA_HISTORY_SEC = 10
 
         /** この間隔を超える区間は欠損として直線距離で数える。 */
         const val GAP_SEGMENT_MS = 2_000L

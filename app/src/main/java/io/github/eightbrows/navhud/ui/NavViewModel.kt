@@ -13,7 +13,7 @@ import io.github.eightbrows.navhud.core.nav.DisplayMode
 import io.github.eightbrows.navhud.core.nav.NavEngine
 import io.github.eightbrows.navhud.core.nav.NavSettings
 import io.github.eightbrows.navhud.core.nav.NavState
-import io.github.eightbrows.navhud.core.nav.ScreenSide
+import io.github.eightbrows.navhud.core.view.HudViewport
 import io.github.eightbrows.navhud.core.nav.SourceKind
 import io.github.eightbrows.navhud.core.nav.TemporaryWaypoints
 import io.github.eightbrows.navhud.core.replay.LiveClock
@@ -25,6 +25,7 @@ import io.github.eightbrows.navhud.source.LiveLocationBus
 import io.github.eightbrows.navhud.source.NavLocationService
 import io.github.eightbrows.navhud.source.LoadedTrack
 import io.github.eightbrows.navhud.source.ReplayPositionSource
+import io.github.eightbrows.navhud.source.SettingsStore
 import io.github.eightbrows.navhud.source.TrackDocumentStore
 import io.github.eightbrows.navhud.source.WaypointDocumentStore
 import kotlinx.coroutines.Dispatchers
@@ -76,8 +77,10 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
     private val store = TrackDocumentStore(app)
     private val wpStore = WaypointDocumentStore(app)
     private val clock = ReplayClock { SystemClock.elapsedRealtime() }
-    // 起動時は LIVE（設定の保存はステップ7）
-    private val engine = NavEngine(NavSettings(), zone, SourceKind.LIVE)
+    private val settingsStore = SettingsStore(app)
+
+    // 保存した設定と INPUT（LIVE / REPLAY）で始める
+    private val engine = NavEngine(settingsStore.load(), zone, settingsStore.input)
 
     private val _state = MutableStateFlow(engine.state)
     val state: StateFlow<NavState> = _state.asStateFlow()
@@ -101,6 +104,8 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
 
     init {
         store.savedUri?.let { load(it, isSaved = true) }
+        // 設定「前回のリストを自動で開く」: 起動時の選択を出さずに読み込む
+        if (engine.settings.autoOpenLastList && wpStore.savedUri != null) openPreviousList()
         // 時計の tick。Fix が来ない欠損区間でも NO FIX とカウントダウンを進める
         viewModelScope.launch {
             while (isActive) {
@@ -141,7 +146,17 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
         publish(engine.setPlaying(true))
     }
 
-    fun setSourceMode(mode: SourceMode) = publish(engine.setSourceMode(mode))
+    /** 設定を変える（すぐ画面に反映し、保存する）。 */
+    fun updateSettings(transform: (NavSettings) -> NavSettings) {
+        val next = transform(engine.settings)
+        publish(engine.updateSettings(next))
+        settingsStore.save(next)
+    }
+
+    /** 設定を初期値に戻す。 */
+    fun resetSettings() = updateSettings { NavSettings() }
+
+    fun setSourceMode(mode: SourceMode) = updateSettings { it.copy(sourceMode = mode) }
 
     /** HYBRID → GPS → COMPASS → HYBRID … */
     fun cycleSourceMode() {
@@ -149,19 +164,25 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
         setSourceMode(modes[(engine.settings.sourceMode.ordinal + 1) % modes.size])
     }
 
+    /** 縮尺の ＋ / − / AUTO */
+    fun zoomIn() = publish(engine.zoomIn())
+
+    fun zoomOut() = publish(engine.zoomOut())
+
+    fun toggleAutoRange() = publish(engine.toggleAutoRange())
+
+    /** HUD の描画領域が変わったとき（AUTO 縮尺は、次の WP がこの表示枠に収まる最小の段を選ぶ）。 */
+    fun setViewport(viewport: HudViewport) = publish(engine.setViewport(viewport))
+
     /** ARC ⇔ North Up */
-    fun toggleDisplayMode() {
-        val s = engine.settings
-        val next = if (s.displayMode == DisplayMode.ARC) DisplayMode.NORTH_UP else DisplayMode.ARC
-        publish(engine.updateSettings(s.copy(displayMode = next)))
+    fun toggleDisplayMode() = updateSettings {
+        it.copy(displayMode = if (it.displayMode == DisplayMode.ARC) DisplayMode.NORTH_UP else DisplayMode.ARC)
     }
 
     /** RATE の窓 10 → 30 → 60 → 10 … */
-    fun cycleRateWindow() {
-        val s = engine.settings
+    fun cycleRateWindow() = updateSettings {
         val choices = NavSettings.RATE_WINDOW_CHOICES_SEC
-        val next = choices[(choices.indexOf(s.rateWindowSec) + 1) % choices.size]
-        publish(engine.updateSettings(s.copy(rateWindowSec = next)))
+        it.copy(rateWindowSec = choices[(choices.indexOf(it.rateWindowSec) + 1) % choices.size])
     }
 
     fun toggleReached(index: Int) = publish(engine.toggleReached(index))
@@ -276,12 +297,6 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
         _wp.value = _wp.value.copy(showButtons = !_wp.value.showButtons)
     }
 
-    /** WP ボタン列の左右（ステップ7で設定画面に移す）。 */
-    fun toggleWaypointButtonsSide() {
-        val s = engine.settings
-        val side = if (s.wpButtonsSide == ScreenSide.RIGHT) ScreenSide.LEFT else ScreenSide.RIGHT
-        publish(engine.updateSettings(s.copy(wpButtonsSide = side)))
-    }
 
     fun clearWaypointMessage() {
         _wp.value = _wp.value.copy(message = null)
@@ -381,8 +396,12 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** LIVE ⇔ REPLAY。RATE の履歴・通過判定の記録はリセットし、WP の到達状態は残す。 */
-    fun toggleSourceKind() {
-        val next = if (kind == SourceKind.LIVE) SourceKind.REPLAY else SourceKind.LIVE
+    fun toggleSourceKind() = setSourceKind(if (kind == SourceKind.LIVE) SourceKind.REPLAY else SourceKind.LIVE)
+
+    /** INPUT を変える（保存する）。 */
+    fun setSourceKind(next: SourceKind) {
+        if (next == kind) return
+        settingsStore.input = next
         pauseReplay()
         publish(engine.switchSource(next, playing = next == SourceKind.LIVE))
         nowMs()?.let { publish(engine.onTick(it)) }

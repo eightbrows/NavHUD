@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 通知アイコン（単色・線画）: HUD の ARC（距離環の弧）、自機、次の WP（ひし形）と、そこへの線 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- 距離環の弧 -->
+    <path
+        android:pathData="M2.5,18.5 A9.5,9.5 0 0,1 21.5,18.5"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round" />
+    <!-- 自機から次の WP への線 -->
+    <path
+        android:pathData="M12.8,14.6 L16.1,8.9"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round" />
+    <!-- 次の WP（ひし形） -->
+    <path
+        android:pathData="M17.2,4.6 L19.4,6.8 L17.2,9 L15,6.8 Z"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.5"
+        android:strokeLineJoin="round" />
+    <!-- 自機（上向きの三角） -->
+    <path
+        android:pathData="M12,13.2 L15,21 L12,19.3 L9,21 Z"
+        android:fillColor="#FFFFFFFF"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1"
+        android:strokeLineJoin="round" />
+</vector>

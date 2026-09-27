@@ -2,6 +2,7 @@ package io.github.eightbrows.navhud.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -31,14 +32,26 @@ import io.github.eightbrows.navhud.core.view.HudMetrics
 import io.github.eightbrows.navhud.core.view.HudRect
 import io.github.eightbrows.navhud.core.view.HudScene
 import io.github.eightbrows.navhud.core.view.HudSceneBuilder
+import io.github.eightbrows.navhud.core.view.HudViewport
 import io.github.eightbrows.navhud.core.view.P
 
 /** HUD の図。座標は core（HudSceneBuilder）で計算済みのものを描くだけ。 */
 @Composable
-fun HudCanvas(state: NavState, modifier: Modifier = Modifier, reserved: HudInsets = HudInsets()) {
+fun HudCanvas(
+    state: NavState,
+    modifier: Modifier = Modifier,
+    reserved: HudInsets = HudInsets(),
+    onViewport: (HudViewport) -> Unit = {},
+) {
     val density = LocalDensity.current.density
     val metrics = remember(density) { HudMetrics().scaled(density) }
     var size by remember { mutableStateOf(IntSize.Zero) }
+    // 描画領域と帯を AUTO 縮尺の判定に渡す（表示枠に次の WP が収まる最小の段）
+    LaunchedEffect(size, metrics, reserved) {
+        if (size != IntSize.Zero) {
+            onViewport(HudViewport(HudRect(0f, 0f, size.width.toFloat(), size.height.toFloat()), metrics, reserved))
+        }
+    }
     val scene = remember(state, size, metrics, reserved) {
         if (size == IntSize.Zero) null
         else HudSceneBuilder.build(state, HudRect(0f, 0f, size.width.toFloat(), size.height.toFloat()), metrics, reserved)
@@ -55,6 +68,9 @@ fun HudCanvas(state: NavState, modifier: Modifier = Modifier, reserved: HudInset
 
 private val LabelStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 13.sp)
 private val SmallLabelStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+
+/** 距離環の文字: 方位目盛り（13sp）より小さく、色も薄い（SCALE_DIM） */
+private val RingLabelStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 10.sp)
 
 private fun P.o() = Offset(x, y)
 
@@ -86,7 +102,7 @@ private fun DrawScope.drawScene(scene: HudScene, tm: TextMeasurer, density: Floa
             pathEffect = if (s.dashed) dash else null,
         )
     }
-    for (l in scene.labels) drawLabel(tm, l.text, l.at, HudColors.of(l.ink), if (l.small) SmallLabelStyle else LabelStyle)
+    for (l in scene.labels) drawLabel(tm, l.text, l.at, HudColors.of(l.ink), if (l.small) RingLabelStyle else LabelStyle)
 
     for (w in scene.wpMarks) {
         val c = HudColors.of(w.ink)
@@ -100,7 +116,8 @@ private fun DrawScope.drawScene(scene: HudScene, tm: TextMeasurer, density: Floa
             close()
         }
         drawPath(path, c, style = Stroke(bold, pathEffect = if (w.dashed) dash else null))
-        drawLabel(tm, w.name, P(w.at.x, w.at.y - r - 10f * density), c, LabelStyle)
+        // 名前は core が決めた位置（自機の記号と重なるなら null で描かない）
+        w.nameAt?.let { drawLabel(tm, w.name, it, c, LabelStyle) }
     }
     for (a in scene.arrows) {
         val c = HudColors.of(a.ink)
