@@ -1,8 +1,15 @@
 package io.github.eightbrows.navhud
 
+import android.Manifest
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -17,6 +24,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -25,11 +34,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
+import io.github.eightbrows.navhud.core.nav.SourceKind
 import io.github.eightbrows.navhud.source.TrackDocumentStore
 import io.github.eightbrows.navhud.source.WaypointDocumentStore
 import io.github.eightbrows.navhud.ui.DebugScreen
 import io.github.eightbrows.navhud.ui.HudColors
+import io.github.eightbrows.navhud.ui.LocationPermission
 import io.github.eightbrows.navhud.ui.MainScreen
 import io.github.eightbrows.navhud.ui.NavViewModel
 import io.github.eightbrows.navhud.ui.WaypointSettingsScreen
@@ -52,6 +64,7 @@ class MainActivity : ComponentActivity() {
                 val state by vm.state.collectAsState()
                 val replay by vm.replay.collectAsState()
                 val wpUi by vm.wp.collectAsState()
+                val live by vm.live.collectAsState()
                 var screen by rememberSaveable { mutableStateOf(Screen.MAIN) }
                 val context = LocalContext.current
 
@@ -65,6 +78,33 @@ class MainActivity : ComponentActivity() {
                     ActivityResultContracts.CreateDocument(WaypointDocumentStore.EXPORT_MIME_TYPE),
                 ) { vm.exportWaypoints(it) }
                 val onPickTrack = { pickTrack.launch(TrackDocumentStore.MIME_TYPES) }
+
+                // 通知の権限（Android 13 以降）。拒否されても動作は続ける
+                val requestNotifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
+                // 位置情報の権限。FINE がないと GPS は使えない
+                val requestLocation = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { r ->
+                    vm.onLocationPermission(
+                        fine = r[Manifest.permission.ACCESS_FINE_LOCATION] == true || granted(Manifest.permission.ACCESS_FINE_LOCATION),
+                        coarse = r[Manifest.permission.ACCESS_COARSE_LOCATION] == true || granted(Manifest.permission.ACCESS_COARSE_LOCATION),
+                    )
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !granted(Manifest.permission.POST_NOTIFICATIONS)) {
+                        requestNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    }
+                }
+                val onRequestPermission = {
+                    requestLocation.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+                }
+                // LIVE で起動して、まだ許可されていなければ最初に1回だけ聞く
+                LaunchedEffect(Unit) {
+                    if (state.sourceKind == SourceKind.LIVE && live.permission == LocationPermission.UNKNOWN) onRequestPermission()
+                }
+                // 画面常時点灯（§6.8）
+                val keepScreenOn = state.settings.keepScreenOn
+                DisposableEffect(keepScreenOn) {
+                    if (keepScreenOn) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    onDispose {}
+                }
                 val onImport = { importWaypoints.launch(WaypointDocumentStore.IMPORT_MIME_TYPES) }
 
                 BackHandler(enabled = screen != Screen.MAIN) { screen = Screen.MAIN }
@@ -88,6 +128,10 @@ class MainActivity : ComponentActivity() {
                                 screen = Screen.WAYPOINTS
                             },
                             onToggleReached = vm::toggleReached,
+                            live = live,
+                            onToggleSourceKind = vm::toggleSourceKind,
+                            onRequestPermission = onRequestPermission,
+                            onOpenAppSettings = ::openAppSettings,
                             modifier = modifier,
                         )
                         Screen.WAYPOINTS -> WaypointSettingsScreen(
@@ -136,10 +180,31 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    // フォアグラウンドのみで動作する（§6.8）。裏に回ったらリプレイを止める
+    // フォアグラウンドのみで動作する（§6.8）。前面に来たら GPS・コンパスを開始し、裏に回ったら止める
+    override fun onStart() {
+        super.onStart()
+        // 設定画面から戻ったときなど、今の許可を反映する（まだ聞いていなければ聞くまで待つ）
+        val fine = granted(Manifest.permission.ACCESS_FINE_LOCATION)
+        if (fine || vm.live.value.permission != LocationPermission.UNKNOWN) {
+            vm.onLocationPermission(fine, granted(Manifest.permission.ACCESS_COARSE_LOCATION))
+        }
+        vm.onForeground()
+    }
+
     override fun onStop() {
         super.onStop()
-        vm.pause()
+        vm.onBackground()
+    }
+
+    private fun granted(permission: String): Boolean =
+        ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
+
+    /** アプリの設定画面（権限を「許可しない」にしたあと、もう一度許可するため）。 */
+    private fun openAppSettings() {
+        startActivity(
+            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", packageName, null))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
     }
 }
 

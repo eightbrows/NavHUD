@@ -4,6 +4,7 @@ import io.github.eightbrows.navhud.core.geo.Geo
 import io.github.eightbrows.navhud.core.model.Fix
 import io.github.eightbrows.navhud.core.model.SourceMode
 import io.github.eightbrows.navhud.core.model.Waypoint
+import io.github.eightbrows.navhud.core.sensor.CompassQuality
 import java.time.LocalTime
 import java.time.ZoneId
 
@@ -28,6 +29,7 @@ class NavEngine(
 
     private var lastFix: Fix? = null
     private var compassDeg: Float? = null
+    private var compassQuality = CompassQuality()
     private var waypoints: List<Waypoint> = emptyList()
     private var nowMs: Long? = null
     private var sourceKind = sourceKind
@@ -52,9 +54,11 @@ class NavEngine(
     }
 
     /** @param deg コンパス方位（真北）。センサがなくなった・値が使えないなら null */
-    fun onCompass(deg: Float?, nowMs: Long): NavState {
+    /** @param nowMs 現在時刻。null なら時刻は進めない（REPLAY でトラックがまだないときなど） */
+    fun onCompass(deg: Float?, nowMs: Long?, quality: CompassQuality = CompassQuality()): NavState {
         compassDeg = deg
-        this.nowMs = nowMs
+        compassQuality = quality
+        if (nowMs != null) this.nowMs = nowMs
         return recompute()
     }
 
@@ -84,6 +88,17 @@ class NavEngine(
     }
 
     fun setSource(kind: SourceKind, playing: Boolean): NavState {
+        sourceKind = kind
+        this.playing = playing
+        return recompute()
+    }
+
+    /**
+     * LIVE ⇔ REPLAY の切替。RATE の履歴・通過判定の記録・時刻をリセットし、WP の到達状態は残す。
+     */
+    fun switchSource(kind: SourceKind, playing: Boolean): NavState {
+        clearHistory()
+        nowMs = null
         sourceKind = kind
         this.playing = playing
         return recompute()
@@ -154,6 +169,7 @@ class NavEngine(
             sourceKind = sourceKind,
             playing = playing,
             settings = settings,
+            compass = if (compassDeg != null) compassQuality else null,
         )
         return state
     }

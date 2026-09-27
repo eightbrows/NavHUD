@@ -159,10 +159,18 @@ interface HeadingSource  { val headingDeg: Flow<Float> } // コンパス（真�
 
 ### 6.8 実センサ・動作
 - GPS: FusedLocation ではなく `LocationManager` の GPS プロバイダ（依存を増やさないため）。1秒間隔。
+  - Location → Fix: 値がないもの（hasSpeed などが false）は null。速度 0 で方位精度がなければ方位 null（track.csv と同じ扱い）。
 - コンパス: 回転ベクトルセンサ等から方位を求め、`GeomagneticField` で磁気偏角を補正して真北基準にする。
+  - `TYPE_ROTATION_VECTOR`。なければ加速度＋地磁気、それもなければコンパスなし（HYBRID は保持 GPS 方位）。
+  - 姿勢は重力方向から自動判定: 画面の傾きが 55° 以上で立て置き（車載ホルダー）、35° 以下で平置き、その間は前の姿勢を保つ。立て置きは `remapCoordinateSystem(AXIS_X, AXIS_Z)` で端末の背面が向く方向を機首方位にする。
+  - 偏角の位置: 今の Fix → 最後に分かっている位置 → なし（偏角 0）。偏角が分からないときは SRC 表示に **MAG**、センサの精度が低いときは **CAL** の印を付ける。
+  - 角度は単位ベクトルで平滑化する（0/360 をまたいでも正しく扱う）。
 - 標高 = GPS 楕円体高 − 固定オフセット（設定、既定 36m 目安）。
-- フォアグラウンドのみで動作。位置取得はフォアグラウンドサービス、通知は固定表示「NavHUD 動作中」のみ。バックグラウンドに回ったら停止。
-- 画面常時点灯（FLAG_KEEP_SCREEN_ON）は設定で ON/OFF。
+- フォアグラウンドのみで動作。位置取得はフォアグラウンドサービス（`foregroundServiceType="location"`）、通知は固定表示「NavHUD 動作中」のみ。画面の onStart で開始、onStop で停止。バックグラウンドの位置情報権限は要求しない。
+- 権限: 位置情報（正確な位置）が拒否されたら画面中央に案内を出し、REPLAY は使えるようにする。通知の権限（Android 13 以降）は拒否されても動作を続ける。
+- LIVE / REPLAY: 下部パネルの表示をタップして切り替える（起動時は LIVE。保存はステップ7）。切替時は RATE の履歴と通過判定の記録をリセットし、WP の到達状態は残す。リプレイ操作は REPLAY のときだけ出す。
+- 画面常時点灯（FLAG_KEEP_SCREEN_ON）は設定で ON/OFF（既定 ON）。
+- エミュレータでの確認: `tools/track2gpx.ps1` で track.csv から GPX（trkpt に時刻付き）を作り（出力は sample/、git 管理外）、Extended Controls → Location で再生する。
 
 ## 7. WP ファイル形式
 ### 7.1 CSV（メイン。インポート/エクスポート）

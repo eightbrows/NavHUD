@@ -170,6 +170,40 @@ class NavEngineTest {
     }
 
     @Test
+    fun switchSourceResetsHistoryButKeepsReached() {
+        val e = engine(NavSettings(reachRadiusM = 50.0))
+        e.setWaypoints(listOf(Waypoint("A", 33.0, 133.0), Waypoint("B", 33.1, 133.0)))
+        for (s in 0..60) e.onFix(fix(t0 + s * 1000L, lat = 33.0 + 10.0 * s / mPerDegLat), t0 + s * 1000L)
+        assertTrue(e.state.waypoints[0].reached)
+        assertNotNull(e.state.rate)
+
+        val live = e.switchSource(SourceKind.LIVE, playing = true)
+        assertEquals(SourceKind.LIVE, live.sourceKind)
+        assertTrue(live.playing)
+        // RATE の履歴・位置・時刻はリセット、WP の到達状態は残る
+        assertNull(live.rate)
+        assertNull(live.fix)
+        assertNull(live.nowMs)
+        assertTrue(live.positionLost)
+        assertTrue(live.waypoints[0].reached)
+        assertEquals(1, live.nextWpIndex)
+    }
+
+    @Test
+    fun compassQualityIsExposedOnlyWithACompassValue() {
+        val e = engine()
+        assertNull(e.state.compass)
+        val q = io.github.eightbrows.navhud.core.sensor.CompassQuality(lowAccuracy = true, declinationUnknown = true)
+        val s = e.onCompass(45f, t0, q)
+        assertEquals(q, s.compass)
+        assertEquals(Heading(45f, HeadingSrc.COMPASS), s.heading)
+        // コンパスがなくなれば null
+        assertNull(e.onCompass(null, null).compass)
+        // 時刻を渡さなければ時刻は進めない
+        assertEquals(t0, e.state.nowMs)
+    }
+
+    @Test
     fun sourceKindAndPlaying() {
         val e = engine()
         assertEquals(SourceKind.REPLAY, e.state.sourceKind)

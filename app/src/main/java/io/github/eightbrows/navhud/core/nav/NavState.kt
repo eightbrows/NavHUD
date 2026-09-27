@@ -3,6 +3,7 @@ package io.github.eightbrows.navhud.core.nav
 import io.github.eightbrows.navhud.core.model.Fix
 import io.github.eightbrows.navhud.core.model.SourceMode
 import io.github.eightbrows.navhud.core.model.Waypoint
+import io.github.eightbrows.navhud.core.sensor.CompassQuality
 
 /** 位置のもと。 */
 enum class SourceKind { LIVE, REPLAY }
@@ -37,4 +38,6 @@ data class NavState(
     val playing: Boolean = false,
     /** 表示に使う設定（表示モード、距離環、RATE 窓など） */
     val settings: NavSettings = NavSettings(),
+    /** コンパスの状態（CAL / MAG の印）。コンパスの値がなければ null */
+    val compass: CompassQuality? = null,
 )

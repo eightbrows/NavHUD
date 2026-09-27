@@ -16,7 +16,13 @@ import io.github.eightbrows.navhud.core.nav.NavState
 import io.github.eightbrows.navhud.core.nav.ScreenSide
 import io.github.eightbrows.navhud.core.nav.SourceKind
 import io.github.eightbrows.navhud.core.nav.TemporaryWaypoints
+import io.github.eightbrows.navhud.core.replay.LiveClock
 import io.github.eightbrows.navhud.core.replay.ReplayClock
+import io.github.eightbrows.navhud.source.CompassSource
+import io.github.eightbrows.navhud.source.GeoPoint
+import io.github.eightbrows.navhud.source.LiveGpsSource
+import io.github.eightbrows.navhud.source.LiveLocationBus
+import io.github.eightbrows.navhud.source.NavLocationService
 import io.github.eightbrows.navhud.source.LoadedTrack
 import io.github.eightbrows.navhud.source.ReplayPositionSource
 import io.github.eightbrows.navhud.source.TrackDocumentStore
@@ -62,7 +68,7 @@ data class WaypointUiState(
 
 /**
  * NavState を StateFlow で公開する。NavEngine への入力（Fix・tick）はすべてメインスレッドから行う。
- * ステップ3ではリプレイのみ。LIVE（GPS・コンパス）はステップ4以降。
+ * LIVE は GPS（フォアグラウンドサービス）とコンパス、REPLAY は track.csv。
  */
 class NavViewModel(app: Application) : AndroidViewModel(app) {
 
@@ -70,7 +76,8 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
     private val store = TrackDocumentStore(app)
     private val wpStore = WaypointDocumentStore(app)
     private val clock = ReplayClock { SystemClock.elapsedRealtime() }
-    private val engine = NavEngine(NavSettings(), zone, SourceKind.REPLAY)
+    // 起動時は LIVE（設定の保存はステップ7）
+    private val engine = NavEngine(NavSettings(), zone, SourceKind.LIVE)
 
     private val _state = MutableStateFlow(engine.state)
     val state: StateFlow<NavState> = _state.asStateFlow()
@@ -81,9 +88,16 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
     private val _wp = MutableStateFlow(WaypointUiState(hasSavedList = wpStore.savedUri != null))
     val wp: StateFlow<WaypointUiState> = _wp.asStateFlow()
 
+    private val _live = MutableStateFlow(LiveUiState())
+    val live: StateFlow<LiveUiState> = _live.asStateFlow()
+
     private var source: ReplayPositionSource? = null
     private var trackFixes: List<Fix> = emptyList()
     private var fixJob: Job? = null
+
+    private val compass = CompassSource(app) { declinationPoint() }
+    private var compassJob: Job? = null
+    private var foreground = false
 
     init {
         store.savedUri?.let { load(it, isSaved = true) }
@@ -91,8 +105,15 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             while (isActive) {
                 delay(TICK_MS)
-                if (source != null) publish(engine.onTick(clock.nowMs()))
+                nowMs()?.let { publish(engine.onTick(it)) }
             }
+        }
+        // LIVE: サービスが受け取った GPS の Fix
+        viewModelScope.launch {
+            LiveLocationBus.fixes.collect { if (kind == SourceKind.LIVE) publish(engine.onFix(it, LiveClock.nowMs())) }
+        }
+        viewModelScope.launch {
+            LiveLocationBus.gpsEnabled.collect { _live.value = _live.value.copy(gpsEnabled = it) }
         }
     }
 
@@ -105,14 +126,14 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
 
     fun togglePlay() {
         val src = source ?: return
-        if (src.finished) return
-        if (clock.playing) pause() else play()
+        if (kind != SourceKind.REPLAY || src.finished) return
+        if (clock.playing) pauseReplay() else play()
     }
 
-    /** 画面が裏に回ったときなど。 */
-    fun pause() {
+    /** リプレイを止める。LIVE の「動作中」には影響しない。 */
+    private fun pauseReplay() {
         clock.pause()
-        publish(engine.setPlaying(false))
+        if (kind == SourceKind.REPLAY) publish(engine.setPlaying(false))
     }
 
     private fun play() {
@@ -276,7 +297,7 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun load(uri: Uri, isSaved: Boolean) {
-        pause()
+        pauseReplay()
         fixJob?.cancel()
         source = null
         _replay.value = ReplayUiState(loading = true)
@@ -285,7 +306,7 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
                 .onSuccess { start(it) }
                 .onFailure { e ->
                     store.forget()
-                    publish(engine.resetPosition())
+                    if (kind == SourceKind.REPLAY) publish(engine.resetPosition())
                     val what = if (isSaved) "前回のファイル" else "選んだファイル"
                     _replay.value = ReplayUiState(message = "${what}を読めませんでした。もう一度選んでください（${e.message}）")
                 }
@@ -303,19 +324,102 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
         val src = ReplayPositionSource(fixes, clock)
         source = src
         trackFixes = fixes
-        engine.resetPosition()
-        engine.setSource(SourceKind.REPLAY, playing = false)
-        publish(engine.onTick(clock.nowMs()))
+        // LIVE 中に読み込んだときは、REPLAY に切り替えたときに最初から使う
+        if (kind == SourceKind.REPLAY) {
+            engine.resetPosition()
+            engine.setSource(SourceKind.REPLAY, playing = false)
+            publish(engine.onTick(clock.nowMs()))
+        }
         _replay.value = ReplayUiState(
             fileName = track.displayName,
             fixCount = fixes.size,
             skippedLines = track.result.skippedLines,
         )
         fixJob = viewModelScope.launch {
-            src.fixes.collect { publish(engine.onFix(it, clock.nowMs())) }
+            src.fixes.collect { if (kind == SourceKind.REPLAY) publish(engine.onFix(it, clock.nowMs())) }
             // 最後の Fix まで出したら止める
-            pause()
+            pauseReplay()
             _replay.value = _replay.value.copy(finished = true)
+        }
+    }
+
+    // ---- LIVE（§6.8） ----
+
+    private val kind: SourceKind get() = engine.state.sourceKind
+
+    /** 今の「現在時刻」。LIVE は端末の時刻、REPLAY はトラックの時刻（トラックがなければ null）。 */
+    private fun nowMs(): Long? = when {
+        kind == SourceKind.LIVE -> LiveClock.nowMs()
+        source != null -> clock.nowMs()
+        else -> null
+    }
+
+    /** 画面が前面に来た（onStart）。コンパスと、LIVE なら位置のサービスを開始する。 */
+    fun onForeground() {
+        foreground = true
+        startCompass()
+        updateService()
+    }
+
+    /** 画面が裏に回った（onStop）。フォアグラウンドのみで動作する（§6.8）。 */
+    fun onBackground() {
+        foreground = false
+        stopCompass()
+        pauseReplay()
+        updateService()
+    }
+
+    /** 位置情報の権限の結果。FINE がなければ GPS_PROVIDER は使えない。 */
+    fun onLocationPermission(fine: Boolean, coarse: Boolean) {
+        val p = when {
+            fine -> LocationPermission.GRANTED
+            coarse -> LocationPermission.APPROXIMATE_ONLY
+            else -> LocationPermission.DENIED
+        }
+        _live.value = _live.value.copy(permission = p)
+        updateService()
+    }
+
+    /** LIVE ⇔ REPLAY。RATE の履歴・通過判定の記録はリセットし、WP の到達状態は残す。 */
+    fun toggleSourceKind() {
+        val next = if (kind == SourceKind.LIVE) SourceKind.REPLAY else SourceKind.LIVE
+        pauseReplay()
+        publish(engine.switchSource(next, playing = next == SourceKind.LIVE))
+        nowMs()?.let { publish(engine.onTick(it)) }
+        updateService()
+    }
+
+    private fun updateService() {
+        val ctx = getApplication<Application>()
+        if (foreground && kind == SourceKind.LIVE && _live.value.permission == LocationPermission.GRANTED) {
+            NavLocationService.start(ctx)
+        } else {
+            NavLocationService.stop(ctx)
+        }
+    }
+
+    private fun startCompass() {
+        if (compassJob != null) return
+        if (!compass.available) {
+            _live.value = _live.value.copy(hasCompass = false)
+            return
+        }
+        compassJob = viewModelScope.launch {
+            compass.readings.collect { r -> publish(engine.onCompass(r.trueDeg, nowMs(), r.quality)) }
+        }
+    }
+
+    private fun stopCompass() {
+        compassJob?.cancel()
+        compassJob = null
+        publish(engine.onCompass(null, nowMs()))
+    }
+
+    /** 偏角の計算に使う位置: 今の Fix → 最後に分かっている位置 → なし。 */
+    private fun declinationPoint(): GeoPoint? {
+        engine.state.fix?.let { return GeoPoint(it.lat, it.lon, it.altRawM ?: 0.0, it.timeMs) }
+        return LiveGpsSource.lastKnown(getApplication())?.let {
+            GeoPoint(it.latitude, it.longitude, if (it.hasAltitude()) it.altitude else 0.0, it.time)
         }
     }
 
@@ -327,3 +431,22 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
         private const val TICK_MS = 200L
     }
 }
+
+enum class LocationPermission {
+    /** まだ聞いていない */
+    UNKNOWN,
+    GRANTED,
+
+    /** おおよその位置だけ許可（GPS_PROVIDER は使えない） */
+    APPROXIMATE_ONLY,
+    DENIED,
+}
+
+/** LIVE の状態（NavState の外の、権限・端末の設定）。 */
+data class LiveUiState(
+    val permission: LocationPermission = LocationPermission.UNKNOWN,
+    /** 端末の位置情報（GPS）がオン */
+    val gpsEnabled: Boolean = true,
+    /** コンパスがある端末 */
+    val hasCompass: Boolean = true,
+)

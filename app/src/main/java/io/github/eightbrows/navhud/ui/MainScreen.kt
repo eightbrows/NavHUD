@@ -32,6 +32,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.github.eightbrows.navhud.core.model.HeadingSrc
 import io.github.eightbrows.navhud.core.nav.DisplayMode
 import io.github.eightbrows.navhud.core.nav.NavState
 import io.github.eightbrows.navhud.core.nav.ScreenSide
@@ -59,6 +60,10 @@ fun MainScreen(
     onToggleWpButtons: () -> Unit,
     onOpenWpSettings: () -> Unit,
     onToggleReached: (Int) -> Unit,
+    live: LiveUiState,
+    onToggleSourceKind: () -> Unit,
+    onRequestPermission: () -> Unit,
+    onOpenAppSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val zone = ZoneId.systemDefault()
@@ -84,7 +89,6 @@ fun MainScreen(
         InfoStrip(state, zone, valueColor, onCycleRate)
         Box(Modifier.fillMaxWidth().weight(1f)) {
             HudCanvas(state, Modifier.fillMaxSize(), reserved)
-            if (state.positionLost) LostBox(replay, Modifier.align(Alignment.Center))
             if (wpUi.showButtons) {
                 WpButtonColumn(
                     state,
@@ -100,8 +104,17 @@ fun MainScreen(
                     Modifier.align(if (buttonsRight) Alignment.BottomEnd else Alignment.BottomStart).padding(8.dp),
                 )
             }
+            // 案内の枠はボタン列より前面に描く
+            val permissionMissing = state.sourceKind == SourceKind.LIVE &&
+                (live.permission == LocationPermission.DENIED || live.permission == LocationPermission.APPROXIMATE_ONLY)
+            val center = Modifier.align(Alignment.Center).padding(horizontal = 16.dp)
+            if (permissionMissing) {
+                PermissionBox(live.permission, onRequestPermission, onOpenAppSettings, onToggleSourceKind, center)
+            } else if (state.positionLost) {
+                LostBox(lostHint(state, replay, live), center)
+            }
         }
-        BottomPanel(state, zone, valueColor)
+        BottomPanel(state, zone, valueColor, onToggleSourceKind)
     }
 }
 
@@ -219,8 +232,16 @@ private fun InfoStrip(state: NavState, zone: ZoneId, valueColor: Color, onCycleR
     }
 }
 
+/** SRC の表示。コンパスのときは CAL（精度が低い）・MAG（偏角が分からず磁北のまま）の印を付ける。 */
+private fun srcText(state: NavState): String {
+    val src = state.heading.src
+    val q = state.compass
+    if (src != HeadingSrc.COMPASS || q == null) return src.name
+    return listOfNotNull("COMPASS", "MAG".takeIf { q.declinationUnknown }, "CAL".takeIf { q.lowAccuracy }).joinToString(" ")
+}
+
 @Composable
-private fun BottomPanel(state: NavState, zone: ZoneId, valueColor: Color) {
+private fun BottomPanel(state: NavState, zone: ZoneId, valueColor: Color, onToggleSourceKind: () -> Unit) {
     val next = state.nextWpIndex?.let { state.waypoints[it] }
     val deadline = state.deadlineCountdownSec
     val deadlineColor = when {
@@ -238,7 +259,8 @@ private fun BottomPanel(state: NavState, zone: ZoneId, valueColor: Color) {
         Row {
             Cell("HDG", HudFormat.bearing(state.heading.deg), valueColor)
             Cell("GS", HudFormat.speedKmh(state.groundSpeedMps), valueColor)
-            Cell("SRC", state.heading.src.name, valueColor)
+            val marked = state.compass?.let { it.lowAccuracy || it.declinationUnknown } == true && state.heading.src == HeadingSrc.COMPASS
+            Cell("SRC", srcText(state), if (marked && !state.positionLost) HudColors.Caution else valueColor)
         }
         Row {
             Cell("NEXT ${next?.name ?: ""}".trim(), nextText(state), if (next != null && !state.positionLost) HudColors.Active else valueColor, weight = 2f)
@@ -247,10 +269,15 @@ private fun BottomPanel(state: NavState, zone: ZoneId, valueColor: Color) {
         Row {
             Cell("TGT", HudFormat.countdown(state.targetCountdownSec), valueColor)
             Cell("DDL", HudFormat.countdown(deadline), deadlineColor)
+            // タップで LIVE ⇔ REPLAY
             Cell(
-                state.sourceKind.name,
-                if (state.sourceKind == SourceKind.LIVE) "LIVE" else if (state.playing) "PLAY" else "PAUSE",
+                "SOURCE ⇄",
+                if (state.sourceKind == SourceKind.LIVE) "LIVE" else "REPLAY " + if (state.playing) "▶" else "❚❚",
                 HudColors.Scale,
+                Modifier
+                    .border(1.dp, HudColors.Frame, RoundedCornerShape(4.dp))
+                    .clickable(onClick = onToggleSourceKind)
+                    .padding(horizontal = 6.dp),
             )
         }
     }
@@ -270,7 +297,7 @@ private fun RowScope.Cell(caption: String, value: String, color: Color, modifier
 }
 
 @Composable
-private fun LostBox(replay: ReplayUiState, modifier: Modifier = Modifier) {
+private fun LostBox(hint: String?, modifier: Modifier = Modifier) {
     Column(
         modifier
             .background(HudColors.Background)
@@ -279,13 +306,60 @@ private fun LostBox(replay: ReplayUiState, modifier: Modifier = Modifier) {
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text("POSITION LOST", style = Value.copy(color = HudColors.Warning, fontWeight = FontWeight.Bold, fontSize = 18.sp))
-        val hint = when {
+        hint?.let { Text(it, style = Caption.copy(color = HudColors.Caution), textAlign = TextAlign.Center) }
+    }
+}
+
+/** POSITION LOST の枠に添える案内。 */
+private fun lostHint(state: NavState, replay: ReplayUiState, live: LiveUiState): String? =
+    if (state.sourceKind == SourceKind.LIVE) {
+        when {
+            live.permission == LocationPermission.UNKNOWN -> "位置情報の許可を待っています"
+            !live.gpsEnabled -> "端末の位置情報（GPS）がオフです。設定でオンにしてください"
+            state.fix == null -> "GPS を受信しています…"
+            else -> null
+        }
+    } else {
+        when {
             replay.loading -> "読み込み中…"
             replay.message != null -> replay.message
             replay.fileName == null -> "FILE で track.csv を選んでください"
             else -> null
         }
-        hint?.let { Text(it, style = Caption.copy(color = HudColors.Caution), textAlign = TextAlign.Center) }
+    }
+
+/** 位置情報の権限が拒否されたときの案内（§6.8）。リプレイは使える。 */
+@Composable
+private fun PermissionBox(
+    permission: LocationPermission,
+    onRequest: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onUseReplay: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier
+            .background(HudColors.Background)
+            .border(2.dp, HudColors.Caution)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text("位置情報を使えません", style = Value.copy(color = HudColors.Caution, fontWeight = FontWeight.Bold, fontSize = 17.sp))
+        Text(
+            if (permission == LocationPermission.APPROXIMATE_ONLY) {
+                "「おおよその位置」だけが許可されています。GPS で走行位置を出すには「正確な位置」の許可が必要です。"
+            } else {
+                "LIVE で現在地を表示するには、位置情報の許可が必要です。許可しなくても REPLAY（track.csv の再生）は使えます。"
+            },
+            style = Caption.copy(color = HudColors.Scale, fontSize = 13.sp),
+            textAlign = TextAlign.Center,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            HudButton("許可する", onRequest)
+            HudButton("設定を開く", onOpenSettings)
+        }
+        HudButton("REPLAY に切り替え", onUseReplay)
     }
 }
 

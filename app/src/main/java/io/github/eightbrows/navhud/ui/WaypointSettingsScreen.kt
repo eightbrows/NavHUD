@@ -244,7 +244,15 @@ private fun ReorderableWaypointList(
                 Switch(
                     checked = wp.enabled,
                     onCheckedChange = { onSetEnabled(i, it) },
-                    colors = SwitchDefaults.colors(checkedTrackColor = HudColors.Active),
+                    // マゼンタは「次の WP」専用なので、スイッチは白〜グレー
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = HudColors.Background,
+                        checkedTrackColor = HudColors.Scale,
+                        checkedBorderColor = HudColors.Scale,
+                        uncheckedThumbColor = HudColors.ScaleDim,
+                        uncheckedTrackColor = HudColors.Background,
+                        uncheckedBorderColor = HudColors.WpDisabled,
+                    ),
                     modifier = Modifier.padding(horizontal = 8.dp),
                 )
             }
