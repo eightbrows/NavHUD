@@ -31,12 +31,19 @@ object HudFormat {
         else -> "%.1f km".format(Locale.US, m / 1000)
     }
 
-    /** 距離環の文字: 1000 → "1"、500 → "0.5"（km）。 */
-    fun ringKm(m: Double): String =
-        java.math.BigDecimal.valueOf(m / 1000).stripTrailingZeros().toPlainString()
+    /**
+     * 距離環の文字: 1000m 未満は m の数字だけ（25 / 50 / 250）、以上は k（1k / 2.5k / 25k）。
+     */
+    fun ringLabel(m: Double): String =
+        if (m < 1_000) plain(m) else plain(m / 1000) + "k"
 
-    /** 縮尺の表示: "RNG 1km" / "RNG AUTO 0.5km"。 */
-    fun range(m: Double, auto: Boolean): String = "RNG " + (if (auto) "AUTO " else "") + ringKm(m) + "km"
+    /** 縮尺の段の表示: "500m" / "1km" / "2.5km"（RNG ボタン・設定画面）。 */
+    fun rangeStep(m: Double): String =
+        if (m < 1_000) plain(m) + "m" else plain(m / 1000) + "km"
+
+    /** 小数点以下の余分な 0 を付けない数（12.50 → "12.5"、100.0 → "100"）。 */
+    private fun plain(x: Double): String =
+        java.math.BigDecimal.valueOf(x).setScale(3, java.math.RoundingMode.HALF_UP).stripTrailingZeros().toPlainString()
 
     /** 方位目盛りの文字: N / E / S / W、それ以外は 10 で割った数（ND の慣習）。 */
     fun compassLabel(deg: Int): String = when (deg.mod(360)) {

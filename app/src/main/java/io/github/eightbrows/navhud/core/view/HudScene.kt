@@ -59,7 +59,8 @@ data class HudScene(
     val wpMarks: List<WpMark>,
     val arrows: List<EdgeArrow>,
     val pointers: List<Pointer>,
-    val ownShip: OwnShip,
+    /** 自機。PAN 中で Fix がなければ null */
+    val ownShip: OwnShip?,
 )
 
 /** 描画の寸法 [px]。画面密度に合わせて ui 側で作る。 */
@@ -69,10 +70,10 @@ data class HudMetrics(
     val labelGap: Float = 12f,
     val edgeInset: Float = 22f,
     val arrowTextGap: Float = 34f,
-    /** ARC の自機の位置（下端からの距離）: 標準 */
-    val arcOriginFromBottom: Float = 90f,
-    /** ARC の自機の位置（下端からの距離）: 高め。後方の WP・矢印に余裕を持たせる */
-    val arcOriginFromBottomHigh: Float = 150f,
+    /** ARC の自機の位置（表示枠の下端 = WP ボタン列の上端からの距離）: 標準 */
+    val arcOriginFromBottom: Float = 110f,
+    /** ARC の自機の位置: 高め。後方の WP・矢印に余裕を持たせる */
+    val arcOriginFromBottomHigh: Float = 170f,
     val northUpMargin: Float = 48f,
     val pointerSize: Float = 14f,
     /** 矢印の文字の1行の高さ（重なったときにずらす量） */

@@ -44,4 +44,12 @@ data class NavState(
     val rangeM: Double = 1_000.0,
     /** 縮尺の AUTO が ON */
     val rangeAuto: Boolean = true,
+    /** PAN（ドラッグで地図を動かしている）なら、その表示。null なら通常（自機が基準） */
+    val pan: PanView? = null,
 )
+
+/**
+ * PAN の表示: 地点 (lat, lon) を表示枠の中心に置き、画面の上を upDeg にする。
+ * ARC ではドラッグを始めた時点の機首方位で向きを固定する（North Up は 0）。
+ */
+data class PanView(val lat: Double, val lon: Double, val upDeg: Double)

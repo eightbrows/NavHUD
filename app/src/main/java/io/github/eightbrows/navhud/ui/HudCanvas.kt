@@ -1,11 +1,13 @@
 package io.github.eightbrows.navhud.ui
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
@@ -17,6 +19,7 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextMeasurer
@@ -42,6 +45,7 @@ fun HudCanvas(
     modifier: Modifier = Modifier,
     reserved: HudInsets = HudInsets(),
     onViewport: (HudViewport) -> Unit = {},
+    onPan: (Float, Float) -> Unit = { _, _ -> },
 ) {
     val density = LocalDensity.current.density
     val metrics = remember(density) { HudMetrics().scaled(density) }
@@ -57,10 +61,18 @@ fun HudCanvas(
         else HudSceneBuilder.build(state, HudRect(0f, 0f, size.width.toFloat(), size.height.toFloat()), metrics, reserved)
     }
     val textMeasurer = rememberTextMeasurer()
+    val panHandler by rememberUpdatedState(onPan)
     Canvas(
         modifier
             .clipToBounds()
-            .onSizeChanged { size = it },
+            .onSizeChanged { size = it }
+            // ドラッグで地図を平行移動（PAN）。指の動きの量 [px] をそのまま渡す
+            .pointerInput(Unit) {
+                detectDragGestures { change, drag ->
+                    change.consume()
+                    panHandler(drag.x, drag.y)
+                }
+            },
     ) {
         scene?.let { drawScene(it, textMeasurer, density) }
     }
@@ -126,7 +138,7 @@ private fun DrawScope.drawScene(scene: HudScene, tm: TextMeasurer, density: Floa
     }
     for (p in scene.pointers) triangle(p.tip, p.angleDeg, p.sizePx, HudColors.of(p.ink), filled = false, stroke = bold)
 
-    val own = scene.ownShip
+    val own = scene.ownShip ?: return
     val oc = HudColors.of(own.ink)
     if (own.angleDeg == null) {
         drawCircle(oc, radius = 7f * density, center = own.at.o(), style = Stroke(bold))
@@ -160,7 +172,7 @@ private fun DrawScope.triangle(tip: P, angleDeg: Float, size: Float, color: Colo
 }
 
 /** 文字の中心を at に合わせて描く。 */
-private fun DrawScope.drawLabel(tm: TextMeasurer, text: String, at: P, color: Color, style: TextStyle) {
+internal fun DrawScope.drawLabel(tm: TextMeasurer, text: String, at: P, color: Color, style: TextStyle) {
     val layout = tm.measure(text, style.copy(color = color))
     drawText(layout, topLeft = Offset(at.x - layout.size.width / 2f, at.y - layout.size.height / 2f))
 }

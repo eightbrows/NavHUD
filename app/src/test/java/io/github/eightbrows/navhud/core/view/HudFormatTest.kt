@@ -29,8 +29,19 @@ class HudFormatTest {
         assertEquals("3", HudFormat.compassLabel(30))
         assertEquals("E", HudFormat.compassLabel(90))
         assertEquals("33", HudFormat.compassLabel(330))
-        assertEquals("1", HudFormat.ringKm(1_000.0))
-        assertEquals("0.5", HudFormat.ringKm(500.0))
+        // 距離環: 1000m 未満は m の数字だけ、以上は k
+        assertEquals(
+            listOf("25", "50", "100", "250", "500", "1k", "2.5k", "5k", "10k", "25k"),
+            listOf(25.0, 50.0, 100.0, 250.0, 500.0, 1_000.0, 2_500.0, 5_000.0, 10_000.0, 25_000.0).map { HudFormat.ringLabel(it) },
+        )
+        assertEquals("75", HudFormat.ringLabel(75.0))
+        assertEquals("1.5k", HudFormat.ringLabel(1_500.0))
+        assertEquals("12.5k", HudFormat.ringLabel(12_500.0))
+        // 縮尺の段
+        assertEquals(
+            listOf("50m", "100m", "200m", "500m", "1km", "2km", "5km", "10km", "20km", "50km"),
+            io.github.eightbrows.navhud.core.nav.RangeAuto.ALL_STEPS_KM.map { HudFormat.rangeStep(it * 1000) },
+        )
     }
 
     @Test

@@ -133,6 +133,7 @@ class MainActivity : ComponentActivity() {
                                 screen = Screen.WAYPOINTS
                             },
                             onToggleReached = vm::toggleReached,
+                            onPanToWaypoint = vm::panToWaypoint,
                             live = live,
                             onToggleSourceKind = vm::toggleSourceKind,
                             onRequestPermission = onRequestPermission,
@@ -141,6 +142,8 @@ class MainActivity : ComponentActivity() {
                             onZoomOut = vm::zoomOut,
                             onToggleAutoRange = vm::toggleAutoRange,
                             onViewport = vm::setViewport,
+                            onPan = vm::panBy,
+                            onEndPan = vm::endPan,
                             onOpenSettings = { screen = Screen.SETTINGS },
                             modifier = modifier,
                         )

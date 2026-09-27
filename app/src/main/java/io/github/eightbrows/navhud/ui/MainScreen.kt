@@ -5,7 +5,9 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -14,11 +16,9 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -36,12 +36,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.eightbrows.navhud.core.model.HeadingSrc
 import io.github.eightbrows.navhud.core.nav.DisplayMode
 import io.github.eightbrows.navhud.core.nav.NavState
-import io.github.eightbrows.navhud.core.nav.ScreenSide
+import io.github.eightbrows.navhud.core.nav.ProfileSize
 import io.github.eightbrows.navhud.core.nav.SourceKind
 import io.github.eightbrows.navhud.core.view.HudFormat
 import io.github.eightbrows.navhud.core.view.HudInsets
@@ -52,7 +54,10 @@ private val Caption get() = TextStyle(fontFamily = FontFamily.Monospace, fontSiz
 private val Value get() = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 15.sp, color = HudColors.Scale)
 private val ButtonText get() = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 13.sp, color = HudColors.Scale)
 
-/** メイン画面（§6.1〜6.3）。NavState だけを見て描く。 */
+/**
+ * メイン画面（§6.1〜6.4）。NavState だけを見て描く。
+ * 上から: 上部バー / 情報欄 / 地図（右端に操作列、下端に横並びの WP ボタン列を重ねる）/ 標高プロファイル / 下部パネル。
+ */
 @Composable
 fun MainScreen(
     state: NavState,
@@ -67,6 +72,7 @@ fun MainScreen(
     onToggleWpButtons: () -> Unit,
     onOpenWpSettings: () -> Unit,
     onToggleReached: (Int) -> Unit,
+    onPanToWaypoint: (Int) -> Unit,
     live: LiveUiState,
     onToggleSourceKind: () -> Unit,
     onRequestPermission: () -> Unit,
@@ -74,6 +80,8 @@ fun MainScreen(
     onZoomIn: () -> Unit,
     onZoomOut: () -> Unit,
     onToggleAutoRange: () -> Unit,
+    onPan: (Float, Float) -> Unit,
+    onEndPan: () -> Unit,
     onOpenSettings: () -> Unit,
     onViewport: (HudViewport) -> Unit,
     modifier: Modifier = Modifier,
@@ -81,57 +89,34 @@ fun MainScreen(
     val zone = ZoneId.systemDefault()
     // NO FIX 中は最後の値をグレーで出し続ける
     val valueColor = if (state.noFix) HudColors.Stale else HudColors.Scale
-    val buttonsRight = state.settings.wpButtonsSide == ScreenSide.RIGHT
     val showReplay = state.sourceKind == SourceKind.REPLAY
+    val stripHeight = if (wpUi.showButtons) WpStripHeight else 0.dp
 
-    // 画面外の矢印を置かない帯。ボタン列を出しているときはリプレイ操作もボタン列の下に入るので、その側の帯だけ。
-    // ボタン列を隠しているときは、リプレイ操作のある下端の帯
+    // 地図に重ねる帯: 右の操作列と、下の WP ボタン列。地図の表示枠はこれを除いた領域（方位目盛りはその縁）
     val density = LocalDensity.current
-    val reserved = with(density) {
-        val column = if (wpUi.showButtons) WpColumnWidth.toPx() else 0f
-        HudInsets(
-            left = if (!buttonsRight) column else 0f,
-            right = if (buttonsRight) column else 0f,
-            bottom = if (showReplay && !wpUi.showButtons) ReplayBandHeight.toPx() else 0f,
-        )
-    }
+    val reserved = with(density) { HudInsets(right = SideColumnWidth.toPx(), bottom = stripHeight.toPx()) }
 
     Column(modifier.fillMaxSize().background(HudColors.Background)) {
         TopBar(state, wpUi.showButtons, onCycleSource, onToggleWpButtons, onToggleDisplay, onOpenSettings, onOpenDebug)
-        // 縮尺の操作は地図の外（情報欄の LAT/LON の右）に置く。地図の上の方位目盛り・矢印・WP と重ならない
-        InfoStrip(state, zone, valueColor, onCycleRate) {
-            RangeControls(state, onZoomIn, onZoomOut, onToggleAutoRange)
-        }
+        InfoStrip(state, zone, valueColor, onCycleRate)
         Box(Modifier.fillMaxWidth().weight(1f)) {
-            HudCanvas(state, Modifier.fillMaxSize(), reserved, onViewport)
+            HudCanvas(state, Modifier.fillMaxSize(), reserved, onViewport, onPan)
+            // 右の操作列: 上に ＋ / RNG / −（PAN 中は「現在地」も）、下に REPLAY の ▶ / FILE
+            SideColumn(
+                state, replay, onZoomIn, onZoomOut, onToggleAutoRange, onEndPan, onPickTrack, onTogglePlay, showReplay,
+                Modifier.align(Alignment.TopEnd).padding(bottom = stripHeight),
+            )
             if (wpUi.showButtons) {
-                WpButtonColumn(
-                    state,
-                    onOpenWpSettings,
-                    onToggleReached,
-                    Modifier.align(if (buttonsRight) Alignment.TopEnd else Alignment.TopStart),
-                ) {
-                    if (showReplay) ReplayControls(state, replay, onPickTrack, onTogglePlay, stacked = true)
-                }
-            } else if (showReplay) {
-                ReplayControls(
-                    state, replay, onPickTrack, onTogglePlay,
-                    Modifier.align(if (buttonsRight) Alignment.BottomEnd else Alignment.BottomStart).padding(8.dp),
-                )
+                WpStrip(state, onOpenWpSettings, onToggleReached, onPanToWaypoint, Modifier.align(Alignment.BottomStart))
             }
-            // 案内の枠: ボタン列とリプレイ操作を除いた領域の中央に置き、その幅で折り返す
+            // 案内の枠: 地図の表示枠の中央に置き、その幅で折り返す
             val permissionMissing = state.sourceKind == SourceKind.LIVE &&
                 (live.permission == LocationPermission.DENIED || live.permission == LocationPermission.APPROXIMATE_ONLY)
             if (permissionMissing || state.noFix) {
-                val column = if (wpUi.showButtons) WpColumnWidth else 0.dp
                 Box(
                     Modifier
                         .fillMaxSize()
-                        .padding(
-                            start = if (buttonsRight) 0.dp else column,
-                            end = if (buttonsRight) column else 0.dp,
-                            bottom = if (showReplay && !wpUi.showButtons) ReplayBandHeight else 0.dp,
-                        )
+                        .padding(end = SideColumnWidth, bottom = stripHeight)
                         .padding(horizontal = 12.dp),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -143,86 +128,195 @@ fun MainScreen(
                 }
             }
         }
+        profileHeight(state.settings.profileSize)?.let { h ->
+            ProfileView(state, Modifier.fillMaxWidth().height(h).border(0.5.dp, HudColors.Frame))
+        }
         BottomPanel(state, zone, valueColor, onToggleSourceKind)
     }
 }
 
-private val WpColumnWidth = 84.dp
-private val WpButtonHeight = 32.dp
+/** 右の操作列の幅（ボタン 52dp ＋ 余白） */
+private val SideColumnWidth = 60.dp
+private val SideButtonSize = 52.dp
+
+/** 横並びの WP ボタン列の高さ */
+private val WpStripHeight = 48.dp
+private val WpSettingsWidth = 64.dp
 private val WpButtonGap = 6.dp
-private val ReplayBandHeight = 46.dp
+
+/** 標高プロファイルの高さ（OFF なら null） */
+private fun profileHeight(size: ProfileSize): Dp? = when (size) {
+    ProfileSize.OFF -> null
+    ProfileSize.SMALL -> 56.dp
+    ProfileSize.MEDIUM -> 88.dp
+    ProfileSize.LARGE -> 128.dp
+}
 
 /**
- * WP ボタン列（§6.4）。最上部に固定の「WP設定」、その下は下から上へ WP1, WP2…（スクロール可能）。
- * タップで到達済みを個別に切り替える（到達済みは色反転）。無効 WP はグレーで押せない。
+ * 右の操作列。頻繁に押すので大きめ（52dp 角）。上から ＋ / 縮尺の表示（タップで AUTO の ON / OFF）/ −。
+ * PAN 中は縮尺の表示が「PAN」になり、その下に「現在地」（現在地の表示に戻る）。REPLAY のときは下に ▶ / FILE。
  */
 @Composable
-private fun WpButtonColumn(
+private fun SideColumn(
     state: NavState,
-    onOpenSettings: () -> Unit,
-    onToggleReached: (Int) -> Unit,
+    replay: ReplayUiState,
+    onZoomIn: () -> Unit,
+    onZoomOut: () -> Unit,
+    onToggleAutoRange: () -> Unit,
+    onEndPan: () -> Unit,
+    onPickTrack: () -> Unit,
+    onTogglePlay: () -> Unit,
+    showReplay: Boolean,
     modifier: Modifier = Modifier,
-    bottom: @Composable () -> Unit = {},
 ) {
     Column(
-        modifier
-            .width(WpColumnWidth)
-            .fillMaxHeight()
-            .padding(6.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+        modifier.width(SideColumnWidth).fillMaxHeight().padding(vertical = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.SpaceBetween,
     ) {
-        WpColumnButton("WP設定", onOpenSettings, HudColors.Scale, inverted = false, enabled = true)
-        // 一度に見せるのは wpButtonsMax 個まで。超える分はスクロールし、次の WP が見える位置へ自動で動かす
-        val scroll = rememberScrollState()
-        val itemPx = with(LocalDensity.current) { (WpButtonHeight + WpButtonGap).toPx() }
-        val visible = state.settings.wpButtonsMax
-        val next = state.nextWpIndex
-        LaunchedEffect(next, visible, state.waypoints.size) {
-            if (next == null) return@LaunchedEffect
-            // 下から next 番目（WP1 が一番下）。見える範囲 [value, value + visible 個] に入るよう最小限動かす
-            val top = next * itemPx
-            val bottom = (next + 1) * itemPx
-            val view = visible * itemPx
-            val target = when {
-                top < scroll.value -> top
-                bottom > scroll.value + view -> bottom - view
-                else -> return@LaunchedEffect
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            SideButton("＋", onZoomIn, fontSize = 22.sp)
+            val top = when {
+                state.pan != null -> "PAN"
+                state.rangeAuto -> "AUTO"
+                else -> "RNG"
             }
-            scroll.animateScrollTo(target.toInt().coerceIn(0, scroll.maxValue))
+            SideButton(
+                "$top\n${HudFormat.rangeStep(state.rangeM)}",
+                onToggleAutoRange,
+                inverted = state.rangeAuto && state.pan == null,
+                color = if (state.pan != null) HudColors.Caution else HudColors.Scale,
+            )
+            SideButton("−", onZoomOut, fontSize = 22.sp)
+            if (state.pan != null) SideButton("現在地", onEndPan, color = HudColors.Caution, inverted = true)
         }
-        Box(Modifier.fillMaxWidth().weight(1f)) {
-            Column(
-                Modifier
-                    .align(Alignment.BottomCenter)
-                    .heightIn(max = (WpButtonHeight + WpButtonGap) * visible - WpButtonGap)
-                    .verticalScroll(scroll, reverseScrolling = true),
-                verticalArrangement = Arrangement.spacedBy(WpButtonGap),
-            ) {
-                for (i in state.waypoints.indices.reversed()) {
-                    val wp = state.waypoints[i]
-                    val color = when {
-                        !wp.enabled -> HudColors.WpDisabled
-                        i == state.nextWpIndex -> HudColors.Active
-                        else -> HudColors.Wp
-                    }
-                    WpColumnButton(wp.name, { onToggleReached(i) }, color, inverted = wp.reached && wp.enabled, enabled = wp.enabled)
-                }
+        if (showReplay) {
+            val play = when {
+                replay.finished -> "END"
+                state.playing -> "❚❚"
+                else -> "▶"
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                SideButton(play, onTogglePlay, enabled = replay.ready && !replay.finished, height = 40.dp)
+                SideButton("FILE", onPickTrack, height = 36.dp)
             }
         }
-        bottom()
     }
 }
 
 @Composable
-private fun WpColumnButton(text: String, onClick: () -> Unit, color: Color, inverted: Boolean, enabled: Boolean) {
+private fun SideButton(
+    text: String,
+    onClick: () -> Unit,
+    enabled: Boolean = true,
+    inverted: Boolean = false,
+    color: Color = HudColors.Scale,
+    height: Dp = SideButtonSize,
+    fontSize: TextUnit = 12.sp,
+) {
+    val c = if (enabled) color else HudColors.WpReached
+    val shape = RoundedCornerShape(6.dp)
+    Box(
+        Modifier
+            .width(SideButtonSize)
+            .height(height)
+            .border(1.dp, c, shape)
+            .background(if (inverted) c else HudColors.Background, shape)
+            .clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text,
+            style = ButtonText.copy(color = if (inverted) HudColors.Background else c, fontSize = fontSize, lineHeight = fontSize * 1.15f),
+            textAlign = TextAlign.Center,
+            maxLines = 2,
+        )
+    }
+}
+
+/**
+ * 横並びの WP ボタン列（§6.4）。左端に固定の「WP設定」、その右は左から WP1, WP2…（左右にスクロール）。
+ * ボタンの幅は「見せる数」で決まる。次の WP が変わったら、それが中央に来るよう自動でスクロールする。
+ * タップ = 到達済みの切替（到達済みは色反転、無効 WP はグレーで押せない）。長押し = その WP を地図の中心に（PAN）。
+ */
+@Composable
+private fun WpStrip(
+    state: NavState,
+    onOpenSettings: () -> Unit,
+    onToggleReached: (Int) -> Unit,
+    onPanTo: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    BoxWithConstraints(
+        modifier
+            .fillMaxWidth()
+            .height(WpStripHeight)
+            .background(HudColors.Background.copy(alpha = 0.85f))
+            .padding(horizontal = 6.dp, vertical = 5.dp),
+    ) {
+        val visible = state.settings.wpButtonsMax.coerceAtLeast(1)
+        val listWidth = maxWidth - WpSettingsWidth - WpButtonGap
+        val itemWidth = (listWidth - WpButtonGap * (visible - 1)) / visible
+        val scroll = rememberScrollState()
+        val density = LocalDensity.current
+        val stepPx = with(density) { (itemWidth + WpButtonGap).toPx() }
+        val itemPx = with(density) { itemWidth.toPx() }
+        val viewPx = with(density) { listWidth.toPx() }
+        val next = state.nextWpIndex
+        LaunchedEffect(next, visible, state.waypoints.size, viewPx) {
+            if (next == null) return@LaunchedEffect
+            // 次の WP を中央へ
+            val target = next * stepPx - (viewPx - itemPx) / 2
+            scroll.animateScrollTo(target.toInt().coerceIn(0, scroll.maxValue))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(WpButtonGap)) {
+            WpStripButton("WP設定", WpSettingsWidth, HudColors.Scale, inverted = false, enabled = true, onTap = onOpenSettings)
+            Row(
+                Modifier.width(listWidth).horizontalScroll(scroll),
+                horizontalArrangement = Arrangement.spacedBy(WpButtonGap),
+            ) {
+                for ((i, wp) in state.waypoints.withIndex()) {
+                    val color = when {
+                        !wp.enabled -> HudColors.WpDisabled
+                        i == next -> HudColors.Active
+                        else -> HudColors.Wp
+                    }
+                    WpStripButton(
+                        wp.name, itemWidth, color,
+                        inverted = wp.reached && wp.enabled,
+                        enabled = wp.enabled,
+                        onTap = { onToggleReached(i) },
+                        onLongPress = { onPanTo(i) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WpStripButton(
+    text: String,
+    width: Dp,
+    color: Color,
+    inverted: Boolean,
+    enabled: Boolean,
+    onTap: () -> Unit,
+    onLongPress: (() -> Unit)? = null,
+) {
     val shape = RoundedCornerShape(4.dp)
     Box(
         Modifier
-            .fillMaxWidth()
-            .height(WpButtonHeight)
+            .width(width)
+            .fillMaxHeight()
             .border(1.dp, color, shape)
             .background(if (inverted) color else HudColors.Background, shape)
-            .clickable(enabled = enabled, onClick = onClick)
+            .pointerInput(enabled, onTap, onLongPress) {
+                detectTapGestures(
+                    onTap = { if (enabled) onTap() },
+                    onLongPress = onLongPress?.let { f -> { f() } },
+                )
+            }
             .padding(horizontal = 4.dp),
         contentAlignment = Alignment.Center,
     ) {
@@ -272,7 +366,6 @@ private fun InfoStrip(
     zone: ZoneId,
     valueColor: Color,
     onCycleRate: () -> Unit,
-    trailing: @Composable () -> Unit,
 ) {
     val fix = state.fix
     Column(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp)) {
@@ -287,9 +380,8 @@ private fun InfoStrip(
                 weight = 1.4f,
             )
         }
-        Row(verticalAlignment = Alignment.Bottom) {
-            Cell("LAT/LON", HudFormat.latLon(fix?.lat, fix?.lon), valueColor, weight = 1f)
-            trailing()
+        Row {
+            Cell("LAT/LON", HudFormat.latLon(fix?.lat, fix?.lon), valueColor)
         }
     }
 }
@@ -453,35 +545,6 @@ private fun PermissionBox(
 }
 
 @Composable
-private fun ReplayControls(
-    state: NavState,
-    replay: ReplayUiState,
-    onPickTrack: () -> Unit,
-    onTogglePlay: () -> Unit,
-    modifier: Modifier = Modifier,
-    stacked: Boolean = false,
-) {
-    val play = when {
-        replay.finished -> "END"
-        state.playing -> "❚❚"
-        else -> "▶"
-    }
-    val playEnabled = replay.ready && !replay.finished
-    if (stacked) {
-        // ボタン列の一番下に、列の幅いっぱいで縦に並べる
-        Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            HudButton(play, onTogglePlay, enabled = playEnabled, small = true, fill = true)
-            HudButton("FILE", onPickTrack, small = true, fill = true)
-        }
-    } else {
-        Row(modifier, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            HudButton("FILE", onPickTrack, small = true)
-            HudButton(play, onTogglePlay, enabled = playEnabled, small = true)
-        }
-    }
-}
-
-@Composable
 internal fun HudButton(
     text: String,
     onClick: () -> Unit,
@@ -503,18 +566,3 @@ internal fun HudButton(
     }
 }
 
-/** 縮尺の表示と ＋ / −。表示をタップすると AUTO の ON / OFF。 */
-@Composable
-private fun RangeControls(
-    state: NavState,
-    onZoomIn: () -> Unit,
-    onZoomOut: () -> Unit,
-    onToggleAutoRange: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Row(modifier, horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-        HudButton(HudFormat.range(state.rangeM, state.rangeAuto), onToggleAutoRange, small = true, inverted = state.rangeAuto)
-        HudButton("−", onZoomOut, small = true)
-        HudButton("＋", onZoomIn, small = true)
-    }
-}

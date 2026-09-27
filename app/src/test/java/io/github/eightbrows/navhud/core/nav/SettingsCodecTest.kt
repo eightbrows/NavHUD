@@ -24,15 +24,16 @@ class SettingsCodecTest {
             noFixTimeoutSec = 15,
             altOffsetM = 35.5,
             displayMode = DisplayMode.NORTH_UP,
-            rangeStepsKm = listOf(0.25, 2.0, 20.0),
+            rangeStepsKm = listOf(0.05, 2.0, 50.0),
             initialRangeKm = 2.0,
             autoRange = false,
             autoRangeZoomInDelaySec = 8,
-            wpButtonsSide = ScreenSide.LEFT,
-            wpButtonsMax = 7,
+            wpButtonsMax = 6,
             hudWpCount = 4,
             colorTheme = ColorTheme.AMBER,
             ownshipPosition = OwnshipPosition.HIGH,
+            profileSize = ProfileSize.LARGE,
+            panReturnSec = 30,
             autoOpenLastList = true,
             keepScreenOn = false,
         )
@@ -68,7 +69,7 @@ class SettingsCodecTest {
         assertEquals(d.holdEnterSpeedMps, s.holdEnterSpeedMps)
         assertEquals(d.rateWindowSec, s.rateWindowSec)
         assertEquals(d.rangeStepsKm, s.rangeStepsKm)
-        assertEquals(10, s.wpButtonsMax)
+        assertEquals(6, s.wpButtonsMax)
         assertEquals(1, s.hudWpCount)
         assertEquals(d.keepScreenOn, s.keepScreenOn)
     }
@@ -77,5 +78,7 @@ class SettingsCodecTest {
     fun rangeStepsAreFilteredAndSorted() {
         val s = SettingsCodec.decode(mapOf("rangeStepsKm" to "10, 0.5,3 ,0.5,1"))
         assertEquals(listOf(0.5, 1.0, 10.0), s.rangeStepsKm)
+        // 7b までの段（0.25km）は、今の段にないので捨てる
+        assertEquals(listOf(0.5, 2.0), SettingsCodec.decode(mapOf("rangeStepsKm" to "0.25,0.5,2")).rangeStepsKm)
     }
 }

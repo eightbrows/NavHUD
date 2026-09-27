@@ -4,13 +4,14 @@ import io.github.eightbrows.navhud.core.model.SourceMode
 
 enum class DisplayMode { ARC, NORTH_UP }
 
-enum class ScreenSide { LEFT, RIGHT }
-
 /** 基本色（目盛り・距離環・文字・自機）。マゼンタ・警告色・グレーは固定 */
 enum class ColorTheme { WHITE, GREEN, AMBER }
 
-/** ARC の自機の位置（下端からの距離）。高めは後方の矢印に余裕を持たせる */
+/** ARC の自機の位置（WP ボタン列の上端からの距離）。高めは後方の WP・矢印に余裕を持たせる */
 enum class OwnshipPosition { STANDARD, HIGH }
+
+/** 標高プロファイルの表示サイズ（§6.6） */
+enum class ProfileSize { OFF, SMALL, MEDIUM, LARGE }
 
 /** 仕様の設定値（既定値つき）。保存はまだしない。 */
 data class NavSettings(
@@ -46,17 +47,15 @@ data class NavSettings(
      * 使う縮尺の段 [km]（RangeAuto.ALL_STEPS_KM の中から）。縮尺は ARC では基準の距離環が左右端に接する距離、
      * North Up では最外周の距離環。距離環の間隔は縮尺の 1/2
      */
-    val rangeStepsKm: List<Double> = listOf(0.5, 1.0, 2.0, 5.0, 10.0),
+    val rangeStepsKm: List<Double> = listOf(0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0),
     /** 起動時の縮尺 [km] */
     val initialRangeKm: Double = 1.0,
     /** 縮尺の AUTO（次の WP が収まる最小の段）を起動時に ON にする */
     val autoRange: Boolean = true,
     /** AUTO: 狭める（拡大する）方向は、条件がこれだけ続いてから切り替える [秒] */
     val autoRangeZoomInDelaySec: Int = 5,
-    /** WP ボタン列を置く側（§6.4） */
-    val wpButtonsSide: ScreenSide = ScreenSide.RIGHT,
-    /** WP ボタン列に一度に見せる数（超える分はスクロール） */
-    val wpButtonsMax: Int = 5,
+    /** 横並びの WP ボタン列に一度に見せる数（ボタンの幅はこれで決まる。超える分は左右にスクロール） */
+    val wpButtonsMax: Int = 4,
     /** HUD に描く WP の数（次の WP から先） */
     val hudWpCount: Int = 3,
     /** 色テーマ */
@@ -65,11 +64,16 @@ data class NavSettings(
     val ownshipPosition: OwnshipPosition = OwnshipPosition.STANDARD,
     /** 起動時に前回の WP リストを自動で開く（起動時の選択を出さない） */
     val autoOpenLastList: Boolean = false,
+    /** 標高プロファイルの表示サイズ（§6.6） */
+    val profileSize: ProfileSize = ProfileSize.SMALL,
+    /** PAN（ドラッグで地図を動かす）のあと、操作がないまま現在地へ戻るまで [秒] */
+    val panReturnSec: Int = 15,
     /** 画面常時点灯（§6.8） */
     val keepScreenOn: Boolean = true,
 ) {
     companion object {
-        val WP_BUTTONS_MAX_RANGE = 1..10
+        val WP_BUTTONS_MAX_RANGE = 3..6
+        val PAN_RETURN_SEC_RANGE = 5..60
         val HUD_WP_COUNT_RANGE = 1..10
         val REACH_RADIUS_CHOICES_M = listOf(50.0, 100.0, 200.0, 500.0)
         val RATE_WINDOW_CHOICES_SEC = listOf(10, 30, 60)

@@ -61,8 +61,8 @@ class HudSceneBuilderTest {
     @Test
     fun arcOwnShipAtBottomCenterAndRingsTouchEdges() {
         val scene = build(state())
-        assertEquals(P(360f, 900f - m.arcOriginFromBottom), scene.ownShip.at)
-        assertEquals(0f, scene.ownShip.angleDeg)
+        assertEquals(P(360f, 900f - m.arcOriginFromBottom), scene.ownShip!!.at)
+        assertEquals(0f, scene.ownShip!!.angleDeg)
         // 2km の距離環の半径 = 画面幅の半分
         assertTrue(scene.arcs.any { kotlin.math.abs(it.radius - 360f) < 1e-3 })
         // 前方 180° の弧
@@ -75,8 +75,8 @@ class HudSceneBuilderTest {
         val labels = build(state(headingDeg = 0f)).labels.associateBy { it.text }
         val gap = m.tickMajor + m.labelGap
         assertP(P(360f, gap), labels.getValue("N").at)
-        assertP(P(720f - gap, 810f), labels.getValue("E").at)
-        assertP(P(gap, 810f), labels.getValue("W").at)
+        assertP(P(720f - gap, 790f), labels.getValue("E").at)
+        assertP(P(gap, 790f), labels.getValue("W").at)
         assertFalse(labels.containsKey("S"))
     }
 
@@ -95,7 +95,7 @@ class HudSceneBuilderTest {
     @Test
     fun arcTicksAreOnTheFrameNotOnARing() {
         // 目盛りの外側の端はすべて表示枠の縁にある（同心円に沿わない）
-        val o = P(360f, 810f)
+        val o = P(360f, 790f)
         val ticks = build(state(headingDeg = 30f)).segments.filter { it.ink == Ink.SCALE }
         assertEquals(19, ticks.size) // -90°..+90° を 10° ごと
         for (t in ticks) {
@@ -111,7 +111,7 @@ class HudSceneBuilderTest {
     fun bearingLinesEvery30Degrees() {
         val lines = build(state(headingDeg = 0f)).segments.filter { it.ink == Ink.BEARING_LINE }
         assertEquals(7, lines.size) // -90, -60, … , +90
-        assertTrue(lines.all { it.a == P(360f, 810f) })
+        assertTrue(lines.all { it.a == P(360f, 790f) })
     }
 
     @Test
@@ -121,7 +121,7 @@ class HudSceneBuilderTest {
         assertTrue(scene.wpMarks.isEmpty())
         val arrow = scene.arrows.single()
         assertEquals(m.edgeInset, arrow.at.x, 1e-3f)
-        assertEquals(810f, arrow.at.y, 0.5f)
+        assertEquals(790f, arrow.at.y, 0.5f)
         assertEquals(-90f, arrow.angleDeg, 0.1f)
         assertEquals(Ink.ACTIVE, arrow.ink)
         assertTrue(arrow.text, arrow.text.startsWith("WP1 5.00 km"))
@@ -135,12 +135,12 @@ class HudSceneBuilderTest {
         val scene = build(state(headingDeg = 0f, wps = listOf(wp("WP1", 1_000.0)), next = 0))
         val mark = scene.wpMarks.single()
         assertEquals(360f, mark.at.x, 0.5f)
-        assertEquals(810f - 180f, mark.at.y, 0.5f)
+        assertEquals(790f - 180f, mark.at.y, 0.5f)
         assertEquals(Ink.ACTIVE, mark.ink)
         assertTrue(scene.arrows.isEmpty())
         // 自機から次の WP への線（マゼンタ）
         val active = scene.segments.single { it.ink == Ink.ACTIVE }
-        assertEquals(P(360f, 810f), active.a)
+        assertEquals(P(360f, 790f), active.a)
         assertEquals(mark.at, active.b)
     }
 
@@ -186,8 +186,8 @@ class HudSceneBuilderTest {
     fun northUpCompassCardOutsideOuterRing() {
         val scene = build(state(headingDeg = 45f, mode = DisplayMode.NORTH_UP))
         val o = P(360f, 450f)
-        assertEquals(o, scene.ownShip.at)
-        assertEquals(45f, scene.ownShip.angleDeg)
+        assertEquals(o, scene.ownShip!!.at)
+        assertEquals(45f, scene.ownShip!!.angleDeg)
         val outer = 360f - m.northUpMargin
         // 全周の距離環（1km, 2km）
         assertEquals(2, scene.arcs.size)
@@ -206,7 +206,7 @@ class HudSceneBuilderTest {
     @Test
     fun noHeadingUsesNorthUpInArcAndRoundOwnShip() {
         val scene = build(state(headingDeg = null))
-        assertNull(scene.ownShip.angleDeg)
+        assertNull(scene.ownShip!!.angleDeg)
         assertEquals(360f, scene.labels.single { it.text == "N" }.at.x, 1e-3f)
         // ラバーラインは引かない
         assertTrue(scene.segments.none { it.ink == Ink.OWNSHIP })
@@ -215,7 +215,7 @@ class HudSceneBuilderTest {
     @Test
     fun noFixMakesPositionDependentPartsGray() {
         val scene = build(state(wps = listOf(wp("WP1", 1_000.0)), next = 0, noFix = true))
-        assertEquals(Ink.STALE, scene.ownShip.ink)
+        assertEquals(Ink.STALE, scene.ownShip!!.ink)
         assertEquals(Ink.STALE, scene.wpMarks.single().ink)
         assertTrue(scene.segments.none { it.ink == Ink.ACTIVE || it.ink == Ink.OWNSHIP })
         // 目盛りはそのまま
@@ -306,10 +306,10 @@ class HudSceneBuilderTest {
     }
 
     @Test
-    fun ringLabelsHaveUnitsAndAreSmall() {
-        // 2km 縮尺: 1km ごとの距離環。文字は単位付きで、方位目盛りより小さく薄い
+    fun ringLabelsAreSmallAndUseK() {
+        // 2km 縮尺: 1km ごとの距離環。文字は 1k / 2k で、方位目盛りより小さく薄い
         val rings = build(state()).labels.filter { it.small }
-        assertTrue(rings.map { it.text }.containsAll(listOf("1km", "2km")))
+        assertTrue(rings.map { it.text }.containsAll(listOf("1k", "2k")))
         assertTrue(rings.all { it.ink == Ink.SCALE_DIM })
         assertTrue(build(state()).labels.filter { !it.small }.all { it.ink == Ink.SCALE })
     }
@@ -346,12 +346,87 @@ class HudSceneBuilderTest {
             assertEquals(4, scene.arrows.size)
             val obstacles = scene.labels.map { l ->
                 HudSceneBuilder.Box(l.at, HudSceneBuilder.textHalfWidth(l.text, m) * (if (l.small) 1f else 13f / 11f) + 2f, m.compassLabelHalf)
-            } + HudSceneBuilder.Box(scene.ownShip.at, m.ownShipClear, m.ownShipClear)
+            } + HudSceneBuilder.Box(scene.ownShip!!.at, m.ownShipClear, m.ownShipClear)
             val texts = scene.arrows.map { HudSceneBuilder.Box(it.textAt, HudSceneBuilder.textHalfWidth(it.text, m), m.arrowLabelLine / 2) }
             for ((i, t) in texts.withIndex()) {
                 assertTrue("$mode ${scene.arrows[i].text}", obstacles.none { it.overlaps(t) })
+                // 自分の矢印にも重ならない
+                assertFalse("$mode ${scene.arrows[i].text}", HudSceneBuilder.Box(scene.arrows[i].at, m.pointerSize, m.pointerSize).overlaps(t))
                 assertTrue("$mode ${scene.arrows[i].text}", texts.filterIndexed { j, _ -> j != i }.none { it.overlaps(t) })
             }
         }
+    }
+
+    @Test
+    fun arcUsesTheMapFrameBesideTheSideColumnAndAboveTheStrip() {
+        // 描画領域 720×690、右の操作列 102 px、下の WP ボタン列 81.6 px → 表示枠は x 0..618、y 0..608.4
+        val r = HudRect(0f, 0f, 720f, 690f)
+        val reserved = HudInsets(right = 102f, bottom = 81.6f)
+        val scene = HudSceneBuilder.build(state(headingDeg = 0f), r, m, reserved)
+        // 自機は表示枠の横の中央、WP ボタン列の上端から 110
+        val own = P(309f, 608.4f - m.arcOriginFromBottom)
+        assertP(own, scene.ownShip!!.at)
+        // 基準の距離環（2km）が表示枠の左右端に接する
+        assertTrue(scene.arcs.any { abs(it.radius - 309f) < 1e-3 })
+        // 方位目盛りは表示枠の縁（操作列の左端）
+        val labels = scene.labels.associateBy { it.text }
+        val gap = m.tickMajor + m.labelGap
+        assertP(P(309f, gap), labels.getValue("N").at)
+        assertP(P(618f - gap, own.y), labels.getValue("E").at)
+        assertTrue(scene.segments.filter { it.ink == Ink.SCALE }.all { it.a.x <= 618f + 1e-2f })
+        // 高め: 170
+        val high = state(headingDeg = 0f).let { it.copy(settings = it.settings.copy(ownshipPosition = io.github.eightbrows.navhud.core.nav.OwnshipPosition.HIGH)) }
+        assertEquals(608.4f - m.arcOriginFromBottomHigh, HudSceneBuilder.build(high, r, m, reserved).ownShip!!.at.y, 1e-3f)
+    }
+
+    @Test
+    fun northUpIsCenteredInTheMapFrame() {
+        val r = HudRect(0f, 0f, 720f, 690f)
+        val scene = HudSceneBuilder.build(state(mode = DisplayMode.NORTH_UP), r, m, HudInsets(right = 102f, bottom = 81.6f))
+        assertP(P(309f, 304.2f), scene.ownShip!!.at)
+    }
+
+    @Test
+    fun panMovesTheViewAndFixesTheUpDirection() {
+        // North Up・2km: PAN の中心は自機の北 1km。表示枠の中心 (360, 450) に置き、自機は 1km 南（1 m = 0.156 px）
+        val center = io.github.eightbrows.navhud.core.nav.PanView(lat0 + 1_000.0 / mPerDegLat, lon0, 0.0)
+        val s = state(headingDeg = 0f, mode = DisplayMode.NORTH_UP, wps = listOf(wp("A", 1_500.0)), next = 0).copy(pan = center)
+        val scene = build(s)
+        val own = scene.ownShip!!.at
+        assertP(P(360f, 450f + 156f), own, 0.2f)
+        // WP（北 1.5km）は中心の 500 m 北
+        assertP(P(360f, 450f - 78f), scene.wpMarks.single().at, 0.2f)
+        // 自機から次の WP への線は自機から
+        assertP(own, scene.segments.single { it.ink == Ink.ACTIVE }.a)
+        // 距離環は自機を中心に全周。方位目盛りは表示枠の縁（中心から見た方向）。ラバーライン・三角はなし
+        assertTrue(scene.arcs.all { it.center == own && it.sweepDeg == 360f })
+        val gap = m.tickMajor + m.labelGap
+        assertP(P(360f, gap), scene.labels.single { it.text == "N" }.at)
+        assertTrue(scene.pointers.isEmpty())
+
+        // ARC で東向きに固定した PAN: 機首が 180 になっても、自機の記号は PAN の上（090）から見て 90° 右
+        val arcPan = state(headingDeg = 180f, wps = listOf(wp("A", 1_500.0)), next = 0)
+            .copy(pan = io.github.eightbrows.navhud.core.nav.PanView(lat0, lon0, 90.0))
+        val arcScene = build(arcPan)
+        assertEquals(90f, arcScene.ownShip!!.angleDeg!!, 1e-3f)
+        assertP(P(360f, 450f), arcScene.ownShip!!.at, 0.2f)
+        // 北の WP は画面の左
+        assertTrue(arcScene.wpMarks.single().at.x < 360f)
+    }
+
+    @Test
+    fun panWithoutFixDrawsNoOwnShip() {
+        val s = state().copy(fix = null, pan = io.github.eightbrows.navhud.core.nav.PanView(lat0, lon0, 0.0))
+        assertNull(build(s).ownShip)
+    }
+
+    @Test
+    fun ringLabelsGiveWayToCompassLabels() {
+        // PAN で自機を表示枠の上の縁の近くに置く: 距離環の文字が方位目盛りの文字に重なるなら、距離環の文字を出さない
+        val center = io.github.eightbrows.navhud.core.nav.PanView(lat0 - 2_400.0 / mPerDegLat, lon0 + 2_400.0 / (mPerDegLat * Math.cos(Math.toRadians(lat0))), 0.0)
+        val scene = build(state(headingDeg = 0f, mode = DisplayMode.NORTH_UP).copy(pan = center))
+        val compass = scene.labels.filter { !it.small }.map { HudSceneBuilder.Box(it.at, HudSceneBuilder.textHalfWidth(it.text, m) * 13f / 11f + 2f, m.compassLabelHalf) }
+        val rings = scene.labels.filter { it.small }.map { HudSceneBuilder.Box(it.at, HudSceneBuilder.textHalfWidth(it.text, m) + 2f, m.compassLabelHalf) }
+        assertTrue(rings.none { r -> compass.any { it.overlaps(r) } })
     }
 }

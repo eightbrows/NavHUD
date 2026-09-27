@@ -36,7 +36,9 @@ class NavEngine(
     private var sourceKind = sourceKind
     private var playing = sourceKind == SourceKind.LIVE
     /** 画面の表示枠（AUTO 縮尺の判定用）。まだ分からなければ距離で判定する。 */
-    private var rangeFit: RangeFit? = null
+    private var viewport: MapViewport? = null
+    /** PAN の表示（null なら通常の表示） */
+    private var pan: PanView? = null
 
     var state: NavState = NavState()
         private set
@@ -74,6 +76,8 @@ class NavEngine(
     }
 
     fun updateSettings(s: NavSettings): NavState {
+        // 表示モードが変わったら PAN をやめる（画面の上の向きの決め方が変わるため）
+        if (s.displayMode != settings.displayMode) pan = null
         settings = s
         applySettings(s)
         return recompute()
@@ -89,10 +93,40 @@ class NavEngine(
     }
 
     /** 画面の大きさ・帯が変わったとき（AUTO 縮尺は、次の WP がこの表示枠に収まる最小の段を選ぶ）。 */
-    fun setViewport(fit: RangeFit?): NavState {
-        rangeFit = fit
+    fun setViewport(vp: MapViewport?): NavState {
+        viewport = vp
         return recompute()
     }
+
+    /**
+     * PAN: 指を (dxPx, dyPx) 動かした分、地図を動かす。PAN でなければ、今の表示枠の中心から始める
+     * （ARC は今の機首方位で向きを固定）。PAN 中は縮尺の AUTO を止める。画面の大きさが分からない・Fix がないときは何もしない。
+     */
+    fun panBy(dxPx: Float, dyPx: Float): NavState {
+        val vp = viewport ?: return state
+        val current = pan ?: run {
+            val fix = lastFix ?: return state
+            val offset = vp.frameCenterOffset(rangeSelector.rangeM, state.heading.deg?.toDouble(), settings)
+            Pan.start(fix.lat, fix.lon, offset, panUpDeg())
+        }
+        pan = Pan.drag(current, dxPx, dyPx, vp.pxPerM(rangeSelector.rangeM, settings))
+        return recompute()
+    }
+
+    /** PAN: 地点 (lat, lon) を表示枠の中心にする（WP ボタンの長押し）。向きは PAN 中ならそのまま。 */
+    fun panTo(lat: Double, lon: Double): NavState {
+        pan = PanView(lat, lon, pan?.upDeg ?: panUpDeg())
+        return recompute()
+    }
+
+    /** PAN をやめて現在地の表示に戻る。 */
+    fun endPan(): NavState {
+        pan = null
+        return recompute()
+    }
+
+    private fun panUpDeg(): Double =
+        if (settings.displayMode == DisplayMode.ARC) state.heading.deg?.toDouble() ?: 0.0 else 0.0
 
     /** 縮尺の ＋（1段狭く）。AUTO は OFF。 */
     fun zoomIn(): NavState {
@@ -168,6 +202,7 @@ class NavEngine(
 
     private fun clearHistory() {
         lastFix = null
+        pan = null
         rateTracker.clear()
         headingSelector.reset()
         passDetector.reset()
@@ -188,8 +223,10 @@ class NavEngine(
         // ETA: RATE の窓の平均速度。履歴が窓に足りなければ、ある分（最低 10 秒）の平均速度
         val eta = if (now != null && dist != null) WaypointNav.etaMs(now, dist, rateTracker.etaSpeed(settings.rateWindowSec)) else null
         // 縮尺の AUTO: 次の WP を画面に投影して、表示枠に余白付きで収まる最小の段。画面が分からなければ距離で判定
-        val viewport = rangeFit
+        val viewport = viewport
         val rangeM = when {
+            // PAN 中は AUTO を止める（＋ / − は効く）
+            pan != null -> rangeSelector.also { it.restartWait() }.rangeM
             now == null -> rangeSelector.rangeM
             viewport != null && fix != null && wp != null -> {
                 val target = Geo.toEN(fix.lat, fix.lon, wp.lat, wp.lon)
@@ -221,6 +258,7 @@ class NavEngine(
             compass = if (compassDeg != null) compassQuality else null,
             rangeM = rangeM,
             rangeAuto = rangeSelector.auto,
+            pan = pan,
         )
         return state
     }

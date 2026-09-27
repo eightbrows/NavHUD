@@ -55,6 +55,19 @@ object Geo {
         return EN(e, n)
     }
 
+    /** toEN の逆: 原点から (東 e, 北 n) [m] の地点の緯度経度。数十km以内で使う。 */
+    fun fromEN(originLat: Double, originLon: Double, p: EN): Pair<Double, Double> {
+        val lat = originLat + Math.toDegrees(p.n / EARTH_RADIUS_M)
+        val lon = originLon + Math.toDegrees(p.e / (EARTH_RADIUS_M * cos(Math.toRadians((originLat + lat) / 2))))
+        return lat to lon
+    }
+
+    /** toScreen の逆: 画面座標（右m, 前方m）→ 平面座標。 */
+    fun fromScreen(s: Screen, upDeg: Double): EN {
+        val h = Math.toRadians(upDeg)
+        return EN(e = s.right * cos(h) + s.fwd * sin(h), n = -s.right * sin(h) + s.fwd * cos(h))
+    }
+
     /** 上方向を upDeg とする回転。Heading Up は upDeg = 機首方位、North Up は 0。 */
     fun toScreen(p: EN, upDeg: Double): Screen {
         val h = Math.toRadians(upDeg)

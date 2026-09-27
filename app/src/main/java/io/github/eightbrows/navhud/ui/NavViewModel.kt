@@ -100,6 +100,7 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
 
     private val compass = CompassSource(app) { declinationPoint() }
     private var compassJob: Job? = null
+    private var panJob: Job? = null
     private var foreground = false
 
     init {
@@ -165,14 +166,49 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** 縮尺の ＋ / − / AUTO */
-    fun zoomIn() = publish(engine.zoomIn())
+    fun zoomIn() {
+        publish(engine.zoomIn())
+        restartPanTimer()
+    }
 
-    fun zoomOut() = publish(engine.zoomOut())
+    fun zoomOut() {
+        publish(engine.zoomOut())
+        restartPanTimer()
+    }
 
     fun toggleAutoRange() = publish(engine.toggleAutoRange())
 
     /** HUD の描画領域が変わったとき（AUTO 縮尺は、次の WP がこの表示枠に収まる最小の段を選ぶ）。 */
     fun setViewport(viewport: HudViewport) = publish(engine.setViewport(viewport))
+
+    /** PAN: ドラッグの量 [px] だけ地図を動かす。操作がないまま設定の秒数たったら現在地へ戻る。 */
+    fun panBy(dxPx: Float, dyPx: Float) {
+        publish(engine.panBy(dxPx, dyPx))
+        restartPanTimer()
+    }
+
+    /** WP ボタンの長押し: その WP を地図の中心にした PAN にする。 */
+    fun panToWaypoint(index: Int) {
+        val wp = engine.state.waypoints.getOrNull(index) ?: return
+        publish(engine.panTo(wp.lat, wp.lon))
+        restartPanTimer()
+    }
+
+    /** 現在地の表示に戻る。 */
+    fun endPan() {
+        panJob?.cancel()
+        publish(engine.endPan())
+    }
+
+    /** PAN の自動復帰の時計（端末の時計で数える。リプレイの一時停止中も戻る）。 */
+    private fun restartPanTimer() {
+        panJob?.cancel()
+        if (engine.state.pan == null) return
+        panJob = viewModelScope.launch {
+            delay(engine.settings.panReturnSec * 1000L)
+            publish(engine.endPan())
+        }
+    }
 
     /** ARC ⇔ North Up */
     fun toggleDisplayMode() = updateSettings {

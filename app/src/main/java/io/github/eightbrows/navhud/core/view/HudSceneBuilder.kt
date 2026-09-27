@@ -6,6 +6,7 @@ import io.github.eightbrows.navhud.core.nav.DisplayMode
 import io.github.eightbrows.navhud.core.nav.NavSettings
 import io.github.eightbrows.navhud.core.nav.NavState
 import io.github.eightbrows.navhud.core.nav.OwnshipPosition
+import io.github.eightbrows.navhud.core.nav.PanView
 import kotlin.math.hypot
 
 /**
@@ -15,13 +16,17 @@ import kotlin.math.hypot
 object HudSceneBuilder {
 
     /**
-     * @param reserved 画面外の矢印を置かない帯（WP ボタン列、リプレイ操作）[px]。矢印はその内側に置く
+     * @param reserved 地図の上に重ねる帯（右の操作列、下の WP ボタン列）[px]。地図の表示枠はこれを除いた領域で、
+     *   方位目盛りはその縁、画面外の矢印・WP の印はその内側に置く。距離環・方位線は帯の下にも描く
      */
     fun build(state: NavState, rect: HudRect, m: HudMetrics = HudMetrics(), reserved: HudInsets = HudInsets()): HudScene {
-        val arrowFrame = arrowFrame(rect, reserved, m)
+        val frame = mapFrame(rect, reserved)
+        val arrowFrame = frame.inset(m.edgeInset)
         val s = state.settings
         val headingDeg = state.heading.deg?.toDouble()
         val noFix = state.noFix
+        val fix = state.fix
+        val pan = state.pan
         // 縮尺と、距離環の間隔（縮尺の 1/2）
         val range = state.rangeM
         val ringInterval = range / 2
@@ -31,20 +36,32 @@ object HudSceneBuilder {
         val labels = mutableListOf<Label>()
         val pointers = mutableListOf<Pointer>()
 
-        val proj = projection(s, rect, range, headingDeg, m)
-        val ownShipAngle: Float?
-        when (s.displayMode) {
-            DisplayMode.ARC -> {
-                ownShipAngle = headingDeg?.let { 0f }
-                buildArcScale(proj, rect, ringInterval, m, arcs, segments, labels, pointers, headingDeg != null)
-            }
-            DisplayMode.NORTH_UP -> {
-                ownShipAngle = headingDeg?.toFloat()
-                buildCompassCard(proj, range, ringInterval, headingDeg, m, arcs, segments, labels, pointers)
-            }
+        val proj = projection(s, frame, range, headingDeg, m, pan)
+        // 地図の基準の地点: 通常は自機（proj.origin に描く）、PAN は PAN の中心（表示枠の中心）
+        val ref = if (pan != null) pan.lat to pan.lon else fix?.let { it.lat to it.lon }
+        val ownAt: P? = when {
+            pan == null -> proj.origin
+            fix != null -> proj.toScreen(Geo.toEN(pan.lat, pan.lon, fix.lat, fix.lon))
+            else -> null
+        }
+        val ownShipAngle: Float? = when {
+            headingDeg == null -> null
+            pan != null -> proj.screenAngle(headingDeg).toFloat()
+            s.displayMode == DisplayMode.ARC -> 0f
+            else -> headingDeg.toFloat()
+        }
+        when {
+            pan != null -> buildPanScale(proj, frame, rect, ringInterval, ownAt, m, arcs, segments, labels)
+            s.displayMode == DisplayMode.ARC ->
+                buildArcScale(proj, frame, rect, ringInterval, m, arcs, segments, labels, pointers, headingDeg != null)
+            else -> buildCompassCard(proj, range, ringInterval, headingDeg, m, arcs, segments, labels, pointers)
         }
 
-        val (wpMarks, arrows) = buildWaypoints(state, proj, arrowFrame, m, segments, labels)
+        // 距離環の文字が方位目盛りの文字に重なるなら、距離環の文字を出さない（目盛りを優先）
+        val compassBoxes = labels.filter { !it.small }.map { labelBox(it, m) }
+        labels.removeAll { l -> l.small && compassBoxes.any { it.overlaps(labelBox(l, m)) } }
+
+        val (wpMarks, arrows) = buildWaypoints(state, proj, ref, ownAt, arrowFrame, m, segments, labels)
 
         val scene = HudScene(
             rect = rect,
@@ -54,35 +71,86 @@ object HudSceneBuilder {
             wpMarks = wpMarks,
             arrows = arrows,
             pointers = pointers,
-            ownShip = OwnShip(proj.origin, ownShipAngle, Ink.OWNSHIP),
+            ownShip = ownAt?.let { OwnShip(it, ownShipAngle, Ink.OWNSHIP) },
         )
         return if (noFix) scene.stale() else scene
     }
 
     /**
      * 地図 → 画面の変換。表示モードと ARC の自機の位置（設定）で決まる。AUTO 縮尺の判定（HudViewport）も同じものを使う。
-     * ARC で方位がなければ北を上にする。
+     * ARC: 自機は表示枠の横の中央、下端（WP ボタン列の上端）から標準 / 高め の高さ。基準の距離環が表示枠の左右端に接する。
+     * North Up: 自機は表示枠の中央。ARC で方位がなければ北を上にする。
+     * PAN: 縮尺は同じで、PAN の中心を表示枠の中心に、上を PAN の向きにする。
+     * @param frame 地図の表示枠（mapFrame）
      */
-    fun projection(s: NavSettings, rect: HudRect, rangeM: Double, headingDeg: Double?, m: HudMetrics): HudProjection =
-        when (s.displayMode) {
+    fun projection(
+        s: NavSettings,
+        frame: HudRect,
+        rangeM: Double,
+        headingDeg: Double?,
+        m: HudMetrics,
+        pan: PanView? = null,
+    ): HudProjection {
+        val base = when (s.displayMode) {
             DisplayMode.ARC -> HudGeometry.arcProjection(
-                rect, rangeM, headingDeg ?: 0.0,
+                frame, rangeM, headingDeg ?: 0.0,
                 if (s.ownshipPosition == OwnshipPosition.HIGH) m.arcOriginFromBottomHigh else m.arcOriginFromBottom,
             )
-            DisplayMode.NORTH_UP -> HudGeometry.northUpProjection(rect, rangeM, m.northUpMargin)
+            DisplayMode.NORTH_UP -> HudGeometry.northUpProjection(frame, rangeM, m.northUpMargin)
         }
+        return if (pan == null) base else HudProjection(P(frame.centerX, frame.centerY), base.pxPerM, pan.upDeg)
+    }
 
-    /** 画面外の矢印を置く枠: 帯（ボタン列・リプレイ操作）を除き、edgeInset だけ内側。WP の印もこの内側だけに描く。 */
-    fun arrowFrame(rect: HudRect, reserved: HudInsets, m: HudMetrics): HudRect = HudRect(
+    /** 地図の表示枠: 描画領域から帯（右の操作列、下の WP ボタン列）を除いた領域。 */
+    fun mapFrame(rect: HudRect, reserved: HudInsets): HudRect = HudRect(
         rect.left + reserved.left,
         rect.top + reserved.top,
         rect.right - reserved.right,
         rect.bottom - reserved.bottom,
-    ).inset(m.edgeInset)
+    )
 
-    /** ARC: 前方 180° の距離環、縁に置く方位目盛り、30° ごとの方位線、ラバーライン、上部中央の三角。 */
+    /** 画面外の矢印を置く枠: 表示枠から edgeInset だけ内側。WP の印もこの内側だけに描く。 */
+    fun arrowFrame(rect: HudRect, reserved: HudInsets, m: HudMetrics): HudRect = mapFrame(rect, reserved).inset(m.edgeInset)
+
+    /**
+     * PAN 中の目盛り: 自機を中心に全周の距離環（画面の一番遠い角まで）と、表示枠の縁に置く方位目盛り
+     * （表示枠の中心から各方位へ引いた線と縁の交点。向きは PAN の向きで固定）。ラバーライン・方位線は描かない。
+     */
+    private fun buildPanScale(
+        proj: HudProjection,
+        frame: HudRect,
+        rect: HudRect,
+        ringIntervalM: Double,
+        ownAt: P?,
+        m: HudMetrics,
+        arcs: MutableList<Arc>,
+        segments: MutableList<Segment>,
+        labels: MutableList<Label>,
+    ) {
+        if (ownAt != null) {
+            val corners = listOf(P(rect.left, rect.top), P(rect.right, rect.top), P(rect.left, rect.bottom), P(rect.right, rect.bottom))
+            val maxPx = corners.maxOf { HudGeometry.dist(ownAt, it) }
+            addRings(proj.copy(origin = ownAt), ringIntervalM, maxPx.toDouble(), 0f, 360f, -45.0, arcs, labels)
+        }
+        val c = proj.origin
+        for (b in 0 until 360 step 10) {
+            val a = proj.screenAngle(b.toDouble())
+            val edge = HudGeometry.rayToRect(c, a, frame)
+            val major = b % 30 == 0
+            segments += Segment(edge, HudGeometry.pointAt(edge, a + 180, if (major) m.tickMajor else m.tickMinor), Ink.SCALE)
+            if (major) {
+                labels += Label(HudFormat.compassLabel(b), HudGeometry.pointAt(edge, a + 180, m.tickMajor + m.labelGap), Ink.SCALE)
+            }
+        }
+    }
+
+    /**
+     * ARC: 前方 180° の距離環、表示枠の縁に置く方位目盛り、30° ごとの方位線、ラバーライン、上部中央の三角。
+     * 距離環は描画領域（rect）の上の角まで描き、帯の下にもかかってよい。
+     */
     private fun buildArcScale(
         proj: HudProjection,
+        frame: HudRect,
         rect: HudRect,
         ringIntervalM: Double,
         m: HudMetrics,
@@ -100,7 +168,7 @@ object HudSceneBuilder {
         for (b in 0 until 360 step 10) {
             val a = proj.screenAngle(b.toDouble())
             if (a < -90.0 || a > 90.0) continue
-            val edge = HudGeometry.rayToRect(o, a, rect)
+            val edge = HudGeometry.rayToRect(o, a, frame)
             val major = b % 30 == 0
             val inner = HudGeometry.pointAt(edge, a + 180, if (major) m.tickMajor else m.tickMinor)
             segments += Segment(edge, inner, Ink.SCALE)
@@ -114,7 +182,7 @@ object HudSceneBuilder {
             }
         }
         // ラバーライン（機首方位 = 画面の上）と上部中央の三角マーカー
-        val pointerTip = P(rect.centerX, rect.top + m.tickMajor + m.labelGap * 2 + 4)
+        val pointerTip = P(frame.centerX, frame.top + m.tickMajor + m.labelGap * 2 + 4)
         if (hasHeading) segments += Segment(o, pointerTip, Ink.OWNSHIP)
         pointers += Pointer(pointerTip, 0f, m.pointerSize, Ink.OWNSHIP)
     }
@@ -171,8 +239,8 @@ object HudSceneBuilder {
             val rPx = rM * proj.pxPerM
             if (rPx > maxPx || k > 50) break
             arcs += Arc(proj.origin, rPx.toFloat(), startDeg, sweepDeg, Ink.SCALE)
-            // 単位付き（2.5km）。方位目盛りより小さく薄い色（small / SCALE_DIM）
-            labels += Label(HudFormat.ringKm(rM) + "km", HudGeometry.pointAt(proj.origin, labelAngle, rPx.toFloat() + 10f), Ink.SCALE_DIM, small = true)
+            // 25 / 250 / 1k / 2.5k。方位目盛りより小さく薄い色（small / SCALE_DIM）
+            labels += Label(HudFormat.ringLabel(rM), HudGeometry.pointAt(proj.origin, labelAngle, rPx.toFloat() + 10f), Ink.SCALE_DIM, small = true)
             k++
         }
     }
@@ -181,15 +249,19 @@ object HudSceneBuilder {
     private fun buildWaypoints(
         state: NavState,
         proj: HudProjection,
+        ref: Pair<Double, Double>?,
+        ownAt: P?,
         inner: HudRect,
         m: HudMetrics,
         segments: MutableList<Segment>,
         labels: List<Label>,
     ): Pair<List<WpMark>, List<EdgeArrow>> {
+        // ref: 地図の基準の地点（通常は自機、PAN は PAN の中心）。矢印の距離は自機から
         val fix = state.fix ?: return emptyList<WpMark>() to emptyList()
+        val (refLat, refLon) = ref ?: return emptyList<WpMark>() to emptyList()
         val wps = state.waypoints
         val next = state.nextWpIndex
-        val pts = wps.map { proj.toScreen(Geo.toEN(fix.lat, fix.lon, it.lat, it.lon)) }
+        val pts = wps.map { proj.toScreen(Geo.toEN(refLat, refLon, it.lat, it.lon)) }
 
         // 描く WP: 次の WP から先の hudWpCount 個と、直前に到達した WP を1つ（薄く）
         val shown = visibleWaypoints(wps, next, state.settings.hudWpCount)
@@ -206,15 +278,14 @@ object HudSceneBuilder {
             segments += Segment(pts[i], pts[j], ink, dashed)
         }
         // 自機から次の WP への線（マゼンタ）
-        if (next != null) segments += Segment(proj.origin, pts[next], Ink.ACTIVE, bold = true)
+        if (next != null && ownAt != null) segments += Segment(ownAt, pts[next], Ink.ACTIVE, bold = true)
 
         // inner: 矢印を置く枠（ボタン列・リプレイ操作の帯を除いた内側）
         // 文字を置かない所: 自機の記号と方位目盛り・距離環の文字（先に置いた矢印の文字も加えていく）
-        val ownShipBox = Box(proj.origin, m.ownShipClear, m.ownShipClear)
+        // 自機が見えていなければ（PAN）、自機の記号は避けなくてよい
+        val ownShipBox = Box(ownAt ?: P(-1e6f, -1e6f), m.ownShipClear, m.ownShipClear)
         val obstacles = mutableListOf(ownShipBox)
-        for (l in labels) {
-            obstacles += Box(l.at, textHalfWidth(l.text, m) * (if (l.small) 1f else LABEL_WIDTH_RATIO) + 2f, m.compassLabelHalf)
-        }
+        for (l in labels) obstacles += labelBox(l, m)
         val marks = mutableListOf<WpMark>()
         val arrows = mutableListOf<EdgeArrow>()
         for (i in shown) {
@@ -232,7 +303,8 @@ object HudSceneBuilder {
                     text,
                     // 自機への線（マゼンタ）と重ならないよう、線と直角に少しずらす
                     HudGeometry.pointAt(HudGeometry.pointAt(at, a + 180, m.arrowTextGap), a + 90, m.arrowLabelLine * 0.75f),
-                    a, inner, obstacles, m,
+                    // 矢印そのものにも重ねない
+                    a, inner, obstacles + Box(at, m.pointerSize, m.pointerSize), m,
                 )
                 obstacles += Box(textAt, textHalfWidth(text, m), m.arrowLabelLine / 2)
                 arrows += EdgeArrow(at = at, angleDeg = a.toFloat(), text = text, textAt = textAt, ink = ink)
@@ -240,6 +312,10 @@ object HudSceneBuilder {
         }
         return marks to arrows
     }
+
+    /** 方位目盛り・距離環の文字の占める矩形の目安。 */
+    private fun labelBox(l: Label, m: HudMetrics) =
+        Box(l.at, textHalfWidth(l.text, m) * (if (l.small) 1f else LABEL_WIDTH_RATIO) + 2f, m.compassLabelHalf)
 
     /** 文字などの占める矩形（中心と半幅・半高）[px]。 */
     internal data class Box(val c: P, val hw: Float, val hh: Float) {
@@ -314,7 +390,7 @@ object HudSceneBuilder {
             wpMarks = wpMarks.map { it.copy(ink = it.ink.s()) },
             arrows = arrows.map { it.copy(ink = it.ink.s()) },
             pointers = pointers.map { it.copy(ink = it.ink.s()) },
-            ownShip = ownShip.copy(ink = Ink.STALE),
+            ownShip = ownShip?.copy(ink = Ink.STALE),
         )
     }
 

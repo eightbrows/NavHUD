@@ -10,7 +10,7 @@ import io.github.eightbrows.navhud.core.geo.EN
 object RangeAuto {
 
     /** 選べる縮尺の全段 [km]。NavSettings の有効リストでこの中から使う段を選ぶ。 */
-    val ALL_STEPS_KM = listOf(0.25, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0)
+    val ALL_STEPS_KM = listOf(0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0)
 
     /**
      * AUTO で選びたい縮尺 [m]。次の WP が「縮尺 × fitRatio」以内に収まる最小の段。どの段にも収まらなければ最大の段。
@@ -35,11 +35,18 @@ object RangeAuto {
 }
 
 /**
- * 縮尺 rangeM のとき、自機から見て target（東 m・北 m）にある点が画面の表示枠（ボタン列などを除いた領域）に
- * 余白付きで収まるか。画面の大きさを知っている側（core/view の HudViewport）が実装する。
+ * 地図の表示枠（ボタン列などを除いた領域）の寸法を知っている側（core/view の HudViewport）が実装する。
+ * AUTO 縮尺の判定と、PAN の始点・ドラッグ量の換算に使う。
  */
-fun interface RangeFit {
+interface MapViewport {
+    /** 縮尺 rangeM のとき、自機から見て target（東 m・北 m）にある点が表示枠に余白付きで収まるか。 */
     fun fits(rangeM: Double, target: EN, headingDeg: Double?, settings: NavSettings): Boolean
+
+    /** 通常の表示（PAN でない）で、表示枠の中心は自機から見てどこか（東 m・北 m）。 */
+    fun frameCenterOffset(rangeM: Double, headingDeg: Double?, settings: NavSettings): EN
+
+    /** 縮尺 rangeM での 1 m あたりの画面の長さ [px]。 */
+    fun pxPerM(rangeM: Double, settings: NavSettings): Double
 }
 
 /**
@@ -82,6 +89,11 @@ class RangeSelector(
         auto = false
         zoomInSince = null
         rangeM = steps.firstOrNull { it > rangeM } ?: rangeM
+    }
+
+    /** AUTO の狭める方向の待ちをやり直す（PAN 中など、判定を止めている間）。 */
+    fun restartWait() {
+        zoomInSince = null
     }
 
     fun setAuto(on: Boolean) {

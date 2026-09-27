@@ -31,8 +31,8 @@ import io.github.eightbrows.navhud.core.nav.ColorTheme
 import io.github.eightbrows.navhud.core.nav.DisplayMode
 import io.github.eightbrows.navhud.core.nav.NavSettings
 import io.github.eightbrows.navhud.core.nav.OwnshipPosition
+import io.github.eightbrows.navhud.core.nav.ProfileSize
 import io.github.eightbrows.navhud.core.nav.RangeAuto
-import io.github.eightbrows.navhud.core.nav.ScreenSide
 import io.github.eightbrows.navhud.core.nav.SourceKind
 import io.github.eightbrows.navhud.core.view.HudFormat
 import java.util.Locale
@@ -85,8 +85,14 @@ fun SettingsScreen(
                 "ARC の自機の位置",
                 listOf("標準" to OwnshipPosition.STANDARD, "高め" to OwnshipPosition.HIGH),
                 s.ownshipPosition,
-                note = "高めにすると後方の WP や矢印に余裕ができます",
+                note = "WP ボタン列の上端から 標準 110dp / 高め 170dp。高めにすると後方の WP や矢印に余裕ができます",
             ) { v -> onChange { it.copy(ownshipPosition = v) } }
+            Choice(
+                "標高プロファイル",
+                listOf("OFF" to ProfileSize.OFF, "小" to ProfileSize.SMALL, "中" to ProfileSize.MEDIUM, "大" to ProfileSize.LARGE),
+                s.profileSize,
+                note = "WP ボタン列の下。現在地から次の目標、その先の目標までの標高",
+            ) { v -> onChange { it.copy(profileSize = v) } }
             Stepper("標高オフセット", "%.0f m".format(Locale.US, s.altOffsetM), note = "標高 = GPS の楕円体高 − これ") { d ->
                 onChange { it.copy(altOffsetM = (it.altOffsetM + d).coerceIn(-200.0, 200.0)) }
             }
@@ -127,7 +133,7 @@ fun SettingsScreen(
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 for (km in RangeAuto.ALL_STEPS_KM) {
                     val on = km in s.rangeStepsKm
-                    Chip(HudFormat.ringKm(km * 1000) + "km", on) {
+                    Chip(HudFormat.rangeStep(km * 1000), on) {
                         onChange {
                             val steps = if (on) it.rangeStepsKm - km else (it.rangeStepsKm + km).sorted()
                             if (steps.isEmpty()) it else it.copy(rangeStepsKm = steps)
@@ -137,7 +143,7 @@ fun SettingsScreen(
             }
             Choice(
                 "起動時の縮尺",
-                s.rangeStepsKm.map { (HudFormat.ringKm(it * 1000) + "km") to it },
+                s.rangeStepsKm.map { HudFormat.rangeStep(it * 1000) to it },
                 s.rangeStepsKm.minByOrNull { kotlin.math.abs(it - s.initialRangeKm) },
             ) { v -> onChange { it.copy(initialRangeKm = v) } }
             Toggle("起動時に AUTO", s.autoRange, note = "次の WP が画面に収まる最小の段を自動で選ぶ") { v ->
@@ -145,6 +151,9 @@ fun SettingsScreen(
             }
             Stepper("AUTO で狭めるまでの時間", "${s.autoRangeZoomInDelaySec} 秒", note = "広げる方向はすぐ切り替える") { d ->
                 onChange { it.copy(autoRangeZoomInDelaySec = (it.autoRangeZoomInDelaySec + d).coerceIn(0, 30)) }
+            }
+            Stepper("PAN から現在地へ戻るまで", "${s.panReturnSec} 秒", note = "地図をドラッグしたあと、操作がないまま この時間で戻る") { d ->
+                onChange { it.copy(panReturnSec = (it.panReturnSec + d * 5).coerceIn(NavSettings.PAN_RETURN_SEC_RANGE)) }
             }
         }
 
@@ -167,10 +176,7 @@ fun SettingsScreen(
             Stepper("通過判定: 離れた状態が続く時間", "${s.passHoldSec} 秒") { d ->
                 onChange { it.copy(passHoldSec = (it.passHoldSec + d).coerceIn(1, 60)) }
             }
-            Choice("WP ボタン列の位置", listOf("左" to ScreenSide.LEFT, "右" to ScreenSide.RIGHT), s.wpButtonsSide) { v ->
-                onChange { it.copy(wpButtonsSide = v) }
-            }
-            Stepper("WP ボタン列に見せる数", "${s.wpButtonsMax} 個", note = "超える分はスクロール") { d ->
+            Stepper("WP ボタン列に見せる数", "${s.wpButtonsMax} 個", note = "自機の下に横並び。超える分は左右にスクロール") { d ->
                 onChange { it.copy(wpButtonsMax = (it.wpButtonsMax + d).coerceIn(NavSettings.WP_BUTTONS_MAX_RANGE)) }
             }
             Stepper("HUD に描く WP の数", "${s.hudWpCount} 個", note = "次の WP から先。直前に到達した WP は1つだけ薄く残す") { d ->
