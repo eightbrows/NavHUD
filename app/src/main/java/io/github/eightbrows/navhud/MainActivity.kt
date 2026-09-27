@@ -144,6 +144,8 @@ class MainActivity : ComponentActivity() {
                             onViewport = vm::setViewport,
                             onPan = vm::panBy,
                             onEndPan = vm::endPan,
+                            onCycleSpeed = vm::cycleReplaySpeed,
+                            onSeek = vm::seekReplay,
                             onOpenSettings = { screen = Screen.SETTINGS },
                             modifier = modifier,
                         )
@@ -160,6 +162,8 @@ class MainActivity : ComponentActivity() {
                             onPaste = { vm.pasteCoordinates(clipboardText(context)) },
                             onImport = onImport,
                             onExport = { exportWaypoints.launch(WaypointDocumentStore.EXPORT_DEFAULT_NAME) },
+                            onReverse = vm::reverseWaypoints,
+                            onAdjustTimes = vm::adjustWaypointTimes,
                             modifier = modifier,
                         )
                         Screen.SETTINGS -> SettingsScreen(

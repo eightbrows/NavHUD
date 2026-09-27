@@ -158,4 +158,12 @@ class WaypointCsvTest {
         assertEquals(WaypointParseResult(emptyList(), 0), WaypointCsv.parse(""))
         assertEquals(WaypointParseResult(emptyList(), 0), WaypointCsv.parse("lat,lon\r\n"))
     }
+
+    @Test
+    fun fullWidthTimeFromJapaneseInput() {
+        // 日本語入力のまま打った「１３：００」も読める
+        assertEquals(LocalTime.of(13, 0), TimeText.parse("１３：００"))
+        assertEquals(LocalTime.of(9, 5, 30), TimeText.parse(" ９:０５：３０ "))
+        assertNull(TimeText.parse("２５：００"))
+    }
 }

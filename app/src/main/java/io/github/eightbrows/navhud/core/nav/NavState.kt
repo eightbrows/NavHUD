@@ -46,6 +46,10 @@ data class NavState(
     val rangeAuto: Boolean = true,
     /** PAN（ドラッグで地図を動かしている）なら、その表示。null なら通常（自機が基準） */
     val pan: PanView? = null,
+    /** LIVE の軌跡（起動してからの分、間引き済み） */
+    val liveTrail: List<TrackPoint> = emptyList(),
+    /** REPLAY のトラック全体（間引き済み）。再生済みの部分は fix の時刻まで */
+    val replayTrack: List<TrackPoint> = emptyList(),
 )
 
 /**

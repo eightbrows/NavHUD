@@ -16,6 +16,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
@@ -104,6 +105,14 @@ private fun DrawScope.drawScene(scene: HudScene, tm: TextMeasurer, density: Floa
             size = Size(a.radius * 2, a.radius * 2),
             style = Stroke(thin),
         )
+    }
+    // 軌跡（WP の線・印より下）
+    for (t in scene.trails) {
+        val path = Path().apply {
+            moveTo(t.points[0].x, t.points[0].y)
+            for (i in 1 until t.points.size) lineTo(t.points[i].x, t.points[i].y)
+        }
+        drawPath(path, HudColors.of(t.ink), style = Stroke(t.widthDp * density, join = StrokeJoin.Round))
     }
     for (s in scene.segments) {
         drawLine(

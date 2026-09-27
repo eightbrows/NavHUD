@@ -10,8 +10,8 @@ import kotlinx.coroutines.flow.flow
 
 /**
  * track.csv のリプレイ（§6.7）。元の時刻間隔どおりに Fix を流す。
- * 送出は clock（トラック時刻）を基準にするので、欠損区間では Fix が来ずに時計だけ進む。
- * 操作は再生 / 一時停止のみ（clock の play / pause）。
+ * 送出は clock（トラック時刻）を基準にするので、欠損区間では Fix が来ずに時計だけ進む。倍速は clock の速さで変える。
+ * 操作は再生 / 一時停止（clock の play / pause）、倍速（clock の setSpeed）、シーク（seek）。
  */
 class ReplayPositionSource(
     track: List<Fix>,
@@ -27,6 +27,9 @@ class ReplayPositionSource(
 
     val startMs: Long? get() = player.startMs
 
+    /** 最後の Fix の時刻。 */
+    val endMs: Long? get() = player.endMs
+
     /** 全部出し終わったか。 */
     val finished: Boolean get() = player.finished
 
@@ -36,6 +39,24 @@ class ReplayPositionSource(
             player.due(clock.nowMs()).forEach { emit(it) }
             if (!player.finished) delay(pollMs)
         }
+    }
+
+    /**
+     * 刻み（pollMs）ごとに、出すべき Fix をまとめて流す（倍速でも画面の更新は刻みごとに1回）。
+     * 出し終わっても終わらずに待つ（シークで戻せるように）。1回だけ collect すること。
+     */
+    val batches: Flow<List<Fix>> = flow {
+        while (true) {
+            val due = player.due(clock.nowMs())
+            if (due.isNotEmpty()) emit(due)
+            delay(pollMs)
+        }
+    }
+
+    /** シーク: トラック時刻を trackMs にする。trackMs 以前の最後の Fix を返す（先頭より前なら null）。 */
+    fun seek(trackMs: Long): Fix? {
+        clock.seek(trackMs)
+        return player.seek(trackMs)
     }
 
     companion object {

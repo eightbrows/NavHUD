@@ -45,6 +45,9 @@ object HudColors {
     /** 30° ごとの薄い方位線 */
     val BearingLine = Color(0xFF333333)
 
+    /** REPLAY のトラック全体（テーマによらず暗いグレー） */
+    val Track = Color(0xFF3A3A3A)
+
     /** 次の WP とそこへの線 */
     val Active = Color(0xFFFF4FD8)
 
@@ -83,5 +86,7 @@ object HudColors {
         Ink.WP_REACHED -> WpReached
         Ink.OWNSHIP -> OwnShip
         Ink.STALE -> Stale
+        Ink.TRACK -> Track
+        Ink.TRACK_DONE -> ScaleDim
     }
 }

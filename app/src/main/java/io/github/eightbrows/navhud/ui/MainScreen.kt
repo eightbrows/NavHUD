@@ -4,8 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -20,9 +20,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -81,6 +87,8 @@ fun MainScreen(
     onZoomOut: () -> Unit,
     onToggleAutoRange: () -> Unit,
     onPan: (Float, Float) -> Unit,
+    onCycleSpeed: () -> Unit,
+    onSeek: (Long) -> Unit,
     onEndPan: () -> Unit,
     onOpenSettings: () -> Unit,
     onViewport: (HudViewport) -> Unit,
@@ -91,10 +99,14 @@ fun MainScreen(
     val valueColor = if (state.noFix) HudColors.Stale else HudColors.Scale
     val showReplay = state.sourceKind == SourceKind.REPLAY
     val stripHeight = if (wpUi.showButtons) WpStripHeight else 0.dp
+    // リプレイの帯（シーク・倍速）は REPLAY のときだけ、WP ボタン列の上に
+    val bandHeight = if (showReplay) ReplayBandHeight else 0.dp
+    val overlayBottom = stripHeight + bandHeight
 
-    // 地図に重ねる帯: 右の操作列と、下の WP ボタン列。地図の表示枠はこれを除いた領域（方位目盛りはその縁）
+    // 地図に重ねた部品（右の操作列、リプレイの帯、WP ボタン列）。地図は画面の全幅に描き（部品の下にもかかる）、
+    // 画面外の矢印・WP の名前・AUTO の判定は、これを除いた「避ける枠」を使う
     val density = LocalDensity.current
-    val reserved = with(density) { HudInsets(right = SideColumnWidth.toPx(), bottom = stripHeight.toPx()) }
+    val reserved = with(density) { HudInsets(right = SideColumnWidth.toPx(), bottom = overlayBottom.toPx()) }
 
     Column(modifier.fillMaxSize().background(HudColors.Background)) {
         TopBar(state, wpUi.showButtons, onCycleSource, onToggleWpButtons, onToggleDisplay, onOpenSettings, onOpenDebug)
@@ -104,8 +116,14 @@ fun MainScreen(
             // 右の操作列: 上に ＋ / RNG / −（PAN 中は「現在地」も）、下に REPLAY の ▶ / FILE
             SideColumn(
                 state, replay, onZoomIn, onZoomOut, onToggleAutoRange, onEndPan, onPickTrack, onTogglePlay, showReplay,
-                Modifier.align(Alignment.TopEnd).padding(bottom = stripHeight),
+                Modifier.align(Alignment.TopEnd).padding(bottom = overlayBottom),
             )
+            if (showReplay) {
+                ReplayBand(
+                    state, replay, zone, onCycleSpeed, onSeek,
+                    Modifier.align(Alignment.BottomStart).padding(bottom = stripHeight).fillMaxWidth().height(ReplayBandHeight),
+                )
+            }
             if (wpUi.showButtons) {
                 WpStrip(state, onOpenWpSettings, onToggleReached, onPanToWaypoint, Modifier.align(Alignment.BottomStart))
             }
@@ -116,7 +134,7 @@ fun MainScreen(
                 Box(
                     Modifier
                         .fillMaxSize()
-                        .padding(end = SideColumnWidth, bottom = stripHeight)
+                        .padding(end = SideColumnWidth, bottom = overlayBottom)
                         .padding(horizontal = 12.dp),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -139,6 +157,12 @@ fun MainScreen(
 private val SideColumnWidth = 60.dp
 private val SideButtonSize = 52.dp
 
+/** リプレイの帯（シーク・倍速）の高さ */
+private val ReplayBandHeight = 40.dp
+
+/** 地図に重ねる部品の背景（半透明の黒。下の距離環・方位線が透けて見える） */
+private val OverlayBackground get() = HudColors.Background.copy(alpha = 0.6f)
+
 /** 横並びの WP ボタン列の高さ */
 private val WpStripHeight = 48.dp
 private val WpSettingsWidth = 64.dp
@@ -150,6 +174,54 @@ private fun profileHeight(size: ProfileSize): Dp? = when (size) {
     ProfileSize.SMALL -> 56.dp
     ProfileSize.MEDIUM -> 88.dp
     ProfileSize.LARGE -> 128.dp
+}
+
+/**
+ * リプレイの帯（§6.7、REPLAY のときだけ WP ボタン列の上）。左から 倍速（タップで ×1 → ×2 → ×5 → ×10 → ×30）、
+ * 再生位置のスライダー、経過 / 全体の時間。スライダーは指を離したときにシークし、動かしている間は行き先の時刻を出す。
+ */
+@Composable
+private fun ReplayBand(
+    state: NavState,
+    replay: ReplayUiState,
+    zone: ZoneId,
+    onCycleSpeed: () -> Unit,
+    onSeek: (Long) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val start = replay.startMs
+    val end = replay.endMs
+    var dragging by remember { mutableStateOf<Float?>(null) }
+    Row(
+        modifier.background(OverlayBackground).padding(horizontal = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        SideButton("×${replay.speed}", onCycleSpeed, height = 30.dp, fontSize = 13.sp)
+        if (start != null && end != null && end > start) {
+            val now = (state.nowMs ?: start).coerceIn(start, end)
+            val frac = dragging ?: ((now - start).toFloat() / (end - start))
+            Slider(
+                value = frac,
+                onValueChange = { dragging = it },
+                onValueChangeFinished = {
+                    dragging?.let { onSeek(start + ((end - start) * it).toLong()) }
+                    dragging = null
+                },
+                modifier = Modifier.weight(1f),
+                colors = SliderDefaults.colors(
+                    thumbColor = HudColors.Scale,
+                    activeTrackColor = HudColors.Scale,
+                    inactiveTrackColor = HudColors.WpReached,
+                ),
+            )
+            val label = dragging?.let { HudFormat.time(start + ((end - start) * it).toLong(), zone) }
+                ?: "${HudFormat.elapsed(now - start)} / ${HudFormat.elapsed(end - start)}"
+            Text(label, style = Caption.copy(fontSize = 12.sp), maxLines = 1)
+        } else {
+            Spacer(Modifier.weight(1f))
+        }
+    }
 }
 
 /**
@@ -170,7 +242,7 @@ private fun SideColumn(
     modifier: Modifier = Modifier,
 ) {
     Column(
-        modifier.width(SideColumnWidth).fillMaxHeight().padding(vertical = 6.dp),
+        modifier.width(SideColumnWidth).fillMaxHeight().background(OverlayBackground).padding(vertical = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
@@ -221,7 +293,7 @@ private fun SideButton(
             .width(SideButtonSize)
             .height(height)
             .border(1.dp, c, shape)
-            .background(if (inverted) c else HudColors.Background, shape)
+            .background(if (inverted) c else OverlayBackground, shape)
             .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
@@ -251,7 +323,7 @@ private fun WpStrip(
         modifier
             .fillMaxWidth()
             .height(WpStripHeight)
-            .background(HudColors.Background.copy(alpha = 0.85f))
+            .background(OverlayBackground)
             .padding(horizontal = 6.dp, vertical = 5.dp),
     ) {
         val visible = state.settings.wpButtonsMax.coerceAtLeast(1)

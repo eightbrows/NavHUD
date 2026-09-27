@@ -28,6 +28,12 @@ enum class Ink {
 
     /** NO FIX 中の、最後の値（グレー） */
     STALE,
+
+    /** REPLAY のトラック全体（暗いグレーの細線） */
+    TRACK,
+
+    /** REPLAY の再生済みの部分・LIVE の軌跡（テーマの薄い色） */
+    TRACK_DONE,
 }
 
 data class Segment(val a: P, val b: P, val ink: Ink, val dashed: Boolean = false, val bold: Boolean = false)
@@ -43,6 +49,9 @@ data class WpMark(val at: P, val name: String, val ink: Ink, val dashed: Boolean
 
 /** 画面外の WP を示す、表示枠の縁の矢印。angleDeg は矢印の向き（上が 0、時計回り）。 */
 data class EdgeArrow(val at: P, val angleDeg: Float, val text: String, val textAt: P, val ink: Ink)
+
+/** 折れ線（軌跡）。widthDp は線の太さ [dp]。 */
+data class Polyline(val points: List<P>, val ink: Ink, val widthDp: Float)
 
 /** 三角形の印。tip の向きが angleDeg。 */
 data class Pointer(val tip: P, val angleDeg: Float, val sizePx: Float, val ink: Ink)
@@ -61,6 +70,8 @@ data class HudScene(
     val pointers: List<Pointer>,
     /** 自機。PAN 中で Fix がなければ null */
     val ownShip: OwnShip?,
+    /** 軌跡（WP より下に描く） */
+    val trails: List<Polyline> = emptyList(),
 )
 
 /** 描画の寸法 [px]。画面密度に合わせて ui 側で作る。 */

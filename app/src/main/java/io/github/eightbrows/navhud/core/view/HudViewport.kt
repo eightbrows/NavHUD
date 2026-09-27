@@ -7,8 +7,8 @@ import io.github.eightbrows.navhud.core.nav.MapViewport
 import io.github.eightbrows.navhud.core.nav.NavSettings
 
 /**
- * HUD の描画領域と、地図に重ねる帯（右の操作列、下の WP ボタン列）。
- * AUTO 縮尺の判定: 縮尺 rangeM で次の WP を画面に投影し、表示枠（帯を除き edgeInset + fitMargin だけ内側）に
+ * HUD の描画の枠と、地図の上に重ねた部品（右の操作列、リプレイの帯、WP ボタン列）。
+ * AUTO 縮尺の判定: 縮尺 rangeM で次の WP を画面に投影し、避ける枠（重ねた部品を除き edgeInset + fitMargin だけ内側）に
  * 入れば「収まる」。ARC / North Up とも同じ判定。PAN の始点とドラッグ量の換算にも使う。
  */
 data class HudViewport(
@@ -17,23 +17,24 @@ data class HudViewport(
     val reserved: HudInsets = HudInsets(),
 ) : MapViewport {
 
-    private val frame: HudRect get() = HudSceneBuilder.mapFrame(rect, reserved)
+    private val avoid: HudRect get() = HudSceneBuilder.avoidFrame(rect, reserved)
+
+    private fun projection(rangeM: Double, headingDeg: Double?, settings: NavSettings) =
+        HudSceneBuilder.projection(settings, rect, avoid, rangeM, headingDeg, metrics)
 
     override fun fits(rangeM: Double, target: EN, headingDeg: Double?, settings: NavSettings): Boolean {
-        val proj = HudSceneBuilder.projection(settings, frame, rangeM, headingDeg, metrics)
-        val inner = frame.inset(metrics.edgeInset + metrics.fitMargin)
+        val inner = avoid.inset(metrics.edgeInset + metrics.fitMargin)
         if (inner.width <= 0f || inner.height <= 0f) return false
-        return inner.contains(proj.toScreen(target))
+        return inner.contains(projection(rangeM, headingDeg, settings).toScreen(target))
     }
 
+    /** 通常の表示で、PAN の中心に置く点（横は描画の枠の中央、縦は避ける枠の中央）が自機から見てどこか。 */
     override fun frameCenterOffset(rangeM: Double, headingDeg: Double?, settings: NavSettings): EN {
-        val proj = HudSceneBuilder.projection(settings, frame, rangeM, headingDeg, metrics)
-        val f = frame
-        val dx = (f.centerX - proj.origin.x) / proj.pxPerM
-        val dy = (f.centerY - proj.origin.y) / proj.pxPerM
+        val proj = projection(rangeM, headingDeg, settings)
+        val dx = (rect.centerX - proj.origin.x) / proj.pxPerM
+        val dy = (avoid.centerY - proj.origin.y) / proj.pxPerM
         return Geo.fromScreen(Screen(right = dx, fwd = -dy), proj.upDeg)
     }
 
-    override fun pxPerM(rangeM: Double, settings: NavSettings): Double =
-        HudSceneBuilder.projection(settings, frame, rangeM, null, metrics).pxPerM
+    override fun pxPerM(rangeM: Double, settings: NavSettings): Double = projection(rangeM, null, settings).pxPerM
 }

@@ -77,19 +77,26 @@ class RangeSelector(
         rangeM = snap(rangeM)
     }
 
-    /** ＋: 1段狭く（拡大）。AUTO は OFF。 */
-    fun zoomIn() {
-        auto = false
+    /** ＋: 1段狭く（拡大）。AUTO は OFF（keepAuto なら AUTO はそのまま。PAN 中）。 */
+    fun zoomIn(keepAuto: Boolean = false) {
+        if (!keepAuto) auto = false
         zoomInSince = null
         rangeM = steps.lastOrNull { it < rangeM } ?: rangeM
     }
 
-    /** −: 1段広く（縮小）。AUTO は OFF。 */
-    fun zoomOut() {
-        auto = false
+    /** −: 1段広く（縮小）。AUTO は OFF（keepAuto なら AUTO はそのまま。PAN 中）。 */
+    fun zoomOut(keepAuto: Boolean = false) {
+        if (!keepAuto) auto = false
         zoomInSince = null
         rangeM = steps.firstOrNull { it > rangeM } ?: rangeM
     }
+
+    /** 次の update では、狭める方向も待たずに AUTO の段にする（PAN から現在地へ戻ったとき）。 */
+    fun decideNow() {
+        decideNow = true
+    }
+
+    private var decideNow = false
 
     /** AUTO の狭める方向の待ちをやり直す（PAN 中など、判定を止めている間）。 */
     fun restartWait() {
@@ -115,6 +122,12 @@ class RangeSelector(
     fun update(fits: ((rangeM: Double) -> Boolean)?, nowMs: Long): Double {
         if (!auto) return rangeM
         val want = fits?.let { RangeAuto.desired(steps, it) }
+        if (decideNow && want != null) {
+            decideNow = false
+            rangeM = want
+            zoomInSince = null
+            return rangeM
+        }
         when {
             want == null || want == rangeM -> zoomInSince = null
             // 広げる方向はすぐ

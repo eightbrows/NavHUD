@@ -11,14 +11,18 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -45,6 +49,8 @@ import io.github.eightbrows.navhud.core.io.CoordinateText
 import io.github.eightbrows.navhud.core.io.TimeText
 import io.github.eightbrows.navhud.core.model.Waypoint
 import io.github.eightbrows.navhud.core.nav.NavState
+import io.github.eightbrows.navhud.core.nav.WaypointTimes
+import java.time.LocalTime
 
 private val Body get() = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 14.sp, color = HudColors.Scale)
 private val Small get() = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 12.sp, color = HudColors.ScaleDim)
@@ -67,11 +73,15 @@ fun WaypointSettingsScreen(
     onPaste: () -> Unit,
     onImport: () -> Unit,
     onExport: () -> Unit,
+    onReverse: () -> Unit,
+    onAdjustTimes: (Int, LocalTime) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val wps = state.waypoints
     // 編集中の WP の番号。-1 は新規
     var editing by remember { mutableStateOf<Int?>(null) }
+    var confirmReverse by remember { mutableStateOf(false) }
+    var adjusting by remember { mutableStateOf(false) }
 
     Column(
         modifier
@@ -89,6 +99,8 @@ fun WaypointSettingsScreen(
             HudButton("貼り付け", onPaste)
             HudButton("インポート", onImport)
             HudButton("エクスポート", onExport, enabled = wps.isNotEmpty())
+            HudButton("逆順にする", { confirmReverse = true }, enabled = wps.size >= 2)
+            HudButton("時刻を一括調整", { adjusting = true }, enabled = wps.any { it.targetTime != null })
         }
         Text(
             "リスト: " + (wpUi.listName ?: "なし") + if (wpUi.dirty) "（未エクスポートの変更あり）" else "",
@@ -108,6 +120,31 @@ fun WaypointSettingsScreen(
             onEdit = { editing = it },
             onSetEnabled = onSetEnabled,
             modifier = Modifier.weight(1f),
+        )
+    }
+
+    if (confirmReverse) {
+        AlertDialog(
+            onDismissRequest = { confirmReverse = false },
+            title = { Text("逆順にする") },
+            text = { Text("リストの順番を反転します。到達済みはすべて解除します。") },
+            confirmButton = {
+                TextButton(onClick = {
+                    onReverse()
+                    confirmReverse = false
+                }) { Text("逆順にする") }
+            },
+            dismissButton = { TextButton(onClick = { confirmReverse = false }) { Text("キャンセル") } },
+        )
+    }
+    if (adjusting) {
+        TimeAdjustDialog(
+            wps = wps,
+            onApply = { i, t ->
+                onAdjustTimes(i, t)
+                adjusting = false
+            },
+            onDismiss = { adjusting = false },
         )
     }
 
@@ -334,5 +371,65 @@ private fun WaypointEditDialog(
                 TextButton(onClick = onDismiss) { Text("キャンセル") }
             }
         },
+    )
+}
+
+/**
+ * 時刻を一括調整（§6.5）: 基準の WP（目標時刻の入った WP から選ぶ。既定は先頭の有効な WP）と、その新しい目標時刻。
+ * 元の隣どうしの時間差を保って、前後の目標時刻（と締切）を決め直す。
+ */
+@Composable
+private fun TimeAdjustDialog(
+    wps: List<Waypoint>,
+    onApply: (Int, LocalTime) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val timed = wps.indices.filter { wps[it].targetTime != null }
+    var base by remember { mutableStateOf(WaypointTimes.defaultBaseIndex(wps) ?: timed.first()) }
+    var time by remember { mutableStateOf(wps[base].targetTime?.let(TimeText::format).orEmpty()) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("時刻を一括調整") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("基準の WP", fontSize = 13.sp)
+                Column(
+                    Modifier.heightIn(max = 220.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    for (i in timed) {
+                        val wp = wps[i]
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    base = i
+                                    time = wp.targetTime?.let(TimeText::format).orEmpty()
+                                }
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            RadioButton(selected = base == i, onClick = null)
+                            Text(
+                                "${i + 1}. ${wp.name}  ${TimeText.format(wp.targetTime!!)}" + if (!wp.enabled) "（無効）" else "",
+                                fontSize = 14.sp,
+                            )
+                        }
+                    }
+                }
+                OutlinedTextField(time, { time = it }, label = { Text("基準の WP の目標時刻 H:mm") }, singleLine = true)
+                Text("時刻の入った WP（無効も含む）について、元の隣どうしの時間差を保って並び順に決め直します。締切は目標との差を保ちます。", fontSize = 12.sp)
+                error?.let { Text(it, color = HudColors.Warning, fontSize = 13.sp) }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                val t = TimeText.parse(time) ?: return@TextButton run { error = "9:30 や 09:30:00 の形で入力してください" }
+                onApply(base, t)
+            }) { Text("調整する") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("キャンセル") } },
     )
 }

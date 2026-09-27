@@ -64,6 +64,12 @@ object HudFormat {
     fun time(ms: Long?, zone: ZoneId): String =
         if (ms == null) NONE else Instant.ofEpochMilli(ms).atZone(zone).format(TIME)
 
+    /** 経過時間 "h:mm"（リプレイの帯）。 */
+    fun elapsed(ms: Long): String {
+        val min = (ms.coerceAtLeast(0) / 60_000)
+        return "%d:%02d".format(Locale.US, min / 60, min % 60)
+    }
+
     /** カウントダウン "+0:10:00" / "-0:05:00"。 */
     fun countdown(sec: Long?): String {
         if (sec == null) return NONE

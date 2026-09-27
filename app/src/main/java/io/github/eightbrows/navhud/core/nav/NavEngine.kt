@@ -37,6 +37,9 @@ class NavEngine(
     private var playing = sourceKind == SourceKind.LIVE
     /** 画面の表示枠（AUTO 縮尺の判定用）。まだ分からなければ距離で判定する。 */
     private var viewport: MapViewport? = null
+    /** LIVE の軌跡と、REPLAY のトラック全体（軌跡の表示） */
+    private val liveTrail = LiveTrail()
+    private var replayTrack: List<TrackPoint> = emptyList()
     /** PAN の表示（null なら通常の表示） */
     private var pan: PanView? = null
 
@@ -49,6 +52,21 @@ class NavEngine(
     }
 
     fun onFix(fix: Fix, nowMs: Long): NavState {
+        ingest(fix)
+        this.nowMs = nowMs
+        return recompute()
+    }
+
+    /**
+     * 何点かの Fix をまとめて入れる（リプレイの倍速）。1点ずつ onFix したのと同じ判定をし、NavState は最後に1回だけ作る。
+     */
+    fun onFixes(fixes: List<Fix>, nowMs: Long): NavState {
+        fixes.forEach(::ingest)
+        this.nowMs = nowMs
+        return recompute()
+    }
+
+    private fun ingest(fix: Fix) {
         // リプレイの巻き戻し・別ファイルなどで時刻が戻ったら、位置に関する履歴を捨てる
         lastFix?.let { if (fix.timeMs < it.timeMs) clearHistory() }
         lastFix = fix
@@ -56,8 +74,8 @@ class NavEngine(
         rateTracker.add(fix)
         waypoints = WaypointNav.autoReach(waypoints, fix.lat, fix.lon, settings.reachRadiusM)
         checkPass(fix)
-        this.nowMs = nowMs
-        return recompute()
+        // LIVE の軌跡（起動してからの分。保存しない）
+        if (sourceKind == SourceKind.LIVE) liveTrail.add(fix)
     }
 
     /** @param deg コンパス方位（真北）。センサがなくなった・値が使えないなら null */
@@ -119,8 +137,9 @@ class NavEngine(
         return recompute()
     }
 
-    /** PAN をやめて現在地の表示に戻る。 */
+    /** PAN をやめて現在地の表示に戻る。AUTO が ON なら、待たずに縮尺を決め直す。 */
     fun endPan(): NavState {
+        if (pan != null) rangeSelector.decideNow()
         pan = null
         return recompute()
     }
@@ -128,15 +147,15 @@ class NavEngine(
     private fun panUpDeg(): Double =
         if (settings.displayMode == DisplayMode.ARC) state.heading.deg?.toDouble() ?: 0.0 else 0.0
 
-    /** 縮尺の ＋（1段狭く）。AUTO は OFF。 */
+    /** 縮尺の ＋（1段狭く）。AUTO は OFF（PAN 中は AUTO をそのままにし、現在地に戻ったら AUTO が決め直す）。 */
     fun zoomIn(): NavState {
-        rangeSelector.zoomIn()
+        rangeSelector.zoomIn(keepAuto = pan != null)
         return recompute()
     }
 
-    /** 縮尺の −（1段広く）。AUTO は OFF。 */
+    /** 縮尺の −（1段広く）。AUTO は OFF（PAN 中は ＋ と同じ）。 */
     fun zoomOut(): NavState {
-        rangeSelector.zoomOut()
+        rangeSelector.zoomOut(keepAuto = pan != null)
         return recompute()
     }
 
@@ -177,6 +196,25 @@ class NavEngine(
 
     fun setPlaying(playing: Boolean): NavState {
         this.playing = playing
+        return recompute()
+    }
+
+    /** REPLAY のトラック全体（間引いたもの）。軌跡の表示に使う。 */
+    fun setReplayTrack(points: List<TrackPoint>): NavState {
+        replayTrack = points
+        return recompute()
+    }
+
+    /**
+     * リプレイのシーク: RATE の履歴・通過判定の記録・GPS 方位の保持・PAN をリセットする。WP の到達状態は残すが、
+     * トラックの先頭まで戻したとき（toStart）は、すべて未到達に戻す。このあと呼び出し側がシーク先の Fix を入れる。
+     */
+    fun seekReset(toStart: Boolean): NavState {
+        clearHistory()
+        // 地図が跳ぶので、AUTO は待たずに縮尺を決め直す（一時停止中はトラックの時計が進まず、狭める方向の待ちが終わらないため）
+        rangeSelector.decideNow()
+        nowMs = null
+        if (toStart) waypoints = waypoints.map { it.copy(reached = false) }
         return recompute()
     }
 
@@ -259,6 +297,8 @@ class NavEngine(
             rangeM = rangeM,
             rangeAuto = rangeSelector.auto,
             pan = pan,
+            liveTrail = liveTrail.points,
+            replayTrack = replayTrack,
         )
         return state
     }

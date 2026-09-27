@@ -128,9 +128,10 @@ object WaypointCsv {
 object TimeText {
     private val PATTERN = Regex("""(\d{1,2}):(\d{2})(?::(\d{2}))?""")
 
-    /** H:mm / HH:mm / H:mm:ss / HH:mm:ss。読めなければ null。 */
+    /** H:mm / HH:mm / H:mm:ss / HH:mm:ss。全角の数字・コロン（日本語入力のまま）も読む。読めなければ null。 */
     fun parse(s: String): LocalTime? {
-        val m = PATTERN.matchEntire(s.trim()) ?: return null
+        val half = java.text.Normalizer.normalize(s, java.text.Normalizer.Form.NFKC)
+        val m = PATTERN.matchEntire(half.trim()) ?: return null
         val h = m.groupValues[1].toInt()
         val min = m.groupValues[2].toInt()
         val sec = m.groupValues[3].ifEmpty { "0" }.toInt()

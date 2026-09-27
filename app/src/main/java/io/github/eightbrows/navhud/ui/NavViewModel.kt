@@ -13,6 +13,8 @@ import io.github.eightbrows.navhud.core.nav.DisplayMode
 import io.github.eightbrows.navhud.core.nav.NavEngine
 import io.github.eightbrows.navhud.core.nav.NavSettings
 import io.github.eightbrows.navhud.core.nav.NavState
+import io.github.eightbrows.navhud.core.nav.Trail
+import io.github.eightbrows.navhud.core.nav.WaypointTimes
 import io.github.eightbrows.navhud.core.view.HudViewport
 import io.github.eightbrows.navhud.core.nav.SourceKind
 import io.github.eightbrows.navhud.core.nav.TemporaryWaypoints
@@ -37,6 +39,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.time.LocalTime
 import java.time.ZoneId
 
 /** リプレイのファイルと進み具合（NavState の外の、確認用画面のための情報）。 */
@@ -47,6 +50,11 @@ data class ReplayUiState(
     val loading: Boolean = false,
     val finished: Boolean = false,
     val message: String? = null,
+    /** 倍速（×1 / ×2 / ×5 / ×10 / ×30） */
+    val speed: Int = 1,
+    /** トラックの最初と最後の時刻（シークバーの範囲） */
+    val startMs: Long? = null,
+    val endMs: Long? = null,
 ) {
     val ready: Boolean get() = fileName != null && !loading
 }
@@ -134,6 +142,29 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
         val src = source ?: return
         if (kind != SourceKind.REPLAY || src.finished) return
         if (clock.playing) pauseReplay() else play()
+    }
+
+    /** 倍速を ×1 → ×2 → ×5 → ×10 → ×30 → ×1 と切り替える（保存しない）。 */
+    fun cycleReplaySpeed() {
+        val next = REPLAY_SPEEDS[(REPLAY_SPEEDS.indexOf(clock.speed) + 1) % REPLAY_SPEEDS.size]
+        clock.setSpeed(next)
+        _replay.value = _replay.value.copy(speed = next)
+    }
+
+    /**
+     * シーク（§6.7）: トラック時刻を trackMs にする。RATE・通過判定の記録などをリセットし、シーク先の Fix をすぐ出す。
+     * WP の到達状態は残すが、トラックの先頭まで戻したときはすべて未到達に戻す。
+     */
+    fun seekReplay(trackMs: Long) {
+        val src = source ?: return
+        if (kind != SourceKind.REPLAY) return
+        val start = src.startMs ?: return
+        val end = src.endMs ?: return
+        val t = trackMs.coerceIn(start, end)
+        val fix = src.seek(t)
+        publish(engine.seekReset(toStart = t <= start))
+        publish(if (fix != null) engine.onFix(fix, clock.nowMs()) else engine.onTick(clock.nowMs()))
+        _replay.value = _replay.value.copy(finished = src.finished)
     }
 
     /** リプレイを止める。LIVE の「動作中」には影響しない。 */
@@ -231,6 +262,19 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
     private fun edit(wps: List<Waypoint>, message: String? = null) {
         publish(engine.setWaypoints(wps))
         _wp.value = _wp.value.copy(dirty = true, message = message)
+    }
+
+    /** 逆順にする（§6.5）: 並びを反転し、到達済みをすべて解除する。 */
+    fun reverseWaypoints() {
+        if (waypoints.size < 2) return
+        edit(WaypointTimes.reverse(waypoints), "順番を逆にしました（到達済みはすべて解除）")
+    }
+
+    /** 時刻を一括調整する（§6.5）。基準の WP（index）の目標時刻を target にして、前後を決め直す。 */
+    fun adjustWaypointTimes(index: Int, target: LocalTime) {
+        val next = WaypointTimes.adjust(waypoints, index, target)
+        if (next == waypoints) return
+        edit(next, "時刻を一括調整しました（基準: ${waypoints[index].name}）")
     }
 
     /** 新しい WP の名前の既定値（WP<番号>）。 */
@@ -381,16 +425,26 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
             engine.setSource(SourceKind.REPLAY, playing = false)
             publish(engine.onTick(clock.nowMs()))
         }
+        // 軌跡の表示に使うトラック全体（10m 間隔に間引く）。倍速は読み直したら ×1
+        publish(engine.setReplayTrack(Trail.decimate(fixes)))
+        clock.setSpeed(1)
         _replay.value = ReplayUiState(
             fileName = track.displayName,
             fixCount = fixes.size,
             skippedLines = track.result.skippedLines,
+            startMs = src.startMs,
+            endMs = src.endMs,
         )
         fixJob = viewModelScope.launch {
-            src.fixes.collect { if (kind == SourceKind.REPLAY) publish(engine.onFix(it, clock.nowMs())) }
-            // 最後の Fix まで出したら止める
-            pauseReplay()
-            _replay.value = _replay.value.copy(finished = true)
+            // 刻みごとにまとめて入れる（倍速でも画面の更新は刻みごとに1回）
+            src.batches.collect { batch ->
+                if (kind == SourceKind.REPLAY) publish(engine.onFixes(batch, clock.nowMs()))
+                // 最後の Fix まで出したら止める（シークで戻せば再開できる）
+                if (src.finished && !_replay.value.finished) {
+                    pauseReplay()
+                    _replay.value = _replay.value.copy(finished = true)
+                }
+            }
         }
     }
 
@@ -484,6 +538,9 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
 
     companion object {
         private const val TICK_MS = 200L
+
+        /** リプレイの倍速（§6.7） */
+        val REPLAY_SPEEDS = listOf(1, 2, 5, 10, 30)
     }
 }
 

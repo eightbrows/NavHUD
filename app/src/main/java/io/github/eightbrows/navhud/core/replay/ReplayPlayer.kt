@@ -32,4 +32,23 @@ class ReplayPlayer(private val track: List<Fix>) {
     fun rewind() {
         next = 0
     }
+
+    /**
+     * シーク: 時刻 trackMs 以前の Fix は出したことにする。trackMs 以前の最後の Fix を返す（すぐ画面に出すため）。
+     * 先頭より前なら null（最初から出し直す）。
+     */
+    fun seek(trackMs: Long): Fix? {
+        // trackMs より後の最初の Fix の位置（二分探索）
+        var lo = 0
+        var hi = track.size
+        while (lo < hi) {
+            val mid = (lo + hi) ushr 1
+            if (track[mid].timeMs <= trackMs) lo = mid + 1 else hi = mid
+        }
+        next = lo
+        return track.getOrNull(lo - 1)
+    }
+
+    /** 最後の Fix の時刻。トラックが空なら null。 */
+    val endMs: Long? get() = track.lastOrNull()?.timeMs
 }

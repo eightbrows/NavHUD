@@ -126,4 +126,28 @@ class PanTest {
         e.setViewport(viewport)
         assertNull(e.panBy(10f, 10f).pan)
     }
+
+    @Test
+    fun zoomDuringPanKeepsAutoAndAutoDecidesOnReturn() {
+        val e = engine()
+        assertEquals(2_000.0, e.state.rangeM, 0.0)
+        e.panBy(-20f, 0f)
+        // PAN 中の − は AUTO を OFF にしない（縮尺は PAN の間だけ変わる）
+        e.zoomOut()
+        e.zoomOut()
+        assertEquals(10_000.0, e.state.rangeM, 0.0)
+        assertEquals(true, e.state.rangeAuto)
+        // 現在地に戻ると、狭める方向でも待たずに AUTO が決め直す（北 1.5km → 2km）
+        e.endPan()
+        assertEquals(2_000.0, e.state.rangeM, 0.0)
+        // PAN の外の ＋ は従来どおり AUTO を OFF にする
+        e.zoomIn()
+        assertEquals(false, e.state.rangeAuto)
+        // AUTO が OFF なら、PAN 中に変えた縮尺のまま戻る
+        e.panBy(-20f, 0f)
+        e.zoomOut()
+        e.endPan()
+        assertEquals(2_000.0, e.state.rangeM, 0.0)
+        assertEquals(false, e.state.rangeAuto)
+    }
 }
