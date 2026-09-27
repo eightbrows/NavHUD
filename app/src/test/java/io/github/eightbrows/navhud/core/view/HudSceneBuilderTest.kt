@@ -510,4 +510,37 @@ class HudSceneBuilderTest {
         // 軌跡がなければ描かない
         assertTrue(build(base.copy(sourceKind = io.github.eightbrows.navhud.core.nav.SourceKind.LIVE)).trails.isEmpty())
     }
+
+    @Test
+    fun arrowAvoidsTheArcMarkerAndRubberLine() {
+        // 機首 000 で真北 30km の WP: 矢印は上端の中央（方位マーカーの横）に来るので、マーカーとラバーラインの周りから横へずらす
+        val scene = build(state(headingDeg = 0f, wps = listOf(wp("ダム", 30_000.0, 300.0)), next = 0))
+        val arrow = scene.arrows.single()
+        val marker = scene.pointers.single().tip
+        assertEquals(m.edgeInset, arrow.at.y, 1e-3f)
+        assertTrue("x=${arrow.at.x}", abs(arrow.at.x - marker.x) >= m.pointerSize * 2.6f - 1e-3f)
+        // 横の縁の矢印は動かさない（方位マーカーから遠い）
+        val west = build(state(headingDeg = 0f, wps = listOf(wp("W", 3_000.0, -30_000.0)), next = 0)).arrows.single()
+        assertEquals(m.edgeInset, west.at.x, 1e-3f)
+        // North Up・PAN では方位マーカーを避けない（ARC の上部中央のマーカーだけ）
+        val nu = build(state(headingDeg = 0f, mode = DisplayMode.NORTH_UP, wps = listOf(wp("ダム", 30_000.0, 300.0)), next = 0))
+        assertTrue(abs(nu.arrows.single().at.x - 360f) < m.pointerSize * 2.6f)
+    }
+
+    @Test
+    fun arrowTextAvoidsOnScreenWaypointNames() {
+        // エミュレータの前方シーク後の場面: 機首 336、縮尺 5km。道の駅（2.55km・方位 078、画面内）とダム（15.1km・方位 070、画面外）
+        fun at(bearing: Double, d: Double) = Math.toRadians(bearing).let { d * Math.cos(it) to d * Math.sin(it) }
+        val (n1, e1) = at(78.0, 2_550.0)
+        val (n2, e2) = at(70.0, 15_100.0)
+        val s = state(headingDeg = 336f, wps = listOf(wp("道の駅", n1, e1), wp("ダム", n2, e2)), next = 0).copy(rangeM = 5_000.0)
+        val scene = build(s)
+        val mark = scene.wpMarks.single()
+        val name = HudSceneBuilder.Box(mark.nameAt!!, HudSceneBuilder.textHalfWidth(mark.name, m) * 13f / 11f, m.arrowLabelLine / 2)
+        val markBox = HudSceneBuilder.Box(mark.at, m.pointerSize * 0.6f, m.pointerSize * 0.6f)
+        val arrow = scene.arrows.single()
+        val text = HudSceneBuilder.Box(arrow.textAt, HudSceneBuilder.textHalfWidth(arrow.text, m), m.arrowLabelLine / 2)
+        assertFalse(name.overlaps(text))
+        assertFalse(markBox.overlaps(text))
+    }
 }

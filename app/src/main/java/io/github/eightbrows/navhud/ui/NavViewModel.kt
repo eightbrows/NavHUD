@@ -153,7 +153,7 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
 
     /**
      * シーク（§6.7）: トラック時刻を trackMs にする。RATE・通過判定の記録などをリセットし、シーク先の Fix をすぐ出す。
-     * WP の到達状態は残すが、トラックの先頭まで戻したときはすべて未到達に戻す。
+     * 前方へのシークでは飛ばした区間で通った WP を到達にする。後方へは到達状態を残し、先頭まで戻したときだけすべて未到達に戻す。
      */
     fun seekReplay(trackMs: Long) {
         val src = source ?: return
@@ -161,8 +161,10 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
         val start = src.startMs ?: return
         val end = src.endMs ?: return
         val t = trackMs.coerceIn(start, end)
-        val fix = src.seek(t)
-        publish(engine.seekReset(toStart = t <= start))
+        val r = src.seek(t)
+        // 前方へのシークでは、飛ばした区間で通った WP を到達にする
+        publish(engine.seekReset(toStart = t <= start, passed = r.passed))
+        val fix = r.last
         publish(if (fix != null) engine.onFix(fix, clock.nowMs()) else engine.onTick(clock.nowMs()))
         _replay.value = _replay.value.copy(finished = src.finished)
     }

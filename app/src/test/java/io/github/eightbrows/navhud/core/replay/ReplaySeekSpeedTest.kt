@@ -52,17 +52,21 @@ class ReplaySeekSpeedTest {
     fun playerSeek() {
         val p = ReplayPlayer(track)
         // 先頭より前 → null で、最初から出し直す
-        assertNull(p.seek(t0 - 1))
+        assertNull(p.seek(t0 - 1).last)
         assertEquals(t0, p.due(t0).single().timeMs)
         // 欠損の途中（75 秒）→ その前の最後の Fix（60 秒）を返し、次は 90 秒から
-        assertEquals(t0 + 60_000, p.seek(t0 + 75_000)!!.timeMs)
+        // 前方へ: 飛ばした Fix（先頭はもう出したので 1..60 秒の 60 点）も返す
+        val fwd = p.seek(t0 + 75_000)
+        assertEquals(t0 + 60_000, fwd.last!!.timeMs)
+        assertEquals(60, fwd.passed.size)
+        assertEquals(t0 + 60_000, fwd.passed.last().timeMs)
         assertTrue(p.due(t0 + 89_999).isEmpty())
         assertEquals(t0 + 90_000, p.due(t0 + 90_000).single().timeMs)
         // 最後まで
-        assertEquals(t0 + 200_000, p.seek(t0 + 999_999)!!.timeMs)
+        assertEquals(t0 + 200_000, p.seek(t0 + 999_999).last!!.timeMs)
         assertTrue(p.finished)
-        // 戻せる
-        p.seek(t0 + 10_000)
+        // 戻せる（後方へは飛ばした Fix なし）
+        assertTrue(p.seek(t0 + 10_000).passed.isEmpty())
         assertFalse(p.finished)
         assertEquals(t0 + 200_000, p.endMs)
     }
@@ -139,5 +143,40 @@ class ReplaySeekSpeedTest {
         // シークしたら、時計が進まなくても（一時停止中）すぐ決め直す
         e.seekReset(toStart = true)
         assertEquals(1_000.0, e.onFix(track[0], track[0].timeMs).rangeM, 0.0)
+    }
+
+    @Test
+    fun forwardSeekReachesWaypointsOnTheSkippedPart() {
+        val e = NavEngine(NavSettings(), sourceKind = SourceKind.REPLAY)
+        e.setWaypoints(wps)
+        val player = ReplayPlayer(track)
+        e.onFixes(player.due(t0), t0)
+        assertEquals(0, e.state.nextWpIndex)
+        // 0 秒 → 200 秒（2000 m）へ前方シーク: A（500 m、半径）と B（1500 m の東 150 m、通過判定）を通った
+        val r = player.seek(t0 + 200_000)
+        e.seekReset(toStart = false, passed = r.passed)
+        val s = e.onFix(r.last!!, r.last!!.timeMs)
+        assertEquals(listOf(true, true, false), s.waypoints.map { it.reached })
+        // 次の WP はシーク先より先の C
+        assertEquals(2, s.nextWpIndex)
+        // 記録はリセット（RATE なし）
+        assertNull(s.rate)
+        // 後方へ（100 秒）: 到達状態は残す
+        val back = player.seek(t0 + 100_000)
+        assertTrue(back.passed.isEmpty())
+        e.seekReset(toStart = false, passed = back.passed)
+        assertEquals(listOf(true, true, false), e.onFix(back.last!!, back.last!!.timeMs).waypoints.map { it.reached })
+    }
+
+    @Test
+    fun forwardSeekStoppingBeforeAWaypointDoesNotReachIt() {
+        // 0 → 30 秒（300 m）: A（500 m）の 200 m 手前なので到達しない（半径 100 m、通過判定も離れていない）
+        val e = NavEngine(NavSettings(), sourceKind = SourceKind.REPLAY)
+        e.setWaypoints(wps)
+        val player = ReplayPlayer(track)
+        e.onFixes(player.due(t0), t0)
+        val r = player.seek(t0 + 30_000)
+        e.seekReset(toStart = false, passed = r.passed)
+        assertEquals(0, e.onFix(r.last!!, r.last!!.timeMs).nextWpIndex)
     }
 }

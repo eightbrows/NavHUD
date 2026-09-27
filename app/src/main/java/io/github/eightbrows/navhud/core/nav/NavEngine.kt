@@ -206,10 +206,13 @@ class NavEngine(
     }
 
     /**
-     * リプレイのシーク: RATE の履歴・通過判定の記録・GPS 方位の保持・PAN をリセットする。WP の到達状態は残すが、
-     * トラックの先頭まで戻したとき（toStart）は、すべて未到達に戻す。このあと呼び出し側がシーク先の Fix を入れる。
+     * リプレイのシーク: RATE の履歴・通過判定の記録・GPS 方位の保持・PAN をリセットする。このあと呼び出し側がシーク先の Fix を入れる。
+     * - 前方へのシーク: 飛ばした区間の Fix（passed）を先に通常どおりの到達判定（半径・通過判定）にかけ、
+     *   トラックが通った WP を到達にする。
+     * - 後方へのシーク: WP の到達状態は残す。トラックの先頭まで戻したとき（toStart）だけ、すべて未到達に戻す。
      */
-    fun seekReset(toStart: Boolean): NavState {
+    fun seekReset(toStart: Boolean, passed: List<Fix> = emptyList()): NavState {
+        passed.forEach(::ingest)
         clearHistory()
         // 地図が跳ぶので、AUTO は待たずに縮尺を決め直す（一時停止中はトラックの時計が進まず、狭める方向の待ちが終わらないため）
         rangeSelector.decideNow()

@@ -67,7 +67,15 @@ object HudSceneBuilder {
 
         // 上部の三角（機首方位の印）も文字を置かない所にする
         val pointerBoxes = pointers.map { Box(P(it.tip.x, it.tip.y + it.sizePx / 2), it.sizePx * 0.7f, it.sizePx * 0.7f) }
-        val (wpMarks, arrows) = buildWaypoints(state, proj, ref, ownAt, arrowFrame, m, segments, labels, pointerBoxes)
+        // ARC の上部中央の三角（方位マーカー）とラバーラインの周り: 画面外の矢印（三角）を置かず、横にずらす
+        val markerZone = pointers.firstOrNull()?.takeIf { pan == null && s.displayMode == DisplayMode.ARC }?.let { p ->
+            val top = p.tip.y
+            val bottom = if (headingDeg != null) proj.origin.y else p.tip.y + p.sizePx
+            Box(P(p.tip.x, (top + bottom) / 2), p.sizePx * 2f, (bottom - top) / 2 + p.sizePx)
+        }
+        val (wpMarks, arrows) = buildWaypoints(
+            state, proj, ref, ownAt, arrowFrame, m, segments, labels, pointerBoxes, listOfNotNull(markerZone),
+        )
 
         val scene = HudScene(
             rect = rect,
@@ -289,6 +297,7 @@ object HudSceneBuilder {
         segments: MutableList<Segment>,
         labels: List<Label>,
         pointerBoxes: List<Box> = emptyList(),
+        arrowKeepOut: List<Box> = emptyList(),
     ): Pair<List<WpMark>, List<EdgeArrow>> {
         // ref: 地図の基準の地点（通常は自機、PAN は PAN の中心）。矢印の距離は自機から
         val fix = state.fix ?: return emptyList<WpMark>() to emptyList()
@@ -315,24 +324,33 @@ object HudSceneBuilder {
         if (next != null && ownAt != null) segments += Segment(ownAt, pts[next], Ink.ACTIVE, bold = true)
 
         // inner: 矢印を置く枠（ボタン列・リプレイ操作の帯を除いた内側）
-        // 文字を置かない所: 自機の記号と方位目盛り・距離環の文字（先に置いた矢印の文字も加えていく）
+        // 文字を置かない所: 自機の記号、方位目盛り・距離環の文字、画面内の WP の印と名前（先に置いた矢印の文字も加えていく）
         // 自機が見えていなければ（PAN）、自機の記号は避けなくてよい
         val ownShipBox = Box(ownAt ?: P(-1e6f, -1e6f), m.ownShipClear, m.ownShipClear)
         val obstacles = mutableListOf(ownShipBox)
         val labelBoxes = labels.map { labelBox(it, m) } + pointerBoxes
         obstacles += labelBoxes
+        // 先に画面内の WP（印と名前）を置き、矢印の文字はそれも避ける
         val marks = mutableListOf<WpMark>()
+        for (i in shown) {
+            val wp = wps[i]
+            if (!inner.contains(pts[i])) continue
+            val nameAt = placeWpName(wp.name, pts[i], ownShipBox, m, allowBelow = !wp.reached)
+            marks += WpMark(pts[i], wp.name, wpInk(wp, i == next), dashed = !wp.enabled, nameAt = nameAt)
+            obstacles += Box(pts[i], m.pointerSize * 0.6f, m.pointerSize * 0.6f)
+            if (nameAt != null) obstacles += Box(nameAt, textHalfWidth(wp.name, m) * LABEL_WIDTH_RATIO, m.arrowLabelLine / 2)
+        }
         val arrows = mutableListOf<EdgeArrow>()
         for (i in shown) {
             val wp = wps[i]
             val ink = wpInk(wp, i == next)
             if (inner.contains(pts[i])) {
-                marks += WpMark(pts[i], wp.name, ink, dashed = !wp.enabled, nameAt = placeWpName(wp.name, pts[i], ownShipBox, m, allowBelow = !wp.reached))
+                continue
             } else if (wp.enabled && !wp.reached) {
                 // 画面外: 表示枠の縁に方位方向の矢印と距離。文字は矢印の内側（自機側）
                 val a = HudGeometry.angleOf(proj.origin, pts[i])
-                // 三角が方位目盛りの文字に重なるなら、縁に沿ってずらす
-                val at = slideArrow(HudGeometry.rayToRect(proj.origin, a, inner), inner, labelBoxes, m)
+                // 三角が方位目盛りの文字や、ARC の方位マーカー・ラバーラインの周りに来るなら、縁に沿ってずらす
+                val at = slideArrow(HudGeometry.rayToRect(proj.origin, a, inner), inner, labelBoxes + arrowKeepOut, m)
                 val dist = Geo.distanceM(fix.lat, fix.lon, wp.lat, wp.lon)
                 val text = "${wp.name} ${HudFormat.distance(dist)}"
                 val textAt = placeArrowText(

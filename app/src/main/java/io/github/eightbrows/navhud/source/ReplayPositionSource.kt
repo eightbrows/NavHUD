@@ -4,6 +4,7 @@ import io.github.eightbrows.navhud.core.model.Fix
 import io.github.eightbrows.navhud.core.model.PositionSource
 import io.github.eightbrows.navhud.core.replay.ReplayClock
 import io.github.eightbrows.navhud.core.replay.ReplayPlayer
+import io.github.eightbrows.navhud.core.replay.SeekResult
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -53,8 +54,8 @@ class ReplayPositionSource(
         }
     }
 
-    /** シーク: トラック時刻を trackMs にする。trackMs 以前の最後の Fix を返す（先頭より前なら null）。 */
-    fun seek(trackMs: Long): Fix? {
+    /** シーク: トラック時刻を trackMs にする。シーク先の Fix と、前方へのシークで飛ばした Fix を返す。 */
+    fun seek(trackMs: Long): SeekResult {
         clock.seek(trackMs)
         return player.seek(trackMs)
     }
