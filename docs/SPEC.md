@@ -261,6 +261,7 @@ lat,lon,ele,name,target_time,deadline_time,enabled,radius
 - DMS・URL・複数行は未対応（§10）。
 
 ## 8. 背景地図（優先度低・最後）
+- **保留**（実装した機能の調整期間の後に検討）。以下は保留前の案で、消さずに残す。
 - PNG/JPEG ＋ 同名の JSON: `imageFile, imageWidthPx, imageHeightPx, topLeft, bottomRight, rotationDeg`。QGIS で作成する前提。
 - 基準点はリストで持つ（将来 4 点対応）。複数画像を現在地で自動切替。
 

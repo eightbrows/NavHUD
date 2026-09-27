@@ -1,5 +1,6 @@
 package io.github.eightbrows.navhud.core.view
 
+import io.github.eightbrows.navhud.core.Tuning
 import io.github.eightbrows.navhud.core.geo.Geo
 import io.github.eightbrows.navhud.core.nav.NavState
 import kotlin.math.max
@@ -20,10 +21,10 @@ data class ProfileScene(
 /** 標高プロファイルの寸法 [px]。 */
 data class ProfileMetrics(
     /** 左の余白（縦軸の数字の分） */
-    val left: Float = 40f,
-    val right: Float = 14f,
-    val top: Float = 10f,
-    val bottom: Float = 8f,
+    val left: Float = Tuning.PROFILE_MARGIN_LEFT_DP,
+    val right: Float = Tuning.PROFILE_MARGIN_RIGHT_DP,
+    val top: Float = Tuning.PROFILE_MARGIN_TOP_DP,
+    val bottom: Float = Tuning.PROFILE_MARGIN_BOTTOM_DP,
 ) {
     fun scaled(k: Float) = ProfileMetrics(left * k, right * k, top * k, bottom * k)
 }
@@ -38,7 +39,7 @@ data class ProfileMetrics(
 object ProfileBuilder {
 
     /** 縦軸の最小の幅 [m] */
-    const val MIN_SPAN_M = 50.0
+    const val MIN_SPAN_M = Tuning.PROFILE_MIN_SPAN_M
 
     /** 横軸・縦軸の計算に使う点（x = 累積距離 [m]、ele = 標高 [m] / 不明なら null）。 */
     internal data class Node(val x: Double, val ele: Double?, val name: String?, val isCurrent: Boolean, val isNext: Boolean)

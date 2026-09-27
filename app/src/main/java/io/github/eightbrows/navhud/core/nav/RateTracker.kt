@@ -1,5 +1,6 @@
 package io.github.eightbrows.navhud.core.nav
 
+import io.github.eightbrows.navhud.core.Tuning
 import io.github.eightbrows.navhud.core.geo.Geo
 import io.github.eightbrows.navhud.core.model.Fix
 
@@ -69,15 +70,15 @@ class RateTracker(private val maxWindowSec: Int = 60) {
 
     companion object {
         /** base が窓の起点よりこれを超えて古ければ欠損とみなす。 */
-        const val BASE_MAX_LAG_MS = 2_000L
+        const val BASE_MAX_LAG_MS = Tuning.RATE_BASE_MAX_LAG_MS
 
         /** 窓に足りない履歴で ETA を出すときの、最低の長さ [秒]。 */
-        const val MIN_ETA_HISTORY_SEC = 10
+        const val MIN_ETA_HISTORY_SEC = Tuning.ETA_MIN_HISTORY_SEC
 
         /** この間隔を超える区間は欠損として直線距離で数える。 */
-        const val GAP_SEGMENT_MS = 2_000L
+        const val GAP_SEGMENT_MS = Tuning.RATE_GAP_SEGMENT_MS
 
-        private const val KEEP_MARGIN_MS = 3_000L
+        private const val KEEP_MARGIN_MS = Tuning.RATE_KEEP_MARGIN_MS
 
         /** 区間の距離。両端の速度があれば台形積分、なければ・欠損区間なら直線距離。 */
         fun segmentM(a: Fix, b: Fix): Double {

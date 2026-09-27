@@ -1,5 +1,6 @@
 package io.github.eightbrows.navhud.source
 
+import io.github.eightbrows.navhud.core.Tuning
 import io.github.eightbrows.navhud.core.model.Fix
 import io.github.eightbrows.navhud.core.model.PositionSource
 import io.github.eightbrows.navhud.core.replay.ReplayClock
@@ -61,6 +62,6 @@ class ReplayPositionSource(
     }
 
     companion object {
-        const val POLL_MS = 50L
+        const val POLL_MS = Tuning.REPLAY_POLL_MS
     }
 }

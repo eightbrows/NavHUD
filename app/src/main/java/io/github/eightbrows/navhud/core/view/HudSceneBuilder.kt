@@ -1,5 +1,6 @@
 package io.github.eightbrows.navhud.core.view
 
+import io.github.eightbrows.navhud.core.Tuning
 import io.github.eightbrows.navhud.core.geo.Geo
 import io.github.eightbrows.navhud.core.model.Waypoint
 import io.github.eightbrows.navhud.core.nav.DisplayMode
@@ -8,8 +9,8 @@ import io.github.eightbrows.navhud.core.nav.NavState
 import io.github.eightbrows.navhud.core.nav.OwnshipPosition
 import io.github.eightbrows.navhud.core.nav.PanView
 import io.github.eightbrows.navhud.core.nav.SourceKind
-import io.github.eightbrows.navhud.core.nav.Trail
 import io.github.eightbrows.navhud.core.nav.TrackPoint
+import io.github.eightbrows.navhud.core.nav.Trail
 import kotlin.math.hypot
 
 /**
@@ -71,7 +72,7 @@ object HudSceneBuilder {
         val markerZone = pointers.firstOrNull()?.takeIf { pan == null && s.displayMode == DisplayMode.ARC }?.let { p ->
             val top = p.tip.y
             val bottom = if (headingDeg != null) proj.origin.y else p.tip.y + p.sizePx
-            Box(P(p.tip.x, (top + bottom) / 2), p.sizePx * 2f, (bottom - top) / 2 + p.sizePx)
+            Box(P(p.tip.x, (top + bottom) / 2), p.sizePx * Tuning.ARROW_MARKER_ZONE_HALF_WIDTH, (bottom - top) / 2 + p.sizePx)
         }
         val (wpMarks, arrows) = buildWaypoints(
             state, proj, ref, ownAt, arrowFrame, m, segments, labels, pointerBoxes, listOfNotNull(markerZone),
@@ -151,7 +152,7 @@ object HudSceneBuilder {
         if (ownAt != null) {
             val corners = listOf(P(rect.left, rect.top), P(rect.right, rect.top), P(rect.left, rect.bottom), P(rect.right, rect.bottom))
             val maxPx = corners.maxOf { HudGeometry.dist(ownAt, it) }
-            addRings(proj.copy(origin = ownAt), ringIntervalM, maxPx.toDouble(), 0f, 360f, -45.0, arcs, labels)
+            addRings(proj.copy(origin = ownAt), ringIntervalM, maxPx.toDouble(), 0f, 360f, -45.0, m.ringLabelOffset, arcs, labels)
         }
         val c = proj.origin
         for (b in 0 until 360 step 10) {
@@ -184,7 +185,7 @@ object HudSceneBuilder {
         val o = proj.origin
         // 画面の上の角まで届く距離環を描く（左右ははみ出して切れる）
         val maxPx = maxOf(hypot(o.x - rect.left, o.y - rect.top), hypot(rect.right - o.x, o.y - rect.top))
-        addRings(proj, ringIntervalM, maxPx.toDouble(), -90f, 180f, -45.0, arcs, labels)
+        addRings(proj, ringIntervalM, maxPx.toDouble(), -90f, 180f, -45.0, m.ringLabelOffset, arcs, labels)
 
         for (b in 0 until 360 step 10) {
             val a = proj.screenAngle(b.toDouble())
@@ -222,7 +223,7 @@ object HudSceneBuilder {
     ) {
         val o = proj.origin
         val outer = (rangeM * proj.pxPerM).toFloat()
-        addRings(proj, ringIntervalM, outer.toDouble() + 0.5, 0f, 360f, -45.0, arcs, labels)
+        addRings(proj, ringIntervalM, outer.toDouble() + 0.5, 0f, 360f, -45.0, m.ringLabelOffset, arcs, labels)
 
         for (b in 0 until 360 step 10) {
             val a = b.toDouble()
@@ -250,6 +251,7 @@ object HudSceneBuilder {
         startDeg: Float,
         sweepDeg: Float,
         labelAngle: Double,
+        labelOffset: Float,
         arcs: MutableList<Arc>,
         labels: MutableList<Label>,
     ) {
@@ -261,7 +263,7 @@ object HudSceneBuilder {
             if (rPx > maxPx || k > 50) break
             arcs += Arc(proj.origin, rPx.toFloat(), startDeg, sweepDeg, Ink.SCALE)
             // 25 / 250 / 1k / 2.5k。方位目盛りより小さく薄い色（small / SCALE_DIM）
-            labels += Label(HudFormat.ringLabel(rM), HudGeometry.pointAt(proj.origin, labelAngle, rPx.toFloat() + 10f), Ink.SCALE_DIM, small = true)
+            labels += Label(HudFormat.ringLabel(rM), HudGeometry.pointAt(proj.origin, labelAngle, rPx.toFloat() + labelOffset), Ink.SCALE_DIM, small = true)
             k++
         }
     }
@@ -279,10 +281,10 @@ object HudSceneBuilder {
             if (track.size < 2) return emptyList()
             val all = track.map(::screen)
             val done = all.take(Trail.playedCount(track, state.fix?.timeMs)) + tail
-            listOfNotNull(Polyline(all, Ink.TRACK, 1f), done.takeIf { it.size >= 2 }?.let { Polyline(it, Ink.TRACK_DONE, 2f) })
+            listOfNotNull(Polyline(all, Ink.TRACK, Tuning.TRACK_LINE_DP), done.takeIf { it.size >= 2 }?.let { Polyline(it, Ink.TRACK_DONE, Tuning.TRACK_DONE_LINE_DP) })
         } else {
             val pts = state.liveTrail.map(::screen) + tail
-            listOfNotNull(pts.takeIf { it.size >= 2 }?.let { Polyline(it, Ink.TRACK_DONE, 1.5f) })
+            listOfNotNull(pts.takeIf { it.size >= 2 }?.let { Polyline(it, Ink.TRACK_DONE, Tuning.LIVE_TRAIL_LINE_DP) })
         }
     }
 
@@ -377,7 +379,7 @@ object HudSceneBuilder {
         if (free(at)) return at
         // 左右の縁なら縦に、上下の縁なら横にずらす
         val onSide = kotlin.math.abs(at.x - frame.left) < 0.5f || kotlin.math.abs(at.x - frame.right) < 0.5f
-        for (k in 1..4) {
+        for (k in 1..Tuning.ARROW_SLIDE_MAX_STEPS) {
             for (sign in listOf(1f, -1f)) {
                 val d = sign * k * size
                 val p = if (onSide) {
@@ -425,7 +427,7 @@ object HudSceneBuilder {
         val line = m.arrowLabelLine
         val candidates = sequence {
             yield(start)
-            for (n in 1..3) {
+            for (n in 1..Tuning.ARROW_TEXT_MAX_SHIFT_LINES) {
                 yield(HudGeometry.pointAt(start, angleDeg + 180, line * n))
                 yield(HudGeometry.pointAt(start, angleDeg + 90, line * n))
                 yield(HudGeometry.pointAt(start, angleDeg - 90, line * n))

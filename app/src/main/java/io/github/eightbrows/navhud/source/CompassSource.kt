@@ -6,6 +6,7 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
+import io.github.eightbrows.navhud.core.Tuning
 import io.github.eightbrows.navhud.core.sensor.AngleSmoother
 import io.github.eightbrows.navhud.core.sensor.CompassMath
 import io.github.eightbrows.navhud.core.sensor.CompassQuality
@@ -122,9 +123,9 @@ class CompassSource(context: Context, private val location: () -> GeoPoint?) {
 
     companion object {
         /** 平滑化の強さ（SENSOR_DELAY_UI ≒ 60ms ごとに 20% ずつ追従） */
-        const val SMOOTHING = 0.2
+        const val SMOOTHING = Tuning.COMPASS_SMOOTHING
 
         /** 偏角を計算し直す間隔 */
-        const val DECLINATION_INTERVAL_MS = 10_000L
+        const val DECLINATION_INTERVAL_MS = Tuning.COMPASS_DECLINATION_INTERVAL_MS
     }
 }

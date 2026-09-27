@@ -30,6 +30,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.sp
+import io.github.eightbrows.navhud.core.Tuning
 import io.github.eightbrows.navhud.core.nav.NavState
 import io.github.eightbrows.navhud.core.view.HudInsets
 import io.github.eightbrows.navhud.core.view.HudMetrics
@@ -79,18 +80,18 @@ fun HudCanvas(
     }
 }
 
-private val LabelStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 13.sp)
-private val SmallLabelStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+private val LabelStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = Tuning.LABEL_SP.sp)
+private val SmallLabelStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = Tuning.ARROW_LABEL_SP.sp)
 
 /** 距離環の文字: 方位目盛り（13sp）より小さく、色も薄い（SCALE_DIM） */
-private val RingLabelStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 10.sp)
+private val RingLabelStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = Tuning.RING_LABEL_SP.sp)
 
 private fun P.o() = Offset(x, y)
 
 private fun DrawScope.drawScene(scene: HudScene, tm: TextMeasurer, density: Float) {
-    val thin = 1.2f * density
-    val bold = 2.2f * density
-    val dash = PathEffect.dashPathEffect(floatArrayOf(6f * density, 5f * density))
+    val thin = Tuning.LINE_THIN_DP * density
+    val bold = Tuning.LINE_BOLD_DP * density
+    val dash = PathEffect.dashPathEffect(floatArrayOf(Tuning.DASH_ON_DP * density, Tuning.DASH_OFF_DP * density))
 
     drawRect(HudColors.Background)
 
@@ -127,7 +128,7 @@ private fun DrawScope.drawScene(scene: HudScene, tm: TextMeasurer, density: Floa
 
     for (w in scene.wpMarks) {
         val c = HudColors.of(w.ink)
-        val r = 6f * density
+        val r = Tuning.WP_MARK_DP * density
         // WP はひし形
         val path = Path().apply {
             moveTo(w.at.x, w.at.y - r)
@@ -142,7 +143,7 @@ private fun DrawScope.drawScene(scene: HudScene, tm: TextMeasurer, density: Floa
     }
     for (a in scene.arrows) {
         val c = HudColors.of(a.ink)
-        triangle(a.at, a.angleDeg, 12f * density, c)
+        triangle(a.at, a.angleDeg, Tuning.EDGE_ARROW_DP * density, c)
         drawLabel(tm, a.text, a.textAt, c, SmallLabelStyle)
     }
     for (p in scene.pointers) triangle(p.tip, p.angleDeg, p.sizePx, HudColors.of(p.ink), filled = false, stroke = bold)
@@ -150,11 +151,11 @@ private fun DrawScope.drawScene(scene: HudScene, tm: TextMeasurer, density: Floa
     val own = scene.ownShip ?: return
     val oc = HudColors.of(own.ink)
     if (own.angleDeg == null) {
-        drawCircle(oc, radius = 7f * density, center = own.at.o(), style = Stroke(bold))
+        drawCircle(oc, radius = Tuning.OWN_SHIP_CIRCLE_DP * density, center = own.at.o(), style = Stroke(bold))
     } else {
         // 自機: 先端が機首方位を向く三角
         rotate(own.angleDeg, pivot = own.at.o()) {
-            val s = 11f * density
+            val s = Tuning.OWN_SHIP_DP * density
             val path = Path().apply {
                 moveTo(own.at.x, own.at.y - s * 1.3f)
                 lineTo(own.at.x + s * 0.8f, own.at.y + s * 0.8f)

@@ -1,5 +1,6 @@
 package io.github.eightbrows.navhud.core.nav
 
+import io.github.eightbrows.navhud.core.Tuning
 import io.github.eightbrows.navhud.core.geo.Geo
 import io.github.eightbrows.navhud.core.model.Waypoint
 import java.time.Instant
@@ -11,7 +12,7 @@ import kotlin.math.roundToLong
 object WaypointNav {
 
     /** ETA を出す最低の平均速度。 */
-    const val MIN_ETA_SPEED_MPS = 0.5
+    const val MIN_ETA_SPEED_MPS = Tuning.ETA_MIN_SPEED_MPS
 
     private const val HALF_DAY_SEC = 12 * 3600L
     private const val DAY_SEC = 24 * 3600L

@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.github.eightbrows.navhud.core.Tuning
 import io.github.eightbrows.navhud.core.model.HeadingSrc
 import io.github.eightbrows.navhud.core.nav.DisplayMode
 import io.github.eightbrows.navhud.core.nav.NavState
@@ -154,26 +155,26 @@ fun MainScreen(
 }
 
 /** 右の操作列の幅（ボタン 52dp ＋ 余白） */
-private val SideColumnWidth = 60.dp
-private val SideButtonSize = 52.dp
+private val SideColumnWidth = Tuning.SIDE_COLUMN_WIDTH_DP.dp
+private val SideButtonSize = Tuning.SIDE_BUTTON_DP.dp
 
 /** リプレイの帯（シーク・倍速）の高さ */
-private val ReplayBandHeight = 40.dp
+private val ReplayBandHeight = Tuning.REPLAY_BAND_HEIGHT_DP.dp
 
 /** 地図に重ねる部品の背景（半透明の黒。下の距離環・方位線が透けて見える） */
-private val OverlayBackground get() = HudColors.Background.copy(alpha = 0.6f)
+private val OverlayBackground get() = HudColors.Background.copy(alpha = Tuning.OVERLAY_ALPHA)
 
 /** 横並びの WP ボタン列の高さ */
-private val WpStripHeight = 48.dp
-private val WpSettingsWidth = 64.dp
-private val WpButtonGap = 6.dp
+private val WpStripHeight = Tuning.WP_STRIP_HEIGHT_DP.dp
+private val WpSettingsWidth = Tuning.WP_SETTINGS_WIDTH_DP.dp
+private val WpButtonGap = Tuning.WP_BUTTON_GAP_DP.dp
 
 /** 標高プロファイルの高さ（OFF なら null） */
 private fun profileHeight(size: ProfileSize): Dp? = when (size) {
     ProfileSize.OFF -> null
-    ProfileSize.SMALL -> 56.dp
-    ProfileSize.MEDIUM -> 88.dp
-    ProfileSize.LARGE -> 128.dp
+    ProfileSize.SMALL -> Tuning.PROFILE_HEIGHT_SMALL_DP.dp
+    ProfileSize.MEDIUM -> Tuning.PROFILE_HEIGHT_MEDIUM_DP.dp
+    ProfileSize.LARGE -> Tuning.PROFILE_HEIGHT_LARGE_DP.dp
 }
 
 /**

@@ -1,5 +1,6 @@
 package io.github.eightbrows.navhud.core.sensor
 
+import io.github.eightbrows.navhud.core.Tuning
 import io.github.eightbrows.navhud.core.geo.Geo
 import kotlin.math.abs
 import kotlin.math.acos
@@ -28,10 +29,10 @@ data class CompassQuality(
 object CompassMath {
 
     /** 平置き → 立て置きに切り替える傾き [°] */
-    const val TO_UPRIGHT_DEG = 55.0
+    const val TO_UPRIGHT_DEG = Tuning.COMPASS_TO_UPRIGHT_DEG
 
     /** 立て置き → 平置きに戻す傾き [°] */
-    const val TO_FLAT_DEG = 35.0
+    const val TO_FLAT_DEG = Tuning.COMPASS_TO_FLAT_DEG
 
     /**
      * 画面の法線（端末の z 軸）が鉛直からどれだけ傾いているか [°]。0 = 平置き、90 = 立て置き。

@@ -1,5 +1,6 @@
 package io.github.eightbrows.navhud.core.nav
 
+import io.github.eightbrows.navhud.core.Tuning
 import io.github.eightbrows.navhud.core.geo.EN
 
 /**
@@ -10,7 +11,7 @@ import io.github.eightbrows.navhud.core.geo.EN
 object RangeAuto {
 
     /** 選べる縮尺の全段 [km]。NavSettings の有効リストでこの中から使う段を選ぶ。 */
-    val ALL_STEPS_KM = listOf(0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0)
+    val ALL_STEPS_KM = Tuning.RANGE_ALL_STEPS_KM
 
     /**
      * AUTO で選びたい縮尺 [m]。次の WP が「縮尺 × fitRatio」以内に収まる最小の段。どの段にも収まらなければ最大の段。
@@ -19,7 +20,7 @@ object RangeAuto {
      * @param groundSpeedMps 対地速度（今は判定に使わない）
      */
     @Suppress("UNUSED_PARAMETER")
-    fun desired(stepsM: List<Double>, nextWpDistanceM: Double?, groundSpeedMps: Float?, fitRatio: Double = 0.9): Double? {
+    fun desired(stepsM: List<Double>, nextWpDistanceM: Double?, groundSpeedMps: Float?, fitRatio: Double = Tuning.RANGE_DISTANCE_FIT_RATIO): Double? {
         if (nextWpDistanceM == null) return null
         return desired(stepsM) { nextWpDistanceM <= it * fitRatio }
     }
@@ -57,8 +58,9 @@ class RangeSelector(
     stepsKm: List<Double>,
     initialKm: Double,
     auto: Boolean,
-    var fitRatio: Double = 0.9,
-    var zoomInDelayMs: Long = 5_000,
+    var fitRatio: Double = Tuning.RANGE_DISTANCE_FIT_RATIO,
+    /** 既定は NavSettings の既定値（autoRangeZoomInDelaySec）から取る（二重に定義しない） */
+    var zoomInDelayMs: Long = NavSettings().autoRangeZoomInDelaySec * 1000L,
 ) {
     private var steps: List<Double> = normalize(stepsKm)
 

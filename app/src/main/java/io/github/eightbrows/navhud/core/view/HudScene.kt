@@ -1,5 +1,7 @@
 package io.github.eightbrows.navhud.core.view
 
+import io.github.eightbrows.navhud.core.Tuning
+
 /** 描く要素の役割。実際の色は ui 側（HudColors）で1か所で決める。 */
 enum class Ink {
     /** 目盛り・距離環・文字（白〜グレー） */
@@ -76,34 +78,37 @@ data class HudScene(
 
 /** 描画の寸法 [px]。画面密度に合わせて ui 側で作る。 */
 data class HudMetrics(
-    val tickMinor: Float = 8f,
-    val tickMajor: Float = 16f,
-    val labelGap: Float = 12f,
-    val edgeInset: Float = 22f,
-    val arrowTextGap: Float = 34f,
-    /** ARC の自機の位置（表示枠の下端 = WP ボタン列の上端からの距離）: 標準 */
-    val arcOriginFromBottom: Float = 110f,
+    val tickMinor: Float = Tuning.HUD_TICK_MINOR_DP,
+    val tickMajor: Float = Tuning.HUD_TICK_MAJOR_DP,
+    val labelGap: Float = Tuning.HUD_LABEL_GAP_DP,
+    val edgeInset: Float = Tuning.HUD_EDGE_INSET_DP,
+    val arrowTextGap: Float = Tuning.HUD_ARROW_TEXT_GAP_DP,
+    /** ARC の自機の位置（避ける枠の下端 = WP ボタン列・リプレイの帯の上端からの距離）: 標準 */
+    val arcOriginFromBottom: Float = Tuning.HUD_ARC_ORIGIN_DP,
     /** ARC の自機の位置: 高め。後方の WP・矢印に余裕を持たせる */
-    val arcOriginFromBottomHigh: Float = 170f,
-    val northUpMargin: Float = 48f,
-    val pointerSize: Float = 14f,
+    val arcOriginFromBottomHigh: Float = Tuning.HUD_ARC_ORIGIN_HIGH_DP,
+    val northUpMargin: Float = Tuning.HUD_NORTH_UP_MARGIN_DP,
+    val pointerSize: Float = Tuning.HUD_POINTER_DP,
     /** 矢印の文字の1行の高さ（重なったときにずらす量） */
-    val arrowLabelLine: Float = 16f,
+    val arrowLabelLine: Float = Tuning.HUD_ARROW_LABEL_LINE_DP,
     /** 矢印の文字の1文字の幅の目安（等幅 11sp） */
-    val labelCharWidth: Float = 7f,
+    val labelCharWidth: Float = Tuning.HUD_LABEL_CHAR_WIDTH_DP,
     /** AUTO 縮尺: 次の WP を、矢印の枠からさらにこれだけ内側に収める（名前の文字の分） */
-    val fitMargin: Float = 16f,
+    val fitMargin: Float = Tuning.HUD_FIT_MARGIN_DP,
     /** 自機の記号の大きさの目安（半幅・半高）。WP の名前・矢印の文字はここを避ける */
-    val ownShipClear: Float = 16f,
+    val ownShipClear: Float = Tuning.HUD_OWN_SHIP_CLEAR_DP,
     /** WP の印の中心から名前の中心まで（上、入らなければ下） */
-    val wpNameOffset: Float = 18f,
+    val wpNameOffset: Float = Tuning.HUD_WP_NAME_OFFSET_DP,
     /** 方位目盛りの文字の大きさの目安（矢印の文字を避けるときに使う）: 半幅・半高 */
-    val compassLabelHalf: Float = 10f,
+    val compassLabelHalf: Float = Tuning.HUD_COMPASS_LABEL_HALF_DP,
+    /** 距離環の文字の位置（距離環から外側へ） */
+    val ringLabelOffset: Float = Tuning.RING_LABEL_OFFSET_DP,
 ) {
     fun scaled(k: Float) = HudMetrics(
         tickMinor * k, tickMajor * k, labelGap * k, edgeInset * k, arrowTextGap * k,
         arcOriginFromBottom * k, arcOriginFromBottomHigh * k, northUpMargin * k, pointerSize * k,
         arrowLabelLine * k, labelCharWidth * k, fitMargin * k, ownShipClear * k, wpNameOffset * k, compassLabelHalf * k,
+        ringLabelOffset * k,
     )
 }
 

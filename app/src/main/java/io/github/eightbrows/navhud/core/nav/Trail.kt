@@ -1,5 +1,6 @@
 package io.github.eightbrows.navhud.core.nav
 
+import io.github.eightbrows.navhud.core.Tuning
 import io.github.eightbrows.navhud.core.geo.Geo
 import io.github.eightbrows.navhud.core.model.Fix
 
@@ -10,7 +11,7 @@ data class TrackPoint(val lat: Double, val lon: Double, val timeMs: Long)
 object Trail {
 
     /** REPLAY のトラック全体: 前の点から minM 未満の点を間引く（最初と最後の点は残す）。 */
-    fun decimate(fixes: List<Fix>, minM: Double = 10.0): List<TrackPoint> {
+    fun decimate(fixes: List<Fix>, minM: Double = Tuning.TRACK_DECIMATE_M): List<TrackPoint> {
         if (fixes.isEmpty()) return emptyList()
         val out = mutableListOf(fixes.first().toPoint())
         for (f in fixes.subList(1, fixes.size)) {
@@ -41,7 +42,10 @@ object Trail {
  * LIVE の軌跡（起動してからの分。保存はしない）。前の点から minStepM 以上動いたときだけ足し、
  * maxPoints を超えたら古い方から捨てる。
  */
-class LiveTrail(private val minStepM: Double = 5.0, private val maxPoints: Int = 5_000) {
+class LiveTrail(
+    private val minStepM: Double = Tuning.LIVE_TRAIL_MIN_STEP_M,
+    private val maxPoints: Int = Tuning.LIVE_TRAIL_MAX_POINTS,
+) {
 
     private val deque = ArrayDeque<TrackPoint>()
 

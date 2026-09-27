@@ -7,6 +7,7 @@ import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Build
 import android.os.Looper
+import io.github.eightbrows.navhud.core.Tuning
 import io.github.eightbrows.navhud.core.model.Fix
 import io.github.eightbrows.navhud.core.model.PositionSource
 import io.github.eightbrows.navhud.core.sensor.LocationFix
@@ -39,7 +40,7 @@ class LiveGpsSource(context: Context, private val onGpsEnabledChanged: (Boolean)
     }
 
     companion object {
-        const val INTERVAL_MS = 1_000L
+        const val INTERVAL_MS = Tuning.GPS_INTERVAL_MS
 
         /** 最後に分かっている位置（偏角の計算用）。権限がなければ null。 */
         @SuppressLint("MissingPermission")

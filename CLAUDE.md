@@ -22,6 +22,10 @@
 - 実機のリプレイは、Download フォルダの track.csv を `ACTION_OPEN_DOCUMENT` で選び、
   URI を永続化（`takePersistableUriPermission`）して次回から再利用する。
 
+## 保留中
+- 背景地図（SPEC §8）: **保留**（実装した機能の調整期間の後に検討）。レポートの「次の作業」には挙げない。
+- 調整値（設定画面で変えられないしきい値・時間・寸法）は `core/Tuning.kt` に集めてある。設定画面で変えられる値は `NavSettings` の既定値。
+
 ## 結果レポート（恒久ルール）
 各ステップの作業完了時に、結果レポートを HTML で作成する。
 - 保存先: `docs/reports/<バージョン>.html`（例: `docs/reports/20260926-D04.html`）。docs/reports は git 管理外。記録は開発者が別途保管する。

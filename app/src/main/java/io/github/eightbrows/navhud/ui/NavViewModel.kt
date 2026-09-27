@@ -5,6 +5,7 @@ import android.net.Uri
 import android.os.SystemClock
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import io.github.eightbrows.navhud.core.Tuning
 import io.github.eightbrows.navhud.core.io.CoordinateText
 import io.github.eightbrows.navhud.core.model.Fix
 import io.github.eightbrows.navhud.core.model.SourceMode
@@ -13,23 +14,25 @@ import io.github.eightbrows.navhud.core.nav.DisplayMode
 import io.github.eightbrows.navhud.core.nav.NavEngine
 import io.github.eightbrows.navhud.core.nav.NavSettings
 import io.github.eightbrows.navhud.core.nav.NavState
-import io.github.eightbrows.navhud.core.nav.Trail
-import io.github.eightbrows.navhud.core.nav.WaypointTimes
-import io.github.eightbrows.navhud.core.view.HudViewport
 import io.github.eightbrows.navhud.core.nav.SourceKind
 import io.github.eightbrows.navhud.core.nav.TemporaryWaypoints
+import io.github.eightbrows.navhud.core.nav.Trail
+import io.github.eightbrows.navhud.core.nav.WaypointTimes
 import io.github.eightbrows.navhud.core.replay.LiveClock
 import io.github.eightbrows.navhud.core.replay.ReplayClock
+import io.github.eightbrows.navhud.core.view.HudViewport
 import io.github.eightbrows.navhud.source.CompassSource
 import io.github.eightbrows.navhud.source.GeoPoint
 import io.github.eightbrows.navhud.source.LiveGpsSource
 import io.github.eightbrows.navhud.source.LiveLocationBus
-import io.github.eightbrows.navhud.source.NavLocationService
 import io.github.eightbrows.navhud.source.LoadedTrack
+import io.github.eightbrows.navhud.source.NavLocationService
 import io.github.eightbrows.navhud.source.ReplayPositionSource
 import io.github.eightbrows.navhud.source.SettingsStore
 import io.github.eightbrows.navhud.source.TrackDocumentStore
 import io.github.eightbrows.navhud.source.WaypointDocumentStore
+import java.time.LocalTime
+import java.time.ZoneId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -39,8 +42,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.time.LocalTime
-import java.time.ZoneId
 
 /** リプレイのファイルと進み具合（NavState の外の、確認用画面のための情報）。 */
 data class ReplayUiState(
@@ -539,10 +540,10 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     companion object {
-        private const val TICK_MS = 200L
+        private const val TICK_MS = Tuning.TICK_MS
 
         /** リプレイの倍速（§6.7） */
-        val REPLAY_SPEEDS = listOf(1, 2, 5, 10, 30)
+        val REPLAY_SPEEDS = Tuning.REPLAY_SPEEDS
     }
 }
 
