@@ -21,9 +21,10 @@ object HudSceneBuilder {
 
     /**
      * @param rect 描画の枠（地図の Canvas 全体）。距離環・方位線・トラック・WP の線と印はこの枠に描く
-     * @param reserved 地図の上に重ねた表示（上: 上部バー・情報帯、右: 操作列、下: リプレイの帯・WP ボタン列・プロファイル・
-     *   下部パネル）[px]。回避枠・矢印と AUTO の枠（TargetFrame）はここから作る
-     * @param numberBands 数値の表示（情報帯・下部パネル）の上下の範囲 [px]。WP の名前・矢印の文字はここに重ねない
+     * @param reserved 地図の上に重ねた表示（上: 上部バー・数値、右: 操作列、下: WP ボタン列・プロファイル・再生の帯）[px]。
+     *   回避枠・矢印と AUTO の枠（TargetFrame）はここから作る
+     * @param numberBands 数値の表示の上下の範囲 [px]（左右は画面いっぱい）。WP の名前・矢印の文字はここに重ねない
+     * @param buttonBoxes ボタン類（上部バー・操作列・WP ボタン列・再生の帯）の矩形 [px]。WP の名前・矢印の文字はここに重ねない
      */
     fun build(
         state: NavState,
@@ -31,6 +32,7 @@ object HudSceneBuilder {
         m: HudMetrics = HudMetrics(),
         reserved: HudInsets = HudInsets(),
         numberBands: List<ClosedFloatingPointRange<Float>> = emptyList(),
+        buttonBoxes: List<HudRect> = emptyList(),
     ): HudScene {
         val avoid = avoidFrame(rect, reserved)
         val arrowFrame = arrowFrame(rect, reserved, m)
@@ -83,8 +85,9 @@ object HudSceneBuilder {
             Box(P(p.tip.x, (top + bottom) / 2), p.sizePx * Tuning.ARROW_MARKER_ZONE_HALF_WIDTH, (bottom - top) / 2 + p.sizePx)
         }
         val (wpMarks, arrows) = buildWaypoints(
-            state, proj, ref, ownAt, arrowFrame, avoid, rect, m, segments, labels, pointerBoxes, listOfNotNull(markerZone),
-            numberBands.map { Box(P(rect.centerX, (it.start + it.endInclusive) / 2), rect.width / 2, (it.endInclusive - it.start) / 2) },
+            state, proj, ref, ownAt, arrowFrame, targetFrame(rect, reserved), rect, m, segments, labels, pointerBoxes, listOfNotNull(markerZone),
+            numberBands.map { Box(P(rect.centerX, (it.start + it.endInclusive) / 2), rect.width / 2, (it.endInclusive - it.start) / 2) } +
+                buttonBoxes.map { Box(P(it.centerX, it.centerY), it.width / 2, it.height / 2) },
         )
 
         val scene = HudScene(
@@ -103,10 +106,10 @@ object HudSceneBuilder {
 
     /**
      * 地図 → 画面の変換。表示モードと ARC の自機の位置（設定）で決まる。AUTO 縮尺の判定（HudViewport）も同じものを使う。
-     * ARC: 自機は描画の枠（画面）の横の中央、高さは回避枠の下端（WP ボタン列・リプレイの帯の上端）から標準 / 高め。
+     * ARC: 自機は描画の枠（画面）の横の中央、高さは回避枠の下端（WP ボタン列の上端）から標準 / 高め。
      *   基準の距離環が描画の枠（画面）の左右端に接する。方位がなければ北を上にする。
-     * North Up: 自機は、横は描画の枠（画面）の中央、縦は回避枠の中央。最外周の距離環（縮尺）の半径は、中心から回避枠の
-     *   左右の縁までの近い方（と、回避枠の高さの半分）から、目盛りの余白を引いたもの。
+     * North Up: 自機は、横は描画の枠（画面）の中央、縦は回避枠の中央。方位サークル（縮尺の距離環）の半径は
+     *   min(画面の幅の半分, 回避枠の高さの半分) − 余白。右の操作列と重なってよい。
      * PAN: 縮尺は同じで、PAN の中心を（横は画面の中央、縦は回避枠の中央）に置き、上を PAN の向きにする。
      * @param rect 描画の枠（地図の Canvas 全体）
      * @param avoid 回避枠（avoidFrame）
@@ -126,34 +129,35 @@ object HudSceneBuilder {
                 HudProjection(P(rect.centerX, avoid.bottom - up), rect.width / 2.0 / rangeM, headingDeg ?: 0.0)
             }
             DisplayMode.NORTH_UP -> {
-                val cx = rect.centerX
-                val half = minOf(cx - avoid.left, avoid.right - cx, avoid.height / 2)
-                val radius = (half - m.northUpMargin).coerceAtLeast(m.northUpMargin)
-                HudProjection(P(cx, avoid.centerY), radius / rangeM, 0.0)
+                val half = minOf(rect.width / 2, avoid.height / 2)
+                val radius = (half - m.northUpEdgeMargin).coerceAtLeast(m.northUpEdgeMargin)
+                HudProjection(P(rect.centerX, avoid.centerY), radius / rangeM, 0.0)
             }
         }
         return if (pan == null) base else HudProjection(P(rect.centerX, avoid.centerY), base.pxPerM, pan.upDeg)
     }
 
     /**
-     * 回避枠: 描画の枠から、地図の上に重ねた表示（上部バー・情報帯、右の操作列、下のリプレイの帯・WP ボタン列・
-     * 標高プロファイル・下部パネル）を除いた真ん中の部分。方位目盛り（ARC は上端・左右に沿う）と North Up・PAN の中心に使う。
+     * 回避枠の上下: 描画の枠から、上の表示（上部バー・数値）と下の表示（WP ボタン列から下）を除いた部分。
+     * 右の操作列は、それがある高さの範囲だけ欠く形で、TargetFrame の切り欠き（notch）で扱う。
+     * ARC の自機の高さ、方位目盛りの上端、North Up・PAN の中心の高さと North Up の半径に使う。
      */
     fun avoidFrame(rect: HudRect, reserved: HudInsets): HudRect = HudRect(
         rect.left + reserved.left,
         rect.top + reserved.top,
-        rect.right - reserved.right,
+        rect.right,
         rect.bottom - reserved.bottom,
     )
 
     /**
-     * 画面外の矢印と AUTO の判定の枠（TargetFrame）: 上は情報帯の下端、左・下は描画の枠の左端・下端、
-     * 右は操作列のある高さの範囲だけ操作列の左端（それより上・下は描画の枠の右端）。
+     * 画面外の矢印と AUTO の判定の枠（TargetFrame）: 上は数値の下端、左・下は描画の枠の左端・下端、
+     * 右は操作列のある高さの範囲（reserved.rightSpan）だけ操作列の左端（それより上・下は描画の枠の右端）。
      */
     fun targetFrame(rect: HudRect, reserved: HudInsets): TargetFrame {
         val outer = HudRect(rect.left + reserved.left, rect.top + reserved.top, rect.right, rect.bottom)
         val notch = if (reserved.right > 0f) {
-            HudRect(rect.right - reserved.right, rect.top + reserved.top, rect.right, rect.bottom - reserved.bottom)
+            val span = reserved.rightSpan ?: ((rect.top + reserved.top)..(rect.bottom - reserved.bottom))
+            HudRect(rect.right - reserved.right, span.start, rect.right, span.endInclusive)
         } else {
             null
         }
@@ -163,7 +167,7 @@ object HudSceneBuilder {
     /** 画面外の矢印を置く枠: targetFrame から edgeInset だけ内側。 */
     fun arrowFrame(rect: HudRect, reserved: HudInsets, m: HudMetrics): TargetFrame = targetFrame(rect, reserved).inset(m.edgeInset)
 
-    /** 方位目盛りを沿わせる枠: 上は回避枠の上端（情報帯の下端）、左右は描画の枠（画面）の縁。操作列の下に入ってよい。 */
+    /** 方位目盛りを沿わせる枠: 上は回避枠の上端（数値の下端）、左右は描画の枠（画面）の縁。操作列の下に入ってよい。 */
     private fun tickFrame(rect: HudRect, avoid: HudRect) = HudRect(rect.left, avoid.top, rect.right, rect.bottom)
 
     /**
@@ -242,7 +246,10 @@ object HudSceneBuilder {
         pointers += Pointer(pointerTip, 0f, m.pointerSize, Ink.OWNSHIP)
     }
 
-    /** North Up: 全周の距離環、最外周の外側のコンパスカード、30° ごとの方位線、ラバーライン、機首方位の三角。 */
+    /**
+     * North Up: 全周の距離環、方位サークル（縮尺の距離環）の内側の目盛りと文字（円から内側へ 長い目盛り・短い目盛り・文字の順）、
+     * 30° ごとの方位線、サークルの縁までのラバーラインと機首方位の三角。
+     */
     private fun buildCompassCard(
         proj: HudProjection,
         rect: HudRect,
@@ -263,18 +270,19 @@ object HudSceneBuilder {
         for (b in 0 until 360 step 10) {
             val a = b.toDouble()
             val major = b % 30 == 0
+            // 目盛りと文字はサークルの内側（サークルが画面の端まで来ても切れない）
             val p0 = HudGeometry.pointAt(o, a, outer)
-            val p1 = HudGeometry.pointAt(o, a, outer + if (major) m.tickMajor else m.tickMinor)
+            val p1 = HudGeometry.pointAt(o, a, outer - if (major) m.tickMajor else m.tickMinor)
             segments += Segment(p0, p1, Ink.SCALE)
             if (major) {
-                segments += Segment(o, p0, Ink.BEARING_LINE)
-                labels += Label(HudFormat.compassLabel(b), HudGeometry.pointAt(o, a, outer + m.tickMajor + m.labelGap), Ink.SCALE)
+                segments += Segment(o, p1, Ink.BEARING_LINE)
+                labels += Label(HudFormat.compassLabel(b), HudGeometry.pointAt(o, a, outer - m.tickMajor - m.labelGap), Ink.SCALE)
             }
         }
         if (headingDeg != null) {
+            // ラバーラインと機首方位の三角はサークルの縁まで
             segments += Segment(o, HudGeometry.pointAt(o, headingDeg, outer), Ink.OWNSHIP)
-            // 目盛りの内側から外向きに機首方位を指す
-            pointers += Pointer(HudGeometry.pointAt(o, headingDeg, outer - 2), headingDeg.toFloat(), m.pointerSize, Ink.OWNSHIP)
+            pointers += Pointer(HudGeometry.pointAt(o, headingDeg, outer), headingDeg.toFloat(), m.pointerSize, Ink.OWNSHIP)
         }
     }
 
@@ -330,7 +338,7 @@ object HudSceneBuilder {
         ref: Pair<Double, Double>?,
         ownAt: P?,
         inner: TargetFrame,
-        avoid: HudRect,
+        seen: TargetFrame,
         drawFrame: HudRect,
         m: HudMetrics,
         segments: MutableList<Segment>,
@@ -380,7 +388,7 @@ object HudSceneBuilder {
             val wp = wps[i]
             // 印は描画の枠の中なら描く（重ねた表示の下でも）
             if (!drawFrame.contains(pts[i])) continue
-            // 名前は、重ねた数値の表示（情報帯・下部パネル）と重なるなら出さない（印と線は描く）
+            // 名前は、重ねた数値の表示・ボタン類と重なるなら出さない（印と線は描く）
             val nameHw = textHalfWidth(wp.name, m) * LABEL_WIDTH_RATIO
             val nameAt = placeWpName(wp.name, pts[i], ownShipBox, m, allowBelow = !wp.reached)
                 ?.takeIf { p -> numberBoxes.none { it.overlaps(Box(p, nameHw, m.arrowLabelLine / 2)) } }
@@ -392,9 +400,9 @@ object HudSceneBuilder {
         for (i in shown) {
             val wp = wps[i]
             val ink = wpInk(wp, i == next)
-            // 矢印は次の WP（マゼンタ）の分だけ。見えている所（回避枠の中、または矢印の枠の中）なら印だけで、
+            // 矢印は次の WP（マゼンタ）の分だけ。見えている所（TargetFrame の中。下に重ねた表示の下も含む）なら印だけで、
             // 上の重ねた表示・操作列の下か、描画の枠の外にあるときだけ矢印を出す
-            if (avoid.contains(pts[i]) || inner.contains(pts[i])) {
+            if (seen.contains(pts[i])) {
                 continue
             } else if (i == next) {
                 // 矢印の枠の縁に方位方向の矢印と距離。文字は矢印の内側（自機側）

@@ -66,11 +66,11 @@ object Tuning {
     const val HUD_EDGE_INSET_DP = 22f
     /** 矢印から、その文字まで（自機側） */
     const val HUD_ARROW_TEXT_GAP_DP = 34f
-    /** ARC の自機の位置（回避枠の下端 = WP ボタン列・リプレイの帯の上端から）: 標準 / 高め */
+    /** ARC の自機の位置（回避枠の下端 = WP ボタン列の上端から。LIVE・REPLAY とも）: 標準 / 高め */
     const val HUD_ARC_ORIGIN_DP = 24f
     const val HUD_ARC_ORIGIN_HIGH_DP = 84f
-    /** North Up: 最外周の距離環の外側の余白（目盛りと文字の分） */
-    const val HUD_NORTH_UP_MARGIN_DP = 48f
+    /** North Up: 方位サークル（縮尺の距離環）と画面の端・回避枠の上下の間の余白。目盛りと文字はサークルの内側に描く */
+    const val HUD_NORTH_UP_EDGE_MARGIN_DP = 8f
     /** 方位マーカー（三角）の大きさ */
     const val HUD_POINTER_DP = 14f
     /** 矢印の文字の1行の高さ（重なったときにずらす量） */
@@ -131,12 +131,17 @@ object Tuning {
 
     // ---- 画面の配置（§6.1・§6.4・§6.7。dp） ----
 
-    /** 右の操作列の幅と、ボタンの大きさ */
+    /** 右の操作列（＋ / RNG / −。回避枠の縦中央）: 幅、ボタンの大きさ、ボタンの間隔、上下の余白 */
     const val SIDE_COLUMN_WIDTH_DP = 60f
     const val SIDE_BUTTON_DP = 52f
+    const val SIDE_BUTTON_GAP_DP = 6f
+    const val SIDE_COLUMN_PADDING_V_DP = 6f
 
-    /** リプレイの帯の高さ */
+    /** 再生の帯（REPLAY のときだけ、画面の一番下）: 高さ、ボタンの高さ、▶ / ❚❚ と − / ＋ の幅 */
     const val REPLAY_BAND_HEIGHT_DP = 36f
+    const val REPLAY_BAND_BUTTON_HEIGHT_DP = 30f
+    const val REPLAY_PLAY_BUTTON_WIDTH_DP = 44f
+    const val REPLAY_SPEED_BUTTON_WIDTH_DP = 34f
 
     /** 横並びの WP ボタン列: 高さ、左端の「WP設定」の幅、ボタンの間隔 */
     const val WP_STRIP_HEIGHT_DP = 40f
@@ -146,9 +151,9 @@ object Tuning {
     /** WP ボタン列の上下の余白（ボタンの高さ = 列の高さ − 2 × これ） */
     const val WP_STRIP_PADDING_V_DP = 3f
 
-    /** 下部パネル: 上下の余白と、行の間隔 */
-    const val BOTTOM_PANEL_PADDING_V_DP = 4f
-    const val BOTTOM_PANEL_ROW_GAP_DP = 2f
+    /** 数値の表示（上部バーの下、4行）: 上下の余白と、行の間隔 */
+    const val NUMBERS_PADDING_V_DP = 4f
+    const val NUMBERS_ROW_GAP_DP = 2f
 
     /** 地図に重ねる部品の背景の不透明度（0〜1） */
     const val OVERLAY_ALPHA = 0.6f
@@ -163,7 +168,7 @@ object Tuning {
     const val DASH_ON_DP = 6f
     const val DASH_OFF_DP = 5f
 
-    /** 数値の表示（情報帯・下部パネル）の文字の黒の縁取りの太さ [dp] */
+    /** 数値の表示の文字の黒の縁取りの太さ [dp] */
     const val TEXT_OUTLINE_DP = 2.5f
 
     /** 文字の大きさ [sp]: 方位目盛り・WP の名前 / 画面外の矢印 / 距離環 */

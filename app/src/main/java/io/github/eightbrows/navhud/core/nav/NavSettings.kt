@@ -58,7 +58,7 @@ data class NavSettings(
     val wpButtonsMax: Int = 4,
     /** HUD に描く WP の数（次の WP から先） */
     val hudWpCount: Int = 15,
-    /** UI の色（上部バー・情報帯・操作列・リプレイの帯・WP ボタン列・標高プロファイル・下部パネル） */
+    /** UI の色（上部バー・数値・操作列・WP ボタン列・標高プロファイル・再生の帯） */
     val uiTheme: ColorTheme = ColorTheme.WHITE,
     /** 地図の色（地図の Canvas に描くもの） */
     val mapTheme: ColorTheme = ColorTheme.GREEN,

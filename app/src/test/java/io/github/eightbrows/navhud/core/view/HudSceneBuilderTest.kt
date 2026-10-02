@@ -185,25 +185,33 @@ class HudSceneBuilderTest {
     }
 
     @Test
-    fun northUpCompassCardOutsideOuterRing() {
+    fun northUpCompassCardInsideOuterRing() {
         val scene = build(state(headingDeg = 45f, mode = DisplayMode.NORTH_UP))
         val o = P(360f, 450f)
         assertEquals(o, scene.ownShip!!.at)
         assertEquals(45f, scene.ownShip!!.angleDeg)
-        val outer = 360f - m.northUpMargin
-        // 全周の距離環（1km, 2km）。最外周（縮尺 2km = 312 px）の外も、描画の枠の四隅（576 px）に届くまで同じ間隔で描く（3km）
+        // 方位サークル（縮尺）の半径 = min(画面の幅の半分 360, 高さの半分 450) − 余白
+        val outer = 360f - m.northUpEdgeMargin
+        // 全周の距離環（1km, 2km）。方位サークル（縮尺 2km = 352 px）の外も、描画の枠の四隅（576 px）に届くまで同じ間隔で描く（3km）
         assertEquals(3, scene.arcs.size)
         assertTrue(scene.arcs.all { it.sweepDeg == 360f })
         assertTrue(scene.arcs.any { abs(it.radius - outer) < 1e-3f })
         assertEquals(outer * 1.5f, scene.arcs.maxOf { it.radius }, 1e-3f)
-        // 目盛りは 36 本、すべて最外周の外側
+        // 目盛りは 36 本、すべてサークルの内側（円から内側へ 長い目盛り 16 / 短い目盛り 8）
         val ticks = scene.segments.filter { it.ink == Ink.SCALE }
         assertEquals(36, ticks.size)
-        for (t in ticks) assertTrue(hypot(t.a.x - o.x, t.a.y - o.y) >= outer - 1e-3f)
-        // N は真上
+        for (t in ticks) {
+            assertEquals(outer, hypot(t.a.x - o.x, t.a.y - o.y), 1e-2f)
+            assertTrue(hypot(t.b.x - o.x, t.b.y - o.y) in (outer - m.tickMajor - 1e-2f)..(outer - m.tickMinor + 1e-2f))
+        }
+        // N は真上、長い目盛りの内側
         val n = scene.labels.single { it.text == "N" }
         assertEquals(360f, n.at.x, 1e-3f)
-        assertTrue(n.at.y < 450f - outer)
+        assertEquals(450f - outer + m.tickMajor + m.labelGap, n.at.y, 1e-2f)
+        // ラバーラインと機首方位の三角はサークルの縁まで
+        val rubber = scene.segments.single { it.ink == Ink.OWNSHIP }
+        assertEquals(outer, hypot(rubber.b.x - o.x, rubber.b.y - o.y), 1e-2f)
+        assertEquals(outer, hypot(scene.pointers.single().tip.x - o.x, scene.pointers.single().tip.y - o.y), 1e-2f)
     }
 
     @Test
@@ -391,23 +399,23 @@ class HudSceneBuilderTest {
     @Test
     fun northUpIsCenteredOnScreenHorizontally() {
         // 回避枠は x 0..618、y 0..608.4。中心は横が画面の中央（360）、縦が回避枠の中央（304.2）
-        // 最外周（縮尺）の半径 = 中心から回避枠の左右の縁までの近い方（右の 258）− 目盛りの余白
+        // 方位サークル（縮尺）の半径 = min(画面の幅の半分 360, 回避枠の高さの半分 304.2) − 余白。右の操作列は見ない
         val r = HudRect(0f, 0f, 720f, 690f)
         val scene = HudSceneBuilder.build(state(mode = DisplayMode.NORTH_UP), r, m, HudInsets(right = 102f, bottom = 81.6f))
         assertP(P(360f, 304.2f), scene.ownShip!!.at)
-        assertTrue(scene.arcs.any { abs(it.radius - (258f - m.northUpMargin)) < 1e-2 })
+        assertTrue(scene.arcs.any { abs(it.radius - (304.2f - m.northUpEdgeMargin)) < 1e-2 })
     }
 
     @Test
     fun panMovesTheViewAndFixesTheUpDirection() {
-        // North Up・2km: PAN の中心は自機の北 1km。表示枠の中心 (360, 450) に置き、自機は 1km 南（1 m = 0.156 px）
+        // North Up・2km: PAN の中心は自機の北 1km。表示枠の中心 (360, 450) に置き、自機は 1km 南（1 m = 352 / 2000 = 0.176 px）
         val center = io.github.eightbrows.navhud.core.nav.PanView(lat0 + 1_000.0 / mPerDegLat, lon0, 0.0)
         val s = state(headingDeg = 0f, mode = DisplayMode.NORTH_UP, wps = listOf(wp("A", 1_500.0)), next = 0).copy(pan = center)
         val scene = build(s)
         val own = scene.ownShip!!.at
-        assertP(P(360f, 450f + 156f), own, 0.2f)
+        assertP(P(360f, 450f + 176f), own, 0.2f)
         // WP（北 1.5km）は中心の 500 m 北
-        assertP(P(360f, 450f - 78f), scene.wpMarks.single().at, 0.2f)
+        assertP(P(360f, 450f - 88f), scene.wpMarks.single().at, 0.2f)
         // 自機から次の WP への線は自機から
         assertP(own, scene.segments.single { it.ink == Ink.ACTIVE }.a)
         // 距離環は自機を中心に全周。方位目盛りは表示枠の縁（中心から見た方向）。ラバーライン・三角はなし

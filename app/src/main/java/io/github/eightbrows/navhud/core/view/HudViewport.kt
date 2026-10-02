@@ -7,7 +7,7 @@ import io.github.eightbrows.navhud.core.nav.MapViewport
 import io.github.eightbrows.navhud.core.nav.NavSettings
 
 /**
- * HUD の描画の枠と、地図の上に重ねた部品（右の操作列、リプレイの帯、WP ボタン列）。
+ * HUD の描画の枠と、地図の上に重ねた部品（上部バー・数値、右の操作列、WP ボタン列から下）。
  * AUTO 縮尺の判定: 縮尺 rangeM で次の WP を画面に投影し、避ける枠（重ねた部品を除き edgeInset + fitMargin だけ内側）に
  * 入れば「収まる」。ARC / North Up とも同じ判定。PAN の始点とドラッグ量の換算にも使う。
  */
@@ -23,7 +23,7 @@ data class HudViewport(
         HudSceneBuilder.projection(settings, rect, avoid, rangeM, headingDeg, metrics)
 
     override fun fits(rangeM: Double, target: EN, headingDeg: Double?, settings: NavSettings): Boolean {
-        // 矢印と AUTO の枠（TargetFrame）: 上は情報帯の下端、左・下は描画の枠、右は操作列の高さの範囲だけ操作列の左端
+        // 矢印と AUTO の枠（TargetFrame）: 上は数値の下端、左・下は描画の枠、右は操作列の高さの範囲だけ操作列の左端
         val inner = HudSceneBuilder.targetFrame(rect, reserved).inset(metrics.edgeInset + metrics.fitMargin)
         if (inner.outer.width <= 0f || inner.outer.height <= 0f) return false
         return inner.contains(projection(rangeM, headingDeg, settings).toScreen(target))

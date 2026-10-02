@@ -31,7 +31,7 @@ data class HudPalette(
 /**
  * HUD の色（航空機の ND の慣習に合わせる）。色はここ1か所で決める。
  * 基本色は「UI の色」と「地図の色」の2組（それぞれ 白 / 緑 / 琥珀）。マゼンタ（次の WP）・黄と赤（警告）・グレー（無効・NO FIX）は固定。
- * - UI の色: 上部バー・情報帯・操作列・リプレイの帯・WP ボタン列・標高プロファイル・下部パネル（下の Scale・Caption などの値）
+ * - UI の色: 上部バー・数値・操作列・WP ボタン列・標高プロファイル・再生の帯（下の Scale・Caption などの値）
  * - 地図の色: 地図の Canvas に描くもの（ofMap）
  */
 object HudColors {
@@ -80,7 +80,7 @@ object HudColors {
     val Caution = Color(0xFFFFC107)
     val Warning = Color(0xFFFF5252)
 
-    /** 上部バー・下部パネルの枠 */
+    /** 上部バーなどの枠 */
     val Frame = Color(0xFF2A2A2A)
 
     /** 描く要素の色（UI の色。標高プロファイルなど） */

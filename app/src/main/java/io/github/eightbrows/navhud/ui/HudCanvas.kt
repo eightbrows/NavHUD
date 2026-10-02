@@ -48,8 +48,10 @@ fun HudCanvas(
     reserved: HudInsets = HudInsets(),
     onViewport: (HudViewport) -> Unit = {},
     onPan: (Float, Float) -> Unit = { _, _ -> },
-    /** 数値の表示（情報帯・下部パネル）の上下の範囲 [px]。WP の名前・矢印の文字を重ねない */
+    /** 数値の表示の上下の範囲 [px]。WP の名前・矢印の文字を重ねない */
     numberBands: List<ClosedFloatingPointRange<Float>> = emptyList(),
+    /** ボタン類（上部バー・操作列・WP ボタン列・再生の帯）の矩形 [px]。WP の名前・矢印の文字を重ねない */
+    buttonBoxes: List<HudRect> = emptyList(),
 ) {
     val density = LocalDensity.current.density
     val metrics = remember(density) { HudMetrics().scaled(density) }
@@ -60,9 +62,9 @@ fun HudCanvas(
             onViewport(HudViewport(HudRect(0f, 0f, size.width.toFloat(), size.height.toFloat()), metrics, reserved))
         }
     }
-    val scene = remember(state, size, metrics, reserved, numberBands) {
+    val scene = remember(state, size, metrics, reserved, numberBands, buttonBoxes) {
         if (size == IntSize.Zero) null
-        else HudSceneBuilder.build(state, HudRect(0f, 0f, size.width.toFloat(), size.height.toFloat()), metrics, reserved, numberBands)
+        else HudSceneBuilder.build(state, HudRect(0f, 0f, size.width.toFloat(), size.height.toFloat()), metrics, reserved, numberBands, buttonBoxes)
     }
     val textMeasurer = rememberTextMeasurer()
     val panHandler by rememberUpdatedState(onPan)

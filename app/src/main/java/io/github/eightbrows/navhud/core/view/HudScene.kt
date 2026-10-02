@@ -83,11 +83,12 @@ data class HudMetrics(
     val labelGap: Float = Tuning.HUD_LABEL_GAP_DP,
     val edgeInset: Float = Tuning.HUD_EDGE_INSET_DP,
     val arrowTextGap: Float = Tuning.HUD_ARROW_TEXT_GAP_DP,
-    /** ARC の自機の位置（避ける枠の下端 = WP ボタン列・リプレイの帯の上端からの距離）: 標準 */
+    /** ARC の自機の位置（回避枠の下端 = WP ボタン列の上端からの距離）: 標準 */
     val arcOriginFromBottom: Float = Tuning.HUD_ARC_ORIGIN_DP,
     /** ARC の自機の位置: 高め。後方の WP・矢印に余裕を持たせる */
     val arcOriginFromBottomHigh: Float = Tuning.HUD_ARC_ORIGIN_HIGH_DP,
-    val northUpMargin: Float = Tuning.HUD_NORTH_UP_MARGIN_DP,
+    /** North Up: 方位サークルと画面の端・回避枠の上下の間の余白 */
+    val northUpEdgeMargin: Float = Tuning.HUD_NORTH_UP_EDGE_MARGIN_DP,
     val pointerSize: Float = Tuning.HUD_POINTER_DP,
     /** 矢印の文字の1行の高さ（重なったときにずらす量） */
     val arrowLabelLine: Float = Tuning.HUD_ARROW_LABEL_LINE_DP,
@@ -106,11 +107,20 @@ data class HudMetrics(
 ) {
     fun scaled(k: Float) = HudMetrics(
         tickMinor * k, tickMajor * k, labelGap * k, edgeInset * k, arrowTextGap * k,
-        arcOriginFromBottom * k, arcOriginFromBottomHigh * k, northUpMargin * k, pointerSize * k,
+        arcOriginFromBottom * k, arcOriginFromBottomHigh * k, northUpEdgeMargin * k, pointerSize * k,
         arrowLabelLine * k, labelCharWidth * k, fitMargin * k, ownShipClear * k, wpNameOffset * k, compassLabelHalf * k,
         ringLabelOffset * k,
     )
 }
 
-/** 地図の領域のうち、画面外の矢印を置かない帯の幅 [px]。 */
-data class HudInsets(val left: Float = 0f, val top: Float = 0f, val right: Float = 0f, val bottom: Float = 0f)
+/**
+ * 地図の上に重ねた表示の大きさ [px]。上: 上部バー・数値、右: 操作列の幅、下: WP ボタン列から下（プロファイル・再生の帯・
+ * ナビゲーションバー）。rightSpan は操作列のある高さの範囲（描画の枠の座標）。null なら上の表示の下端から下の表示の上端まで。
+ */
+data class HudInsets(
+    val left: Float = 0f,
+    val top: Float = 0f,
+    val right: Float = 0f,
+    val bottom: Float = 0f,
+    val rightSpan: ClosedFloatingPointRange<Float>? = null,
+)
