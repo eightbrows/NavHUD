@@ -136,12 +136,19 @@ object Tuning {
     const val SIDE_BUTTON_DP = 52f
 
     /** リプレイの帯の高さ */
-    const val REPLAY_BAND_HEIGHT_DP = 40f
+    const val REPLAY_BAND_HEIGHT_DP = 36f
 
     /** 横並びの WP ボタン列: 高さ、左端の「WP設定」の幅、ボタンの間隔 */
-    const val WP_STRIP_HEIGHT_DP = 48f
+    const val WP_STRIP_HEIGHT_DP = 40f
     const val WP_SETTINGS_WIDTH_DP = 64f
     const val WP_BUTTON_GAP_DP = 6f
+
+    /** WP ボタン列の上下の余白（ボタンの高さ = 列の高さ − 2 × これ） */
+    const val WP_STRIP_PADDING_V_DP = 3f
+
+    /** 下部パネル: 上下の余白と、行の間隔 */
+    const val BOTTOM_PANEL_PADDING_V_DP = 4f
+    const val BOTTOM_PANEL_ROW_GAP_DP = 2f
 
     /** 地図に重ねる部品の背景の不透明度（0〜1） */
     const val OVERLAY_ALPHA = 0.6f

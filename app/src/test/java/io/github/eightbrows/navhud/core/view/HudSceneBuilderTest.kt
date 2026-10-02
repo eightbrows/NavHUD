@@ -376,11 +376,11 @@ class HudSceneBuilderTest {
         assertP(own, scene.ownShip!!.at)
         // 基準の距離環（2km）は画面の左右端に接する
         assertTrue(scene.arcs.any { abs(it.radius - 360f) < 1e-3 })
-        // 方位目盛りは回避枠の縁（右は操作列の左端）
+        // 方位目盛りは、上端は回避枠（情報帯の下端）、左右は画面の縁（右は操作列の下に入ってよい）
         val labels = scene.labels.associateBy { it.text }
         val gap = m.tickMajor + m.labelGap
         assertP(P(360f, gap), labels.getValue("N").at)
-        assertP(P(618f - gap, own.y), labels.getValue("E").at)
+        assertP(P(720f - gap, own.y), labels.getValue("E").at)
         // 画面外の矢印は回避枠の内側（操作列の左）
         assertEquals(618f - m.edgeInset, scene.arrows.single().at.x, 1e-3f)
         // 高め: 84
@@ -389,12 +389,13 @@ class HudSceneBuilderTest {
     }
 
     @Test
-    fun northUpIsCenteredInTheAvoidFrame() {
-        // 中心は回避枠（x 0..618、y 0..608.4）の中央。最外周（縮尺）は回避枠の幅と高さの小さい方に収める
+    fun northUpIsCenteredOnScreenHorizontally() {
+        // 回避枠は x 0..618、y 0..608.4。中心は横が画面の中央（360）、縦が回避枠の中央（304.2）
+        // 最外周（縮尺）の半径 = 中心から回避枠の左右の縁までの近い方（右の 258）− 目盛りの余白
         val r = HudRect(0f, 0f, 720f, 690f)
         val scene = HudSceneBuilder.build(state(mode = DisplayMode.NORTH_UP), r, m, HudInsets(right = 102f, bottom = 81.6f))
-        assertP(P(309f, 304.2f), scene.ownShip!!.at)
-        assertTrue(scene.arcs.any { abs(it.radius - (304.2f - m.northUpMargin)) < 1e-2 })
+        assertP(P(360f, 304.2f), scene.ownShip!!.at)
+        assertTrue(scene.arcs.any { abs(it.radius - (258f - m.northUpMargin)) < 1e-2 })
     }
 
     @Test
@@ -443,7 +444,7 @@ class HudSceneBuilderTest {
 
     @Test
     fun arrowSlidesAlongTheEdgeAwayFromCompassLabels() {
-        val frame = HudRect(0f, 0f, 720f, 900f).inset(m.edgeInset)
+        val frame = TargetFrame(HudRect(0f, 0f, 720f, 900f).inset(m.edgeInset), null)
         val label = HudSceneBuilder.Box(P(200f, m.edgeInset + 4f), 8f, m.compassLabelHalf)
         // 上の縁: 横にずらす
         val top = HudSceneBuilder.slideArrow(P(200f, m.edgeInset), frame, listOf(label), m)

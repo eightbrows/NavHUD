@@ -117,17 +117,32 @@ fun MainScreen(
     // 重ねた表示の大きさ（上: 上部バー・情報帯、下: リプレイの帯・WP ボタン列・標高プロファイル・下部パネル）[px]
     var topPx by remember { mutableIntStateOf(0) }
     var bottomPx by remember { mutableIntStateOf(0) }
+    // 数値の表示（情報帯・下部パネル）の位置を求めるための大きさ [px]
+    var boxPx by remember { mutableIntStateOf(0) }
+    var topBarPx by remember { mutableIntStateOf(0) }
+    var panelPx by remember { mutableIntStateOf(0) }
+    var navPx by remember { mutableIntStateOf(0) }
     val density = LocalDensity.current
     val topDp = with(density) { topPx.toDp() }
     val bottomDp = with(density) { bottomPx.toDp() }
     // 地図は描画の枠（この画面の全体）に描く。回避枠 = 重ねた表示（上・右の操作列・下）を除いた真ん中
     val reserved = with(density) { HudInsets(top = topPx.toFloat(), right = SideColumnWidth.toPx(), bottom = bottomPx.toFloat()) }
+    // WP の名前・矢印の文字を重ねない範囲（情報帯・下部パネル）
+    val numberBands = listOf(
+        topBarPx.toFloat()..topPx.toFloat(),
+        (boxPx - navPx - panelPx).toFloat()..(boxPx - navPx).toFloat(),
+    )
 
-    Box(modifier.fillMaxSize().background(HudColors.Background)) {
-        HudCanvas(state, Modifier.fillMaxSize(), reserved, onViewport, onPan)
+    Box(modifier.fillMaxSize().background(HudColors.Background).onSizeChanged { boxPx = it.height }) {
+        HudCanvas(state, Modifier.fillMaxSize(), reserved, onViewport, onPan, numberBands)
         // 上: 上部バーと情報帯
         Column(Modifier.align(Alignment.TopStart).fillMaxWidth().onSizeChanged { topPx = it.height }) {
-            TopBar(state, wpUi.showButtons, onCycleSource, onToggleWpButtons, onToggleDisplay, onOpenSettings, onOpenDebug)
+            Box(Modifier.onSizeChanged { topBarPx = it.height }) {
+                TopBar(
+                    state, wpUi.showButtons, onCycleSource, onToggleWpButtons, onToggleSourceKind, onToggleDisplay,
+                    onOpenSettings, onOpenDebug,
+                )
+            }
             InfoStrip(state, zone, valueColor, onCycleRate)
         }
         // 下: リプレイの帯（REPLAY のみ）・WP ボタン列・標高プロファイル・下部パネル（ナビゲーションバーの上）
@@ -139,8 +154,8 @@ fun MainScreen(
             profileHeight(state.settings.profileSize)?.let { h ->
                 ProfileView(state, Modifier.fillMaxWidth().height(h))
             }
-            BottomPanel(state, zone, valueColor, onToggleSourceKind)
-            Spacer(Modifier.fillMaxWidth().windowInsetsBottomHeight(WindowInsets.navigationBars))
+            Box(Modifier.onSizeChanged { panelPx = it.height }) { BottomPanel(state, zone, valueColor) }
+            Spacer(Modifier.fillMaxWidth().windowInsetsBottomHeight(WindowInsets.navigationBars).onSizeChanged { navPx = it.height })
         }
         // 右の操作列: 上に ＋ / RNG / −（PAN 中は「現在地」も）、下に REPLAY の ▶ / FILE
         SideColumn(
@@ -344,7 +359,7 @@ private fun WpStrip(
             .fillMaxWidth()
             .height(WpStripHeight)
             .background(OverlayBackground)
-            .padding(horizontal = 6.dp, vertical = 5.dp),
+            .padding(horizontal = 6.dp, vertical = Tuning.WP_STRIP_PADDING_V_DP.dp),
     ) {
         val visible = state.settings.wpButtonsMax.coerceAtLeast(1)
         val listWidth = maxWidth - WpSettingsWidth - WpButtonGap
@@ -428,6 +443,7 @@ private fun TopBar(
     showWpButtons: Boolean,
     onCycleSource: () -> Unit,
     onToggleWpButtons: () -> Unit,
+    onToggleSourceKind: () -> Unit,
     onToggleDisplay: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenDebug: () -> Unit,
@@ -444,6 +460,12 @@ private fun TopBar(
         HudButton("HDG ${state.sourceMode.name}", onCycleSource)
         // WP ボタン列の表示/非表示（出ているときは反転）
         HudButton("WP", onToggleWpButtons, inverted = showWpButtons)
+        // INPUT（タップで LIVE ⇔ REPLAY）。下部パネルから移した
+        HudButton(
+            "⇄ " + if (state.sourceKind == SourceKind.LIVE) "LIVE" else "REPLAY " + if (state.playing) "▶" else "❚❚",
+            onToggleSourceKind,
+            small = true,
+        )
         Spacer(Modifier.weight(1f))
         HudButton(if (state.settings.displayMode == DisplayMode.ARC) "ARC" else "N-UP", onToggleDisplay)
         // 設定画面。長押しで開発用画面
@@ -497,24 +519,27 @@ private fun RowScope.HeadingCell(state: NavState, valueColor: Color, weight: Flo
     val src = headingSourceLabel(state)
     val marks = compassMarks(state)
     val small = SpanStyle(fontSize = 11.sp)
-    Column(Modifier.weight(weight).padding(vertical = 2.dp)) {
-        OutlinedText(AnnotatedString("HDG"), Caption)
-        OutlinedText(
-            buildAnnotatedString {
-                append(HudFormat.bearing(state.heading.deg))
-                if (src.isNotEmpty()) withStyle(small) { append(" $src") }
-                if (marks.isNotEmpty()) {
-                    // コンパス自体の状態なので、NO FIX 中も黄色のまま
-                    withStyle(small.copy(color = HudColors.Caution)) { append(" $marks") }
-                }
-            },
-            Value.copy(color = valueColor),
-        )
-    }
+    InlineCell(
+        "HDG",
+        buildAnnotatedString {
+            append(HudFormat.bearing(state.heading.deg))
+            if (src.isNotEmpty()) withStyle(small) { append(" $src") }
+            if (marks.isNotEmpty()) {
+                // コンパス自体の状態なので、NO FIX 中も黄色のまま
+                withStyle(small.copy(color = HudColors.Caution)) { append(" $marks") }
+            }
+        },
+        valueColor,
+        weight,
+    )
 }
 
+/**
+ * 下部パネル（2行）。見出しは値の左に小さく並べる。箱なしで、文字に黒の縁取り。
+ * 1行目: HDG / GS / ETA、2行目: NEXT（名前は入りきらなければ …）/ TGT / DDL。INPUT は上部バーへ移した。
+ */
 @Composable
-private fun BottomPanel(state: NavState, zone: ZoneId, valueColor: Color, onToggleSourceKind: () -> Unit) {
+private fun BottomPanel(state: NavState, zone: ZoneId, valueColor: Color) {
     val next = state.nextWpIndex?.let { state.waypoints[it] }
     val deadline = state.deadlineCountdownSec
     val deadlineColor = when {
@@ -522,35 +547,22 @@ private fun BottomPanel(state: NavState, zone: ZoneId, valueColor: Color, onTogg
         deadline < 0 -> HudColors.Warning
         else -> valueColor
     }
-    // 箱なし（文字に黒の縁取り）
+    val nextColor = if (next != null && !state.noFix) HudColors.Active else valueColor
     Column(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = 10.dp, vertical = 6.dp),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
+            .padding(horizontal = 10.dp, vertical = Tuning.BOTTOM_PANEL_PADDING_V_DP.dp),
+        verticalArrangement = Arrangement.spacedBy(Tuning.BOTTOM_PANEL_ROW_GAP_DP.dp),
     ) {
-        Row {
-            HeadingCell(state, valueColor, weight = 2f)
-            Cell("GS", HudFormat.speedKmh(state.groundSpeedMps), valueColor)
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            HeadingCell(state, valueColor, weight = 1.25f)
+            InlineCell("GS", AnnotatedString(HudFormat.speedKmh(state.groundSpeedMps)), valueColor, 1f)
+            InlineCell("ETA", AnnotatedString(HudFormat.time(state.etaMs, zone)), valueColor, 1.15f)
         }
-        Row {
-            Cell("NEXT ${next?.name ?: ""}".trim(), nextText(state), if (next != null && !state.noFix) HudColors.Active else valueColor, weight = 2f)
-            Cell("ETA", HudFormat.time(state.etaMs, zone), valueColor)
-        }
-        Row {
-            Cell("TGT", HudFormat.countdown(state.targetCountdownSec), valueColor)
-            Cell("DDL", HudFormat.countdown(deadline), deadlineColor)
-            // タップで LIVE ⇔ REPLAY
-            Cell(
-                "INPUT ⇄",
-                if (state.sourceKind == SourceKind.LIVE) "LIVE" else "REPLAY " + if (state.playing) "▶" else "❚❚",
-                HudColors.Scale,
-                Modifier
-                    .background(OverlayBackground, RoundedCornerShape(4.dp))
-                    .border(1.dp, HudColors.Frame, RoundedCornerShape(4.dp))
-                    .clickable(onClick = onToggleSourceKind)
-                    .padding(horizontal = 6.dp),
-            )
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            InlineCell("NEXT", AnnotatedString(nextText(state)), nextColor, 1.9f, name = next?.name)
+            InlineCell("TGT", AnnotatedString(HudFormat.countdown(state.targetCountdownSec)), valueColor, 1f)
+            InlineCell("DDL", AnnotatedString(HudFormat.countdown(deadline)), deadlineColor, 1f)
         }
     }
 }
@@ -560,6 +572,7 @@ private fun nextText(state: NavState): String {
     return "${HudFormat.bearing(state.nextWpBearingDeg)} ${HudFormat.distance(state.nextWpDistanceM)}"
 }
 
+/** 情報帯のセル: 見出しを値の上に置く。 */
 @Composable
 private fun RowScope.Cell(caption: String, value: String, color: Color, modifier: Modifier = Modifier, weight: Float = 1f) {
     Column(modifier.weight(weight).padding(vertical = 2.dp)) {
@@ -569,27 +582,46 @@ private fun RowScope.Cell(caption: String, value: String, color: Color, modifier
 }
 
 /**
- * 数値の表示（情報帯・下部パネル）の文字。地図の上に箱なしで重ねるので、黒の縁取りを下に描いて線や環の上でも読めるようにする。
- * 縁取りの太さは Tuning.TEXT_OUTLINE_DP。
+ * 下部パネルのセル: 見出しを値の左に小さく並べる。name（NEXT の WP の名前）は、入りきらなければ … で省く
+ * （値の方を先に場所を取る）。
  */
 @Composable
-private fun OutlinedText(text: AnnotatedString, style: TextStyle) {
+private fun RowScope.InlineCell(caption: String, value: AnnotatedString, color: Color, weight: Float, name: String? = null) {
+    Row(Modifier.weight(weight), verticalAlignment = Alignment.Bottom) {
+        OutlinedText(AnnotatedString(caption), Caption, Modifier.padding(end = 4.dp, bottom = 2.dp))
+        if (name != null) {
+            OutlinedText(
+                AnnotatedString(name),
+                Caption.copy(color = color, fontSize = 13.sp),
+                Modifier.weight(1f, fill = false).padding(end = 4.dp, bottom = 1.dp),
+            )
+        }
+        OutlinedText(value, Value.copy(color = color))
+    }
+}
+
+/**
+ * 数値の表示（情報帯・下部パネル）の文字。地図の上に箱なしで重ねるので、黒の縁取りを下に描いて線や環の上でも読めるようにする。
+ * 縁取りの太さは Tuning.TEXT_OUTLINE_DP。入りきらなければ … で省く。
+ */
+@Composable
+private fun OutlinedText(text: AnnotatedString, style: TextStyle, modifier: Modifier = Modifier) {
     val w = with(LocalDensity.current) { Tuning.TEXT_OUTLINE_DP.dp.toPx() }
     // 縁取りの層は文字の色を指定しない（部分ごとの色も外して黒にする）
     val plain = AnnotatedString(
         text.text,
         text.spanStyles.map { AnnotatedString.Range(it.item.copy(color = Color.Unspecified), it.start, it.end) },
     )
-    Box {
+    Box(modifier) {
         Text(
             plain,
             style = style.copy(color = Color.Black, drawStyle = Stroke(width = w, join = StrokeJoin.Round)),
             maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
-        Text(text, style = style, maxLines = 1)
+        Text(text, style = style, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
-
 @Composable
 private fun NoFixBox(hint: String?, modifier: Modifier = Modifier) {
     Column(

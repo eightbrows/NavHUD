@@ -48,19 +48,21 @@ fun HudCanvas(
     reserved: HudInsets = HudInsets(),
     onViewport: (HudViewport) -> Unit = {},
     onPan: (Float, Float) -> Unit = { _, _ -> },
+    /** 数値の表示（情報帯・下部パネル）の上下の範囲 [px]。WP の名前・矢印の文字を重ねない */
+    numberBands: List<ClosedFloatingPointRange<Float>> = emptyList(),
 ) {
     val density = LocalDensity.current.density
     val metrics = remember(density) { HudMetrics().scaled(density) }
     var size by remember { mutableStateOf(IntSize.Zero) }
-    // 描画領域と帯を AUTO 縮尺の判定に渡す（表示枠に次の WP が収まる最小の段）
+    // 描画の枠と重ねた表示の大きさを AUTO 縮尺の判定に渡す（矢印と AUTO の枠に次の WP が収まる最小の段）
     LaunchedEffect(size, metrics, reserved) {
         if (size != IntSize.Zero) {
             onViewport(HudViewport(HudRect(0f, 0f, size.width.toFloat(), size.height.toFloat()), metrics, reserved))
         }
     }
-    val scene = remember(state, size, metrics, reserved) {
+    val scene = remember(state, size, metrics, reserved, numberBands) {
         if (size == IntSize.Zero) null
-        else HudSceneBuilder.build(state, HudRect(0f, 0f, size.width.toFloat(), size.height.toFloat()), metrics, reserved)
+        else HudSceneBuilder.build(state, HudRect(0f, 0f, size.width.toFloat(), size.height.toFloat()), metrics, reserved, numberBands)
     }
     val textMeasurer = rememberTextMeasurer()
     val panHandler by rememberUpdatedState(onPan)

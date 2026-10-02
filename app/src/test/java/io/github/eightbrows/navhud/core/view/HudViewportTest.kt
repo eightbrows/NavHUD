@@ -14,71 +14,76 @@ import org.junit.Test
 import kotlin.math.hypot
 
 /**
- * AUTO 縮尺: 次の WP を画面に投影して、targetFrame（上・左・右は回避枠、下は描画の枠の下端）に余白付きで収まる最小の段。
- * 地図は画面いっぱい（描画の枠）。重ねた表示: 右の操作列 60dp、下の WP ボタン列 48dp（REPLAY ではリプレイの帯 40dp も）。
- * 寸法はエミュレータの地図の一部（720×690 px、密度 1.7）。上部バー・下部パネルは省いて、下に重ねたものだけで確かめる。
- * 自機（ARC）は回避枠の下端から 24dp（高め 84dp）、画面の横中央。
+ * AUTO 縮尺: 次の WP を画面に投影して、矢印と AUTO の枠（TargetFrame）に余白付きで収まる最小の段。
+ * 枠: 上は情報帯の下端、左・下は描画の枠、右は操作列のある高さの範囲だけ操作列の左端（それより下は画面の右端）。
+ * 寸法はエミュレータで測った値（密度 1.7）: 描画の枠 720×1239 px、上の重ねた表示 198 px、右の操作列 102 px、
+ * 下の重ねた表示 LIVE 285 px / REPLAY 346 px（リプレイの帯 36dp・WP 列 40dp・プロファイル 小 56dp・下部パネル・ナビゲーションバー）。
  */
 class HudViewportTest {
 
     private val k = 1.7f
     private val m = HudMetrics().scaled(k)
-    private val rect = HudRect(0f, 0f, 720f, 690f)
-    private val viewport = HudViewport(rect, m, HudInsets(right = 60 * k, bottom = 48 * k))
-    private val replayViewport = HudViewport(rect, m, HudInsets(right = 60 * k, bottom = (48 + 40) * k))
+    private val rect = HudRect(0f, 0f, 720f, 1239f)
+    private val viewport = HudViewport(rect, m, HudInsets(top = 198f, right = 102f, bottom = 285f))
+    private val replayViewport = HudViewport(rect, m, HudInsets(top = 198f, right = 102f, bottom = 346f))
     private val stepsM = RangeAuto.ALL_STEPS_KM.map { it * 1000 }
     private val arc = NavSettings(displayMode = DisplayMode.ARC)
     private val arcHigh = arc.copy(ownshipPosition = OwnshipPosition.HIGH)
     private val northUp = NavSettings(displayMode = DisplayMode.NORTH_UP)
 
-    // 回避枠は x 0..618、y 0..608.4。targetFrame は y が 690 まで。収まる枠はそこから 64.6 px 内側（x 64.6..553.4、y 64.6..625.4）
-    // ARC（標準）: 自機は (360, 567.6)（回避枠の下端から 24dp = 40.8 px）、1 m = 360 / 縮尺 px（画面の半幅）
+    // 余白は 22 + 16 dp = 64.6 px。収まる範囲: x 64.6..655.4、y 262.6..1174.4。ただし操作列の高さの範囲
+    // （LIVE y 133.4..1018.6、REPLAY ..957.6）では x 553.4 まで
+    // ARC（標準）: 自機は画面の横中央、回避枠の下端から 24dp。LIVE (360, 913.2)、REPLAY (360, 852.2)。1 m = 360 / 縮尺 px
     private fun auto(target: EN, headingDeg: Double?, s: NavSettings, vp: HudViewport = viewport): Double =
         RangeAuto.desired(stepsM) { vp.fits(it, target, headingDeg, s) }!!
 
+    /** 自機から見て、機首方位から右回りに relDeg の向き・distM 先の点（機首 000 なので北が前）。 */
+    private fun at(relDeg: Double, distM: Double) =
+        Math.toRadians(relDeg).let { EN(distM * Math.sin(it), distM * Math.cos(it)) }
+
     @Test
-    fun arcAheadUsesTheTallUpperArea() {
-        // 前方 1.9km: 上まで 503 px あるので 2km で収まる（距離だけの判定なら 5km）
+    fun arcAhead() {
+        // 前方 1.9km: 上まで 650.6 px（LIVE）/ 589.6 px（REPLAY）あるので 2km（距離だけの判定なら 5km）
         assertEquals(2_000.0, auto(EN(0.0, 1_900.0), 0.0, arc), 0.0)
+        assertEquals(2_000.0, auto(EN(0.0, 1_900.0), 0.0, arc, replayViewport), 0.0)
         assertEquals(5_000.0, RangeAuto.desired(stepsM, 1_900.0, null)!!, 0.0)
         // 機首方位で回る: 東を向いて東 1.9km も前方
         assertEquals(2_000.0, auto(EN(1_900.0, 0.0), 90.0, arc), 0.0)
     }
 
     @Test
-    fun arcBehindUsesTheDrawingFrameBottom() {
-        // 真後ろ 1km: 下は描画の枠の下端まで使う（自機の下に 57.8 px）→ 10km
-        assertEquals(10_000.0, auto(EN(0.0, -1_000.0), 0.0, arc), 0.0)
-        // 自機の位置「高め」（84dp）なら下に 159.8 px → 5km
-        assertEquals(5_000.0, auto(EN(0.0, -1_000.0), 0.0, arcHigh), 0.0)
+    fun arcBehindUsesTheSpaceUnderTheBottomOverlays() {
+        // 真後ろ 1km: 下は描画の枠の下端まで使う。自機の下に 261.2 px（LIVE）/ 322.2 px（REPLAY）→ 2km
+        assertEquals(2_000.0, auto(EN(0.0, -1_000.0), 0.0, arc), 0.0)
+        assertEquals(2_000.0, auto(EN(0.0, -1_000.0), 0.0, arc, replayViewport), 0.0)
+        // 自機の位置「高め」（84dp）なら自機の下に 363.2 px → 1km（1km の段で 360 px）
+        assertEquals(1_000.0, auto(EN(0.0, -1_000.0), 0.0, arcHigh), 0.0)
+    }
+
+    @Test
+    fun arcRightBehindIsNotLimitedByTheColumnBelowIt() {
+        // 右後ろ（右回り 126°）4.19km: 5km の段で (604, 1090.5)（LIVE）。操作列の高さの範囲より下なので、右は画面の右端まで使える → 5km
+        // （直す前は右を全体で操作列の左端にしていたので 10km になっていた）
+        assertEquals(5_000.0, auto(at(126.0, 4_190.0), 0.0, arc), 0.0)
+        assertEquals(5_000.0, auto(at(126.0, 4_190.0), 0.0, arc, replayViewport), 0.0)
     }
 
     @Test
     fun arcSideExcludesTheSideColumn() {
-        // 自機は画面の横中央。右は操作列の分だけ狭い: 真横 800m → 右 2km、左 1km
+        // 真横 800m: 自機と同じ高さは操作列の範囲。右は操作列の左端まで（193.4 px）→ 2km、左は 295.4 px → 1km
         assertEquals(2_000.0, auto(EN(800.0, 0.0), 0.0, arc), 0.0)
         assertEquals(1_000.0, auto(EN(-800.0, 0.0), 0.0, arc), 0.0)
         // 操作列がなければ右も 1km
-        val noColumn = viewport.copy(reserved = HudInsets(bottom = 48 * k))
+        val noColumn = viewport.copy(reserved = HudInsets(top = 198f, bottom = 285f))
         assertEquals(1_000.0, auto(EN(800.0, 0.0), 0.0, arc, noColumn), 0.0)
     }
 
     @Test
-    fun replayBandRaisesTheOwnShip() {
-        // REPLAY の帯（40dp）の分、回避枠の下端と自機（帯の上端から 24dp）が上がる。下の判定は描画の枠の下端のまま
-        // 真後ろ 1km: LIVE は 10km、REPLAY は自機の下に 125.8 px あるので 5km
-        assertEquals(5_000.0, auto(EN(0.0, -1_000.0), 0.0, arc, replayViewport), 0.0)
-        // 前方 1.9km は REPLAY でも 2km（上の余裕は 435 px）
-        assertEquals(2_000.0, auto(EN(0.0, 1_900.0), 0.0, arc, replayViewport), 0.0)
-    }
-
-    @Test
     fun northUpUsesTheSameFunction() {
-        // North Up: 自機は回避枠の中央 (309, 304.2)、最外周の半径 222.6 px。機首方位には関係しない
-        assertEquals(5_000.0, auto(EN(0.0, 3_000.0), 0.0, northUp), 0.0)
-        assertEquals(1_000.0, auto(EN(0.0, -1_000.0), 0.0, northUp), 0.0)
-        assertEquals(1_000.0, auto(EN(0.0, -1_000.0), 123.0, northUp), 0.0)
-        // 左右は同じ（中心が回避枠の中央なので）
+        // North Up: 中心は (画面の横中央 360, 回避枠の縦中央 576)。最外周の半径 = 右の縁まで 258 − 81.6 = 176.4 px
+        assertEquals(2_000.0, auto(EN(0.0, 3_000.0), 0.0, northUp), 0.0)
+        assertEquals(500.0, auto(EN(0.0, -1_000.0), 0.0, northUp), 0.0)
+        assertEquals(500.0, auto(EN(0.0, -1_000.0), 123.0, northUp), 0.0)
         assertEquals(1_000.0, auto(EN(1_000.0, 0.0), 0.0, northUp), 0.0)
         assertEquals(1_000.0, auto(EN(-1_000.0, 0.0), 0.0, northUp), 0.0)
     }
@@ -98,17 +103,16 @@ class HudViewportTest {
 
     @Test
     fun frameCenterOffsetAndScale() {
-        // ARC 標準・機首 000: PAN の中心に置く回避枠の中央 (309, 304.2) は、自機 (360, 567.6) から左 51 px・前方 263.4 px。
-        // 2km で 1 m = 0.18 px
+        // ARC 標準・機首 000: PAN の中心に置く点 (360, 576) は、自機 (360, 913.2) の前方 337.2 px。2km で 1 m = 0.18 px
         val px = viewport.pxPerM(2_000.0, arc)
         assertEquals(360.0 / 2_000.0, px, 1e-6)
         val c = viewport.frameCenterOffset(2_000.0, 0.0, arc)
-        assertEquals(-51.0 / px, c.e, 0.5)
-        assertEquals(263.4 / px, c.n, 0.5)
-        // 機首 090 なら、前方は東、左は北
+        assertEquals(0.0, c.e, 0.5)
+        assertEquals(337.2 / px, c.n, 0.5)
+        // 機首 090 なら、前方は東
         val east = viewport.frameCenterOffset(2_000.0, 90.0, arc)
-        assertEquals(263.4 / px, east.e, 0.5)
-        assertEquals(51.0 / px, east.n, 0.5)
+        assertEquals(337.2 / px, east.e, 0.5)
+        assertEquals(0.0, east.n, 0.5)
         // North Up は自機がその点
         val nu = viewport.frameCenterOffset(2_000.0, 45.0, northUp)
         assertEquals(0.0, hypot(nu.e, nu.n), 1e-6)

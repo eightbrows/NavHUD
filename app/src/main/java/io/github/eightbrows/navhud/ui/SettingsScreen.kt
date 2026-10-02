@@ -83,7 +83,7 @@ fun SettingsScreen(
                 "ARC の自機の位置",
                 listOf("標準" to OwnshipPosition.STANDARD, "高め" to OwnshipPosition.HIGH),
                 s.ownshipPosition,
-                note = "WP ボタン列の上端から 標準 110dp / 高め 170dp。高めにすると後方の WP や矢印に余裕ができます",
+                note = "WP ボタン列（REPLAY ではリプレイの帯）の上端から 標準 24dp / 高め 84dp。高めにすると後方の WP や矢印に余裕ができます",
             ) { v -> onChange { it.copy(ownshipPosition = v) } }
             Choice(
                 "標高プロファイル",
