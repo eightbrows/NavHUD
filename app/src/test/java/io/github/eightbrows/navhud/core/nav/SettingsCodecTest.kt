@@ -30,7 +30,8 @@ class SettingsCodecTest {
             autoRangeZoomInDelaySec = 8,
             wpButtonsMax = 6,
             hudWpCount = 4,
-            colorTheme = ColorTheme.AMBER,
+            uiTheme = ColorTheme.AMBER,
+            mapTheme = ColorTheme.WHITE,
             ownshipPosition = OwnshipPosition.HIGH,
             profileSize = ProfileSize.LARGE,
             panReturnSec = 30,
@@ -48,7 +49,25 @@ class SettingsCodecTest {
     @Test
     fun missingValuesAreDefaults() {
         assertEquals(NavSettings(), SettingsCodec.decode(emptyMap()))
-        assertEquals(NavSettings(colorTheme = ColorTheme.GREEN), SettingsCodec.decode(mapOf("colorTheme" to "GREEN")))
+        assertEquals(NavSettings(uiTheme = ColorTheme.GREEN), SettingsCodec.decode(mapOf("uiTheme" to "GREEN")))
+    }
+
+    @Test
+    fun oldColorThemeIsCarriedToBothColors() {
+        // 古い版の「色テーマ」（1つ）は、UI・地図の両方の初期値として引き継ぐ
+        val old = SettingsCodec.decode(mapOf("colorTheme" to "AMBER"))
+        assertEquals(ColorTheme.AMBER, old.uiTheme)
+        assertEquals(ColorTheme.AMBER, old.mapTheme)
+        // 新しい項目が保存されていれば、そちらを使う
+        val both = SettingsCodec.decode(mapOf("colorTheme" to "AMBER", "uiTheme" to "WHITE", "mapTheme" to "GREEN"))
+        assertEquals(ColorTheme.WHITE, both.uiTheme)
+        assertEquals(ColorTheme.GREEN, both.mapTheme)
+        // 既定は UI 白・地図 緑。HUD に描く WP の数は 15（1〜20）
+        assertEquals(ColorTheme.WHITE, NavSettings().uiTheme)
+        assertEquals(ColorTheme.GREEN, NavSettings().mapTheme)
+        assertEquals(15, NavSettings().hudWpCount)
+        assertEquals(20, SettingsCodec.decode(mapOf("hudWpCount" to "99")).hudWpCount)
+        assertEquals(18, SettingsCodec.decode(mapOf("hudWpCount" to "18")).hudWpCount)
     }
 
     @Test

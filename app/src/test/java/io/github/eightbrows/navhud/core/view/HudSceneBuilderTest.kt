@@ -65,8 +65,8 @@ class HudSceneBuilderTest {
         assertEquals(0f, scene.ownShip!!.angleDeg)
         // 2km の距離環の半径 = 画面幅の半分
         assertTrue(scene.arcs.any { kotlin.math.abs(it.radius - 360f) < 1e-3 })
-        // 前方 180° の弧
-        assertTrue(scene.arcs.all { it.startDeg == -90f && it.sweepDeg == 180f })
+        // 全周の環（後ろ側も。下に重ねた表示の下も地図として見えるため）
+        assertTrue(scene.arcs.all { it.startDeg == 0f && it.sweepDeg == 360f })
     }
 
     @Test
@@ -75,8 +75,8 @@ class HudSceneBuilderTest {
         val labels = build(state(headingDeg = 0f)).labels.associateBy { it.text }
         val gap = m.tickMajor + m.labelGap
         assertP(P(360f, gap), labels.getValue("N").at)
-        assertP(P(720f - gap, 790f), labels.getValue("E").at)
-        assertP(P(gap, 790f), labels.getValue("W").at)
+        assertP(P(720f - gap, 876f), labels.getValue("E").at)
+        assertP(P(gap, 876f), labels.getValue("W").at)
         assertFalse(labels.containsKey("S"))
     }
 
@@ -95,7 +95,7 @@ class HudSceneBuilderTest {
     @Test
     fun arcTicksAreOnTheFrameNotOnARing() {
         // 目盛りの外側の端はすべて表示枠の縁にある（同心円に沿わない）
-        val o = P(360f, 790f)
+        val o = P(360f, 876f)
         val ticks = build(state(headingDeg = 30f)).segments.filter { it.ink == Ink.SCALE }
         assertEquals(19, ticks.size) // -90°..+90° を 10° ごと
         for (t in ticks) {
@@ -111,7 +111,7 @@ class HudSceneBuilderTest {
     fun bearingLinesEvery30Degrees() {
         val lines = build(state(headingDeg = 0f)).segments.filter { it.ink == Ink.BEARING_LINE }
         assertEquals(7, lines.size) // -90, -60, … , +90
-        assertTrue(lines.all { it.a == P(360f, 790f) })
+        assertTrue(lines.all { it.a == P(360f, 876f) })
     }
 
     @Test
@@ -122,8 +122,8 @@ class HudSceneBuilderTest {
         val arrow = scene.arrows.single()
         assertEquals(m.edgeInset, arrow.at.x, 1e-3f)
         // 自機と同じ高さの左端には方位目盛りの「N」があるので、三角は縁に沿って上下にずれる
-        assertTrue(abs(arrow.at.y - 790f) >= m.pointerSize - 0.5f)
-        assertTrue(abs(arrow.at.y - 790f) <= m.pointerSize * 4 + 0.5f)
+        assertTrue(abs(arrow.at.y - 876f) >= m.pointerSize - 0.5f)
+        assertTrue(abs(arrow.at.y - 876f) <= m.pointerSize * 4 + 0.5f)
         assertEquals(-90f, arrow.angleDeg, 0.1f)
         assertEquals(Ink.ACTIVE, arrow.ink)
         assertTrue(arrow.text, arrow.text.startsWith("WP1 5.00 km"))
@@ -137,12 +137,12 @@ class HudSceneBuilderTest {
         val scene = build(state(headingDeg = 0f, wps = listOf(wp("WP1", 1_000.0)), next = 0))
         val mark = scene.wpMarks.single()
         assertEquals(360f, mark.at.x, 0.5f)
-        assertEquals(790f - 180f, mark.at.y, 0.5f)
+        assertEquals(876f - 180f, mark.at.y, 0.5f)
         assertEquals(Ink.ACTIVE, mark.ink)
         assertTrue(scene.arrows.isEmpty())
         // 自機から次の WP への線（マゼンタ）
         val active = scene.segments.single { it.ink == Ink.ACTIVE }
-        assertEquals(P(360f, 790f), active.a)
+        assertEquals(P(360f, 876f), active.a)
         assertEquals(mark.at, active.b)
     }
 
@@ -191,10 +191,11 @@ class HudSceneBuilderTest {
         assertEquals(o, scene.ownShip!!.at)
         assertEquals(45f, scene.ownShip!!.angleDeg)
         val outer = 360f - m.northUpMargin
-        // 全周の距離環（1km, 2km）
-        assertEquals(2, scene.arcs.size)
+        // 全周の距離環（1km, 2km）。最外周（縮尺 2km = 312 px）の外も、描画の枠の四隅（576 px）に届くまで同じ間隔で描く（3km）
+        assertEquals(3, scene.arcs.size)
         assertTrue(scene.arcs.all { it.sweepDeg == 360f })
-        assertEquals(outer, scene.arcs.maxOf { it.radius }, 1e-3f)
+        assertTrue(scene.arcs.any { abs(it.radius - outer) < 1e-3f })
+        assertEquals(outer * 1.5f, scene.arcs.maxOf { it.radius }, 1e-3f)
         // 目盛りは 36 本、すべて最外周の外側
         val ticks = scene.segments.filter { it.ink == Ink.SCALE }
         assertEquals(36, ticks.size)
@@ -228,24 +229,23 @@ class HudSceneBuilderTest {
     fun arrowsStayInsideReservedBands() {
         // 左にボタン列（84px）、下にリプレイ操作（46px）がある
         val reserved = HudInsets(left = 84f, bottom = 46f)
-        val wps = listOf(wp("N", 5_000.0), wp("S", -5_000.0))
-        val scene = HudSceneBuilder.build(state(headingDeg = 90f, wps = wps, next = 0), rect, m, reserved)
-        val byName = scene.arrows.associateBy { it.text.substringBefore(' ') }
+        fun arrow(w: Waypoint) = HudSceneBuilder.build(state(headingDeg = 90f, wps = listOf(w), next = 0), rect, m, reserved).arrows.single()
         // 機首 090 で北 → 左端。ボタン列の内側
-        assertEquals(84f + m.edgeInset, byName.getValue("N").at.x, 1e-3f)
+        assertEquals(84f + m.edgeInset, arrow(wp("N", 5_000.0)).at.x, 1e-3f)
         // 機首 090 で南 → 右端（下の帯は関係ない）
-        assertEquals(720f - m.edgeInset, byName.getValue("S").at.x, 1e-3f)
-        // 真後ろ → 下端。リプレイ操作の帯の上
+        assertEquals(720f - m.edgeInset, arrow(wp("S", -5_000.0)).at.x, 1e-3f)
+        // 真後ろ → 下端。下は描画の枠の下端（下に重ねた表示の下も地図として見えている扱い）
         val behind = HudSceneBuilder.build(state(headingDeg = 0f, wps = listOf(wp("B", -5_000.0)), next = 0), rect, m, reserved)
-        assertEquals(900f - 46f - m.edgeInset, behind.arrows.single().at.y, 1e-3f)
+        assertEquals(900f - m.edgeInset, behind.arrows.single().at.y, 1e-3f)
     }
 
     @Test
     fun arrowTextIsInsideAndDoesNotOverlap() {
-        // ほぼ同じ方向の WP 3つ → 矢印はほぼ同じ位置。文字は自機側へずれて重ならない
+        // ほぼ同じ方向の画面外の WP 3つ: 矢印は次の WP（AAA）の分だけ
         val wps = listOf(wp("AAA", 5_000.0, 5_000.0), wp("BBB", 6_000.0, 6_100.0), wp("CCC", 7_000.0, 7_000.0))
         val arrows = build(state(headingDeg = 0f, wps = wps, next = 0)).arrows
-        assertEquals(3, arrows.size)
+        assertEquals(1, arrows.size)
+        assertTrue(arrows.single().text.startsWith("AAA"))
         val frame = rect.inset(m.edgeInset)
         for (a in arrows) {
             // 文字は枠の内側
@@ -336,7 +336,8 @@ class HudSceneBuilderTest {
 
     @Test
     fun arrowTextAvoidsCompassLabelsAndOwnShip() {
-        // 西・東・後方に遠い WP（画面外の矢印）: 文字は方位目盛りの文字（W など）・自機・ほかの矢印の文字と重ならない
+        // 西・東・後方・真上に遠い WP を1つずつ次の WP にする（画面外の矢印は次の WP の分だけ）:
+        // 文字は方位目盛りの文字（W など）・自機・上部の三角・その矢印自身と重ならない
         val wps = listOf(
             wp("ダム", 200.0, -9_000.0),
             wp("道の駅", -9_000.0, 300.0),
@@ -345,9 +346,9 @@ class HudSceneBuilderTest {
             // 真上の遠い WP: 文字は上部の三角（機首方位の印）にも重ならない
             wp("北", 30_000.0, 800.0),
         )
-        for (mode in DisplayMode.entries) {
-            val scene = build(state(wps = wps, next = 0, mode = mode).let { it.copy(settings = it.settings.copy(hudWpCount = 5)) })
-            assertEquals(5, scene.arrows.size)
+        for (mode in DisplayMode.entries) for (next in wps.indices) {
+            val scene = build(state(wps = wps, next = next, mode = mode))
+            assertEquals(1, scene.arrows.size)
             val obstacles = scene.labels.map { l ->
                 HudSceneBuilder.Box(l.at, HudSceneBuilder.textHalfWidth(l.text, m) * (if (l.small) 1f else 13f / 11f) + 2f, m.compassLabelHalf)
             } + HudSceneBuilder.Box(scene.ownShip!!.at, m.ownShipClear, m.ownShipClear) +
@@ -365,34 +366,34 @@ class HudSceneBuilderTest {
 
     @Test
     fun arcDrawsFullWidthAndAvoidsOverlays() {
-        // 地図 720×690、右の操作列 102 px、下の WP ボタン列 81.6 px → 避ける枠は x 0..618、y 0..608.4
+        // 地図 720×690、右の操作列 102 px、下の WP ボタン列 81.6 px → 回避枠は x 0..618、y 0..608.4
         val r = HudRect(0f, 0f, 720f, 690f)
         val reserved = HudInsets(right = 102f, bottom = 81.6f)
         // 東 20km の遠い WP（画面外の矢印）
         val scene = HudSceneBuilder.build(state(headingDeg = 0f, wps = listOf(wp("E", 0.0, 20_000.0)), next = 0), r, m, reserved)
-        // 自機は画面の横中央、WP ボタン列の上端から 110
+        // 自機は画面の横中央、回避枠の下端（WP ボタン列の上端）から 24
         val own = P(360f, 608.4f - m.arcOriginFromBottom)
         assertP(own, scene.ownShip!!.at)
         // 基準の距離環（2km）は画面の左右端に接する
         assertTrue(scene.arcs.any { abs(it.radius - 360f) < 1e-3 })
-        // 方位目盛りは描画の枠（画面）の縁。右端の目盛りは操作列の下になる（隠れてよい）
+        // 方位目盛りは回避枠の縁（右は操作列の左端）
         val labels = scene.labels.associateBy { it.text }
         val gap = m.tickMajor + m.labelGap
         assertP(P(360f, gap), labels.getValue("N").at)
-        assertP(P(720f - gap, own.y), labels.getValue("E").at)
-        // 画面外の矢印は避ける枠の内側（操作列の左）
+        assertP(P(618f - gap, own.y), labels.getValue("E").at)
+        // 画面外の矢印は回避枠の内側（操作列の左）
         assertEquals(618f - m.edgeInset, scene.arrows.single().at.x, 1e-3f)
-        // 高め: 170
+        // 高め: 84
         val high = state(headingDeg = 0f).let { it.copy(settings = it.settings.copy(ownshipPosition = io.github.eightbrows.navhud.core.nav.OwnshipPosition.HIGH)) }
         assertEquals(608.4f - m.arcOriginFromBottomHigh, HudSceneBuilder.build(high, r, m, reserved).ownShip!!.at.y, 1e-3f)
     }
 
     @Test
-    fun northUpIsCenteredHorizontallyOnScreen() {
-        // 横は画面の中央、縦は避ける枠の中央。最外周は画面の幅と避ける枠の高さの小さい方に収める
+    fun northUpIsCenteredInTheAvoidFrame() {
+        // 中心は回避枠（x 0..618、y 0..608.4）の中央。最外周（縮尺）は回避枠の幅と高さの小さい方に収める
         val r = HudRect(0f, 0f, 720f, 690f)
         val scene = HudSceneBuilder.build(state(mode = DisplayMode.NORTH_UP), r, m, HudInsets(right = 102f, bottom = 81.6f))
-        assertP(P(360f, 304.2f), scene.ownShip!!.at)
+        assertP(P(309f, 304.2f), scene.ownShip!!.at)
         assertTrue(scene.arcs.any { abs(it.radius - (304.2f - m.northUpMargin)) < 1e-2 })
     }
 
@@ -502,7 +503,7 @@ class HudSceneBuilderTest {
         assertP(replay.ownShip!!.at, done.points.last())
         assertTrue(done.widthDp > all.widthDp)
         // 1 km 南の点は自機の真下 180 px（2km 縮尺、1 m = 0.18 px）
-        assertP(P(360f, 790f + 180f), all.points.first(), 0.2f)
+        assertP(P(360f, 876f + 180f), all.points.first(), 0.2f)
         // LIVE: 起動してからの軌跡 ＋ 自機の位置。REPLAY のトラックは描かない
         val live = build(base.copy(sourceKind = io.github.eightbrows.navhud.core.nav.SourceKind.LIVE, replayTrack = pts, liveTrail = pts.take(5)))
         assertEquals(1, live.trails.size)
@@ -529,11 +530,12 @@ class HudSceneBuilderTest {
 
     @Test
     fun arrowTextAvoidsOnScreenWaypointNames() {
-        // エミュレータの前方シーク後の場面: 機首 336、縮尺 5km。道の駅（2.55km・方位 078、画面内）とダム（15.1km・方位 070、画面外）
+        // 前方シーク後の場面に近い配置（機首 030、縮尺 5km）。道の駅（2.55km・方位 078、画面内）とダム（15.1km・方位 070、画面外）
         fun at(bearing: Double, d: Double) = Math.toRadians(bearing).let { d * Math.cos(it) to d * Math.sin(it) }
         val (n1, e1) = at(78.0, 2_550.0)
         val (n2, e2) = at(70.0, 15_100.0)
-        val s = state(headingDeg = 336f, wps = listOf(wp("道の駅", n1, e1), wp("ダム", n2, e2)), next = 0).copy(rangeM = 5_000.0)
+        // 道の駅は到達済み（直前の WP として薄く描く）、次の WP はダム（画面外の矢印）
+        val s = state(headingDeg = 30f, wps = listOf(wp("道の駅", n1, e1, reached = true), wp("ダム", n2, e2)), next = 1).copy(rangeM = 5_000.0)
         val scene = build(s)
         val mark = scene.wpMarks.single()
         val name = HudSceneBuilder.Box(mark.nameAt!!, HudSceneBuilder.textHalfWidth(mark.name, m) * 13f / 11f, m.arrowLabelLine / 2)
@@ -542,5 +544,41 @@ class HudSceneBuilderTest {
         val text = HudSceneBuilder.Box(arrow.textAt, HudSceneBuilder.textHalfWidth(arrow.text, m), m.arrowLabelLine / 2)
         assertFalse(name.overlaps(text))
         assertFalse(markBox.overlaps(text))
+    }
+
+    @Test
+    fun onlyTheNextWaypointGetsAnArrow() {
+        // 次の WP（1km 先）は画面内、ほかの WP は画面外: 矢印は1つも出ない（ARC・North Up・PAN とも）
+        val wps = listOf(wp("A", 1_000.0), wp("B", 30_000.0), wp("C", -30_000.0, 5_000.0))
+        val pan = io.github.eightbrows.navhud.core.nav.PanView(lat0 + 200.0 / mPerDegLat, lon0, 0.0)
+        for (s in listOf(
+            state(wps = wps, next = 0),
+            state(wps = wps, next = 0, mode = DisplayMode.NORTH_UP),
+            state(wps = wps, next = 0).copy(pan = pan),
+        )) {
+            val scene = build(s)
+            assertTrue(scene.arrows.isEmpty())
+            // 画面外の WP も、線は引く（画面の端で切れる）
+            assertTrue(scene.segments.any { it.ink == Ink.WP })
+        }
+        // 次の WP が画面外なら、その分の矢印だけ（B の分）
+        val far = build(state(wps = wps.map { it.copy() }.let { listOf(it[0].copy(reached = true), it[1], it[2]) }, next = 1))
+        assertEquals(1, far.arrows.size)
+        assertTrue(far.arrows.single().text.startsWith("B"))
+        assertEquals(Ink.ACTIVE, far.arrows.single().ink)
+    }
+
+    @Test
+    fun ringsReachTheCornersWithLabels() {
+        // ARC・縮尺 1km（間隔 500 m、1 m = 0.36 px）: 自機 (360, 876) から一番遠い角（左上 / 右上、947 px）まで、全周に
+        // 500 m ごとに描く → 500 m〜2.5 km の 5 本（3 km = 1080 px は角より外）
+        val scene = build(state(headingDeg = 0f).copy(rangeM = 1_000.0))
+        assertEquals(5, scene.arcs.size)
+        assertTrue(scene.arcs.all { it.sweepDeg == 360f })
+        assertEquals(listOf("500", "1k", "1.5k", "2k", "2.5k"), scene.labels.filter { it.small }.map { it.text })
+        // North Up・縮尺 1km（最外周 312 px、間隔 156 px）: 角（576 px）まで 3 本 → 500 m / 1k / 1.5k
+        val nu = build(state(mode = DisplayMode.NORTH_UP).copy(rangeM = 1_000.0))
+        assertEquals(3, nu.arcs.size)
+        assertTrue(nu.labels.filter { it.small }.map { it.text }.containsAll(listOf("500", "1k")))
     }
 }

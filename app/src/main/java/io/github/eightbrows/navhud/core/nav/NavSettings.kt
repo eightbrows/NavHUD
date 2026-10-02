@@ -4,7 +4,7 @@ import io.github.eightbrows.navhud.core.model.SourceMode
 
 enum class DisplayMode { ARC, NORTH_UP }
 
-/** 基本色（目盛り・距離環・文字・自機）。マゼンタ・警告色・グレーは固定 */
+/** 基本色（UI の色・地図の色それぞれに選ぶ）。マゼンタ・警告色・グレーは固定 */
 enum class ColorTheme { WHITE, GREEN, AMBER }
 
 /** ARC の自機の位置（WP ボタン列の上端からの距離）。高めは後方の WP・矢印に余裕を持たせる */
@@ -57,9 +57,11 @@ data class NavSettings(
     /** 横並びの WP ボタン列に一度に見せる数（ボタンの幅はこれで決まる。超える分は左右にスクロール） */
     val wpButtonsMax: Int = 4,
     /** HUD に描く WP の数（次の WP から先） */
-    val hudWpCount: Int = 3,
-    /** 色テーマ */
-    val colorTheme: ColorTheme = ColorTheme.WHITE,
+    val hudWpCount: Int = 15,
+    /** UI の色（上部バー・情報帯・操作列・リプレイの帯・WP ボタン列・標高プロファイル・下部パネル） */
+    val uiTheme: ColorTheme = ColorTheme.WHITE,
+    /** 地図の色（地図の Canvas に描くもの） */
+    val mapTheme: ColorTheme = ColorTheme.GREEN,
     /** ARC の自機の位置 */
     val ownshipPosition: OwnshipPosition = OwnshipPosition.STANDARD,
     /** 起動時に前回の WP リストを自動で開く（起動時の選択を出さない） */
@@ -74,7 +76,7 @@ data class NavSettings(
     companion object {
         val WP_BUTTONS_MAX_RANGE = 3..6
         val PAN_RETURN_SEC_RANGE = 5..60
-        val HUD_WP_COUNT_RANGE = 1..10
+        val HUD_WP_COUNT_RANGE = 1..20
         val REACH_RADIUS_CHOICES_M = listOf(50.0, 100.0, 200.0, 500.0)
         val RATE_WINDOW_CHOICES_SEC = listOf(10, 30, 60)
     }

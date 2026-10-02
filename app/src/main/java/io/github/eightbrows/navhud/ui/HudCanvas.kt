@@ -97,7 +97,7 @@ private fun DrawScope.drawScene(scene: HudScene, tm: TextMeasurer, density: Floa
 
     for (a in scene.arcs) {
         drawArc(
-            color = HudColors.of(a.ink),
+            color = HudColors.ofMap(a.ink),
             // core の角度は「上が 0」、Canvas は「右が 0」
             startAngle = a.startDeg - 90f,
             sweepAngle = a.sweepDeg,
@@ -113,21 +113,21 @@ private fun DrawScope.drawScene(scene: HudScene, tm: TextMeasurer, density: Floa
             moveTo(t.points[0].x, t.points[0].y)
             for (i in 1 until t.points.size) lineTo(t.points[i].x, t.points[i].y)
         }
-        drawPath(path, HudColors.of(t.ink), style = Stroke(t.widthDp * density, join = StrokeJoin.Round))
+        drawPath(path, HudColors.ofMap(t.ink), style = Stroke(t.widthDp * density, join = StrokeJoin.Round))
     }
     for (s in scene.segments) {
         drawLine(
-            color = HudColors.of(s.ink),
+            color = HudColors.ofMap(s.ink),
             start = s.a.o(),
             end = s.b.o(),
             strokeWidth = if (s.bold) bold else thin,
             pathEffect = if (s.dashed) dash else null,
         )
     }
-    for (l in scene.labels) drawLabel(tm, l.text, l.at, HudColors.of(l.ink), if (l.small) RingLabelStyle else LabelStyle)
+    for (l in scene.labels) drawLabel(tm, l.text, l.at, HudColors.ofMap(l.ink), if (l.small) RingLabelStyle else LabelStyle)
 
     for (w in scene.wpMarks) {
-        val c = HudColors.of(w.ink)
+        val c = HudColors.ofMap(w.ink)
         val r = Tuning.WP_MARK_DP * density
         // WP はひし形
         val path = Path().apply {
@@ -142,14 +142,14 @@ private fun DrawScope.drawScene(scene: HudScene, tm: TextMeasurer, density: Floa
         w.nameAt?.let { drawLabel(tm, w.name, it, c, LabelStyle) }
     }
     for (a in scene.arrows) {
-        val c = HudColors.of(a.ink)
+        val c = HudColors.ofMap(a.ink)
         triangle(a.at, a.angleDeg, Tuning.EDGE_ARROW_DP * density, c)
         drawLabel(tm, a.text, a.textAt, c, SmallLabelStyle)
     }
-    for (p in scene.pointers) triangle(p.tip, p.angleDeg, p.sizePx, HudColors.of(p.ink), filled = false, stroke = bold)
+    for (p in scene.pointers) triangle(p.tip, p.angleDeg, p.sizePx, HudColors.ofMap(p.ink), filled = false, stroke = bold)
 
     val own = scene.ownShip ?: return
-    val oc = HudColors.of(own.ink)
+    val oc = HudColors.ofMap(own.ink)
     if (own.angleDeg == null) {
         drawCircle(oc, radius = Tuning.OWN_SHIP_CIRCLE_DP * density, center = own.at.o(), style = Stroke(bold))
     } else {

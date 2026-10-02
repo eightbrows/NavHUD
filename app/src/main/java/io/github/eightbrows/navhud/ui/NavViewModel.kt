@@ -20,6 +20,7 @@ import io.github.eightbrows.navhud.core.nav.Trail
 import io.github.eightbrows.navhud.core.nav.WaypointTimes
 import io.github.eightbrows.navhud.core.replay.LiveClock
 import io.github.eightbrows.navhud.core.replay.ReplayClock
+import io.github.eightbrows.navhud.core.replay.ReplaySpeed
 import io.github.eightbrows.navhud.core.view.HudViewport
 import io.github.eightbrows.navhud.source.CompassSource
 import io.github.eightbrows.navhud.source.GeoPoint
@@ -145,9 +146,13 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
         if (clock.playing) pauseReplay() else play()
     }
 
-    /** 倍速を ×1 → ×2 → ×5 → ×10 → ×30 → ×1 と切り替える（保存しない）。 */
-    fun cycleReplaySpeed() {
-        val next = REPLAY_SPEEDS[(REPLAY_SPEEDS.indexOf(clock.speed) + 1) % REPLAY_SPEEDS.size]
+    /** 倍速を1段遅く / 速く（×1 / ×2 / ×5 / ×10 / ×30。端では変えない。保存しない）。 */
+    fun slowerReplay() = setReplaySpeed(ReplaySpeed.slower(clock.speed))
+
+    fun fasterReplay() = setReplaySpeed(ReplaySpeed.faster(clock.speed))
+
+    private fun setReplaySpeed(next: Int?) {
+        if (next == null) return
         clock.setSpeed(next)
         _replay.value = _replay.value.copy(speed = next)
     }
@@ -541,9 +546,6 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
 
     companion object {
         private const val TICK_MS = Tuning.TICK_MS
-
-        /** リプレイの倍速（§6.7） */
-        val REPLAY_SPEEDS = Tuning.REPLAY_SPEEDS
     }
 }
 

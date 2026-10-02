@@ -30,11 +30,18 @@ data class HudPalette(
 
 /**
  * HUD の色（航空機の ND の慣習に合わせる）。色はここ1か所で決める。
- * 基本色はテーマ（白 / 緑 / 琥珀）で切り替える。マゼンタ（次の WP）・黄と赤（警告）・グレー（無効・NO FIX）は固定。
+ * 基本色は「UI の色」と「地図の色」の2組（それぞれ 白 / 緑 / 琥珀）。マゼンタ（次の WP）・黄と赤（警告）・グレー（無効・NO FIX）は固定。
+ * - UI の色: 上部バー・情報帯・操作列・リプレイの帯・WP ボタン列・標高プロファイル・下部パネル（下の Scale・Caption などの値）
+ * - 地図の色: 地図の Canvas に描くもの（ofMap）
  */
 object HudColors {
-    /** 今のテーマの基本色。Compose の状態なので、変えると画面が描き直される */
-    var palette: HudPalette by mutableStateOf(HudPalette.WHITE)
+    /** UI の基本色。Compose の状態なので、変えると画面が描き直される */
+    var uiPalette: HudPalette by mutableStateOf(HudPalette.WHITE)
+
+    /** 地図の基本色 */
+    var mapPalette: HudPalette by mutableStateOf(HudPalette.GREEN)
+
+    private val palette: HudPalette get() = uiPalette
 
     val Background = Color(0xFF000000)
 
@@ -76,17 +83,23 @@ object HudColors {
     /** 上部バー・下部パネルの枠 */
     val Frame = Color(0xFF2A2A2A)
 
-    fun of(ink: Ink): Color = when (ink) {
-        Ink.SCALE -> Scale
-        Ink.SCALE_DIM -> ScaleDim
+    /** 描く要素の色（UI の色。標高プロファイルなど） */
+    fun of(ink: Ink): Color = of(ink, uiPalette)
+
+    /** 描く要素の色（地図の色。地図の Canvas） */
+    fun ofMap(ink: Ink): Color = of(ink, mapPalette)
+
+    private fun of(ink: Ink, p: HudPalette): Color = when (ink) {
+        Ink.SCALE -> p.scale
+        Ink.SCALE_DIM -> p.scaleDim
         Ink.BEARING_LINE -> BearingLine
         Ink.ACTIVE -> Active
-        Ink.WP -> Wp
+        Ink.WP -> p.wp
         Ink.WP_DISABLED -> WpDisabled
         Ink.WP_REACHED -> WpReached
-        Ink.OWNSHIP -> OwnShip
+        Ink.OWNSHIP -> p.ownShip
         Ink.STALE -> Stale
         Ink.TRACK -> Track
-        Ink.TRACK_DONE -> ScaleDim
+        Ink.TRACK_DONE -> p.scaleDim
     }
 }

@@ -66,9 +66,9 @@ object Tuning {
     const val HUD_EDGE_INSET_DP = 22f
     /** 矢印から、その文字まで（自機側） */
     const val HUD_ARROW_TEXT_GAP_DP = 34f
-    /** ARC の自機の位置（避ける枠の下端から）: 標準 / 高め */
-    const val HUD_ARC_ORIGIN_DP = 110f
-    const val HUD_ARC_ORIGIN_HIGH_DP = 170f
+    /** ARC の自機の位置（回避枠の下端 = WP ボタン列・リプレイの帯の上端から）: 標準 / 高め */
+    const val HUD_ARC_ORIGIN_DP = 24f
+    const val HUD_ARC_ORIGIN_HIGH_DP = 84f
     /** North Up: 最外周の距離環の外側の余白（目盛りと文字の分） */
     const val HUD_NORTH_UP_MARGIN_DP = 48f
     /** 方位マーカー（三角）の大きさ */
@@ -155,6 +155,9 @@ object Tuning {
     /** 破線（無効 WP）: 線 / すき間 [dp] */
     const val DASH_ON_DP = 6f
     const val DASH_OFF_DP = 5f
+
+    /** 数値の表示（情報帯・下部パネル）の文字の黒の縁取りの太さ [dp] */
+    const val TEXT_OUTLINE_DP = 2.5f
 
     /** 文字の大きさ [sp]: 方位目盛り・WP の名前 / 画面外の矢印 / 距離環 */
     const val LABEL_SP = 13f

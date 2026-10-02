@@ -3,6 +3,7 @@ package io.github.eightbrows.navhud.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -12,12 +13,15 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Slider
@@ -26,14 +30,19 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -52,9 +61,11 @@ import io.github.eightbrows.navhud.core.nav.DisplayMode
 import io.github.eightbrows.navhud.core.nav.NavState
 import io.github.eightbrows.navhud.core.nav.ProfileSize
 import io.github.eightbrows.navhud.core.nav.SourceKind
+import io.github.eightbrows.navhud.core.replay.ReplaySpeed
 import io.github.eightbrows.navhud.core.view.HudFormat
 import io.github.eightbrows.navhud.core.view.HudInsets
 import io.github.eightbrows.navhud.core.view.HudViewport
+import io.github.eightbrows.navhud.core.view.WpStripLayout
 import java.time.ZoneId
 
 private val Caption get() = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 11.sp, color = HudColors.Caption)
@@ -63,7 +74,9 @@ private val ButtonText get() = TextStyle(fontFamily = FontFamily.Monospace, font
 
 /**
  * メイン画面（§6.1〜6.4）。NavState だけを見て描く。
- * 上から: 上部バー / 情報欄 / 地図（右端に操作列、下端に横並びの WP ボタン列を重ねる）/ 標高プロファイル / 下部パネル。
+ * 地図はステータスバーの下から画面の下端まで、左右いっぱいに描き、ほかの表示はすべて地図の上に重ねる:
+ * 上に上部バー・情報帯、右に操作列、下にリプレイの帯・WP ボタン列・標高プロファイル・下部パネル。
+ * ボタン類と標高プロファイルは半透明の地、数値は箱なしで文字に黒の縁取り。
  */
 @Composable
 fun MainScreen(
@@ -88,7 +101,8 @@ fun MainScreen(
     onZoomOut: () -> Unit,
     onToggleAutoRange: () -> Unit,
     onPan: (Float, Float) -> Unit,
-    onCycleSpeed: () -> Unit,
+    onSlower: () -> Unit,
+    onFaster: () -> Unit,
     onSeek: (Long) -> Unit,
     onEndPan: () -> Unit,
     onOpenSettings: () -> Unit,
@@ -99,58 +113,58 @@ fun MainScreen(
     // NO FIX 中は最後の値をグレーで出し続ける
     val valueColor = if (state.noFix) HudColors.Stale else HudColors.Scale
     val showReplay = state.sourceKind == SourceKind.REPLAY
-    val stripHeight = if (wpUi.showButtons) WpStripHeight else 0.dp
-    // リプレイの帯（シーク・倍速）は REPLAY のときだけ、WP ボタン列の上に
-    val bandHeight = if (showReplay) ReplayBandHeight else 0.dp
-    val overlayBottom = stripHeight + bandHeight
 
-    // 地図に重ねた部品（右の操作列、リプレイの帯、WP ボタン列）。地図は画面の全幅に描き（部品の下にもかかる）、
-    // 画面外の矢印・WP の名前・AUTO の判定は、これを除いた「避ける枠」を使う
+    // 重ねた表示の大きさ（上: 上部バー・情報帯、下: リプレイの帯・WP ボタン列・標高プロファイル・下部パネル）[px]
+    var topPx by remember { mutableIntStateOf(0) }
+    var bottomPx by remember { mutableIntStateOf(0) }
     val density = LocalDensity.current
-    val reserved = with(density) { HudInsets(right = SideColumnWidth.toPx(), bottom = overlayBottom.toPx()) }
+    val topDp = with(density) { topPx.toDp() }
+    val bottomDp = with(density) { bottomPx.toDp() }
+    // 地図は描画の枠（この画面の全体）に描く。回避枠 = 重ねた表示（上・右の操作列・下）を除いた真ん中
+    val reserved = with(density) { HudInsets(top = topPx.toFloat(), right = SideColumnWidth.toPx(), bottom = bottomPx.toFloat()) }
 
-    Column(modifier.fillMaxSize().background(HudColors.Background)) {
-        TopBar(state, wpUi.showButtons, onCycleSource, onToggleWpButtons, onToggleDisplay, onOpenSettings, onOpenDebug)
-        InfoStrip(state, zone, valueColor, onCycleRate)
-        Box(Modifier.fillMaxWidth().weight(1f)) {
-            HudCanvas(state, Modifier.fillMaxSize(), reserved, onViewport, onPan)
-            // 右の操作列: 上に ＋ / RNG / −（PAN 中は「現在地」も）、下に REPLAY の ▶ / FILE
-            SideColumn(
-                state, replay, onZoomIn, onZoomOut, onToggleAutoRange, onEndPan, onPickTrack, onTogglePlay, showReplay,
-                Modifier.align(Alignment.TopEnd).padding(bottom = overlayBottom),
-            )
+    Box(modifier.fillMaxSize().background(HudColors.Background)) {
+        HudCanvas(state, Modifier.fillMaxSize(), reserved, onViewport, onPan)
+        // 上: 上部バーと情報帯
+        Column(Modifier.align(Alignment.TopStart).fillMaxWidth().onSizeChanged { topPx = it.height }) {
+            TopBar(state, wpUi.showButtons, onCycleSource, onToggleWpButtons, onToggleDisplay, onOpenSettings, onOpenDebug)
+            InfoStrip(state, zone, valueColor, onCycleRate)
+        }
+        // 下: リプレイの帯（REPLAY のみ）・WP ボタン列・標高プロファイル・下部パネル（ナビゲーションバーの上）
+        Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().onSizeChanged { bottomPx = it.height }) {
             if (showReplay) {
-                ReplayBand(
-                    state, replay, zone, onCycleSpeed, onSeek,
-                    Modifier.align(Alignment.BottomStart).padding(bottom = stripHeight).fillMaxWidth().height(ReplayBandHeight),
-                )
+                ReplayBand(state, replay, zone, onSlower, onFaster, onSeek, Modifier.fillMaxWidth().height(ReplayBandHeight))
             }
-            if (wpUi.showButtons) {
-                WpStrip(state, onOpenWpSettings, onToggleReached, onPanToWaypoint, Modifier.align(Alignment.BottomStart))
+            if (wpUi.showButtons) WpStrip(state, onOpenWpSettings, onToggleReached, onPanToWaypoint)
+            profileHeight(state.settings.profileSize)?.let { h ->
+                ProfileView(state, Modifier.fillMaxWidth().height(h))
             }
-            // 案内の枠: 地図の表示枠の中央に置き、その幅で折り返す
-            val permissionMissing = state.sourceKind == SourceKind.LIVE &&
-                (live.permission == LocationPermission.DENIED || live.permission == LocationPermission.APPROXIMATE_ONLY)
-            if (permissionMissing || state.noFix) {
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .padding(end = SideColumnWidth, bottom = overlayBottom)
-                        .padding(horizontal = 12.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    if (permissionMissing) {
-                        PermissionBox(live.permission, onRequestPermission, onOpenAppSettings, onToggleSourceKind)
-                    } else {
-                        NoFixBox(noFixHint(state, replay, live))
-                    }
+            BottomPanel(state, zone, valueColor, onToggleSourceKind)
+            Spacer(Modifier.fillMaxWidth().windowInsetsBottomHeight(WindowInsets.navigationBars))
+        }
+        // 右の操作列: 上に ＋ / RNG / −（PAN 中は「現在地」も）、下に REPLAY の ▶ / FILE
+        SideColumn(
+            state, replay, onZoomIn, onZoomOut, onToggleAutoRange, onEndPan, onPickTrack, onTogglePlay, showReplay,
+            Modifier.align(Alignment.TopEnd).padding(top = topDp, bottom = bottomDp),
+        )
+        // 案内の枠: 回避枠の中央に置き、その幅で折り返す
+        val permissionMissing = state.sourceKind == SourceKind.LIVE &&
+            (live.permission == LocationPermission.DENIED || live.permission == LocationPermission.APPROXIMATE_ONLY)
+        if (permissionMissing || state.noFix) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .padding(top = topDp, end = SideColumnWidth, bottom = bottomDp)
+                    .padding(horizontal = 12.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (permissionMissing) {
+                    PermissionBox(live.permission, onRequestPermission, onOpenAppSettings, onToggleSourceKind)
+                } else {
+                    NoFixBox(noFixHint(state, replay, live))
                 }
             }
         }
-        profileHeight(state.settings.profileSize)?.let { h ->
-            ProfileView(state, Modifier.fillMaxWidth().height(h).border(0.5.dp, HudColors.Frame))
-        }
-        BottomPanel(state, zone, valueColor, onToggleSourceKind)
     }
 }
 
@@ -178,7 +192,7 @@ private fun profileHeight(size: ProfileSize): Dp? = when (size) {
 }
 
 /**
- * リプレイの帯（§6.7、REPLAY のときだけ WP ボタン列の上）。左から 倍速（タップで ×1 → ×2 → ×5 → ×10 → ×30）、
+ * リプレイの帯（§6.7、REPLAY のときだけ WP ボタン列の上）。左から 倍速の [−] ×N [＋]（×1 / ×2 / ×5 / ×10 / ×30。端ではグレー）、
  * 再生位置のスライダー、経過 / 全体の時間。スライダーは指を離したときにシークし、動かしている間は行き先の時刻を出す。
  */
 @Composable
@@ -186,7 +200,8 @@ private fun ReplayBand(
     state: NavState,
     replay: ReplayUiState,
     zone: ZoneId,
-    onCycleSpeed: () -> Unit,
+    onSlower: () -> Unit,
+    onFaster: () -> Unit,
     onSeek: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -198,7 +213,10 @@ private fun ReplayBand(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        SideButton("×${replay.speed}", onCycleSpeed, height = 30.dp, fontSize = 13.sp)
+        // 倍速: − で1段遅く、＋ で1段速く。×N は表示だけ
+        SideButton("−", onSlower, enabled = ReplaySpeed.slower(replay.speed) != null, height = 30.dp, width = 34.dp, fontSize = 16.sp)
+        Text("×${replay.speed}", style = Value.copy(fontSize = 14.sp), maxLines = 1)
+        SideButton("＋", onFaster, enabled = ReplaySpeed.faster(replay.speed) != null, height = 30.dp, width = 34.dp, fontSize = 16.sp)
         if (start != null && end != null && end > start) {
             val now = (state.nowMs ?: start).coerceIn(start, end)
             val frac = dragging ?: ((now - start).toFloat() / (end - start))
@@ -285,13 +303,14 @@ private fun SideButton(
     inverted: Boolean = false,
     color: Color = HudColors.Scale,
     height: Dp = SideButtonSize,
+    width: Dp = SideButtonSize,
     fontSize: TextUnit = 12.sp,
 ) {
     val c = if (enabled) color else HudColors.WpReached
     val shape = RoundedCornerShape(6.dp)
     Box(
         Modifier
-            .width(SideButtonSize)
+            .width(width)
             .height(height)
             .border(1.dp, c, shape)
             .background(if (inverted) c else OverlayBackground, shape)
@@ -333,14 +352,12 @@ private fun WpStrip(
         val scroll = rememberScrollState()
         val density = LocalDensity.current
         val stepPx = with(density) { (itemWidth + WpButtonGap).toPx() }
-        val itemPx = with(density) { itemWidth.toPx() }
         val viewPx = with(density) { listWidth.toPx() }
         val next = state.nextWpIndex
         LaunchedEffect(next, visible, state.waypoints.size, viewPx) {
-            if (next == null) return@LaunchedEffect
-            // 次の WP を中央へ
-            val target = next * stepPx - (viewPx - itemPx) / 2
-            scroll.animateScrollTo(target.toInt().coerceIn(0, scroll.maxValue))
+            // 次の WP を左から2番目へ（1番目は1つ前の WP。次の WP が最初なら左詰め）
+            val first = WpStripLayout.firstIndex(next) ?: return@LaunchedEffect
+            scroll.animateScrollTo((first * stepPx).toInt().coerceIn(0, scroll.maxValue))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(WpButtonGap)) {
             WpStripButton("WP設定", WpSettingsWidth, HudColors.Scale, inverted = false, enabled = true, onTap = onOpenSettings)
@@ -362,6 +379,9 @@ private fun WpStrip(
                         onLongPress = { onPanTo(i) },
                     )
                 }
+                // 最後のほうでも次の WP を2番目に置けるよう、右端に空きを足す
+                val slots = WpStripLayout.trailingSlots(visible)
+                if (slots > 0) Spacer(Modifier.width((itemWidth + WpButtonGap) * slots - WpButtonGap))
             }
         }
     }
@@ -413,11 +433,9 @@ private fun TopBar(
     onOpenDebug: () -> Unit,
 ) {
     Row(
+        // 空いている所は地図に渡す（ドラッグで PAN）
         Modifier
             .fillMaxWidth()
-            .border(0.5.dp, HudColors.Frame)
-            // バーの空いている所を長押しすると開発用画面
-            .pointerInput(Unit) { detectTapGestures(onLongPress = { onOpenDebug() }) }
             .padding(horizontal = 8.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -428,8 +446,8 @@ private fun TopBar(
         HudButton("WP", onToggleWpButtons, inverted = showWpButtons)
         Spacer(Modifier.weight(1f))
         HudButton(if (state.settings.displayMode == DisplayMode.ARC) "ARC" else "N-UP", onToggleDisplay)
-        // 設定画面（開発用画面は、バーの空いている所の長押しのまま）
-        HudButton("⚙", onOpenSettings)
+        // 設定画面。長押しで開発用画面
+        HudButton("⚙", onOpenSettings, onLongClick = onOpenDebug)
     }
 }
 
@@ -480,8 +498,8 @@ private fun RowScope.HeadingCell(state: NavState, valueColor: Color, weight: Flo
     val marks = compassMarks(state)
     val small = SpanStyle(fontSize = 11.sp)
     Column(Modifier.weight(weight).padding(vertical = 2.dp)) {
-        Text("HDG", style = Caption, maxLines = 1)
-        Text(
+        OutlinedText(AnnotatedString("HDG"), Caption)
+        OutlinedText(
             buildAnnotatedString {
                 append(HudFormat.bearing(state.heading.deg))
                 if (src.isNotEmpty()) withStyle(small) { append(" $src") }
@@ -490,8 +508,7 @@ private fun RowScope.HeadingCell(state: NavState, valueColor: Color, weight: Flo
                     withStyle(small.copy(color = HudColors.Caution)) { append(" $marks") }
                 }
             },
-            style = Value.copy(color = valueColor),
-            maxLines = 1,
+            Value.copy(color = valueColor),
         )
     }
 }
@@ -505,10 +522,10 @@ private fun BottomPanel(state: NavState, zone: ZoneId, valueColor: Color, onTogg
         deadline < 0 -> HudColors.Warning
         else -> valueColor
     }
+    // 箱なし（文字に黒の縁取り）
     Column(
         Modifier
             .fillMaxWidth()
-            .border(0.5.dp, HudColors.Frame)
             .padding(horizontal = 10.dp, vertical = 6.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
@@ -529,6 +546,7 @@ private fun BottomPanel(state: NavState, zone: ZoneId, valueColor: Color, onTogg
                 if (state.sourceKind == SourceKind.LIVE) "LIVE" else "REPLAY " + if (state.playing) "▶" else "❚❚",
                 HudColors.Scale,
                 Modifier
+                    .background(OverlayBackground, RoundedCornerShape(4.dp))
                     .border(1.dp, HudColors.Frame, RoundedCornerShape(4.dp))
                     .clickable(onClick = onToggleSourceKind)
                     .padding(horizontal = 6.dp),
@@ -545,8 +563,30 @@ private fun nextText(state: NavState): String {
 @Composable
 private fun RowScope.Cell(caption: String, value: String, color: Color, modifier: Modifier = Modifier, weight: Float = 1f) {
     Column(modifier.weight(weight).padding(vertical = 2.dp)) {
-        Text(caption, style = Caption, maxLines = 1)
-        Text(value, style = Value.copy(color = color), maxLines = 1)
+        OutlinedText(AnnotatedString(caption), Caption)
+        OutlinedText(AnnotatedString(value), Value.copy(color = color))
+    }
+}
+
+/**
+ * 数値の表示（情報帯・下部パネル）の文字。地図の上に箱なしで重ねるので、黒の縁取りを下に描いて線や環の上でも読めるようにする。
+ * 縁取りの太さは Tuning.TEXT_OUTLINE_DP。
+ */
+@Composable
+private fun OutlinedText(text: AnnotatedString, style: TextStyle) {
+    val w = with(LocalDensity.current) { Tuning.TEXT_OUTLINE_DP.dp.toPx() }
+    // 縁取りの層は文字の色を指定しない（部分ごとの色も外して黒にする）
+    val plain = AnnotatedString(
+        text.text,
+        text.spanStyles.map { AnnotatedString.Range(it.item.copy(color = Color.Unspecified), it.start, it.end) },
+    )
+    Box {
+        Text(
+            plain,
+            style = style.copy(color = Color.Black, drawStyle = Stroke(width = w, join = StrokeJoin.Round)),
+            maxLines = 1,
+        )
+        Text(text, style = style, maxLines = 1)
     }
 }
 
@@ -625,13 +665,15 @@ internal fun HudButton(
     small: Boolean = false,
     inverted: Boolean = false,
     fill: Boolean = false,
+    onLongClick: (() -> Unit)? = null,
 ) {
     val color = if (enabled) HudColors.Scale else HudColors.WpReached
     Box(
         (if (fill) Modifier.fillMaxWidth() else Modifier)
             .border(1.dp, color, RoundedCornerShape(4.dp))
-            .background(if (inverted) color else HudColors.Background, RoundedCornerShape(4.dp))
-            .clickable(enabled = enabled, onClick = onClick)
+            // 半透明の地（地図の上に重ねるため。設定画面など黒い画面では黒に見える）
+            .background(if (inverted) color else OverlayBackground, RoundedCornerShape(4.dp))
+            .combinedClickable(enabled = enabled, onClick = onClick, onLongClick = onLongClick)
             .padding(horizontal = if (small) 8.dp else 10.dp, vertical = if (small) 3.dp else 5.dp),
         contentAlignment = Alignment.Center,
     ) {

@@ -19,6 +19,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -100,9 +101,13 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(Unit) {
                     if (state.sourceKind == SourceKind.LIVE && live.permission == LocationPermission.UNKNOWN) onRequestPermission()
                 }
-                // 色テーマ（基本色だけ切り替える）
-                val theme = state.settings.colorTheme
-                LaunchedEffect(theme) { HudColors.palette = HudPalette.of(theme) }
+                // 色（UI の色と地図の色。基本色だけ切り替える）
+                val uiTheme = state.settings.uiTheme
+                val mapTheme = state.settings.mapTheme
+                LaunchedEffect(uiTheme, mapTheme) {
+                    HudColors.uiPalette = HudPalette.of(uiTheme)
+                    HudColors.mapPalette = HudPalette.of(mapTheme)
+                }
                 // 画面常時点灯（§6.8）
                 val keepScreenOn = state.settings.keepScreenOn
                 DisposableEffect(keepScreenOn) {
@@ -144,10 +149,12 @@ class MainActivity : ComponentActivity() {
                             onViewport = vm::setViewport,
                             onPan = vm::panBy,
                             onEndPan = vm::endPan,
-                            onCycleSpeed = vm::cycleReplaySpeed,
+                            onSlower = vm::slowerReplay,
+                            onFaster = vm::fasterReplay,
                             onSeek = vm::seekReplay,
                             onOpenSettings = { screen = Screen.SETTINGS },
-                            modifier = modifier,
+                            // 地図はステータスバーの下から画面の下端まで（下部パネルはナビゲーションバーの上に置く）
+                            modifier = Modifier.statusBarsPadding(),
                         )
                         Screen.WAYPOINTS -> WaypointSettingsScreen(
                             state = state,

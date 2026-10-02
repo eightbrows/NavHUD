@@ -76,11 +76,9 @@ fun SettingsScreen(
             Choice("表示モード", listOf("ARC" to DisplayMode.ARC, "North Up" to DisplayMode.NORTH_UP), s.displayMode) { v ->
                 onChange { it.copy(displayMode = v) }
             }
-            Choice(
-                "色テーマ（目盛り・距離環・文字・自機）",
-                listOf("白" to ColorTheme.WHITE, "緑" to ColorTheme.GREEN, "琥珀" to ColorTheme.AMBER),
-                s.colorTheme,
-            ) { v -> onChange { it.copy(colorTheme = v) } }
+            val colors = listOf("白" to ColorTheme.WHITE, "緑" to ColorTheme.GREEN, "琥珀" to ColorTheme.AMBER)
+            Choice("UI の色（ボタン・数値・標高プロファイル）", colors, s.uiTheme) { v -> onChange { it.copy(uiTheme = v) } }
+            Choice("地図の色（距離環・目盛り・自機・WP・軌跡）", colors, s.mapTheme) { v -> onChange { it.copy(mapTheme = v) } }
             Choice(
                 "ARC の自機の位置",
                 listOf("標準" to OwnshipPosition.STANDARD, "高め" to OwnshipPosition.HIGH),

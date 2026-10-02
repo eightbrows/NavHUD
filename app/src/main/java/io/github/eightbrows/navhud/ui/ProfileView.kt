@@ -42,7 +42,8 @@ fun ProfileView(state: NavState, modifier: Modifier = Modifier) {
     }
     val tm = rememberTextMeasurer()
     Canvas(modifier.clipToBounds().onSizeChanged { size = it }) {
-        drawRect(HudColors.Background)
+        // 地図の上に重ねるので半透明の地
+        drawRect(HudColors.Background.copy(alpha = Tuning.OVERLAY_ALPHA))
         val sc = scene ?: return@Canvas
         val dash = PathEffect.dashPathEffect(floatArrayOf(5f * density, 4f * density))
         for (s in sc.segments) {

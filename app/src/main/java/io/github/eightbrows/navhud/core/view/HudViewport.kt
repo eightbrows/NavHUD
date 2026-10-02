@@ -23,15 +23,16 @@ data class HudViewport(
         HudSceneBuilder.projection(settings, rect, avoid, rangeM, headingDeg, metrics)
 
     override fun fits(rangeM: Double, target: EN, headingDeg: Double?, settings: NavSettings): Boolean {
-        val inner = avoid.inset(metrics.edgeInset + metrics.fitMargin)
+        // 上・左・右は回避枠、下は描画の枠の下端（targetFrame）
+        val inner = HudSceneBuilder.targetFrame(rect, reserved).inset(metrics.edgeInset + metrics.fitMargin)
         if (inner.width <= 0f || inner.height <= 0f) return false
         return inner.contains(projection(rangeM, headingDeg, settings).toScreen(target))
     }
 
-    /** 通常の表示で、PAN の中心に置く点（横は描画の枠の中央、縦は避ける枠の中央）が自機から見てどこか。 */
+    /** 通常の表示で、PAN の中心に置く点（回避枠の中央）が自機から見てどこか。 */
     override fun frameCenterOffset(rangeM: Double, headingDeg: Double?, settings: NavSettings): EN {
         val proj = projection(rangeM, headingDeg, settings)
-        val dx = (rect.centerX - proj.origin.x) / proj.pxPerM
+        val dx = (avoid.centerX - proj.origin.x) / proj.pxPerM
         val dy = (avoid.centerY - proj.origin.y) / proj.pxPerM
         return Geo.fromScreen(Screen(right = dx, fwd = -dy), proj.upDeg)
     }
