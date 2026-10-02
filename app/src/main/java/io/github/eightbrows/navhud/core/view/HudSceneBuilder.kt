@@ -72,6 +72,14 @@ object HudSceneBuilder {
             else -> buildCompassCard(proj, rect, range, ringInterval, headingDeg, m, arcs, segments, labels, pointers)
         }
 
+        // 数値の表示・ボタン類の範囲（WP の名前・矢印の文字も重ねない）
+        val keepOut = numberBands.map { Box(P(rect.centerX, (it.start + it.endInclusive) / 2), rect.width / 2, (it.endInclusive - it.start) / 2) } +
+            buttonBoxes.map { Box(P(it.centerX, it.centerY), it.width / 2, it.height / 2) }
+        // North Up: 方位サークルの文字が数値・ボタン類に重なるなら出さない（目盛りの線は描く）
+        if (pan == null && s.displayMode == DisplayMode.NORTH_UP) {
+            labels.removeAll { l -> !l.small && keepOut.any { it.overlaps(labelBox(l, m)) } }
+        }
+
         // 距離環の文字が方位目盛りの文字に重なるなら、距離環の文字を出さない（目盛りを優先）
         val compassBoxes = labels.filter { !it.small }.map { labelBox(it, m) }
         labels.removeAll { l -> l.small && compassBoxes.any { it.overlaps(labelBox(l, m)) } }
@@ -86,8 +94,7 @@ object HudSceneBuilder {
         }
         val (wpMarks, arrows) = buildWaypoints(
             state, proj, ref, ownAt, arrowFrame, targetFrame(rect, reserved), rect, m, segments, labels, pointerBoxes, listOfNotNull(markerZone),
-            numberBands.map { Box(P(rect.centerX, (it.start + it.endInclusive) / 2), rect.width / 2, (it.endInclusive - it.start) / 2) } +
-                buttonBoxes.map { Box(P(it.centerX, it.centerY), it.width / 2, it.height / 2) },
+            keepOut,
         )
 
         val scene = HudScene(
@@ -108,8 +115,8 @@ object HudSceneBuilder {
      * 地図 → 画面の変換。表示モードと ARC の自機の位置（設定）で決まる。AUTO 縮尺の判定（HudViewport）も同じものを使う。
      * ARC: 自機は描画の枠（画面）の横の中央、高さは回避枠の下端（WP ボタン列の上端）から標準 / 高め。
      *   基準の距離環が描画の枠（画面）の左右端に接する。方位がなければ北を上にする。
-     * North Up: 自機は、横は描画の枠（画面）の中央、縦は回避枠の中央。方位サークル（縮尺の距離環）の半径は
-     *   min(画面の幅の半分, 回避枠の高さの半分) − 余白。右の操作列と重なってよい。
+     * North Up: 自機は、横は描画の枠（画面）の中央、縦は回避枠の中央。縮尺の距離環の半径は
+     *   min(画面の幅の半分, 回避枠の高さの半分) − 余白。右の操作列と重なってよい（方位サークルはその1つ外側の距離環）。
      * PAN: 縮尺は同じで、PAN の中心を（横は画面の中央、縦は回避枠の中央）に置き、上を PAN の向きにする。
      * @param rect 描画の枠（地図の Canvas 全体）
      * @param avoid 回避枠（avoidFrame）
@@ -240,15 +247,16 @@ object HudSceneBuilder {
                 )
             }
         }
-        // ラバーライン（機首方位 = 画面の上）と、回避枠の上端の三角マーカー（自機の真上）
+        // ラバーライン（機首方位 = 画面の上。描画の枠の上端まで）と、回避枠の上端の三角マーカー（自機の真上）
         val pointerTip = P(o.x, frame.top + m.tickMajor + m.labelGap * 2 + 4)
-        if (hasHeading) segments += Segment(o, pointerTip, Ink.OWNSHIP)
+        if (hasHeading) segments += Segment(o, P(o.x, rect.top), Ink.OWNSHIP)
         pointers += Pointer(pointerTip, 0f, m.pointerSize, Ink.OWNSHIP)
     }
 
     /**
-     * North Up: 全周の距離環、方位サークル（縮尺の距離環）の内側の目盛りと文字（円から内側へ 長い目盛り・短い目盛り・文字の順）、
-     * 30° ごとの方位線、サークルの縁までのラバーラインと機首方位の三角。
+     * North Up: 全周の距離環、方位サークル（縮尺の距離環の1つ外側の距離環）の内側の目盛りと文字（円から内側へ 長い目盛り・
+     * 短い目盛り・文字の順。画面からはみ出した分は切れる）、30° ごとの方位線、描画の枠の端までのラバーライン、
+     * 縮尺の距離環の上の機首方位の三角。
      */
     private fun buildCompassCard(
         proj: HudProjection,
@@ -264,24 +272,26 @@ object HudSceneBuilder {
     ) {
         val o = proj.origin
         val outer = (rangeM * proj.pxPerM).toFloat()
+        // 方位サークル: 縮尺の距離環の1つ外側の距離環（AUTO の判定は縮尺の距離環のまま）
+        val card = ((rangeM + ringIntervalM) * proj.pxPerM).toFloat()
         // 最外周（縮尺）より外も、描画の枠の四隅に届くまで同じ間隔で描き足す
         addRings(proj, ringIntervalM, maxOf(outer + 0.5f, farthestCornerPx(o, rect)).toDouble(), 0f, 360f, -45.0, m.ringLabelOffset, arcs, labels)
 
         for (b in 0 until 360 step 10) {
             val a = b.toDouble()
             val major = b % 30 == 0
-            // 目盛りと文字はサークルの内側（サークルが画面の端まで来ても切れない）
-            val p0 = HudGeometry.pointAt(o, a, outer)
-            val p1 = HudGeometry.pointAt(o, a, outer - if (major) m.tickMajor else m.tickMinor)
+            // 目盛りと文字はサークルの内側
+            val p0 = HudGeometry.pointAt(o, a, card)
+            val p1 = HudGeometry.pointAt(o, a, card - if (major) m.tickMajor else m.tickMinor)
             segments += Segment(p0, p1, Ink.SCALE)
             if (major) {
                 segments += Segment(o, p1, Ink.BEARING_LINE)
-                labels += Label(HudFormat.compassLabel(b), HudGeometry.pointAt(o, a, outer - m.tickMajor - m.labelGap), Ink.SCALE)
+                labels += Label(HudFormat.compassLabel(b), HudGeometry.pointAt(o, a, card - m.tickMajor - m.labelGap), Ink.SCALE)
             }
         }
         if (headingDeg != null) {
-            // ラバーラインと機首方位の三角はサークルの縁まで
-            segments += Segment(o, HudGeometry.pointAt(o, headingDeg, outer), Ink.OWNSHIP)
+            // ラバーラインは描画の枠の端まで。機首方位の三角は縮尺の距離環の上（位置は前のまま）
+            segments += Segment(o, HudGeometry.rayToRect(o, headingDeg, rect), Ink.OWNSHIP)
             pointers += Pointer(HudGeometry.pointAt(o, headingDeg, outer), headingDeg.toFloat(), m.pointerSize, Ink.OWNSHIP)
         }
     }

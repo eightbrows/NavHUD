@@ -185,32 +185,33 @@ class HudSceneBuilderTest {
     }
 
     @Test
-    fun northUpCompassCardInsideOuterRing() {
+    fun northUpCompassCardOnTheRingOutsideTheScale() {
         val scene = build(state(headingDeg = 45f, mode = DisplayMode.NORTH_UP))
         val o = P(360f, 450f)
         assertEquals(o, scene.ownShip!!.at)
         assertEquals(45f, scene.ownShip!!.angleDeg)
-        // 方位サークル（縮尺）の半径 = min(画面の幅の半分 360, 高さの半分 450) − 余白
+        // 縮尺の距離環の半径 = min(画面の幅の半分 360, 高さの半分 450) − 余白。方位サークルはその1つ外側（3km = 528 px）
         val outer = 360f - m.northUpEdgeMargin
-        // 全周の距離環（1km, 2km）。方位サークル（縮尺 2km = 352 px）の外も、描画の枠の四隅（576 px）に届くまで同じ間隔で描く（3km）
+        val card = outer * 1.5f
+        // 全周の距離環（1km, 2km）。縮尺（2km = 352 px）の外も、描画の枠の四隅（576 px）に届くまで同じ間隔で描く（3km）
         assertEquals(3, scene.arcs.size)
         assertTrue(scene.arcs.all { it.sweepDeg == 360f })
         assertTrue(scene.arcs.any { abs(it.radius - outer) < 1e-3f })
         assertEquals(outer * 1.5f, scene.arcs.maxOf { it.radius }, 1e-3f)
-        // 目盛りは 36 本、すべてサークルの内側（円から内側へ 長い目盛り 16 / 短い目盛り 8）
+        // 目盛りは 36 本、すべて方位サークルの内側（円から内側へ 長い目盛り 16 / 短い目盛り 8）。画面からはみ出す分は切れてよい
         val ticks = scene.segments.filter { it.ink == Ink.SCALE }
         assertEquals(36, ticks.size)
         for (t in ticks) {
-            assertEquals(outer, hypot(t.a.x - o.x, t.a.y - o.y), 1e-2f)
-            assertTrue(hypot(t.b.x - o.x, t.b.y - o.y) in (outer - m.tickMajor - 1e-2f)..(outer - m.tickMinor + 1e-2f))
+            assertEquals(card, hypot(t.a.x - o.x, t.a.y - o.y), 1e-2f)
+            assertTrue(hypot(t.b.x - o.x, t.b.y - o.y) in (card - m.tickMajor - 1e-2f)..(card - m.tickMinor + 1e-2f))
         }
-        // N は真上、長い目盛りの内側
+        // N は真上、長い目盛りの内側（y = 450 − 528 + 28 = −50 で画面の外）
         val n = scene.labels.single { it.text == "N" }
         assertEquals(360f, n.at.x, 1e-3f)
-        assertEquals(450f - outer + m.tickMajor + m.labelGap, n.at.y, 1e-2f)
-        // ラバーラインと機首方位の三角はサークルの縁まで
+        assertEquals(450f - card + m.tickMajor + m.labelGap, n.at.y, 1e-2f)
+        // ラバーラインは描画の枠の端まで（機首 045 → 右端 (720, 90)）。機首方位の三角は縮尺の距離環の上のまま
         val rubber = scene.segments.single { it.ink == Ink.OWNSHIP }
-        assertEquals(outer, hypot(rubber.b.x - o.x, rubber.b.y - o.y), 1e-2f)
+        assertP(P(720f, 90f), rubber.b, 1e-2f)
         assertEquals(outer, hypot(scene.pointers.single().tip.x - o.x, scene.pointers.single().tip.y - o.y), 1e-2f)
     }
 

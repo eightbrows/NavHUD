@@ -37,6 +37,10 @@ class SettingsCodecTest {
             panReturnSec = 30,
             autoOpenLastList = true,
             keepScreenOn = false,
+            buttonOpacityPct = 40,
+            numbersOpacityPct = 60,
+            autoMinRangeKm = 0.2,
+            autoMaxRangeKm = 5.0,
         )
         val d = NavSettings()
         // 念のため、ほんとうに全項目が既定値と違うことを確かめる（項目を足したらここも足す）
@@ -44,6 +48,38 @@ class SettingsCodecTest {
         SettingsCodec.encode(d).forEach { (k, v) -> assert(SettingsCodec.encode(s)[k] != v) { "既定値と同じ: $k" } }
 
         assertEquals(s, SettingsCodec.decode(SettingsCodec.encode(s)))
+    }
+
+    @Test
+    fun autoLimitsDefaultsAndInvalidValues() {
+        // 既定: 下限 100m の段（R1 50m）、上限 1km の段（R1 500m）
+        assertEquals(0.1, NavSettings().autoMinRangeKm, 0.0)
+        assertEquals(1.0, NavSettings().autoMaxRangeKm, 0.0)
+        // 段の一覧にない値・読めない値は既定値
+        val s = SettingsCodec.decode(mapOf("autoMinRangeKm" to "0.3", "autoMaxRangeKm" to "x"))
+        assertEquals(0.1, s.autoMinRangeKm, 0.0)
+        assertEquals(1.0, s.autoMaxRangeKm, 0.0)
+        assertEquals(0.05, SettingsCodec.decode(mapOf("autoMinRangeKm" to "0.05")).autoMinRangeKm, 0.0)
+    }
+
+    @Test
+    fun opacityDefaultsAndInvalidValues() {
+        // 既定: ボタン 70%、数値 100%（Tuning.kt）
+        val d = NavSettings()
+        assertEquals(70, d.buttonOpacityPct)
+        assertEquals(100, d.numbersOpacityPct)
+        assertEquals(listOf(20, 30, 40, 50, 60, 70, 80, 90, 100), NavSettings.OPACITY_CHOICES_PCT)
+        // 20〜100 の 10 刻みなら読む
+        val ok = SettingsCodec.decode(mapOf("buttonOpacityPct" to "20", "numbersOpacityPct" to "50"))
+        assertEquals(20, ok.buttonOpacityPct)
+        assertEquals(50, ok.numbersOpacityPct)
+        // 範囲外・刻みに合わない・読めない値は、その項目だけ既定値
+        for (bad in listOf("10", "110", "35", "x", "")) {
+            val s = SettingsCodec.decode(mapOf("buttonOpacityPct" to bad, "numbersOpacityPct" to bad, "rateWindowSec" to "30"))
+            assertEquals(70, s.buttonOpacityPct)
+            assertEquals(100, s.numbersOpacityPct)
+            assertEquals(30, s.rateWindowSec)
+        }
     }
 
     @Test

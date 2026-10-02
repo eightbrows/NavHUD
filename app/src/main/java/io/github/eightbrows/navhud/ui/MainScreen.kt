@@ -37,7 +37,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
@@ -217,9 +219,6 @@ private val SidePanExtra = SideButtonGap + SideButtonSize
 /** 再生の帯（再生 / 一時停止・倍速・シーク）の高さ */
 private val ReplayBandHeight = Tuning.REPLAY_BAND_HEIGHT_DP.dp
 
-/** 地図に重ねる部品の背景（半透明の黒。下の距離環・方位線が透けて見える） */
-private val OverlayBackground get() = HudColors.Background.copy(alpha = Tuning.OVERLAY_ALPHA)
-
 /** 横並びの WP ボタン列の高さ */
 private val WpStripHeight = Tuning.WP_STRIP_HEIGHT_DP.dp
 private val WpSettingsWidth = Tuning.WP_SETTINGS_WIDTH_DP.dp
@@ -253,8 +252,10 @@ private fun ReplayBand(
     val end = replay.endMs
     var dragging by remember { mutableStateOf<Float?>(null) }
     val buttonH = Tuning.REPLAY_BAND_BUTTON_HEIGHT_DP.dp
+    // ボタンの不透明度（設定）。帯の文字とスライダーも同じ
+    val a = state.settings.buttonOpacityPct / 100f
     Row(
-        modifier.background(OverlayBackground).padding(horizontal = 6.dp),
+        modifier.padding(horizontal = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -265,13 +266,13 @@ private fun ReplayBand(
         }
         SideButton(
             play, onTogglePlay, enabled = replay.ready && !replay.finished,
-            height = buttonH, width = Tuning.REPLAY_PLAY_BUTTON_WIDTH_DP.dp, fontSize = 14.sp,
+            height = buttonH, width = Tuning.REPLAY_PLAY_BUTTON_WIDTH_DP.dp, fontSize = 14.sp, alpha = a,
         )
         // 倍速: − で1段遅く、＋ で1段速く。×N は表示だけ
         val speedW = Tuning.REPLAY_SPEED_BUTTON_WIDTH_DP.dp
-        SideButton("−", onSlower, enabled = ReplaySpeed.slower(replay.speed) != null, height = buttonH, width = speedW, fontSize = 16.sp)
-        Text("×${replay.speed}", style = Value.copy(fontSize = 14.sp), maxLines = 1)
-        SideButton("＋", onFaster, enabled = ReplaySpeed.faster(replay.speed) != null, height = buttonH, width = speedW, fontSize = 16.sp)
+        SideButton("−", onSlower, enabled = ReplaySpeed.slower(replay.speed) != null, height = buttonH, width = speedW, fontSize = 16.sp, alpha = a)
+        OutlinedText(AnnotatedString("×${replay.speed}"), Value.copy(fontSize = 14.sp), Modifier.alpha(a))
+        SideButton("＋", onFaster, enabled = ReplaySpeed.faster(replay.speed) != null, height = buttonH, width = speedW, fontSize = 16.sp, alpha = a)
         if (start != null && end != null && end > start) {
             val now = (state.nowMs ?: start).coerceIn(start, end)
             val frac = dragging ?: ((now - start).toFloat() / (end - start))
@@ -282,7 +283,7 @@ private fun ReplayBand(
                     dragging?.let { onSeek(start + ((end - start) * it).toLong()) }
                     dragging = null
                 },
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).alpha(a),
                 colors = SliderDefaults.colors(
                     thumbColor = HudColors.Scale,
                     activeTrackColor = HudColors.Scale,
@@ -291,7 +292,7 @@ private fun ReplayBand(
             )
             val label = dragging?.let { HudFormat.time(start + ((end - start) * it).toLong(), zone) }
                 ?: "${HudFormat.elapsed(now - start)} / ${HudFormat.elapsed(end - start)}"
-            Text(label, style = Caption.copy(fontSize = 12.sp), maxLines = 1)
+            OutlinedText(AnnotatedString(label), Caption.copy(fontSize = 12.sp), Modifier.alpha(a))
         } else {
             Spacer(Modifier.weight(1f))
         }
@@ -299,8 +300,8 @@ private fun ReplayBand(
 }
 
 /**
- * 右の操作列（回避枠の縦中央）。頻繁に押すので大きめ（52dp 角）。上から ＋ / 縮尺の表示（タップで AUTO の ON / OFF）/ −。
- * PAN 中は縮尺の表示が「PAN」になり、− のすぐ下に「現在地」（現在地の表示に戻る）。
+ * 右の操作列（回避枠の縦中央）。頻繁に押すので大きめ（52dp 角）。上から −（広く）/ 縮尺の表示（自機から1つ目の距離環の距離。
+ * タップで AUTO の ON / OFF）/ ＋（狭く）。PAN 中は縮尺の表示が「PAN」になり、一番下（＋ のすぐ下）に「現在地」（現在地の表示に戻る）。
  */
 @Composable
 private fun SideColumn(
@@ -312,24 +313,26 @@ private fun SideColumn(
     modifier: Modifier = Modifier,
 ) {
     Column(
-        modifier.width(SideColumnWidth).background(OverlayBackground).padding(vertical = SidePaddingV),
+        modifier.width(SideColumnWidth).padding(vertical = SidePaddingV),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(SideButtonGap),
     ) {
-        SideButton("＋", onZoomIn, fontSize = 22.sp)
+        val a = state.settings.buttonOpacityPct / 100f
+        SideButton("−", onZoomOut, fontSize = 22.sp, alpha = a)
         val top = when {
             state.pan != null -> "PAN"
             state.rangeAuto -> "AUTO"
             else -> "RNG"
         }
         SideButton(
-            "$top\n${HudFormat.rangeStep(state.rangeM)}",
+            "$top\n${HudFormat.rangeLabel(state.rangeM)}",
             onToggleAutoRange,
             inverted = state.rangeAuto && state.pan == null,
             color = if (state.pan != null) HudColors.Caution else HudColors.Scale,
+            alpha = a,
         )
-        SideButton("−", onZoomOut, fontSize = 22.sp)
-        if (state.pan != null) SideButton("現在地", onEndPan, color = HudColors.Caution, inverted = true)
+        SideButton("＋", onZoomIn, fontSize = 22.sp, alpha = a)
+        if (state.pan != null) SideButton("現在地", onEndPan, color = HudColors.Caution, inverted = true, alpha = a)
     }
 }
 
@@ -343,6 +346,8 @@ private fun SideButton(
     height: Dp = SideButtonSize,
     width: Dp = SideButtonSize,
     fontSize: TextUnit = 12.sp,
+    /** ボタンの不透明度（設定）。押せないとき（グレー）も同じ */
+    alpha: Float = 1f,
 ) {
     val c = if (enabled) color else HudColors.WpReached
     val shape = RoundedCornerShape(6.dp)
@@ -350,17 +355,47 @@ private fun SideButton(
         Modifier
             .width(width)
             .height(height)
-            .border(1.dp, c, shape)
-            .background(if (inverted) c else OverlayBackground, shape)
+            .overlayButton(c, inverted, alpha, shape)
             .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text,
-            style = ButtonText.copy(color = if (inverted) HudColors.Background else c, fontSize = fontSize, lineHeight = fontSize * 1.15f),
-            textAlign = TextAlign.Center,
-            maxLines = 2,
+        val style = ButtonText.copy(fontSize = fontSize, lineHeight = fontSize * 1.15f)
+        OverlayButtonText(text, c, inverted, alpha, style, maxLines = 2, textAlign = TextAlign.Center)
+    }
+}
+
+/**
+ * 地図に重ねるボタンの枠と塗り（§6.1）。背景は塗らず枠だけ。ON（反転）は塗るが、塗りの不透明度は
+ * ボタンの不透明度 × Tuning.BUTTON_ON_FILL_ALPHA（裏の地図の線が透けて見える）。枠もボタンの不透明度で薄くする。
+ */
+private fun Modifier.overlayButton(color: Color, inverted: Boolean, alpha: Float, shape: Shape): Modifier =
+    border(1.dp, color.copy(alpha = color.alpha * alpha), shape)
+        .then(
+            if (inverted) background(color.copy(alpha = color.alpha * alpha * Tuning.BUTTON_ON_FILL_ALPHA), shape) else Modifier,
         )
+
+/**
+ * 地図に重ねるボタンの文字。ふだんは黒の縁取りを付けた文字。ON（反転）は黒の文字に、塗りが薄くても読めるよう
+ * ボタンの色の細い縁取り（Tuning.BUTTON_ON_TEXT_OUTLINE_DP）。全体をボタンの不透明度で薄くする。
+ */
+@Composable
+private fun OverlayButtonText(
+    text: String,
+    color: Color,
+    inverted: Boolean,
+    alpha: Float,
+    style: TextStyle,
+    maxLines: Int = 1,
+    textAlign: TextAlign? = null,
+) {
+    val m = Modifier.alpha(alpha)
+    if (inverted) {
+        OutlinedText(
+            AnnotatedString(text), style.copy(color = HudColors.Background), m, maxLines, textAlign,
+            outlineColor = color, outlineWidth = Tuning.BUTTON_ON_TEXT_OUTLINE_DP.dp,
+        )
+    } else {
+        OutlinedText(AnnotatedString(text), style.copy(color = color), m, maxLines, textAlign)
     }
 }
 
@@ -381,7 +416,6 @@ private fun WpStrip(
         modifier
             .fillMaxWidth()
             .height(WpStripHeight)
-            .background(OverlayBackground)
             .padding(horizontal = 6.dp, vertical = Tuning.WP_STRIP_PADDING_V_DP.dp),
     ) {
         val visible = state.settings.wpButtonsMax.coerceAtLeast(1)
@@ -397,8 +431,9 @@ private fun WpStrip(
             val first = WpStripLayout.firstIndex(next) ?: return@LaunchedEffect
             scroll.animateScrollTo((first * stepPx).toInt().coerceIn(0, scroll.maxValue))
         }
+        val a = state.settings.buttonOpacityPct / 100f
         Row(horizontalArrangement = Arrangement.spacedBy(WpButtonGap)) {
-            WpStripButton("WP設定", WpSettingsWidth, HudColors.Scale, inverted = false, enabled = true, onTap = onOpenSettings)
+            WpStripButton("WP設定", WpSettingsWidth, HudColors.Scale, inverted = false, enabled = true, alpha = a, onTap = onOpenSettings)
             Row(
                 Modifier.width(listWidth).horizontalScroll(scroll),
                 horizontalArrangement = Arrangement.spacedBy(WpButtonGap),
@@ -413,6 +448,7 @@ private fun WpStrip(
                         wp.name, itemWidth, color,
                         inverted = wp.reached && wp.enabled,
                         enabled = wp.enabled,
+                        alpha = a,
                         onTap = { onToggleReached(i) },
                         onLongPress = { onPanTo(i) },
                     )
@@ -432,6 +468,8 @@ private fun WpStripButton(
     color: Color,
     inverted: Boolean,
     enabled: Boolean,
+    /** ボタンの不透明度（設定） */
+    alpha: Float,
     onTap: () -> Unit,
     onLongPress: (() -> Unit)? = null,
 ) {
@@ -440,8 +478,7 @@ private fun WpStripButton(
         Modifier
             .width(width)
             .fillMaxHeight()
-            .border(1.dp, color, shape)
-            .background(if (inverted) color else HudColors.Background, shape)
+            .overlayButton(color, inverted, alpha, shape)
             .pointerInput(enabled, onTap, onLongPress) {
                 detectTapGestures(
                     onTap = { if (enabled) onTap() },
@@ -451,12 +488,7 @@ private fun WpStripButton(
             .padding(horizontal = 4.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text,
-            style = ButtonText.copy(color = if (inverted) HudColors.Background else color, fontSize = 12.sp),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        OverlayButtonText(text, color, inverted, alpha, ButtonText.copy(fontSize = 12.sp))
     }
 }
 
@@ -481,18 +513,20 @@ private fun TopBar(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        // ボタンの不透明度（設定）
+        val a = state.settings.buttonOpacityPct / 100f
         // 方位ソースの選択（HYBRID / GPS / COMPASS）
-        HudButton("HDG ${state.sourceMode.name}", onCycleSource)
+        HudButton("HDG ${state.sourceMode.name}", onCycleSource, overlayAlpha = a)
         // WP ボタン列の表示/非表示（出ているときは反転）
-        HudButton("WP", onToggleWpButtons, inverted = showWpButtons)
+        HudButton("WP", onToggleWpButtons, inverted = showWpButtons, overlayAlpha = a)
         // INPUT（タップで LIVE ⇔ REPLAY）
-        HudButton("⇄ " + if (state.sourceKind == SourceKind.LIVE) "LIVE" else "REPLAY", onToggleSourceKind, small = true)
+        HudButton("⇄ " + if (state.sourceKind == SourceKind.LIVE) "LIVE" else "REPLAY", onToggleSourceKind, small = true, overlayAlpha = a)
         // track.csv を選ぶ（REPLAY のときだけ）
-        if (showReplay) HudButton("FILE", onPickTrack, small = true)
+        if (showReplay) HudButton("FILE", onPickTrack, small = true, overlayAlpha = a)
         Spacer(Modifier.weight(1f))
-        HudButton(if (state.settings.displayMode == DisplayMode.ARC) "ARC" else "N-UP", onToggleDisplay)
+        HudButton(if (state.settings.displayMode == DisplayMode.ARC) "ARC" else "N-UP", onToggleDisplay, overlayAlpha = a)
         // 設定画面。長押しで開発用画面
-        HudButton("⚙", onOpenSettings, onLongClick = onOpenDebug)
+        HudButton("⚙", onOpenSettings, onLongClick = onOpenDebug, overlayAlpha = a)
     }
 }
 
@@ -512,7 +546,7 @@ private fun compassMarks(state: NavState): String {
 
 /** HDG 欄: 値の横に実際のソース（小さく）と、コンパスの印（黄色）。 */
 @Composable
-private fun RowScope.HeadingCell(state: NavState, valueColor: Color, weight: Float) {
+private fun RowScope.HeadingCell(state: NavState, valueColor: Color, weight: Float, alpha: Float) {
     val src = headingSourceLabel(state)
     val marks = compassMarks(state)
     val small = SpanStyle(fontSize = 11.sp)
@@ -528,6 +562,8 @@ private fun RowScope.HeadingCell(state: NavState, valueColor: Color, weight: Flo
         },
         valueColor,
         weight,
+        // コンパスの印（CAL / MAG）は警告なので、出ているときはセルごと 100%
+        modifier = Modifier.alpha(if (marks.isNotEmpty()) 1f else alpha),
     )
 }
 
@@ -535,6 +571,7 @@ private fun RowScope.HeadingCell(state: NavState, valueColor: Color, weight: Flo
  * 数値の表示（上部バーの下、4行）。見出しは値の左に小さく並べる。箱なしで、文字に黒の縁取り。
  * 1行目: TIME / ALT / RATE（タップで窓の切替）、2行目: HDG / GS / ETA、
  * 3行目: NEXT（名前は入りきらなければ …。方位と距離は必ず出す）/ TGT / DDL、4行目: LAT/LON。
+ * 不透明度は設定（numbersOpacityPct）。警告の表示（締切超過の DDL、CAL / MAG の付いた HDG）は常に 100%。
  */
 @Composable
 private fun NumbersPanel(state: NavState, zone: ZoneId, valueColor: Color, onCycleRate: () -> Unit) {
@@ -547,6 +584,7 @@ private fun NumbersPanel(state: NavState, zone: ZoneId, valueColor: Color, onCyc
         else -> valueColor
     }
     val nextColor = if (next != null && !state.noFix) HudColors.Active else valueColor
+    val n = Modifier.alpha(state.settings.numbersOpacityPct / 100f)
     Column(
         Modifier
             .fillMaxWidth()
@@ -554,28 +592,32 @@ private fun NumbersPanel(state: NavState, zone: ZoneId, valueColor: Color, onCyc
         verticalArrangement = Arrangement.spacedBy(Tuning.NUMBERS_ROW_GAP_DP.dp),
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            InlineCell("TIME", AnnotatedString(HudFormat.time(state.nowMs, zone)), HudColors.Scale, 1f)
-            InlineCell("ALT", AnnotatedString(HudFormat.altitude(state.altM)), valueColor, 0.85f)
+            InlineCell("TIME", AnnotatedString(HudFormat.time(state.nowMs, zone)), HudColors.Scale, 1f, modifier = n)
+            InlineCell("ALT", AnnotatedString(HudFormat.altitude(state.altM)), valueColor, 0.85f, modifier = n)
             InlineCell(
                 "RATE ${state.settings.rateWindowSec}s",
                 AnnotatedString(HudFormat.rate(state.rate)),
                 valueColor,
                 1.55f,
-                modifier = Modifier.clickable(onClick = onCycleRate),
+                modifier = Modifier.clickable(onClick = onCycleRate).then(n),
             )
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            HeadingCell(state, valueColor, weight = 1.25f)
-            InlineCell("GS", AnnotatedString(HudFormat.speedKmh(state.groundSpeedMps)), valueColor, 1f)
-            InlineCell("ETA", AnnotatedString(HudFormat.time(state.etaMs, zone)), valueColor, 1.15f)
+            HeadingCell(state, valueColor, weight = 1.25f, alpha = state.settings.numbersOpacityPct / 100f)
+            InlineCell("GS", AnnotatedString(HudFormat.speedKmh(state.groundSpeedMps)), valueColor, 1f, modifier = n)
+            InlineCell("ETA", AnnotatedString(HudFormat.time(state.etaMs, zone)), valueColor, 1.15f, modifier = n)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            InlineCell("NEXT", AnnotatedString(nextText(state)), nextColor, 1.9f, name = next?.name)
-            InlineCell("TGT", AnnotatedString(HudFormat.countdown(state.targetCountdownSec)), valueColor, 1f)
-            InlineCell("DDL", AnnotatedString(HudFormat.countdown(deadline)), deadlineColor, 1f)
+            InlineCell("NEXT", AnnotatedString(nextText(state)), nextColor, 1.9f, name = next?.name, modifier = n)
+            InlineCell("TGT", AnnotatedString(HudFormat.countdown(state.targetCountdownSec)), valueColor, 1f, modifier = n)
+            // 締切を過ぎたら警告なので 100%
+            InlineCell(
+                "DDL", AnnotatedString(HudFormat.countdown(deadline)), deadlineColor, 1f,
+                modifier = if (deadline != null && deadline < 0) Modifier else n,
+            )
         }
         Row {
-            InlineCell("LAT/LON", AnnotatedString(HudFormat.latLon(fix?.lat, fix?.lon)), valueColor, 1f)
+            InlineCell("LAT/LON", AnnotatedString(HudFormat.latLon(fix?.lat, fix?.lon)), valueColor, 1f, modifier = n)
         }
     }
 }
@@ -612,13 +654,21 @@ private fun RowScope.InlineCell(
 }
 
 /**
- * 数値の表示（上部バーの下の4行）の文字。地図の上に箱なしで重ねるので、黒の縁取りを下に描いて線や環の上でも読めるようにする。
+ * 数値の表示（上部バーの下の4行）とボタンの文字。地図の上に箱なしで重ねるので、黒の縁取りを下に描いて線や環の上でも読めるようにする。
  * 縁取りの太さは Tuning.TEXT_OUTLINE_DP。入りきらなければ … で省く。
  */
 @Composable
-private fun OutlinedText(text: AnnotatedString, style: TextStyle, modifier: Modifier = Modifier) {
-    val w = with(LocalDensity.current) { Tuning.TEXT_OUTLINE_DP.dp.toPx() }
-    // 縁取りの層は文字の色を指定しない（部分ごとの色も外して黒にする）
+private fun OutlinedText(
+    text: AnnotatedString,
+    style: TextStyle,
+    modifier: Modifier = Modifier,
+    maxLines: Int = 1,
+    textAlign: TextAlign? = null,
+    outlineColor: Color = Color.Black,
+    outlineWidth: Dp = Tuning.TEXT_OUTLINE_DP.dp,
+) {
+    val w = with(LocalDensity.current) { outlineWidth.toPx() }
+    // 縁取りの層は文字の色を指定しない（部分ごとの色も外して縁取りの色にする）
     val plain = AnnotatedString(
         text.text,
         text.spanStyles.map { AnnotatedString.Range(it.item.copy(color = Color.Unspecified), it.start, it.end) },
@@ -626,11 +676,12 @@ private fun OutlinedText(text: AnnotatedString, style: TextStyle, modifier: Modi
     Box(modifier) {
         Text(
             plain,
-            style = style.copy(color = Color.Black, drawStyle = Stroke(width = w, join = StrokeJoin.Round)),
-            maxLines = 1,
+            style = style.copy(color = outlineColor, drawStyle = Stroke(width = w, join = StrokeJoin.Round)),
+            maxLines = maxLines,
+            textAlign = textAlign,
             overflow = TextOverflow.Ellipsis,
         )
-        Text(text, style = style, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(text, style = style, maxLines = maxLines, overflow = TextOverflow.Ellipsis, textAlign = textAlign)
     }
 }
 @Composable
@@ -709,18 +760,31 @@ internal fun HudButton(
     inverted: Boolean = false,
     fill: Boolean = false,
     onLongClick: (() -> Unit)? = null,
+    /** 地図に重ねるボタン（上部バー）ならボタンの不透明度（設定）。null は設定画面などのボタン（不透明度は変えない） */
+    overlayAlpha: Float? = null,
 ) {
     val color = if (enabled) HudColors.Scale else HudColors.WpReached
+    val shape = RoundedCornerShape(4.dp)
     Box(
         (if (fill) Modifier.fillMaxWidth() else Modifier)
-            .border(1.dp, color, RoundedCornerShape(4.dp))
-            // 半透明の地（地図の上に重ねるため。設定画面など黒い画面では黒に見える）
-            .background(if (inverted) color else OverlayBackground, RoundedCornerShape(4.dp))
+            .then(
+                if (overlayAlpha != null) {
+                    Modifier.overlayButton(color, inverted, overlayAlpha, shape)
+                } else {
+                    // 背景は塗らない。状態を示す反転のときだけ塗る
+                    Modifier.border(1.dp, color, shape).then(if (inverted) Modifier.background(color, shape) else Modifier)
+                },
+            )
             .combinedClickable(enabled = enabled, onClick = onClick, onLongClick = onLongClick)
             .padding(horizontal = if (small) 8.dp else 10.dp, vertical = if (small) 3.dp else 5.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(text, style = ButtonText.copy(color = if (inverted) HudColors.Background else color, fontSize = if (small) 12.sp else 13.sp))
+        val style = ButtonText.copy(fontSize = if (small) 12.sp else 13.sp)
+        when {
+            overlayAlpha != null -> OverlayButtonText(text, color, inverted, overlayAlpha, style)
+            inverted -> Text(text, style = style.copy(color = HudColors.Background))
+            else -> OutlinedText(AnnotatedString(text), style.copy(color = color))
+        }
     }
 }
 

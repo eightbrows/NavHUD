@@ -6,26 +6,31 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+/**
+ * AUTO 縮尺の規則（§6.1）。画面の代わりに、距離で答える RangeProbe を使う:
+ * 次の WP が distM 先にあり、段 r で「distM × spread ≤ r」なら収まる。sepMaxM 以下の段でだけ WP を区別できる。
+ * 段は 50m〜5km、AUTO の下限・上限は既定（100m〜1km の段 = R1 50m〜500m）。
+ */
 class RangeSelectorTest {
 
+    private val stepsKm = listOf(0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0)
     private val stepsM = listOf(500.0, 1_000.0, 2_000.0, 5_000.0, 10_000.0)
+
+    private fun probe(distM: Double, sepMaxM: Double = Double.MAX_VALUE) = object : RangeProbe {
+        override fun fits(rangeM: Double, spread: Double) = distM * spread <= rangeM
+        override fun separated(rangeM: Double) = rangeM <= sepMaxM
+    }
+
+    private fun selector(initialKm: Double) = RangeSelector(stepsKm, initialKm, auto = true)
 
     @Test
     fun desiredIsSmallestStepThatFits() {
-        // 縮尺 × 0.9 以内に収まる最小の段
+        // 距離だけの判定（画面が分からないとき）: 縮尺 × 0.9 以内に収まる最小の段
         assertEquals(500.0, RangeAuto.desired(stepsM, 450.0, null)!!, 0.0)
         assertEquals(1_000.0, RangeAuto.desired(stepsM, 451.0, null)!!, 0.0)
-        assertEquals(1_000.0, RangeAuto.desired(stepsM, 900.0, 10f)!!, 0.0)
-        assertEquals(2_000.0, RangeAuto.desired(stepsM, 901.0, 10f)!!, 0.0)
-        assertEquals(5_000.0, RangeAuto.desired(stepsM, 3_900.0, 10f)!!, 0.0)
-        // 最大の段より遠ければ最大の段
         assertEquals(10_000.0, RangeAuto.desired(stepsM, 50_000.0, 10f)!!, 0.0)
-        // 次の WP がなければ判定しない
         assertNull(RangeAuto.desired(stepsM, null, 10f))
-    }
-
-    @Test
-    fun speedIsAcceptedButNotUsedYet() {
+        // 対地速度は受け取るが使わない
         assertEquals(RangeAuto.desired(stepsM, 700.0, 0f), RangeAuto.desired(stepsM, 700.0, 40f))
     }
 
@@ -37,80 +42,158 @@ class RangeSelectorTest {
     }
 
     @Test
-    fun zoomOutIsImmediateZoomInWaitsFiveSeconds() {
-        val r = RangeSelector(listOf(0.5, 1.0, 2.0, 5.0, 10.0), 1.0, auto = true)
-        // 遠くなった → すぐ広げる
-        assertEquals(5_000.0, r.update(3_900.0, 10f, 0), 0.0)
-        // 近くなった → 5 秒続くまで狭めない
-        assertEquals(5_000.0, r.update(400.0, 10f, 1_000), 0.0)
-        assertEquals(5_000.0, r.update(400.0, 10f, 5_999), 0.0)
-        assertEquals(500.0, r.update(400.0, 10f, 6_000), 0.0)
+    fun limitsAreSnappedToTheUsedSteps() {
+        // 既定: 下限 100m の段（R1 50m）、上限 1km の段（R1 500m）
+        assertEquals(0.1 to 1.0, RangeAuto.limitsKm(NavSettings().rangeStepsKm, 0.1, 1.0))
+        assertEquals(listOf(100.0, 200.0, 500.0, 1_000.0), selector(1.0).autoSteps)
+        // 使う段にない下限・上限は、下限は上の段へ、上限は下の段へ寄せる
+        assertEquals(0.2 to 0.5, RangeAuto.limitsKm(listOf(0.2, 0.5, 2.0), 0.1, 1.0))
+        // 寄せる段がなければ使う段の端
+        assertEquals(2.0 to 2.0, RangeAuto.limitsKm(listOf(2.0, 5.0), 0.1, 1.0))
+        // 下限が上限より広ければ、上限にそろえる
+        assertEquals(1.0 to 1.0, RangeAuto.limitsKm(stepsKm, 5.0, 1.0))
+    }
+
+    @Test
+    fun stopsAtTheUpperLimit() {
+        // 次の WP が 50km 先: 上限（1km の段）で止まり、それ以上は広げない（画面の端の矢印で示す）
+        val r = selector(0.1)
+        assertEquals(200.0, r.update(probe(50_000.0), 0), 0.0)
+        assertEquals(500.0, r.update(probe(50_000.0), 1_000), 0.0)
+        assertEquals(1_000.0, r.update(probe(50_000.0), 2_000), 0.0)
+        assertEquals(1_000.0, r.update(probe(50_000.0), 3_000), 0.0)
+        assertEquals(1_000.0, r.update(probe(50_000.0), 60_000), 0.0)
+    }
+
+    @Test
+    fun widensImmediatelyOneStepAtATime() {
+        // 800m 先: 200m の段から、1回に1段ずつすぐ広げる（200 → 500 → 1000）
+        val r = selector(0.2)
+        assertEquals(500.0, r.update(probe(800.0), 0), 0.0)
+        assertEquals(1_000.0, r.update(probe(800.0), 0), 0.0)
+        assertEquals(1_000.0, r.update(probe(800.0), 0), 0.0)
+    }
+
+    @Test
+    fun narrowsOneStepAfterTheWait() {
+        // 100m 先: 1km の段から、1段狭い段（500m）で 1.25 倍遠く（125m）でも収まる状態が 5 秒続いたら1段狭める
+        val r = selector(1.0)
+        assertEquals(1_000.0, r.update(probe(100.0), 0), 0.0)
+        assertEquals(1_000.0, r.update(probe(100.0), 4_999), 0.0)
+        assertEquals(500.0, r.update(probe(100.0), 5_000), 0.0)
+        // 次の1段も、また 5 秒待つ
+        assertEquals(500.0, r.update(probe(100.0), 5_001), 0.0)
+        assertEquals(500.0, r.update(probe(100.0), 10_000), 0.0)
+        assertEquals(200.0, r.update(probe(100.0), 10_001), 0.0)
+        // 100m の段では 125m が収まらないので、200m の段で止まる
+        assertEquals(200.0, r.update(probe(100.0), 60_000), 0.0)
+    }
+
+    @Test
+    fun zoomInNeedsTheMargin() {
+        // 1km の段で 450m 先: 500m の段に 1.25 倍（562.5m）は収まらないので狭めない
+        val r = selector(1.0)
+        for (t in 0..30L) assertEquals(1_000.0, r.update(probe(450.0), t * 1_000), 0.0)
+        // 390m（× 1.25 = 487.5m）なら狭める
+        r.update(probe(390.0), 40_000)
+        assertEquals(500.0, r.update(probe(390.0), 45_000), 0.0)
+    }
+
+    @Test
+    fun neverNarrowerThanTheLowerLimit() {
+        // 10m 先でも、下限（100m の段）より狭めない（50m の段は使う段にあっても使わない）
+        val r = selector(0.2)
+        r.update(probe(10.0), 0)
+        assertEquals(100.0, r.update(probe(10.0), 5_000), 0.0)
+        r.update(probe(10.0), 6_000)
+        assertEquals(100.0, r.update(probe(10.0), 60_000), 0.0)
+    }
+
+    @Test
+    fun narrowsImmediatelyWhenWaypointsAreTooClose() {
+        // 次の WP は 1km の段に収まるが、隣り合う目標を区別できるのは 200m 以下の段だけ: 待たずに1段ずつ狭める
+        val r = selector(1.0)
+        assertEquals(500.0, r.update(probe(300.0, sepMaxM = 200.0), 0), 0.0)
+        assertEquals(200.0, r.update(probe(300.0, sepMaxM = 200.0), 0), 0.0)
+        // 次の WP（300m）は 200m の段に収まらないが、広げると区別できないので広げない（矢印で示す）
+        assertEquals(200.0, r.update(probe(300.0, sepMaxM = 200.0), 1_000), 0.0)
+        assertEquals(200.0, r.update(probe(300.0, sepMaxM = 200.0), 60_000), 0.0)
+        // どの段でも区別できなければ、下限で止まる
+        val s = selector(1.0)
+        repeat(5) { s.update(probe(300.0, sepMaxM = 0.0), 0) }
+        assertEquals(100.0, s.rangeM, 0.0)
+    }
+
+    @Test
+    fun noNextWaypointGoesToTheMiddleStep() {
+        // 下限〜上限は 100m / 200m / 500m / 1km の4段。中央の2つのうち広い方（500m の段、R1 250m）へすぐ
+        assertEquals(500.0, selector(5.0).update(null, 0), 0.0)
+        assertEquals(500.0, selector(0.1).update(null, 0), 0.0)
+        // 3段（上限 500m の段）なら真ん中の 200m の段
+        val three = RangeSelector(stepsKm, 1.0, auto = true, autoMinKm = 0.1, autoMaxKm = 0.5)
+        assertEquals(200.0, three.update(null, 0), 0.0)
+    }
+
+    @Test
+    fun outsideTheLimitsGoesToTheEndAtOnce() {
+        // 5km の段で AUTO: 1段ずつではなく、すぐ上限（1km の段）へ
+        assertEquals(1_000.0, selector(5.0).update(probe(100.0), 0), 0.0)
+        // 50m の段なら、すぐ下限（100m の段）へ
+        assertEquals(100.0, selector(0.05).update(probe(10.0), 0), 0.0)
+        // 設定で上限を変えたときも
+        val r = selector(1.0)
+        r.setAutoLimits(0.1, 0.2)
+        assertEquals(200.0, r.update(probe(100.0), 0), 0.0)
+    }
+
+    @Test
+    fun decideNowGoesToTheTargetAtOnce() {
+        // PAN から戻ったとき・シークのあと: 1段ずつではなく、収まるいちばん狭い段へすぐ（区別できなければさらに狭める）
+        val r = selector(0.1)
+        r.decideNow()
+        assertEquals(1_000.0, r.update(probe(800.0), 0), 0.0)
+        r.decideNow()
+        assertEquals(200.0, r.update(probe(800.0, sepMaxM = 200.0), 0), 0.0)
     }
 
     @Test
     fun zoomInWaitIsCancelledWhenConditionBreaks() {
-        val r = RangeSelector(listOf(0.5, 1.0, 2.0, 5.0), 5.0, auto = true)
-        r.update(400.0, 10f, 0)
-        r.update(400.0, 10f, 4_000)
-        // 一度でも今の段が必要になったら、待ちはやり直し
-        r.update(4_000.0, 10f, 4_500)
-        assertEquals(5_000.0, r.update(400.0, 10f, 5_000), 0.0)
-        assertEquals(5_000.0, r.update(400.0, 10f, 9_999), 0.0)
-        assertEquals(500.0, r.update(400.0, 10f, 10_000), 0.0)
-    }
-
-    @Test
-    fun noChatterAtBoundary() {
-        // 境目（1km 段の 0.9 = 900m）付近を行き来しても、狭める方向は 5 秒待つので頻繁に切り替わらない
-        val r = RangeSelector(listOf(0.5, 1.0, 2.0), 1.0, auto = true)
-        var changes = 0
-        var last = r.rangeM
-        for (s in 0 until 60) {
-            val d = if (s % 2 == 0) 899.0 else 901.0
-            val now = r.update(d, 5f, s * 1_000L)
-            if (now != last) changes++
-            last = now
-        }
-        // 901m で 2km に広げたあとは、899m が 5 秒続かないので 1km に戻らない
-        assertEquals(1, changes)
-        assertEquals(2_000.0, last, 0.0)
-    }
-
-    @Test
-    fun manualZoomTurnsAutoOff() {
-        val r = RangeSelector(listOf(0.5, 1.0, 2.0, 5.0, 10.0), 1.0, auto = true)
-        r.zoomOut()
-        assertFalse(r.auto)
-        assertEquals(2_000.0, r.rangeM, 0.0)
-        // AUTO OFF では距離が変わっても縮尺はそのまま
-        assertEquals(2_000.0, r.update(8_000.0, 10f, 0), 0.0)
-        r.zoomIn()
-        r.zoomIn()
-        assertEquals(500.0, r.rangeM, 0.0)
-        // 端の段より先へは行かない
-        r.zoomIn()
-        assertEquals(500.0, r.rangeM, 0.0)
-        r.setAuto(true)
-        assertTrue(r.auto)
-        assertEquals(10_000.0, r.update(20_000.0, 10f, 0), 0.0)
-        r.zoomOut()
-        assertEquals(10_000.0, r.rangeM, 0.0)
-    }
-
-    @Test
-    fun noWaypointKeepsCurrent() {
-        val r = RangeSelector(listOf(0.5, 1.0, 2.0), 1.0, auto = true)
-        assertEquals(1_000.0, r.update(null, 10f, 0), 0.0)
-        assertEquals(1_000.0, r.update(null, 10f, 60_000), 0.0)
+        val r = selector(1.0)
+        r.update(probe(100.0), 0)
+        r.update(probe(100.0), 4_000)
+        // 一度でも条件が崩れたら（1段狭い段に余裕をもって収まらない）、待ちはやり直し
+        r.update(probe(450.0), 4_500)
+        assertEquals(1_000.0, r.update(probe(100.0), 5_000), 0.0)
+        assertEquals(1_000.0, r.update(probe(100.0), 9_999), 0.0)
+        assertEquals(500.0, r.update(probe(100.0), 10_000), 0.0)
     }
 
     @Test
     fun timeGoingBackwardsRestartsTheWait() {
-        val r = RangeSelector(listOf(0.5, 1.0, 5.0), 5.0, auto = true)
-        r.update(400.0, 10f, 100_000)
+        val r = selector(1.0)
+        r.update(probe(100.0), 100_000)
         // リプレイの巻き戻しなどで時刻が戻っても、すぐには狭めない
-        assertEquals(5_000.0, r.update(400.0, 10f, 1_000), 0.0)
-        assertEquals(500.0, r.update(400.0, 10f, 6_000), 0.0)
+        assertEquals(1_000.0, r.update(probe(100.0), 1_000), 0.0)
+        assertEquals(500.0, r.update(probe(100.0), 6_000), 0.0)
+    }
+
+    @Test
+    fun manualZoomTurnsAutoOff() {
+        val r = selector(1.0)
+        r.zoomOut()
+        assertFalse(r.auto)
+        // 手動では上限より広い段にもできる。AUTO OFF では判定しない
+        assertEquals(2_000.0, r.rangeM, 0.0)
+        assertEquals(2_000.0, r.update(probe(8_000.0), 0), 0.0)
+        repeat(5) { r.zoomIn() }
+        assertEquals(50.0, r.rangeM, 0.0)
+        // 端の段より先へは行かない
+        r.zoomIn()
+        assertEquals(50.0, r.rangeM, 0.0)
+        // AUTO を ON にすると、範囲の外なのですぐ下限へ
+        r.setAuto(true)
+        assertTrue(r.auto)
+        assertEquals(100.0, r.update(probe(20.0), 0), 0.0)
     }
 
     @Test

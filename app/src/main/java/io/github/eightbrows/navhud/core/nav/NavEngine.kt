@@ -1,5 +1,6 @@
 package io.github.eightbrows.navhud.core.nav
 
+import io.github.eightbrows.navhud.core.Tuning
 import io.github.eightbrows.navhud.core.geo.Geo
 import io.github.eightbrows.navhud.core.model.Fix
 import io.github.eightbrows.navhud.core.model.SourceMode
@@ -24,7 +25,10 @@ class NavEngine(
         private set
 
     private val headingSelector = HeadingSelector()
-    private val rangeSelector = RangeSelector(settings.rangeStepsKm, settings.initialRangeKm, settings.autoRange)
+    private val rangeSelector = RangeSelector(
+        settings.rangeStepsKm, settings.initialRangeKm, settings.autoRange,
+        autoMinKm = settings.autoMinRangeKm, autoMaxKm = settings.autoMaxRangeKm,
+    )
     private val rateTracker = RateTracker(maxWindowSec = NavSettings.RATE_WINDOW_CHOICES_SEC.max())
     private val passDetector = PassDetector()
 
@@ -108,6 +112,7 @@ class NavEngine(
         headingSelector.maxBearingAccDeg = s.maxGpsBearingAccDeg
         rangeSelector.setSteps(s.rangeStepsKm)
         rangeSelector.zoomInDelayMs = s.autoRangeZoomInDelaySec * 1000L
+        rangeSelector.setAutoLimits(s.autoMinRangeKm, s.autoMaxRangeKm)
     }
 
     /** 画面の大きさ・帯が変わったとき（AUTO 縮尺は、次の WP がこの表示枠に収まる最小の段を選ぶ）。 */
@@ -263,18 +268,16 @@ class NavEngine(
         val bearing = if (fix != null && wp != null) Geo.bearingDeg(fix.lat, fix.lon, wp.lat, wp.lon) else null
         // ETA: RATE の窓の平均速度。履歴が窓に足りなければ、ある分（最低 10 秒）の平均速度
         val eta = if (now != null && dist != null) WaypointNav.etaMs(now, dist, rateTracker.etaSpeed(settings.rateWindowSec)) else null
-        // 縮尺の AUTO: 次の WP を画面に投影して、表示枠に余白付きで収まる最小の段。画面が分からなければ距離で判定
-        val viewport = viewport
+        // 縮尺の AUTO（§6.1）: 次の WP を収める段を基本に、[下限, 上限] の中で1段ずつ。WP を区別できる幅を優先する
         val rangeM = when {
             // PAN 中は AUTO を止める（＋ / − は効く）
             pan != null -> rangeSelector.also { it.restartWait() }.rangeM
             now == null -> rangeSelector.rangeM
-            viewport != null && fix != null && wp != null -> {
-                val target = Geo.toEN(fix.lat, fix.lon, wp.lat, wp.lon)
-                val headingDeg = heading.deg?.toDouble()
-                rangeSelector.update({ r: Double -> viewport.fits(r, target, headingDeg, settings) }, now)
-            }
-            else -> rangeSelector.update(dist, fix?.speedMps, now)
+            // 次の WP がない: 下限〜上限の中央の段
+            next == null -> rangeSelector.update(null, now)
+            // 位置がまだ分からない: 今の段のまま
+            fix == null -> rangeSelector.rangeM
+            else -> rangeSelector.update(rangeProbe(fix, next, heading.deg?.toDouble()), now)
         }
 
         state = NavState(
@@ -304,6 +307,33 @@ class NavEngine(
             replayTrack = replayTrack,
         )
         return state
+    }
+
+    /**
+     * AUTO の判定の問い。画面が分かれば次の WP を画面に投影して枠に収まるか、見えている隣り合う目標の間隔を見る。
+     * 画面が分からなければ距離で判定する（次の WP が「縮尺 × Tuning.RANGE_DISTANCE_FIT_RATIO」以内）。
+     * 隣り合う目標: 次の WP から先の有効・未到達の WP（HUD に描く数まで）。到達済みと自機は数えない。
+     */
+    private fun rangeProbe(fix: Fix, next: Int, headingDeg: Double?): RangeProbe {
+        val wp = waypoints[next]
+        val target = Geo.toEN(fix.lat, fix.lon, wp.lat, wp.lon)
+        val vp = viewport
+        if (vp == null) {
+            val dist = Geo.distanceM(fix.lat, fix.lon, wp.lat, wp.lon)
+            return object : RangeProbe {
+                override fun fits(rangeM: Double, spread: Double) = dist * spread <= rangeM * Tuning.RANGE_DISTANCE_FIT_RATIO
+            }
+        }
+        val points = (next until waypoints.size)
+            .map { waypoints[it] }
+            .filter { it.enabled && !it.reached }
+            .take(settings.hudWpCount.coerceAtLeast(1))
+            .map { Geo.toEN(fix.lat, fix.lon, it.lat, it.lon) }
+        val s = settings
+        return object : RangeProbe {
+            override fun fits(rangeM: Double, spread: Double) = vp.fits(rangeM, target, headingDeg, s, spread)
+            override fun separated(rangeM: Double) = vp.separated(rangeM, points, headingDeg, s)
+        }
     }
 
     private fun countdown(now: Long?, target: LocalTime?): Long? =

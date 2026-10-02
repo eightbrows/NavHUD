@@ -27,6 +27,8 @@ object SettingsCodec {
         "initialRangeKm" to s.initialRangeKm.toString(),
         "autoRange" to s.autoRange.toString(),
         "autoRangeZoomInDelaySec" to s.autoRangeZoomInDelaySec.toString(),
+        "autoMinRangeKm" to s.autoMinRangeKm.toString(),
+        "autoMaxRangeKm" to s.autoMaxRangeKm.toString(),
         "wpButtonsMax" to s.wpButtonsMax.toString(),
         "hudWpCount" to s.hudWpCount.toString(),
         "uiTheme" to s.uiTheme.name,
@@ -36,6 +38,8 @@ object SettingsCodec {
         "panReturnSec" to s.panReturnSec.toString(),
         "autoOpenLastList" to s.autoOpenLastList.toString(),
         "keepScreenOn" to s.keepScreenOn.toString(),
+        "buttonOpacityPct" to s.buttonOpacityPct.toString(),
+        "numbersOpacityPct" to s.numbersOpacityPct.toString(),
     )
 
     fun decode(m: Map<String, String?>): NavSettings {
@@ -77,6 +81,9 @@ object SettingsCodec {
             initialRangeKm = dbl("initialRangeKm", d.initialRangeKm),
             autoRange = bool("autoRange", d.autoRange),
             autoRangeZoomInDelaySec = int("autoRangeZoomInDelaySec", d.autoRangeZoomInDelaySec),
+            // AUTO の下限・上限: 段の一覧にない値は既定値（使う段への寄せは RangeAuto.limitsKm）
+            autoMinRangeKm = dbl("autoMinRangeKm", d.autoMinRangeKm).takeIf { it in RangeAuto.ALL_STEPS_KM } ?: d.autoMinRangeKm,
+            autoMaxRangeKm = dbl("autoMaxRangeKm", d.autoMaxRangeKm).takeIf { it in RangeAuto.ALL_STEPS_KM } ?: d.autoMaxRangeKm,
             wpButtonsMax = int("wpButtonsMax", d.wpButtonsMax).coerceIn(NavSettings.WP_BUTTONS_MAX_RANGE),
             hudWpCount = int("hudWpCount", d.hudWpCount).coerceIn(NavSettings.HUD_WP_COUNT_RANGE),
             // 色: 古い版の「色テーマ」（1つ）が保存されていれば、UI・地図の両方の初期値として引き継ぐ
@@ -87,6 +94,9 @@ object SettingsCodec {
             panReturnSec = int("panReturnSec", d.panReturnSec).coerceIn(NavSettings.PAN_RETURN_SEC_RANGE),
             autoOpenLastList = bool("autoOpenLastList", d.autoOpenLastList),
             keepScreenOn = bool("keepScreenOn", d.keepScreenOn),
+            // 不透明度: 20〜100 の 10 刻み以外は既定値
+            buttonOpacityPct = int("buttonOpacityPct", d.buttonOpacityPct).takeIf { it in NavSettings.OPACITY_CHOICES_PCT } ?: d.buttonOpacityPct,
+            numbersOpacityPct = int("numbersOpacityPct", d.numbersOpacityPct).takeIf { it in NavSettings.OPACITY_CHOICES_PCT } ?: d.numbersOpacityPct,
         )
     }
 }

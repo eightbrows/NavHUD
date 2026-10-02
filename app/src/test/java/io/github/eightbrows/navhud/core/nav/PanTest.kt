@@ -63,7 +63,11 @@ class PanTest {
     private val viewport = HudViewport(HudRect(0f, 0f, 720f, 690f), reserved = HudInsets(right = 102f, bottom = 81.6f))
 
     private fun engine(): NavEngine {
-        val e = NavEngine(NavSettings(displayMode = DisplayMode.NORTH_UP, initialRangeKm = 2.0), sourceKind = SourceKind.LIVE)
+        val e = NavEngine(
+            // AUTO の上限は 20km の段（PAN の前後で AUTO が動くことを見るため）
+            NavSettings(displayMode = DisplayMode.NORTH_UP, initialRangeKm = 2.0, autoMaxRangeKm = 20.0),
+            sourceKind = SourceKind.LIVE,
+        )
         e.setViewport(viewport)
         // 北へ 1.5km の WP
         e.setWaypoints(listOf(Waypoint("A", lat0 + 1_500.0 / 111_195.0, lon0)))

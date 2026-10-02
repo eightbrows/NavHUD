@@ -42,6 +42,11 @@ class HudFormatTest {
             listOf("50m", "100m", "200m", "500m", "1km", "2km", "5km", "10km", "20km", "50km"),
             io.github.eightbrows.navhud.core.nav.RangeAuto.ALL_STEPS_KM.map { HudFormat.rangeStep(it * 1000) },
         )
+        // 縮尺の表示（操作列・設定画面）は1つ目の距離環の距離
+        assertEquals(
+            listOf("25m", "50m", "100m", "250m", "500m", "1km", "2.5km", "5km", "10km", "25km"),
+            io.github.eightbrows.navhud.core.nav.RangeAuto.ALL_STEPS_KM.map { HudFormat.rangeLabel(it * 1000) },
+        )
     }
 
     @Test

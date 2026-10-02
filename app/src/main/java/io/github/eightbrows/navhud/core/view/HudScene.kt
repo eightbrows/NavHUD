@@ -87,7 +87,7 @@ data class HudMetrics(
     val arcOriginFromBottom: Float = Tuning.HUD_ARC_ORIGIN_DP,
     /** ARC の自機の位置: 高め。後方の WP・矢印に余裕を持たせる */
     val arcOriginFromBottomHigh: Float = Tuning.HUD_ARC_ORIGIN_HIGH_DP,
-    /** North Up: 方位サークルと画面の端・回避枠の上下の間の余白 */
+    /** North Up: 縮尺の距離環と画面の端・回避枠の上下の間の余白 */
     val northUpEdgeMargin: Float = Tuning.HUD_NORTH_UP_EDGE_MARGIN_DP,
     val pointerSize: Float = Tuning.HUD_POINTER_DP,
     /** 矢印の文字の1行の高さ（重なったときにずらす量） */
@@ -104,12 +104,14 @@ data class HudMetrics(
     val compassLabelHalf: Float = Tuning.HUD_COMPASS_LABEL_HALF_DP,
     /** 距離環の文字の位置（距離環から外側へ） */
     val ringLabelOffset: Float = Tuning.RING_LABEL_OFFSET_DP,
+    /** AUTO: 見えている隣り合う目標どうしの、画面上の最小の間隔 */
+    val wpMinSep: Float = Tuning.AUTO_WP_MIN_SEP_DP,
 ) {
     fun scaled(k: Float) = HudMetrics(
         tickMinor * k, tickMajor * k, labelGap * k, edgeInset * k, arrowTextGap * k,
         arcOriginFromBottom * k, arcOriginFromBottomHigh * k, northUpEdgeMargin * k, pointerSize * k,
         arrowLabelLine * k, labelCharWidth * k, fitMargin * k, ownShipClear * k, wpNameOffset * k, compassLabelHalf * k,
-        ringLabelOffset * k,
+        ringLabelOffset * k, wpMinSep * k,
     )
 }
 

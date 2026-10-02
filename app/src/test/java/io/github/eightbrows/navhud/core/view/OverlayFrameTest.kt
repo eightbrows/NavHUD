@@ -152,11 +152,36 @@ class OverlayFrameTest {
     }
 
     @Test
-    fun northUpCircleReachesTheScreenEdge() {
-        // 方位サークルの半径 = min(画面の幅の半分 360, 回避枠の高さの半分 412) − 8 = 352。操作列とは重なってよい
+    fun northUpScaleRingReachesTheScreenEdge() {
+        // 縮尺の距離環の半径 = min(画面の幅の半分 360, 回避枠の高さの半分 412) − 8 = 352。操作列とは重なってよい
         val nu = build(state(listOf(wp("A", 100.0)), 0, 1_000.0, DisplayMode.NORTH_UP))
         assertTrue(nu.arcs.any { kotlin.math.abs(it.radius - 352f) < 1e-2f })
-        // E の文字はサークルの内側（x = 360 + 352 − 目盛り − 間隔）
-        assertEquals(360f + 352f - m.tickMajor - m.labelGap, nu.labels.single { it.text == "E" }.at.x, 1e-2f)
+        // 方位サークルは1つ外側の距離環（528 px）。E の文字はその内側（x = 360 + 528 − 目盛り − 間隔 = 860、画面の外で切れる）
+        assertEquals(360f + 528f - m.tickMajor - m.labelGap, nu.labels.single { it.text == "E" }.at.x, 1e-2f)
+    }
+
+    @Test
+    fun arcRubberLineReachesTheTopEdge() {
+        // ラバーラインは自機 (360, 1011) から描画の枠の上端 (360, 0) まで（上部バー・数値の下も）。
+        // 上部の三角は今のまま、回避枠の上端（211）から目盛り・文字の分だけ下
+        val s = build(state(listOf(wp("A", 100.0)), 0, 1_000.0))
+        val rubber = s.segments.single { it.ink == Ink.OWNSHIP }
+        assertEquals(P(360f, 1011f), rubber.a)
+        assertEquals(P(360f, 0f), rubber.b)
+        assertEquals(211f + m.tickMajor + m.labelGap * 2 + 4, s.pointers.single().tip.y, 1e-3f)
+    }
+
+    @Test
+    fun northUpCompassLabelsOverTheNumbersAreHidden() {
+        // 方位サークルは 528 px（縮尺 1km の 1.5 倍）。N の文字は y = 623 − 528 + 28 = 123、33 は (110, 190) … 数値の範囲（68..211）
+        val s = build(state(listOf(wp("A", 100.0)), 0, 1_000.0, DisplayMode.NORTH_UP))
+        assertTrue(s.labels.none { it.text == "N" || it.text == "33" || it.text == "3" })
+        // 目盛りの線は 36 本とも描く
+        assertEquals(36, s.segments.count { it.ink == Ink.SCALE })
+        // 数値・ボタン類を渡さなければ文字を出す
+        val plain = HudSceneBuilder.build(state(listOf(wp("A", 100.0)), 0, 1_000.0, DisplayMode.NORTH_UP), rect, m, reserved)
+        assertTrue(plain.labels.any { it.text == "N" })
+        // S（y = 1123）は WP 列（〜1103）より下のプロファイルの範囲なので出す
+        assertTrue(s.labels.any { it.text == "S" })
     }
 }

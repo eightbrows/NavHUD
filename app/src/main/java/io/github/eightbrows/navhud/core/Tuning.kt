@@ -56,6 +56,16 @@ object Tuning {
     /** 画面の大きさがまだ分からないときの AUTO: 次の WP が「縮尺 × これ」以内 */
     const val RANGE_DISTANCE_FIT_RATIO = 0.9
 
+    /** AUTO の下限・上限の既定 [km]（段。R1 = 1つ目の距離環はこの半分: 50m / 500m） */
+    const val AUTO_MIN_RANGE_KM = 0.1
+    const val AUTO_MAX_RANGE_KM = 1.0
+
+    /** AUTO: 描画の枠の中に見えている隣り合う目標どうしの、画面上の最小の間隔 [dp]。これより近くなる段は使わない */
+    const val AUTO_WP_MIN_SEP_DP = 40f
+
+    /** AUTO: 1段狭めるのは、次の WP を自機から 1 / これ 倍遠くに置いても1段狭い段の枠に収まるとき（狭めた直後に広げ直さないための余裕） */
+    const val AUTO_ZOOM_IN_FIT_RATIO = 0.8
+
     // ---- 地図の描画（HudMetrics の既定値。dp） ----
 
     const val HUD_TICK_MINOR_DP = 8f
@@ -69,7 +79,7 @@ object Tuning {
     /** ARC の自機の位置（回避枠の下端 = WP ボタン列の上端から。LIVE・REPLAY とも）: 標準 / 高め */
     const val HUD_ARC_ORIGIN_DP = 24f
     const val HUD_ARC_ORIGIN_HIGH_DP = 84f
-    /** North Up: 方位サークル（縮尺の距離環）と画面の端・回避枠の上下の間の余白。目盛りと文字はサークルの内側に描く */
+    /** North Up: 縮尺の距離環と画面の端・回避枠の上下の間の余白（方位サークルはその1つ外側の距離環で、画面からはみ出してよい） */
     const val HUD_NORTH_UP_EDGE_MARGIN_DP = 8f
     /** 方位マーカー（三角）の大きさ */
     const val HUD_POINTER_DP = 14f
@@ -155,8 +165,24 @@ object Tuning {
     const val NUMBERS_PADDING_V_DP = 4f
     const val NUMBERS_ROW_GAP_DP = 2f
 
-    /** 地図に重ねる部品の背景の不透明度（0〜1） */
+    /** 標高プロファイルの地の不透明度（0〜1）。ボタン類は地を塗らない（枠と、縁取りした文字だけ） */
     const val OVERLAY_ALPHA = 0.6f
+
+    /**
+     * 地図に重ねるボタン（上部バー・操作列・WP ボタン列・再生の帯）と数値の不透明度 [%]（設定で変える。既定値と範囲・刻み）。
+     * 設定画面・WP 設定画面・案内の枠のボタンには使わない
+     */
+    const val BUTTON_OPACITY_DEFAULT_PCT = 70
+    const val NUMBERS_OPACITY_DEFAULT_PCT = 100
+    const val OPACITY_MIN_PCT = 20
+    const val OPACITY_MAX_PCT = 100
+    const val OPACITY_STEP_PCT = 10
+
+    /** ON（反転）のボタンの塗りの不透明度 = ボタンの不透明度 × これ（裏の地図の線が透けて見える） */
+    const val BUTTON_ON_FILL_ALPHA = 0.5f
+
+    /** ON（反転）のボタンの黒の文字に付ける、ボタンの色の細い縁取りの線の太さ [dp]（外に見えるのは半分） */
+    const val BUTTON_ON_TEXT_OUTLINE_DP = 2f
 
     // ---- 線の太さ・文字の大きさ（地図・プロファイル） ----
 

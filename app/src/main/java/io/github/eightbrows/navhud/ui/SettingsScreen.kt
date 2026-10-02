@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -79,6 +81,14 @@ fun SettingsScreen(
             val colors = listOf("白" to ColorTheme.WHITE, "緑" to ColorTheme.GREEN, "琥珀" to ColorTheme.AMBER)
             Choice("UI の色（ボタン・数値・標高プロファイル）", colors, s.uiTheme) { v -> onChange { it.copy(uiTheme = v) } }
             Choice("地図の色（距離環・目盛り・自機・WP・軌跡）", colors, s.mapTheme) { v -> onChange { it.copy(mapTheme = v) } }
+            PercentSlider(
+                "ボタンの不透明度", s.buttonOpacityPct,
+                note = "地図に重ねるボタン（上部バー・操作列・WP ボタン列・再生の帯）。ON の塗りはさらに半分",
+            ) { v -> onChange { it.copy(buttonOpacityPct = v) } }
+            PercentSlider(
+                "数値の不透明度（お試し）", s.numbersOpacityPct,
+                note = "上の4行の数値。警告の表示（締切超過・CAL / MAG）は常に 100%",
+            ) { v -> onChange { it.copy(numbersOpacityPct = v) } }
             Choice(
                 "ARC の自機の位置",
                 listOf("標準" to OwnshipPosition.STANDARD, "高め" to OwnshipPosition.HIGH),
@@ -127,11 +137,11 @@ fun SettingsScreen(
         }
 
         Section("縮尺") {
-            Label("使う段（1つ以上）")
+            Label("使う段（1つ以上。表示は自機から1つ目の距離環の距離）")
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 for (km in RangeAuto.ALL_STEPS_KM) {
                     val on = km in s.rangeStepsKm
-                    Chip(HudFormat.rangeStep(km * 1000), on) {
+                    Chip(HudFormat.rangeLabel(km * 1000), on) {
                         onChange {
                             val steps = if (on) it.rangeStepsKm - km else (it.rangeStepsKm + km).sorted()
                             if (steps.isEmpty()) it else it.copy(rangeStepsKm = steps)
@@ -141,10 +151,24 @@ fun SettingsScreen(
             }
             Choice(
                 "起動時の縮尺",
-                s.rangeStepsKm.map { HudFormat.rangeStep(it * 1000) to it },
+                s.rangeStepsKm.map { HudFormat.rangeLabel(it * 1000) to it },
                 s.rangeStepsKm.minByOrNull { kotlin.math.abs(it - s.initialRangeKm) },
             ) { v -> onChange { it.copy(initialRangeKm = v) } }
-            Toggle("起動時に AUTO", s.autoRange, note = "次の WP が画面に収まる最小の段を自動で選ぶ") { v ->
+            // AUTO の下限・上限: 使う段から選ぶ（下限 ≤ 上限）。表示は1つ目の距離環の距離
+            val (lo, hi) = RangeAuto.limitsKm(s.rangeStepsKm, s.autoMinRangeKm, s.autoMaxRangeKm)
+            Choice(
+                "AUTO の下限",
+                s.rangeStepsKm.filter { it <= hi }.map { HudFormat.rangeLabel(it * 1000) to it },
+                lo,
+                note = "これより狭くしない",
+            ) { v -> onChange { it.copy(autoMinRangeKm = v) } }
+            Choice(
+                "AUTO の上限",
+                s.rangeStepsKm.filter { it >= lo }.map { HudFormat.rangeLabel(it * 1000) to it },
+                hi,
+                note = "これより広くしない。次の WP が入らなければ画面の端の矢印で示す",
+            ) { v -> onChange { it.copy(autoMaxRangeKm = v) } }
+            Toggle("起動時に AUTO", s.autoRange, note = "次の WP が画面に収まる段を、下限〜上限の中で自動で選ぶ") { v ->
                 onChange { it.copy(autoRange = v) }
             }
             Stepper("AUTO で狭めるまでの時間", "${s.autoRangeZoomInDelaySec} 秒", note = "広げる方向はすぐ切り替える") { d ->
@@ -262,6 +286,31 @@ private fun Stepper(label: String, value: String, note: String? = null, onStep: 
         HudButton("−", { onStep(-1) })
         Text(value, style = ValueText, textAlign = TextAlign.Center, modifier = Modifier.widthIn(min = 72.dp))
         HudButton("＋", { onStep(1) })
+    }
+}
+
+/** 不透明度などの % を、スライダーで 20〜100% の 10% 刻みに選ぶ。 */
+@Composable
+private fun PercentSlider(label: String, pct: Int, note: String? = null, onChange: (Int) -> Unit) {
+    val choices = NavSettings.OPACITY_CHOICES_PCT
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.weight(1f)) { Label(label, note) }
+            Text("$pct%", style = ValueText, textAlign = TextAlign.Center, modifier = Modifier.widthIn(min = 56.dp))
+        }
+        Slider(
+            value = pct.toFloat(),
+            onValueChange = { v -> choices.minByOrNull { kotlin.math.abs(it - v) }?.takeIf { it != pct }?.let(onChange) },
+            valueRange = choices.first().toFloat()..choices.last().toFloat(),
+            steps = choices.size - 2,
+            colors = SliderDefaults.colors(
+                thumbColor = HudColors.Scale,
+                activeTrackColor = HudColors.Scale,
+                inactiveTrackColor = HudColors.WpDisabled,
+                activeTickColor = HudColors.Background,
+                inactiveTickColor = HudColors.ScaleDim,
+            ),
+        )
     }
 }
 

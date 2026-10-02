@@ -1,5 +1,6 @@
 package io.github.eightbrows.navhud.core.nav
 
+import io.github.eightbrows.navhud.core.Tuning
 import io.github.eightbrows.navhud.core.model.SourceMode
 
 enum class DisplayMode { ARC, NORTH_UP }
@@ -54,6 +55,9 @@ data class NavSettings(
     val autoRange: Boolean = true,
     /** AUTO: 狭める（拡大する）方向は、条件がこれだけ続いてから切り替える [秒] */
     val autoRangeZoomInDelaySec: Int = 5,
+    /** AUTO の下限・上限 [km]（段。使う段から選ぶ。画面と設定画面では R1 = 1つ目の距離環の距離で出す） */
+    val autoMinRangeKm: Double = Tuning.AUTO_MIN_RANGE_KM,
+    val autoMaxRangeKm: Double = Tuning.AUTO_MAX_RANGE_KM,
     /** 横並びの WP ボタン列に一度に見せる数（ボタンの幅はこれで決まる。超える分は左右にスクロール） */
     val wpButtonsMax: Int = 4,
     /** HUD に描く WP の数（次の WP から先） */
@@ -72,6 +76,10 @@ data class NavSettings(
     val panReturnSec: Int = 15,
     /** 画面常時点灯（§6.8） */
     val keepScreenOn: Boolean = true,
+    /** 地図に重ねるボタン（上部バー・操作列・WP ボタン列・再生の帯）の不透明度 [%]。20〜100、10 刻み */
+    val buttonOpacityPct: Int = Tuning.BUTTON_OPACITY_DEFAULT_PCT,
+    /** 数値（4行）の不透明度 [%]。20〜100、10 刻み。警告の表示は常に 100% */
+    val numbersOpacityPct: Int = Tuning.NUMBERS_OPACITY_DEFAULT_PCT,
 ) {
     companion object {
         val WP_BUTTONS_MAX_RANGE = 3..6
@@ -79,5 +87,8 @@ data class NavSettings(
         val HUD_WP_COUNT_RANGE = 1..20
         val REACH_RADIUS_CHOICES_M = listOf(50.0, 100.0, 200.0, 500.0)
         val RATE_WINDOW_CHOICES_SEC = listOf(10, 30, 60)
+
+        /** 不透明度 [%] の選べる値（20, 30, … 100） */
+        val OPACITY_CHOICES_PCT = (Tuning.OPACITY_MIN_PCT..Tuning.OPACITY_MAX_PCT step Tuning.OPACITY_STEP_PCT).toList()
     }
 }

@@ -10,6 +10,8 @@ import io.github.eightbrows.navhud.core.nav.OwnshipPosition
 import io.github.eightbrows.navhud.core.nav.RangeAuto
 import io.github.eightbrows.navhud.core.nav.SourceKind
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.math.hypot
 
@@ -112,6 +114,61 @@ class HudViewportTest {
     }
 
     @Test
+    fun fitsWithTheZoomInMargin() {
+        // 前方 1.9km は 1km の段で上へ 684 px（収まる範囲は 718.6 px）。1.25 倍遠く（855 px）にすると収まらない
+        assertTrue(viewport.fits(1_000.0, EN(0.0, 1_900.0), 0.0, arc))
+        assertFalse(viewport.fits(1_000.0, EN(0.0, 1_900.0), 0.0, arc, spread = 1.25))
+        assertTrue(viewport.fits(2_000.0, EN(0.0, 1_900.0), 0.0, arc, spread = 1.25))
+    }
+
+    @Test
+    fun separationOfVisibleNeighbours() {
+        // 最小の間隔は 40dp = 68 px。前方 300m と 400m（100m 離れた2つ）
+        val pair = listOf(EN(0.0, 300.0), EN(0.0, 400.0))
+        // 1km の段: 36 px → 近すぎる。500m の段: 72 px → 区別できる。200m の段: 180 px
+        assertFalse(viewport.separated(1_000.0, pair, 0.0, arc))
+        assertTrue(viewport.separated(500.0, pair, 0.0, arc))
+        assertTrue(viewport.separated(200.0, pair, 0.0, arc))
+        // 描画の枠の外にある2つは数えない（前方 3km と 3.05km は 1km の段で上へ 1080 px、画面の外）
+        assertTrue(viewport.separated(1_000.0, listOf(EN(0.0, 3_000.0), EN(0.0, 3_050.0)), 0.0, arc))
+        // 1つ目が見えていて（上へ 986 px、y = 8）、2つ目が画面の外（y = −14）でも数えない
+        assertTrue(viewport.separated(1_000.0, listOf(EN(0.0, 2_740.0), EN(0.0, 2_800.0)), 0.0, arc))
+    }
+
+    /** 既定の AUTO（下限 100m・上限 1km の段）で、自機から見た東 m・北 m の WP（順に）を置いて t 秒まで1秒ごとに進める。 */
+    private fun autoRange(seconds: Int, vararg wps: EN, initialKm: Double = 1.0): Double {
+        val lat0 = 33.5
+        val lon0 = 133.0
+        val e = NavEngine(NavSettings(initialRangeKm = initialKm), sourceKind = SourceKind.LIVE)
+        e.setViewport(viewport)
+        e.setWaypoints(wps.mapIndexed { i, p -> Waypoint("W$i", lat0 + p.n / 111_195.0, lon0 + p.e / (111_195.0 * Math.cos(Math.toRadians(lat0)))) })
+        var r = e.onFix(Fix(timeMs = 0, lat = lat0, lon = lon0), 0).rangeM
+        for (t in 1..seconds) r = e.onTick(t * 1_000L).rangeM
+        return r
+    }
+
+    @Test
+    fun autoRulesWithTheMeasuredScreen() {
+        // 遠い次の WP（ほぼ真後ろ 4.19km）: 上限の 1km の段（R1 500m）で止まり、矢印で示す
+        assertEquals(1_000.0, autoRange(30, at(166.0, 4_190.0)), 0.0)
+        assertEquals(1_000.0, autoRange(30, at(166.0, 4_190.0), initialKm = 0.1), 0.0)
+        // 前方 1.9km: 1km の段に収まる。500m の段には 1.25 倍で収まらないので 1km の段のまま
+        assertEquals(1_000.0, autoRange(30, EN(0.0, 1_900.0)), 0.0)
+        // 前方 130m: 1段ずつ、それぞれ 5 秒待って狭める（5 秒で 500m、11 秒で 200m、17 秒で 100m の段 = R1 50m）。それより狭めない
+        assertEquals(500.0, autoRange(5, EN(0.0, 130.0)), 0.0)
+        assertEquals(200.0, autoRange(16, EN(0.0, 130.0)), 0.0)
+        assertEquals(100.0, autoRange(17, EN(0.0, 130.0)), 0.0)
+        assertEquals(100.0, autoRange(60, EN(0.0, 130.0)), 0.0)
+        // 近い2つ（前方 300m と、その 100m 先）: 1km の段では 36 px で近すぎるので、すぐ 500m の段（72 px）
+        assertEquals(500.0, autoRange(0, EN(0.0, 300.0), EN(0.0, 400.0)), 0.0)
+        // 近い2つが遠くにある（前方 800m と、その 50m 先）: 1km の段（18 px）・500m の段（36 px）では近すぎるので狭め、
+        // 200m の段で2つとも画面の外に出る（見えていないので数えない）。次の WP は矢印で示し、広げると近すぎるので広げない
+        assertEquals(200.0, autoRange(30, EN(0.0, 800.0), EN(0.0, 850.0)), 0.0)
+        // 次の WP がない: 中央の段（100m / 200m / 500m / 1km のうち広い方の 500m の段、R1 250m）
+        assertEquals(500.0, autoRange(0), 0.0)
+    }
+
+    @Test
     fun smallStepsForNearWaypoints() {
         // 50m / 100m の段: 前方 130m → 100m、前方 30m → 50m
         assertEquals(100.0, auto(EN(0.0, 130.0), 0.0, arc), 0.0)
@@ -145,15 +202,18 @@ class HudViewportTest {
     fun engineUsesTheViewportWhenKnown() {
         val lat0 = 33.5
         val lon0 = 133.0
-        val e = NavEngine(NavSettings(initialRangeKm = 1.0), sourceKind = SourceKind.LIVE)
+        // AUTO の上限は 20km の段（距離の判定と画面の判定の違いを見るため）
+        val e = NavEngine(NavSettings(initialRangeKm = 1.0, autoMaxRangeKm = 20.0), sourceKind = SourceKind.LIVE)
         // 北へ 1.9km の WP。方位がないので北が上
         e.setWaypoints(listOf(Waypoint("A", lat0 + 1_900.0 / 111_195.0, lon0)))
-        e.onFix(Fix(timeMs = 0, lat = lat0, lon = lon0), 0)
-        // 画面が分からないうちは距離で判定（5km）
-        assertEquals(5_000.0, e.state.rangeM, 0.0)
-        // 画面が分かれば、前方の広さで 1km（狭める方向なので 5 秒待つ）
+        // 画面が分からないうちは距離で判定（1.9km は 2km の段の 0.9 倍を超える）: 1段ずつ広げて 5km
+        assertEquals(2_000.0, e.onFix(Fix(timeMs = 0, lat = lat0, lon = lon0), 0).rangeM, 0.0)
+        assertEquals(5_000.0, e.onTick(1_000).rangeM, 0.0)
+        // 画面が分かれば、2km の段に 1.25 倍遠く（2375m、上へ 427.5 px）でも収まるので、5 秒待って1段狭める
         e.setViewport(viewport)
-        e.onTick(5_000)
-        assertEquals(1_000.0, e.state.rangeM, 0.0)
+        assertEquals(5_000.0, e.onTick(5_999).rangeM, 0.0)
+        assertEquals(2_000.0, e.onTick(6_000).rangeM, 0.0)
+        // 1km の段には、1.9km は収まる（684 px）が 1.25 倍（855 px）は収まらないので、2km の段のまま
+        assertEquals(2_000.0, e.onTick(60_000).rangeM, 0.0)
     }
 }

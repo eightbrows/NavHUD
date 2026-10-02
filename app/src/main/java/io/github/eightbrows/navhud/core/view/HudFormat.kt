@@ -37,9 +37,15 @@ object HudFormat {
     fun ringLabel(m: Double): String =
         if (m < 1_000) plain(m) else plain(m / 1000) + "k"
 
-    /** 縮尺の段の表示: "500m" / "1km" / "2.5km"（RNG ボタン・設定画面）。 */
+    /** 距離の表示: "500m" / "1km" / "2.5km"。 */
     fun rangeStep(m: Double): String =
         if (m < 1_000) plain(m) + "m" else plain(m / 1000) + "km"
+
+    /**
+     * 縮尺の表示（操作列・設定画面）: 自機から1つ目の距離環の距離（縮尺の段の 1/2）。1km の段 → "500m"、5km → "2.5km"。
+     * @param rangeM 縮尺の段（内部の値）[m]
+     */
+    fun rangeLabel(rangeM: Double): String = rangeStep(rangeM / 2)
 
     /** 小数点以下の余分な 0 を付けない数（12.50 → "12.5"、100.0 → "100"）。 */
     private fun plain(x: Double): String =
