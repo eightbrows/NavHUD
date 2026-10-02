@@ -58,6 +58,10 @@ data class NavSettings(
     /** AUTO の下限・上限 [km]（段。使う段から選ぶ。画面と設定画面では R1 = 1つ目の距離環の距離で出す） */
     val autoMinRangeKm: Double = Tuning.AUTO_MIN_RANGE_KM,
     val autoMaxRangeKm: Double = Tuning.AUTO_MAX_RANGE_KM,
+    /** WP 通過後（次の WP が変わってから）AUTO の段を動かさない時間 [秒]。0〜60 */
+    val autoHoldAfterWpSec: Int = Tuning.AUTO_HOLD_AFTER_WP_SEC,
+    /** AUTO で狭め始める距離: 次の WP が「これ × 1段狭い段の R1」以内のときだけ狭める。1.0〜4.0、0.5 刻み */
+    val autoZoomInDistRatio: Double = Tuning.AUTO_ZOOM_IN_DIST_RATIO,
     /** 横並びの WP ボタン列に一度に見せる数（ボタンの幅はこれで決まる。超える分は左右にスクロール） */
     val wpButtonsMax: Int = 4,
     /** HUD に描く WP の数（次の WP から先） */
@@ -90,5 +94,13 @@ data class NavSettings(
 
         /** 不透明度 [%] の選べる値（20, 30, … 100） */
         val OPACITY_CHOICES_PCT = (Tuning.OPACITY_MIN_PCT..Tuning.OPACITY_MAX_PCT step Tuning.OPACITY_STEP_PCT).toList()
+
+        val AUTO_HOLD_AFTER_WP_SEC_RANGE = 0..Tuning.AUTO_HOLD_AFTER_WP_MAX_SEC
+
+        /** 狭め始める距離の倍率の選べる値（1.0, 1.5, … 4.0） */
+        val AUTO_ZOOM_IN_DIST_RATIO_CHOICES: List<Double> =
+            generateSequence(Tuning.AUTO_ZOOM_IN_DIST_RATIO_MIN) { it + Tuning.AUTO_ZOOM_IN_DIST_RATIO_STEP }
+                .takeWhile { it <= Tuning.AUTO_ZOOM_IN_DIST_RATIO_MAX + 1e-9 }
+                .toList()
     }
 }

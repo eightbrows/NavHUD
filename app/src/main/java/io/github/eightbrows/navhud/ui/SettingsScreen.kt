@@ -53,6 +53,8 @@ private val ValueText get() = TextStyle(fontFamily = FontFamily.Monospace, fontS
 fun SettingsScreen(
     settings: NavSettings,
     input: SourceKind,
+    /** 今の縮尺の段 [m]（「狭め始める距離」の例に使う） */
+    rangeM: Double,
     onChange: ((NavSettings) -> NavSettings) -> Unit,
     onInput: (SourceKind) -> Unit,
     onReset: () -> Unit,
@@ -173,6 +175,31 @@ fun SettingsScreen(
             }
             Stepper("AUTO で狭めるまでの時間", "${s.autoRangeZoomInDelaySec} 秒", note = "広げる方向はすぐ切り替える") { d ->
                 onChange { it.copy(autoRangeZoomInDelaySec = (it.autoRangeZoomInDelaySec + d).coerceIn(0, 30)) }
+            }
+            Stepper(
+                "WP 通過後に AUTO が動くまで", "${s.autoHoldAfterWpSec} 秒",
+                note = "次の WP が変わってから、この時間は縮尺を動かさない（矢印は出す）",
+            ) { d ->
+                onChange {
+                    val r = NavSettings.AUTO_HOLD_AFTER_WP_SEC_RANGE
+                    it.copy(autoHoldAfterWpSec = (it.autoHoldAfterWpSec + d).coerceIn(r.first, r.last))
+                }
+            }
+            // 今の段での例: 「250m → 100m: WP まで 200m 以内」（R1 の表記）
+            val narrowerKm = s.rangeStepsKm.filter { it >= lo && it < rangeM / 1000 - 1e-9 }.maxOrNull()
+            val example = narrowerKm?.let { n ->
+                "今の段 ${HudFormat.rangeLabel(rangeM)} → ${HudFormat.rangeLabel(n * 1000)}: " +
+                    "WP まで ${HudFormat.rangeStep(s.autoZoomInDistRatio * n * 1000 / 2)} 以内で狭め始める"
+            } ?: "今の段 ${HudFormat.rangeLabel(rangeM)} より狭い段はありません（AUTO の下限）"
+            Stepper(
+                "AUTO で狭め始める距離", "%.1f 倍".format(Locale.US, s.autoZoomInDistRatio),
+                note = "狭めたあとの 1つ目の距離環の何倍以内か。$example",
+            ) { d ->
+                onChange {
+                    val c = NavSettings.AUTO_ZOOM_IN_DIST_RATIO_CHOICES
+                    val i = c.indexOfFirst { v -> kotlin.math.abs(v - it.autoZoomInDistRatio) < 1e-9 }.coerceAtLeast(0)
+                    it.copy(autoZoomInDistRatio = c[(i + d).coerceIn(0, c.lastIndex)])
+                }
             }
             Stepper("PAN から現在地へ戻るまで", "${s.panReturnSec} 秒", note = "地図をドラッグしたあと、操作がないまま この時間で戻る") { d ->
                 onChange { it.copy(panReturnSec = (it.panReturnSec + d * 5).coerceIn(NavSettings.PAN_RETURN_SEC_RANGE)) }

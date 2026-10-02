@@ -176,6 +176,7 @@ class MainActivity : ComponentActivity() {
                         Screen.SETTINGS -> SettingsScreen(
                             settings = state.settings,
                             input = state.sourceKind,
+                            rangeM = state.rangeM,
                             onChange = vm::updateSettings,
                             onInput = vm::setSourceKind,
                             onReset = vm::resetSettings,

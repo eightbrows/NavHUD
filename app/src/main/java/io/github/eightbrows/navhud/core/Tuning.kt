@@ -66,6 +66,16 @@ object Tuning {
     /** AUTO: 1段狭めるのは、次の WP を自機から 1 / これ 倍遠くに置いても1段狭い段の枠に収まるとき（狭めた直後に広げ直さないための余裕） */
     const val AUTO_ZOOM_IN_FIT_RATIO = 0.8
 
+    /** AUTO: WP 通過後（次の WP が変わってから）段を動かさない時間 [秒] の既定と範囲 */
+    const val AUTO_HOLD_AFTER_WP_SEC = 10
+    const val AUTO_HOLD_AFTER_WP_MAX_SEC = 60
+
+    /** AUTO: 狭め始める距離 = これ × 1段狭い段の R1（次の WP がこの距離以内のときだけ狭める）。既定と範囲・刻み */
+    const val AUTO_ZOOM_IN_DIST_RATIO = 2.0
+    const val AUTO_ZOOM_IN_DIST_RATIO_MIN = 1.0
+    const val AUTO_ZOOM_IN_DIST_RATIO_MAX = 4.0
+    const val AUTO_ZOOM_IN_DIST_RATIO_STEP = 0.5
+
     // ---- 地図の描画（HudMetrics の既定値。dp） ----
 
     const val HUD_TICK_MINOR_DP = 8f

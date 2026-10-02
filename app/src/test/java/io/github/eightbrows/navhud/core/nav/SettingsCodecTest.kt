@@ -41,6 +41,8 @@ class SettingsCodecTest {
             numbersOpacityPct = 60,
             autoMinRangeKm = 0.2,
             autoMaxRangeKm = 5.0,
+            autoHoldAfterWpSec = 20,
+            autoZoomInDistRatio = 3.0,
         )
         val d = NavSettings()
         // 念のため、ほんとうに全項目が既定値と違うことを確かめる（項目を足したらここも足す）
@@ -60,6 +62,15 @@ class SettingsCodecTest {
         assertEquals(0.1, s.autoMinRangeKm, 0.0)
         assertEquals(1.0, s.autoMaxRangeKm, 0.0)
         assertEquals(0.05, SettingsCodec.decode(mapOf("autoMinRangeKm" to "0.05")).autoMinRangeKm, 0.0)
+        // WP 通過後の待機（既定 10 秒、0〜60）と、狭め始める距離（既定 2.0、1.0〜4.0 の 0.5 刻み）
+        assertEquals(10, NavSettings().autoHoldAfterWpSec)
+        assertEquals(2.0, NavSettings().autoZoomInDistRatio, 0.0)
+        assertEquals(0, SettingsCodec.decode(mapOf("autoHoldAfterWpSec" to "0")).autoHoldAfterWpSec)
+        assertEquals(10, SettingsCodec.decode(mapOf("autoHoldAfterWpSec" to "61")).autoHoldAfterWpSec)
+        assertEquals(1.5, SettingsCodec.decode(mapOf("autoZoomInDistRatio" to "1.5")).autoZoomInDistRatio, 0.0)
+        assertEquals(2.0, SettingsCodec.decode(mapOf("autoZoomInDistRatio" to "1.2")).autoZoomInDistRatio, 0.0)
+        assertEquals(2.0, SettingsCodec.decode(mapOf("autoZoomInDistRatio" to "4.5")).autoZoomInDistRatio, 0.0)
+        assertEquals(listOf(1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0), NavSettings.AUTO_ZOOM_IN_DIST_RATIO_CHOICES)
     }
 
     @Test

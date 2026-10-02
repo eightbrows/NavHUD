@@ -29,6 +29,8 @@ object SettingsCodec {
         "autoRangeZoomInDelaySec" to s.autoRangeZoomInDelaySec.toString(),
         "autoMinRangeKm" to s.autoMinRangeKm.toString(),
         "autoMaxRangeKm" to s.autoMaxRangeKm.toString(),
+        "autoHoldAfterWpSec" to s.autoHoldAfterWpSec.toString(),
+        "autoZoomInDistRatio" to s.autoZoomInDistRatio.toString(),
         "wpButtonsMax" to s.wpButtonsMax.toString(),
         "hudWpCount" to s.hudWpCount.toString(),
         "uiTheme" to s.uiTheme.name,
@@ -84,6 +86,10 @@ object SettingsCodec {
             // AUTO の下限・上限: 段の一覧にない値は既定値（使う段への寄せは RangeAuto.limitsKm）
             autoMinRangeKm = dbl("autoMinRangeKm", d.autoMinRangeKm).takeIf { it in RangeAuto.ALL_STEPS_KM } ?: d.autoMinRangeKm,
             autoMaxRangeKm = dbl("autoMaxRangeKm", d.autoMaxRangeKm).takeIf { it in RangeAuto.ALL_STEPS_KM } ?: d.autoMaxRangeKm,
+            autoHoldAfterWpSec = int("autoHoldAfterWpSec", d.autoHoldAfterWpSec).takeIf { it in NavSettings.AUTO_HOLD_AFTER_WP_SEC_RANGE }
+                ?: d.autoHoldAfterWpSec,
+            autoZoomInDistRatio = dbl("autoZoomInDistRatio", d.autoZoomInDistRatio)
+                .takeIf { v -> NavSettings.AUTO_ZOOM_IN_DIST_RATIO_CHOICES.any { kotlin.math.abs(it - v) < 1e-9 } } ?: d.autoZoomInDistRatio,
             wpButtonsMax = int("wpButtonsMax", d.wpButtonsMax).coerceIn(NavSettings.WP_BUTTONS_MAX_RANGE),
             hudWpCount = int("hudWpCount", d.hudWpCount).coerceIn(NavSettings.HUD_WP_COUNT_RANGE),
             // 色: 古い版の「色テーマ」（1つ）が保存されていれば、UI・地図の両方の初期値として引き継ぐ

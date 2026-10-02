@@ -243,9 +243,12 @@ class HudSceneBuilderTest {
         assertEquals(84f + m.edgeInset, arrow(wp("N", 5_000.0)).at.x, 1e-3f)
         // 機首 090 で南 → 右端（下の帯は関係ない）
         assertEquals(720f - m.edgeInset, arrow(wp("S", -5_000.0)).at.x, 1e-3f)
-        // 真後ろ → 下端。下は描画の枠の下端（下に重ねた表示の下も地図として見えている扱い）
+        // 真後ろ → 下端。矢印の枠の下端は下に重ねた表示の上端（900 − 46 = 854）。自機（854 − 24）のすぐ下なので、
+        // 自機の記号を避けて縁に沿って横へずらす
         val behind = HudSceneBuilder.build(state(headingDeg = 0f, wps = listOf(wp("B", -5_000.0)), next = 0), rect, m, reserved)
-        assertEquals(900f - m.edgeInset, behind.arrows.single().at.y, 1e-3f)
+        val at = behind.arrows.single().at
+        assertEquals(854f - m.edgeInset, at.y, 1e-3f)
+        assertTrue(abs(at.x - 360f) >= m.ownShipClear + m.pointerSize * 0.6f)
     }
 
     @Test

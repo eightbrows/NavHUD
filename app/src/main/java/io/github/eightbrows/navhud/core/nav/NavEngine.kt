@@ -46,6 +46,8 @@ class NavEngine(
     private var replayTrack: List<TrackPoint> = emptyList()
     /** PAN の表示（null なら通常の表示） */
     private var pan: PanView? = null
+    /** 次の WP が変わった（到達・通過・手動のトグル）。次の recompute で AUTO の通過後の待機を始める */
+    private var wpChanged = false
 
     var state: NavState = NavState()
         private set
@@ -76,8 +78,10 @@ class NavEngine(
         lastFix = fix
         headingSelector.update(fix)
         rateTracker.add(fix)
+        val nextBefore = WaypointNav.nextIndex(waypoints)
         waypoints = WaypointNav.autoReach(waypoints, fix.lat, fix.lon, settings.reachRadiusM)
         checkPass(fix)
+        if (WaypointNav.nextIndex(waypoints) != nextBefore) wpChanged = true
         // LIVE の軌跡（起動してからの分。保存しない）
         if (sourceKind == SourceKind.LIVE) liveTrail.add(fix)
     }
@@ -113,6 +117,8 @@ class NavEngine(
         rangeSelector.setSteps(s.rangeStepsKm)
         rangeSelector.zoomInDelayMs = s.autoRangeZoomInDelaySec * 1000L
         rangeSelector.setAutoLimits(s.autoMinRangeKm, s.autoMaxRangeKm)
+        rangeSelector.holdAfterWpMs = s.autoHoldAfterWpSec * 1000L
+        rangeSelector.zoomInDistRatio = s.autoZoomInDistRatio
     }
 
     /** 画面の大きさ・帯が変わったとき（AUTO 縮尺は、次の WP がこの表示枠に収まる最小の段を選ぶ）。 */
@@ -178,7 +184,9 @@ class NavEngine(
     }
 
     fun toggleReached(index: Int): NavState {
+        val nextBefore = WaypointNav.nextIndex(waypoints)
         waypoints = WaypointNav.toggleReached(waypoints, index)
+        if (WaypointNav.nextIndex(waypoints) != nextBefore) wpChanged = true
         return recompute()
     }
 
@@ -268,6 +276,11 @@ class NavEngine(
         val bearing = if (fix != null && wp != null) Geo.bearingDeg(fix.lat, fix.lon, wp.lat, wp.lon) else null
         // ETA: RATE の窓の平均速度。履歴が窓に足りなければ、ある分（最低 10 秒）の平均速度
         val eta = if (now != null && dist != null) WaypointNav.etaMs(now, dist, rateTracker.etaSpeed(settings.rateWindowSec)) else null
+        // 次の WP が変わったら、そこから設定の秒数のあいだ AUTO の段を動かさない（時刻はトラックの時刻）
+        if (wpChanged && now != null) {
+            rangeSelector.holdForWpChange(now)
+            wpChanged = false
+        }
         // 縮尺の AUTO（§6.1）: 次の WP を収める段を基本に、[下限, 上限] の中で1段ずつ。WP を区別できる幅を優先する
         val rangeM = when {
             // PAN 中は AUTO を止める（＋ / − は効く）
@@ -322,6 +335,7 @@ class NavEngine(
             val dist = Geo.distanceM(fix.lat, fix.lon, wp.lat, wp.lon)
             return object : RangeProbe {
                 override fun fits(rangeM: Double, spread: Double) = dist * spread <= rangeM * Tuning.RANGE_DISTANCE_FIT_RATIO
+                override val distanceM = dist
             }
         }
         val points = (next until waypoints.size)
@@ -333,6 +347,7 @@ class NavEngine(
         return object : RangeProbe {
             override fun fits(rangeM: Double, spread: Double) = vp.fits(rangeM, target, headingDeg, s, spread)
             override fun separated(rangeM: Double) = vp.separated(rangeM, points, headingDeg, s)
+            override val distanceM = Geo.distanceM(fix.lat, fix.lon, wp.lat, wp.lon)
         }
     }
 

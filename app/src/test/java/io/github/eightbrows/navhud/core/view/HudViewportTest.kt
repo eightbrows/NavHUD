@@ -154,18 +154,47 @@ class HudViewportTest {
         assertEquals(1_000.0, autoRange(30, at(166.0, 4_190.0), initialKm = 0.1), 0.0)
         // 前方 1.9km: 1km の段に収まる。500m の段には 1.25 倍で収まらないので 1km の段のまま
         assertEquals(1_000.0, autoRange(30, EN(0.0, 1_900.0)), 0.0)
-        // 前方 130m: 1段ずつ、それぞれ 5 秒待って狭める（5 秒で 500m、11 秒で 200m、17 秒で 100m の段 = R1 50m）。それより狭めない
+        // 前方 130m: 1段ずつ、それぞれ 5 秒待って狭める（5 秒で 500m、11 秒で 200m の段）。100m の段（R1 50m）へは、
+        // 次の WP が 2.0 × 50m = 100m 以内になるまで狭めない（既定の到達半径 100m なので、その前に到達する）
         assertEquals(500.0, autoRange(5, EN(0.0, 130.0)), 0.0)
         assertEquals(200.0, autoRange(16, EN(0.0, 130.0)), 0.0)
-        assertEquals(100.0, autoRange(17, EN(0.0, 130.0)), 0.0)
-        assertEquals(100.0, autoRange(60, EN(0.0, 130.0)), 0.0)
+        assertEquals(200.0, autoRange(17, EN(0.0, 130.0)), 0.0)
+        assertEquals(200.0, autoRange(60, EN(0.0, 130.0)), 0.0)
         // 近い2つ（前方 300m と、その 100m 先）: 1km の段では 36 px で近すぎるので、すぐ 500m の段（72 px）
         assertEquals(500.0, autoRange(0, EN(0.0, 300.0), EN(0.0, 400.0)), 0.0)
-        // 近い2つが遠くにある（前方 800m と、その 50m 先）: 1km の段（18 px）・500m の段（36 px）では近すぎるので狭め、
-        // 200m の段で2つとも画面の外に出る（見えていないので数えない）。次の WP は矢印で示し、広げると近すぎるので広げない
-        assertEquals(200.0, autoRange(30, EN(0.0, 800.0), EN(0.0, 850.0)), 0.0)
+        // 近い2つが遠くにある（前方 800m と、その 50m 先）: 1km の段（18 px）では近すぎるので 500m の段へ狭める。
+        // 500m の段（36 px）でもまだ近いが、200m の段では次の WP が枠に収まらないので、500m の段で止める
+        assertEquals(500.0, autoRange(30, EN(0.0, 800.0), EN(0.0, 850.0)), 0.0)
         // 次の WP がない: 中央の段（100m / 200m / 500m / 1km のうち広い方の 500m の段、R1 250m）
         assertEquals(500.0, autoRange(0), 0.0)
+    }
+
+    /** 10 m/s で北へ走り、400m 北の A を通過（到達半径 100m なので 30 秒目）して、次は 5km 北の B。各秒の段を返す。 */
+    private fun passRun(holdSec: Int): List<Double> {
+        val lat0 = 33.5
+        val lon0 = 133.0
+        val e = NavEngine(NavSettings(autoHoldAfterWpSec = holdSec), sourceKind = SourceKind.LIVE)
+        e.setViewport(viewport)
+        e.setWaypoints(listOf(Waypoint("A", lat0 + 400.0 / 111_195.0, lon0), Waypoint("B", lat0 + 5_000.0 / 111_195.0, lon0)))
+        return (0..60L).map { t ->
+            val s = e.onFix(Fix(timeMs = t * 1_000, lat = lat0 + minOf(t * 10.0, 400.0) / 111_195.0, lon = lon0), t * 1_000)
+            if (t == 30L) assertEquals(1, s.nextWpIndex)
+            if (t == 29L) assertEquals(0, s.nextWpIndex)
+            s.rangeM
+        }
+    }
+
+    @Test
+    fun autoHoldsAfterPassingAWaypoint() {
+        // 既定（10 秒）: A を通過した 30 秒目から 39 秒目までは段を動かさず、40 秒目から B へ向けて1段ずつ広げる
+        val r = passRun(10)
+        val atPass = r[30]
+        assertTrue(atPass < 1_000.0)
+        for (t in 30..39) assertEquals("t=$t", atPass, r[t], 0.0)
+        assertTrue(r[40] > atPass)
+        // 0 秒: 今までどおり、通過したその刻みから広げる
+        val z = passRun(0)
+        assertTrue(z[30] > z[29])
     }
 
     @Test

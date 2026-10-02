@@ -19,6 +19,7 @@ class RangeSelectorTest {
     private fun probe(distM: Double, sepMaxM: Double = Double.MAX_VALUE) = object : RangeProbe {
         override fun fits(rangeM: Double, spread: Double) = distM * spread <= rangeM
         override fun separated(rangeM: Double) = rangeM <= sepMaxM
+        override val distanceM = distM
     }
 
     private fun selector(initialKm: Double) = RangeSelector(stepsKm, initialKm, auto = true)
@@ -111,17 +112,29 @@ class RangeSelectorTest {
 
     @Test
     fun narrowsImmediatelyWhenWaypointsAreTooClose() {
-        // 次の WP は 1km の段に収まるが、隣り合う目標を区別できるのは 200m 以下の段だけ: 待たずに1段ずつ狭める
+        // 次の WP（150m 先）は 1km の段に収まるが、隣り合う目標を区別できるのは 200m 以下の段だけ: 待たずに1段ずつ狭める
+        val r = selector(1.0)
+        assertEquals(500.0, r.update(probe(150.0, sepMaxM = 200.0), 0), 0.0)
+        assertEquals(200.0, r.update(probe(150.0, sepMaxM = 200.0), 0), 0.0)
+        assertEquals(200.0, r.update(probe(150.0, sepMaxM = 200.0), 1_000), 0.0)
+        // どの段でも区別できなければ、下限で止まる（50m 先なので下限の 100m の段にも収まる）
+        val s = selector(1.0)
+        repeat(5) { s.update(probe(50.0, sepMaxM = 0.0), 0) }
+        assertEquals(100.0, s.rangeM, 0.0)
+    }
+
+    @Test
+    fun closeWaypointsDoNotHideTheNextOne() {
+        // 次の WP は 300m 先、区別できるのは 200m 以下の段だけ。200m の段では次の WP が収まらないので、
+        // 1km → 500m の段までで止める（近すぎても、次の WP が見えなくなるほどは狭めない）
         val r = selector(1.0)
         assertEquals(500.0, r.update(probe(300.0, sepMaxM = 200.0), 0), 0.0)
-        assertEquals(200.0, r.update(probe(300.0, sepMaxM = 200.0), 0), 0.0)
-        // 次の WP（300m）は 200m の段に収まらないが、広げると区別できないので広げない（矢印で示す）
-        assertEquals(200.0, r.update(probe(300.0, sepMaxM = 200.0), 1_000), 0.0)
-        assertEquals(200.0, r.update(probe(300.0, sepMaxM = 200.0), 60_000), 0.0)
-        // どの段でも区別できなければ、下限で止まる
-        val s = selector(1.0)
-        repeat(5) { s.update(probe(300.0, sepMaxM = 0.0), 0) }
-        assertEquals(100.0, s.rangeM, 0.0)
+        assertEquals(500.0, r.update(probe(300.0, sepMaxM = 200.0), 1_000), 0.0)
+        assertEquals(500.0, r.update(probe(300.0, sepMaxM = 200.0), 60_000), 0.0)
+        // 200m の段で次の WP が収まらなければ、近すぎても 500m の段へ広げる（狭めると見えなくなるので）
+        val s = selector(0.2)
+        assertEquals(500.0, s.update(probe(300.0, sepMaxM = 200.0), 0), 0.0)
+        assertEquals(500.0, s.update(probe(300.0, sepMaxM = 200.0), 60_000), 0.0)
     }
 
     @Test
@@ -153,7 +166,61 @@ class RangeSelectorTest {
         r.decideNow()
         assertEquals(1_000.0, r.update(probe(800.0), 0), 0.0)
         r.decideNow()
-        assertEquals(200.0, r.update(probe(800.0, sepMaxM = 200.0), 0), 0.0)
+        assertEquals(200.0, r.update(probe(150.0, sepMaxM = 200.0), 0), 0.0)
+        // 狭めると次の WP（800m）が収まらないなら、区別できなくても収まる段のまま
+        r.decideNow()
+        assertEquals(1_000.0, r.update(probe(800.0, sepMaxM = 200.0), 0), 0.0)
+    }
+
+    @Test
+    fun holdsAfterTheNextWaypointChanges() {
+        // 次の WP が変わってから 10 秒（既定）は、広げる・狭める・範囲の外・次の WP なし、どれも動かさない
+        val r = selector(0.2)
+        r.holdForWpChange(1_000)
+        assertEquals(200.0, r.update(probe(5_000.0), 1_000), 0.0)
+        assertEquals(200.0, r.update(probe(5_000.0), 10_999), 0.0)
+        assertEquals(200.0, r.update(null, 10_999), 0.0)
+        // 10 秒たったら動く（1段ずつ）
+        assertEquals(500.0, r.update(probe(5_000.0), 11_000), 0.0)
+        assertEquals(1_000.0, r.update(probe(5_000.0), 11_001), 0.0)
+        // 0 秒なら待たない（今までどおり）
+        val z = selector(0.2).apply { holdAfterWpMs = 0 }
+        z.holdForWpChange(1_000)
+        assertEquals(500.0, z.update(probe(5_000.0), 1_000), 0.0)
+        // シーク・PAN から戻ったときは待たない
+        val s = selector(0.2)
+        s.holdForWpChange(1_000)
+        s.decideNow()
+        assertEquals(1_000.0, s.update(probe(5_000.0), 2_000), 0.0)
+        // 時刻が戻ったら（巻き戻し）待機をやめる
+        val b = selector(0.2)
+        b.holdForWpChange(100_000)
+        assertEquals(500.0, b.update(probe(5_000.0), 1_000), 0.0)
+    }
+
+    @Test
+    fun zoomInDistanceRatioDecidesWhenToStartNarrowing() {
+        // 1km の段で次の WP に近づいていく（1 秒に 10m）。1段狭い 500m の段の R1 は 250m。
+        // 画面は ARC の前方のように「段の 2 倍」まで収まるものとする（500m の段に 1.25 倍で収まるのは 800m 以内）
+        // 倍率 2.0（既定）: 500m 以内で狭め始め、5 秒続いたら狭める。倍率 1.0: 250m 以内から
+        fun wide(d: Double) = object : RangeProbe {
+            override fun fits(rangeM: Double, spread: Double) = d * spread <= rangeM * 2
+            override val distanceM = d
+        }
+        fun firstNarrowAt(ratio: Double): Long {
+            val r = selector(1.0).apply { zoomInDistRatio = ratio }
+            for (t in 0..100L) {
+                val d = 1_000.0 - t * 10
+                if (r.update(wide(d), t * 1_000) < 1_000.0) return t
+            }
+            return -1
+        }
+        // 2.0: 50 秒目に 500m 以内 → 55 秒目に 500m の段
+        assertEquals(55L, firstNarrowAt(2.0))
+        // 1.0: 75 秒目に 250m 以内 → 80 秒目
+        assertEquals(80L, firstNarrowAt(1.0))
+        // 4.0: 1000m 以内なので距離では止めない。1.25 倍の余裕で決まる（800m 以内 = 20 秒目 → 25 秒目）
+        assertEquals(25L, firstNarrowAt(4.0))
     }
 
     @Test

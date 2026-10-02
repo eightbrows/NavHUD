@@ -75,6 +75,9 @@ interface RangeProbe {
 
     /** 段 rangeM で、描画の枠の中に見えている隣り合う目標どうしが、画面上で最小の間隔以上離れているか */
     fun separated(rangeM: Double): Boolean = true
+
+    /** 次の WP までの距離 [m]（規則 5 の「狭め始める距離」に使う）。分からなければ null（距離では止めない） */
+    val distanceM: Double? get() = null
 }
 
 /**
@@ -82,9 +85,12 @@ interface RangeProbe {
  * 1回の判定（Fix・時計の刻み）で動かすのは1段だけ:
  * 1. 次の WP がない: 下限〜上限の段の中央（2つあれば広い方）へすぐ。
  * 2. 今の段が [下限, 上限] の外: すぐ範囲の端の段へ。
- * 3. 見えている隣り合う目標が近すぎる（separated でない）: すぐ1段狭める（下限まで）。
- * 4. 次の WP が今の段で収まらない: 1段広い段が上限以内で separated なら、すぐ1段広げる（広げられなければ矢印で示す）。
- * 5. 1段狭い段で、次の WP を 1 / AUTO_ZOOM_IN_FIT_RATIO 倍遠くに置いても収まり、separated: これが zoomInDelayMs 続いたら1段狭める。
+ * 3. 見えている隣り合う目標が近すぎ、1段狭い段でも次の WP が枠に収まる: すぐ1段狭める（下限まで。狭めると次の WP が
+ *    見えなくなるなら、近すぎても止める）。
+ * 4. 次の WP が今の段で収まらない: 1段広い段が上限以内で 3 を満たすなら、すぐ1段広げる（広げられなければ矢印で示す）。
+ * 5. 次の WP が「zoomInDistRatio × 1段狭い段の R1」以内で、1段狭い段に 1 / AUTO_ZOOM_IN_FIT_RATIO 倍遠くに置いても収まり、
+ *    3 を満たす: これが zoomInDelayMs 続いたら1段狭める。
+ * 次の WP が変わってから holdAfterWpMs のあいだは、1〜5 のどれも行わない（シーク・PAN から戻ったときは待たない）。
  * ＋ / − を押したら AUTO は OFF になる。
  */
 class RangeSelector(
@@ -109,6 +115,15 @@ class RangeSelector(
 
     /** 狭めたい状態が始まった時刻（AUTO の狭める方向の待ち）。 */
     private var zoomInSince: Long? = null
+
+    /** 次の WP が変わった時刻（この時刻から holdAfterWpMs のあいだは AUTO の段を動かさない）。 */
+    private var holdSince: Long? = null
+
+    /** WP 通過後に AUTO が動くまで [ms]（設定 autoHoldAfterWpSec） */
+    var holdAfterWpMs: Long = NavSettings().autoHoldAfterWpSec * 1000L
+
+    /** 狭め始める距離: 次の WP が「これ × 1段狭い段の R1」以内のときだけ狭める（設定 autoZoomInDistRatio） */
+    var zoomInDistRatio: Double = NavSettings().autoZoomInDistRatio
 
     private var decideNow = false
 
@@ -151,6 +166,12 @@ class RangeSelector(
         decideNow = true
     }
 
+    /** 次の WP が変わった（到達・通過・手動のトグル）: nowMs から holdAfterWpMs のあいだ AUTO の段を動かさない。 */
+    fun holdForWpChange(nowMs: Long) {
+        holdSince = if (holdAfterWpMs > 0) nowMs else null
+        zoomInSince = null
+    }
+
     /** AUTO の狭める方向の待ちをやり直す（PAN 中など、判定を止めている間）。 */
     fun restartWait() {
         zoomInSince = null
@@ -171,26 +192,36 @@ class RangeSelector(
         val w = autoSteps
         val lo = w.first()
         val hi = w.last()
-        // 1. 次の WP がない: 中央の段（2つあれば広い方）へすぐ
-        if (probe == null) return set(w[w.size / 2])
-        // PAN から戻ったとき・シークのあと: 目標の段へすぐ
-        if (decideNow) {
+        // PAN から戻ったとき・シークのあと: 通過後の待機もやめて、目標の段へすぐ
+        if (decideNow && probe != null) {
             decideNow = false
+            holdSince = null
             return set(target(w, probe))
         }
+        // 次の WP が変わってから holdAfterWpMs のあいだは動かさない（時刻が戻ったら待機をやめる）
+        holdSince?.let { since ->
+            if (nowMs >= since && nowMs - since < holdAfterWpMs) {
+                zoomInSince = null
+                return rangeM
+            }
+            holdSince = null
+        }
+        // 1. 次の WP がない: 中央の段（2つあれば広い方）へすぐ
+        if (probe == null) return set(w[w.size / 2])
         // 2. 範囲の外: すぐ範囲の端へ
         if (rangeM < lo - EPS) return set(lo)
         if (rangeM > hi + EPS) return set(hi)
-        val narrower = w.lastOrNull { it < rangeM - EPS }
+        val narrower = narrowerOf(w, rangeM)
         val wider = w.firstOrNull { it > rangeM + EPS }
-        // 3. 見えている隣り合う目標が近すぎる: すぐ1段狭める
-        if (!probe.separated(rangeM) && narrower != null) return set(narrower)
-        // 4. 次の WP が収まらない: すぐ1段広げる（上限まで、WP を区別できる範囲で）
+        // 3. 見えている隣り合う目標が近すぎ、1段狭い段でも次の WP が収まる: すぐ1段狭める
+        if (!acceptable(w, probe, rangeM)) return set(narrower!!)
+        // 4. 次の WP が収まらない: すぐ1段広げる（上限まで、3 を満たす段なら）
         if (!probe.fits(rangeM)) {
-            return if (wider != null && probe.separated(wider)) set(wider) else set(rangeM)
+            return if (wider != null && acceptable(w, probe, wider)) set(wider) else set(rangeM)
         }
-        // 5. 1段狭い段で余裕をもって収まる状態が続いたら、1段狭める
-        if (narrower != null && probe.fits(narrower, 1.0 / Tuning.AUTO_ZOOM_IN_FIT_RATIO) && probe.separated(narrower)) {
+        // 5. 次の WP が「倍率 × 1段狭い段の R1」以内で、1段狭い段に余裕をもって収まり、3 も満たす状態が続いたら1段狭める
+        val near = narrower != null && (probe.distanceM?.let { it <= zoomInDistRatio * narrower / 2 } ?: true)
+        if (near && probe.fits(narrower!!, 1.0 / Tuning.AUTO_ZOOM_IN_FIT_RATIO) && acceptable(w, probe, narrower)) {
             val since = zoomInSince
             if (since == null || nowMs < since) {
                 zoomInSince = nowMs
@@ -204,12 +235,24 @@ class RangeSelector(
     }
 
     /**
+     * 規則 3 を満たす段か: 見えている隣り合う目標を区別できる。区別できなくても、1段狭い段では次の WP が枠に収まらない
+     * （それ以上狭めると次の WP が見えなくなる）か、下限なら、満たすとみなす。
+     */
+    private fun acceptable(w: List<Double>, probe: RangeProbe, m: Double): Boolean {
+        if (probe.separated(m)) return true
+        val n = narrowerOf(w, m) ?: return true
+        return !probe.fits(n)
+    }
+
+    private fun narrowerOf(w: List<Double>, m: Double): Double? = w.lastOrNull { it < m - EPS }
+
+    /**
      * 目標の段: 下限〜上限のうち次の WP が収まるいちばん狭い段（どれにも収まらなければ上限）。
-     * そこで WP を区別できなければ、区別できる段まで狭める（下限まで）。
+     * そこで規則 3 を満たさなければ、満たす段まで狭める。
      */
     private fun target(w: List<Double>, probe: RangeProbe): Double {
         var i = w.indexOfFirst { probe.fits(it) }.let { if (it < 0) w.lastIndex else it }
-        while (i > 0 && !probe.separated(w[i])) i--
+        while (i > 0 && !acceptable(w, probe, w[i])) i--
         return w[i]
     }
 

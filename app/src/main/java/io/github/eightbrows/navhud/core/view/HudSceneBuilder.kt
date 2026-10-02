@@ -171,8 +171,14 @@ object HudSceneBuilder {
         return TargetFrame(outer, notch)
     }
 
-    /** 画面外の矢印を置く枠: targetFrame から edgeInset だけ内側。 */
-    fun arrowFrame(rect: HudRect, reserved: HudInsets, m: HudMetrics): TargetFrame = targetFrame(rect, reserved).inset(m.edgeInset)
+    /**
+     * 画面外の矢印を置く枠: targetFrame の下端だけを WP ボタン列の上端（下に重ねた表示の上端）にして、edgeInset だけ内側。
+     * 矢印と文字を WP ボタン列・標高プロファイル・再生の帯の下に置かない。AUTO の判定の枠は targetFrame のまま。
+     */
+    fun arrowFrame(rect: HudRect, reserved: HudInsets, m: HudMetrics): TargetFrame {
+        val t = targetFrame(rect, reserved)
+        return TargetFrame(t.outer.copy(bottom = rect.bottom - reserved.bottom), t.notch).inset(m.edgeInset)
+    }
 
     /** 方位目盛りを沿わせる枠: 上は回避枠の上端（数値の下端）、左右は描画の枠（画面）の縁。操作列の下に入ってよい。 */
     private fun tickFrame(rect: HudRect, avoid: HudRect) = HudRect(rect.left, avoid.top, rect.right, rect.bottom)
@@ -417,8 +423,9 @@ object HudSceneBuilder {
             } else if (i == next) {
                 // 矢印の枠の縁に方位方向の矢印と距離。文字は矢印の内側（自機側）
                 val a = HudGeometry.angleOf(proj.origin, pts[i])
-                // 三角が方位目盛りの文字や、ARC の方位マーカー・ラバーラインの周りに来るなら、縁に沿ってずらす
-                val at = slideArrow(inner.rayHit(proj.origin, a), inner, labelBoxes + arrowKeepOut, m)
+                // 三角が方位目盛りの文字や、ARC の方位マーカー・ラバーラインの周り、自機の記号（後ろの矢印は自機のすぐ下の
+                // 縁に来る）に来るなら、縁に沿ってずらす
+                val at = slideArrow(inner.rayHit(proj.origin, a), inner, labelBoxes + arrowKeepOut + ownShipBox, m)
                 val dist = Geo.distanceM(fix.lat, fix.lon, wp.lat, wp.lon)
                 val text = "${wp.name} ${HudFormat.distance(dist)}"
                 val textAt = placeArrowText(
