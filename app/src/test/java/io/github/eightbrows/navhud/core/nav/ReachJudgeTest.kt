@@ -51,11 +51,8 @@ class ReachJudgeTest {
         assertEquals(300.0, s.passMaxApproachM, 0.0)
         assertEquals(50.0, s.passDepartM, 0.0)
         assertEquals(5, s.passHoldSec)
-        // 値を変えるとカスタム、推奨値に戻すと自動車
-        assertEquals(TravelMode.CUSTOM, s.copy(sidePassMaxM = 200.0).withTravelModeFromValues().travelMode)
-        assertEquals(TravelMode.CAR, s.copy(travelMode = TravelMode.CUSTOM).withTravelModeFromValues().travelMode)
         // 自動車を選ぶと推奨値が入る
-        assertEquals(NavSettings(), NavSettings(travelMode = TravelMode.CUSTOM, reachRadiusM = 100.0, sidePass = false).withCarPreset())
+        assertEquals(NavSettings(), NavSettings(travelMode = TravelMode.CUSTOM1, reachRadiusM = 100.0, sidePass = false).selectTravelMode(TravelMode.CAR))
     }
 
     @Test

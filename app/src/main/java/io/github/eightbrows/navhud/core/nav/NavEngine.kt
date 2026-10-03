@@ -3,6 +3,8 @@ package io.github.eightbrows.navhud.core.nav
 import io.github.eightbrows.navhud.core.Tuning
 import io.github.eightbrows.navhud.core.geo.Geo
 import io.github.eightbrows.navhud.core.model.Fix
+import io.github.eightbrows.navhud.core.model.ReachInfo
+import io.github.eightbrows.navhud.core.model.ReachReason
 import io.github.eightbrows.navhud.core.model.SourceMode
 import io.github.eightbrows.navhud.core.model.Waypoint
 import io.github.eightbrows.navhud.core.sensor.CompassQuality
@@ -32,6 +34,14 @@ class NavEngine(
     private val rateTracker = RateTracker(maxWindowSec = NavSettings.RATE_WINDOW_CHOICES_SEC.max())
     private val passDetector = PassDetector()
     private val sidePassDetector = SidePassDetector()
+
+    /** 到達の理由に書く「いちばん近づいた距離」: 次の WP ごとに、隣り合う Fix を結んだ線分との最短距離を追う */
+    private var closestKey: Any? = null
+    private var closestM = Double.POSITIVE_INFINITY
+    private var prevFix: Fix? = null
+
+    /** 前方へのシークで飛ばした区間の Fix を判定にかけている間 */
+    private var seeking = false
 
     private var lastFix: Fix? = null
     private var compassDeg: Float? = null
@@ -76,11 +86,12 @@ class NavEngine(
     private fun ingest(fix: Fix) {
         // リプレイの巻き戻し・別ファイルなどで時刻が戻ったら、位置に関する履歴を捨てる
         lastFix?.let { if (fix.timeMs < it.timeMs) clearHistory() }
+        prevFix = lastFix
         lastFix = fix
         headingSelector.update(fix)
         rateTracker.add(fix)
         val nextBefore = WaypointNav.nextIndex(waypoints)
-        waypoints = WaypointNav.autoReach(waypoints, fix.lat, fix.lon, settings.reachRadiusM)
+        checkRadius(fix)
         checkSidePass(fix)
         checkPass(fix)
         if (WaypointNav.nextIndex(waypoints) != nextBefore) wpChanged = true
@@ -188,6 +199,10 @@ class NavEngine(
     fun toggleReached(index: Int): NavState {
         val nextBefore = WaypointNav.nextIndex(waypoints)
         waypoints = WaypointNav.toggleReached(waypoints, index)
+        // 手動で到達にしたら理由は「手動」（時刻だけ）
+        waypoints.getOrNull(index)?.takeIf { it.reached }?.let { wp ->
+            waypoints = waypoints.toMutableList().also { it[index] = wp.copy(reach = ReachInfo(ReachReason.MANUAL, nowMs ?: lastFix?.timeMs)) }
+        }
         if (WaypointNav.nextIndex(waypoints) != nextBefore) wpChanged = true
         return recompute()
     }
@@ -227,12 +242,14 @@ class NavEngine(
      * - 後方へのシーク: WP の到達状態は残す。トラックの先頭まで戻したとき（toStart）だけ、すべて未到達に戻す。
      */
     fun seekReset(toStart: Boolean, passed: List<Fix> = emptyList()): NavState {
+        seeking = true
         passed.forEach(::ingest)
+        seeking = false
         clearHistory()
         // 地図が跳ぶので、AUTO は待たずに縮尺を決め直す（一時停止中はトラックの時計が進まず、狭める方向の待ちが終わらないため）
         rangeSelector.decideNow()
         nowMs = null
-        if (toStart) waypoints = waypoints.map { it.copy(reached = false) }
+        if (toStart) waypoints = waypoints.map { it.copy(reached = false, reach = null) }
         return recompute()
     }
 
@@ -243,6 +260,38 @@ class NavEngine(
         return recompute()
     }
 
+    /** WP ごとの半径・到着半径（§5.4 の 1・2）: 次の WP がその半径に入ったら到達にする。 */
+    private fun checkRadius(fix: Fix) {
+        val i = WaypointNav.nextIndex(waypoints) ?: return
+        val wp = waypoints[i]
+        closestTo(i, fix)
+        if (Geo.distanceM(fix.lat, fix.lon, wp.lat, wp.lon) <= (wp.radiusM ?: settings.reachRadiusM)) {
+            markReached(i, if (wp.radiusM != null) ReachReason.RADIUS else ReachReason.ARRIVAL, fix)
+        }
+    }
+
+    /** 次の WP（i）にいちばん近づいた距離 [m]。この Fix の分も入れて返す。次の WP が変わったら数え直す。 */
+    private fun closestTo(i: Int, fix: Fix): Double {
+        val wp = waypoints[i]
+        val key = Triple(i, wp.lat, wp.lon)
+        if (key != closestKey) {
+            closestKey = key
+            closestM = Double.POSITIVE_INFINITY
+        }
+        val p = prevFix
+        val d = if (p == null) Geo.distanceM(fix.lat, fix.lon, wp.lat, wp.lon) else PassDetector.segmentDistanceM(p, fix, wp)
+        if (d < closestM) closestM = d
+        return closestM
+    }
+
+    /** 次の WP（i）を到達にして、理由・Fix の時刻・いちばん近づいた距離を記録する。 */
+    private fun markReached(i: Int, reason: ReachReason, fix: Fix) {
+        val closest = closestTo(i, fix)
+        waypoints = waypoints.toMutableList().also {
+            it[i] = it[i].copy(reached = true, reach = ReachInfo(reason, fix.timeMs, closest, viaSeek = seeking))
+        }
+    }
+
     /** 真横通過（§5.4）。走行中に次の WP が真横か後ろになり、いちばん近づいた距離から離れたら到達にする。 */
     private fun checkSidePass(fix: Fix) {
         val i = WaypointNav.nextIndex(waypoints)
@@ -251,9 +300,7 @@ class NavEngine(
             return
         }
         val wp = waypoints[i]
-        if (sidePassDetector.update(fix, wp, Triple(i, wp.lat, wp.lon), settings)) {
-            waypoints = waypoints.toMutableList().also { it[i] = wp.copy(reached = true) }
-        }
+        if (sidePassDetector.update(fix, wp, Triple(i, wp.lat, wp.lon), settings)) markReached(i, ReachReason.SIDE, fix)
     }
 
     /** 通過判定（§5.4 の予備。方位が取れない場面用）。次の WP に最接近したあと離れていったら到達にする。 */
@@ -264,9 +311,7 @@ class NavEngine(
             return
         }
         val wp = waypoints[i]
-        if (passDetector.update(fix, wp, Triple(i, wp.lat, wp.lon), settings)) {
-            waypoints = waypoints.toMutableList().also { it[i] = wp.copy(reached = true) }
-        }
+        if (passDetector.update(fix, wp, Triple(i, wp.lat, wp.lon), settings)) markReached(i, ReachReason.PASS, fix)
     }
 
     private fun clearHistory() {
@@ -276,6 +321,8 @@ class NavEngine(
         headingSelector.reset()
         passDetector.reset()
         sidePassDetector.reset()
+        prevFix = null
+        closestKey = null
     }
 
     private fun recompute(): NavState {

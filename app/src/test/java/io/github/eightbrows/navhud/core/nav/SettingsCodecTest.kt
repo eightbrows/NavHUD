@@ -9,17 +9,15 @@ class SettingsCodecTest {
     @Test
     fun roundTripOfEveryValue() {
         // 既定値とすべて違う値にする
+        val p1 = ReachProfile(50.0, false, 100.0, 15.0, false, 250.0, 40.0, 4)
+        val p2 = ReachProfile(200.0, false, 200.0, 20.0, false, 450.0, 80.0, 8)
+        val p3 = ReachProfile(100.0, false, 300.0, 30.0, false, 500.0, 60.0, 10)
         val s = NavSettings(
             sourceMode = SourceMode.HYBRID,
             holdEnterSpeedMps = 1.5f,
             holdExitSpeedMps = 4.2f,
             maxGpsAccM = 20f,
             maxGpsBearingAccDeg = 30f,
-            reachRadiusM = 200.0,
-            passDetection = false,
-            passMaxApproachM = 450.0,
-            passDepartM = 80.0,
-            passHoldSec = 8,
             rateWindowSec = 30,
             noFixTimeoutSec = 15,
             altOffsetM = 35.5,
@@ -43,11 +41,10 @@ class SettingsCodecTest {
             autoMaxRangeKm = 5.0,
             autoHoldAfterWpSec = 20,
             autoZoomInDistRatio = 3.0,
-            travelMode = TravelMode.CUSTOM,
-            sidePass = false,
-            sidePassMaxM = 200.0,
-            sidePassDepartM = 20.0,
-        )
+            // 移動手段: カスタム2 を選んでいて、3つの枠はどれも自動車の値と違う
+            travelMode = TravelMode.CUSTOM2,
+            customReach = listOf(p1, p2, p3),
+        ).withReachValues(p2)
         val d = NavSettings()
         // 念のため、ほんとうに全項目が既定値と違うことを確かめる（項目を足したらここも足す）
         assertEquals(SettingsCodec.encode(d).keys, SettingsCodec.encode(s).keys)
@@ -100,8 +97,8 @@ class SettingsCodecTest {
     @Test
     fun missingValuesAreDefaults() {
         assertEquals(NavSettings(), SettingsCodec.decode(emptyMap()))
-        // 前の版で保存した設定（移動手段の項目がない）はカスタムとして読む
-        assertEquals(NavSettings(uiTheme = ColorTheme.GREEN, travelMode = TravelMode.CUSTOM), SettingsCodec.decode(mapOf("uiTheme" to "GREEN")))
+        // D06 より前に保存した設定（移動手段の項目がない）はカスタム1 として読む（値は保存してあったもの = ここでは既定値）
+        assertEquals(NavSettings(uiTheme = ColorTheme.GREEN, travelMode = TravelMode.CUSTOM1), SettingsCodec.decode(mapOf("uiTheme" to "GREEN")))
     }
 
     @Test

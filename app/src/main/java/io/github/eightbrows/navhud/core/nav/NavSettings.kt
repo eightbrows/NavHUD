@@ -14,8 +14,37 @@ enum class OwnshipPosition { STANDARD, HIGH }
 /** 標高プロファイルの表示サイズ（§6.6） */
 enum class ProfileSize { OFF, SMALL, MEDIUM, LARGE }
 
-/** 移動手段（§5.4・§6.9）。自動車は到達判定の推奨値（Tuning.CAR_*）。値を変えるとカスタム。自転車・徒歩はあとで足す */
-enum class TravelMode { CAR, CUSTOM }
+/**
+ * 移動手段（§5.4・§6.9）。自動車は到達判定の推奨値（Tuning.CAR_*）で固定。カスタム1〜3 は枠ごとに値を持つ。
+ * 自転車・徒歩はあとで足す
+ */
+enum class TravelMode { CAR, CUSTOM1, CUSTOM2, CUSTOM3 }
+
+/** 到達判定の値の組（移動手段ごと。§5.4）。 */
+data class ReachProfile(
+    val reachRadiusM: Double,
+    val sidePass: Boolean,
+    val sidePassMaxM: Double,
+    val sidePassDepartM: Double,
+    val passDetection: Boolean,
+    val passMaxApproachM: Double,
+    val passDepartM: Double,
+    val passHoldSec: Int,
+) {
+    companion object {
+        /** 自動車の推奨値 */
+        val CAR = ReachProfile(
+            reachRadiusM = Tuning.CAR_ARRIVAL_RADIUS_M,
+            sidePass = Tuning.CAR_SIDE_PASS,
+            sidePassMaxM = Tuning.CAR_SIDE_PASS_MAX_M,
+            sidePassDepartM = Tuning.CAR_SIDE_PASS_DEPART_M,
+            passDetection = Tuning.CAR_PASS_DETECTION,
+            passMaxApproachM = Tuning.CAR_PASS_MAX_APPROACH_M,
+            passDepartM = Tuning.CAR_PASS_DEPART_M,
+            passHoldSec = Tuning.CAR_PASS_HOLD_SEC,
+        )
+    }
+}
 
 /** 仕様の設定値（既定値つき）。保存はまだしない。 */
 data class NavSettings(
@@ -29,8 +58,13 @@ data class NavSettings(
     val maxGpsAccM: Float = 15f,
     /** GPS 方位を使う最大の方位の精度 [°]（値を出している端末のみ） */
     val maxGpsBearingAccDeg: Float = 20f,
-    /** 移動手段（§5.4・§6.9）。自動車を選ぶと到達判定の値に推奨値を入れる。値を変えるとカスタム */
+    /**
+     * 移動手段（§5.4・§6.9）。下の到達判定の値（reachRadiusM〜passHoldSec）は、選んでいる移動手段の値
+     * （自動車なら推奨値、カスタムならその枠の値）。切り替え・編集は selectTravelMode / editReach で行う
+     */
     val travelMode: TravelMode = TravelMode.CAR,
+    /** カスタム1〜3 の枠ごとの値（3つ）。最初は自動車の値 */
+    val customReach: List<ReachProfile> = List(3) { ReachProfile.CAR },
     /** 到着半径 [m]（全体の到達半径。停車・目的地そのものへ行く場合）。30 / 50 / 100 / 200 / 500 から選ぶ（§5.4） */
     val reachRadiusM: Double = Tuning.CAR_ARRIVAL_RADIUS_M,
     /** 真横通過（§5.4）: 走行中に WP が真横か後ろになり、いちばん近づいた距離から離れたら到達 */
@@ -116,19 +150,40 @@ data class NavSettings(
     }
 }
 
-/** 移動手段「自動車」の推奨値（到着半径・真横通過・通過判定）を入れる。 */
-fun NavSettings.withCarPreset(): NavSettings = copy(
-    travelMode = TravelMode.CAR,
-    reachRadiusM = Tuning.CAR_ARRIVAL_RADIUS_M,
-    sidePass = Tuning.CAR_SIDE_PASS,
-    sidePassMaxM = Tuning.CAR_SIDE_PASS_MAX_M,
-    sidePassDepartM = Tuning.CAR_SIDE_PASS_DEPART_M,
-    passDetection = Tuning.CAR_PASS_DETECTION,
-    passMaxApproachM = Tuning.CAR_PASS_MAX_APPROACH_M,
-    passDepartM = Tuning.CAR_PASS_DEPART_M,
-    passHoldSec = Tuning.CAR_PASS_HOLD_SEC,
+/** 今の到達判定の値（選んでいる移動手段の値）。 */
+val NavSettings.reachProfile: ReachProfile
+    get() = ReachProfile(reachRadiusM, sidePass, sidePassMaxM, sidePassDepartM, passDetection, passMaxApproachM, passDepartM, passHoldSec)
+
+/** 到達判定の値を p にする（移動手段・カスタムの枠は変えない）。 */
+fun NavSettings.withReachValues(p: ReachProfile): NavSettings = copy(
+    reachRadiusM = p.reachRadiusM,
+    sidePass = p.sidePass,
+    sidePassMaxM = p.sidePassMaxM,
+    sidePassDepartM = p.sidePassDepartM,
+    passDetection = p.passDetection,
+    passMaxApproachM = p.passMaxApproachM,
+    passDepartM = p.passDepartM,
+    passHoldSec = p.passHoldSec,
 )
 
-/** 到達判定の値を変えたあと: 自動車の推奨値と同じなら自動車、違えばカスタムにする。 */
-fun NavSettings.withTravelModeFromValues(): NavSettings =
-    copy(travelMode = if (withCarPreset() == copy(travelMode = TravelMode.CAR)) TravelMode.CAR else TravelMode.CUSTOM)
+/** カスタムの枠の番号（0〜2）。自動車なら null。 */
+val TravelMode.customIndex: Int?
+    get() = when (this) {
+        TravelMode.CAR -> null
+        TravelMode.CUSTOM1 -> 0
+        TravelMode.CUSTOM2 -> 1
+        TravelMode.CUSTOM3 -> 2
+    }
+
+/** 移動手段を切り替える。自動車なら推奨値、カスタムならその枠の値を到達判定の値にする（ほかの枠の値は残す）。 */
+fun NavSettings.selectTravelMode(m: TravelMode): NavSettings {
+    val p = m.customIndex?.let { customReach.getOrNull(it) } ?: ReachProfile.CAR
+    return withReachValues(p).copy(travelMode = m)
+}
+
+/** カスタムの枠の値を変える（今の値と、その枠に保存する値の両方）。自動車のときは変えない（推奨値で固定）。 */
+fun NavSettings.editReach(f: (ReachProfile) -> ReachProfile): NavSettings {
+    val i = travelMode.customIndex ?: return this
+    val p = f(reachProfile)
+    return withReachValues(p).copy(customReach = customReach.toMutableList().also { it[i] = p })
+}

@@ -10,7 +10,7 @@ object WaypointTimes {
     private const val DAY_SEC = 24 * 3600L
 
     /** 逆順にする: 並びを反転し、到達済みをすべて解除する。 */
-    fun reverse(wps: List<Waypoint>): List<Waypoint> = wps.reversed().map { it.copy(reached = false) }
+    fun reverse(wps: List<Waypoint>): List<Waypoint> = wps.reversed().map { it.copy(reached = false, reach = null) }
 
     /** 一括調整の基準の既定: 先頭の、有効で目標時刻の入った WP。なければ目標時刻の入った最初の WP。どちらもなければ null。 */
     fun defaultBaseIndex(wps: List<Waypoint>): Int? =

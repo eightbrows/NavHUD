@@ -50,7 +50,9 @@ import io.github.eightbrows.navhud.core.io.TimeText
 import io.github.eightbrows.navhud.core.model.Waypoint
 import io.github.eightbrows.navhud.core.nav.NavState
 import io.github.eightbrows.navhud.core.nav.WaypointTimes
+import io.github.eightbrows.navhud.core.view.HudFormat
 import java.time.LocalTime
+import java.time.ZoneId
 
 private val Body get() = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 14.sp, color = HudColors.Scale)
 private val Small get() = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 12.sp, color = HudColors.ScaleDim)
@@ -272,6 +274,10 @@ private fun ReorderableWaypointList(
                         wp.radiusM?.let { "半径 %.0f m".format(it) },
                     )
                     if (details.isNotEmpty()) Text(details.joinToString("  "), style = Small, maxLines = 1)
+                    // 到達済みなら、到達の理由・時刻・最接近（§5.4）
+                    wp.reach?.takeIf { wp.reached }?.let {
+                        Text(HudFormat.reach(it, ZoneId.systemDefault()), style = Small.copy(color = HudColors.Caution), maxLines = 1)
+                    }
                 }
                 Switch(
                     checked = wp.enabled,

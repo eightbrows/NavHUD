@@ -37,8 +37,9 @@ import io.github.eightbrows.navhud.core.nav.ProfileSize
 import io.github.eightbrows.navhud.core.nav.RangeAuto
 import io.github.eightbrows.navhud.core.nav.SourceKind
 import io.github.eightbrows.navhud.core.nav.TravelMode
-import io.github.eightbrows.navhud.core.nav.withCarPreset
-import io.github.eightbrows.navhud.core.nav.withTravelModeFromValues
+import io.github.eightbrows.navhud.core.nav.ReachProfile
+import io.github.eightbrows.navhud.core.nav.editReach
+import io.github.eightbrows.navhud.core.nav.selectTravelMode
 import io.github.eightbrows.navhud.core.view.HudFormat
 import java.util.Locale
 import kotlin.math.roundToInt
@@ -210,39 +211,43 @@ fun SettingsScreen(
         }
 
         Section("WP") {
-            // 到達判定の値を変えたら、自動車の推奨値と同じかどうかで移動手段を決め直す（違えばカスタム）
-            fun judge(f: (NavSettings) -> NavSettings) = onChange { f(it).withTravelModeFromValues() }
+            // 到達判定の値: 自動車は推奨値で固定（表示だけ）、カスタム1〜3 は枠ごとに保存する
+            val custom = s.travelMode != TravelMode.CAR
+            fun judge(f: (ReachProfile) -> ReachProfile) = onChange { it.editReach(f) }
             Choice(
                 "移動手段",
-                listOf("自動車" to TravelMode.CAR, "カスタム" to TravelMode.CUSTOM),
+                listOf("自動車" to TravelMode.CAR, "カスタム1" to TravelMode.CUSTOM1, "カスタム2" to TravelMode.CUSTOM2, "カスタム3" to TravelMode.CUSTOM3),
                 s.travelMode,
-                note = "自動車: 到着半径 30 m、真横通過 150 m・+10 m、通過判定 300 m・+50 m・5 秒。下の値を変えるとカスタム",
-            ) { v -> onChange { if (v == TravelMode.CAR) it.withCarPreset() else it.copy(travelMode = TravelMode.CUSTOM) } }
+                note = if (custom) "下の値はこの枠に保存される（ほかの枠・自動車に切り替えても残る）"
+                else "自動車は推奨値で固定（変えるときはカスタム1〜3 を選ぶ）",
+            ) { v -> onChange { it.selectTravelMode(v) } }
+            if (custom) HudButton("自動車の値に戻す", { onChange { it.editReach { ReachProfile.CAR } } })
             Choice(
                 "到着半径（全体）",
                 NavSettings.REACH_RADIUS_CHOICES_M.map { "%.0f m".format(Locale.US, it) to it },
                 s.reachRadiusM,
                 note = "入ったら到達（停車・目的地そのものへ行く場合）。WP ごとの到達半径があればそちらを使う",
+                enabled = custom,
             ) { v -> judge { it.copy(reachRadiusM = v) } }
-            Toggle("真横通過", s.sidePass, note = "走行中に WP が真横か後ろになり、いちばん近づいた距離から離れたら到達") { v ->
+            Toggle("真横通過", s.sidePass, note = "走行中に WP が真横か後ろになり、いちばん近づいた距離から離れたら到達", enabled = custom) { v ->
                 judge { it.copy(sidePass = v) }
             }
-            Stepper("真横通過: WP までの距離", "%.0f m 以内".format(Locale.US, s.sidePassMaxM)) { d ->
+            Stepper("真横通過: WP までの距離", "%.0f m 以内".format(Locale.US, s.sidePassMaxM), enabled = custom) { d ->
                 judge { it.copy(sidePassMaxM = (it.sidePassMaxM + d * 10).coerceIn(30.0, 500.0)) }
             }
-            Stepper("真横通過: 離れたとみなす距離", "+%.0f m".format(Locale.US, s.sidePassDepartM), note = "いちばん近づいた距離から") { d ->
+            Stepper("真横通過: 離れたとみなす距離", "+%.0f m".format(Locale.US, s.sidePassDepartM), note = "いちばん近づいた距離から", enabled = custom) { d ->
                 judge { it.copy(sidePassDepartM = (it.sidePassDepartM + d * 5).coerceIn(5.0, 100.0)) }
             }
-            Toggle("通過判定（予備）", s.passDetection, note = "方位が取れない場面用。最接近したあと離れていったら到達にする") { v ->
+            Toggle("通過判定（予備）", s.passDetection, note = "方位が取れない場面用。最接近したあと離れていったら到達にする", enabled = custom) { v ->
                 judge { it.copy(passDetection = v) }
             }
-            Stepper("通過判定: 最接近距離の上限", "%.0f m".format(Locale.US, s.passMaxApproachM), note = "WP ごとの到達半径 × 3 の方が大きければそちら") { d ->
+            Stepper("通過判定: 最接近距離の上限", "%.0f m".format(Locale.US, s.passMaxApproachM), note = "WP ごとの到達半径 × 3 の方が大きければそちら", enabled = custom) { d ->
                 judge { it.copy(passMaxApproachM = (it.passMaxApproachM + d * 50).coerceIn(50.0, 2000.0)) }
             }
-            Stepper("通過判定: 離れたとみなす距離", "+%.0f m".format(Locale.US, s.passDepartM)) { d ->
+            Stepper("通過判定: 離れたとみなす距離", "+%.0f m".format(Locale.US, s.passDepartM), enabled = custom) { d ->
                 judge { it.copy(passDepartM = (it.passDepartM + d * 10).coerceIn(10.0, 500.0)) }
             }
-            Stepper("通過判定: 離れた状態が続く時間", "${s.passHoldSec} 秒") { d ->
+            Stepper("通過判定: 離れた状態が続く時間", "${s.passHoldSec} 秒", enabled = custom) { d ->
                 judge { it.copy(passHoldSec = (it.passHoldSec + d).coerceIn(1, 60)) }
             }
             Stepper("WP ボタン列に見せる数", "${s.wpButtonsMax} 個", note = "自機の下に横並び。超える分は左右にスクロール") { d ->
@@ -295,44 +300,58 @@ private fun Section(title: String, content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun Label(text: String, note: String? = null) {
+private fun Label(text: String, note: String? = null, enabled: Boolean = true) {
     Column {
-        Text(text, style = RowLabel)
+        Text(text, style = if (enabled) RowLabel else RowLabel.copy(color = HudColors.WpReached))
         note?.let { Text(it, style = RowNote) }
     }
 }
 
 @Composable
-private fun <T> Choice(label: String, options: List<Pair<String, T>>, selected: T?, note: String? = null, onSelect: (T) -> Unit) {
+private fun <T> Choice(
+    label: String,
+    options: List<Pair<String, T>>,
+    selected: T?,
+    note: String? = null,
+    enabled: Boolean = true,
+    onSelect: (T) -> Unit,
+) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Label(label, note)
+        Label(label, note, enabled)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            for ((text, value) in options) Chip(text, value == selected) { onSelect(value) }
+            for ((text, value) in options) Chip(text, value == selected, enabled) { onSelect(value) }
         }
     }
 }
 
 @Composable
-private fun Chip(text: String, on: Boolean, onClick: () -> Unit) {
+private fun Chip(text: String, on: Boolean, enabled: Boolean = true, onClick: () -> Unit) {
     val shape = RoundedCornerShape(4.dp)
+    // 押せないとき（自動車の固定値など）はグレー
+    val c = if (enabled) HudColors.Scale else HudColors.WpReached
     Box(
         Modifier
-            .border(1.dp, if (on) HudColors.Scale else HudColors.WpDisabled, shape)
-            .background(if (on) HudColors.Scale else HudColors.Background, shape)
-            .clickable(onClick = onClick)
+            .border(1.dp, if (on) c else HudColors.WpDisabled, shape)
+            .background(if (on) c else HudColors.Background, shape)
+            .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 5.dp),
     ) {
-        Text(text, style = ValueText.copy(color = if (on) HudColors.Background else HudColors.Scale, fontSize = 13.sp))
+        Text(text, style = ValueText.copy(color = if (on) HudColors.Background else c, fontSize = 13.sp))
     }
 }
 
 @Composable
-private fun Stepper(label: String, value: String, note: String? = null, onStep: (Int) -> Unit) {
+private fun Stepper(label: String, value: String, note: String? = null, enabled: Boolean = true, onStep: (Int) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Box(Modifier.weight(1f)) { Label(label, note) }
-        HudButton("−", { onStep(-1) })
-        Text(value, style = ValueText, textAlign = TextAlign.Center, modifier = Modifier.widthIn(min = 72.dp))
-        HudButton("＋", { onStep(1) })
+        Box(Modifier.weight(1f)) { Label(label, note, enabled) }
+        HudButton("−", { onStep(-1) }, enabled = enabled)
+        Text(
+            value,
+            style = if (enabled) ValueText else ValueText.copy(color = HudColors.WpReached),
+            textAlign = TextAlign.Center,
+            modifier = Modifier.widthIn(min = 72.dp),
+        )
+        HudButton("＋", { onStep(1) }, enabled = enabled)
     }
 }
 
@@ -362,12 +381,13 @@ private fun PercentSlider(label: String, pct: Int, note: String? = null, onChang
 }
 
 @Composable
-private fun Toggle(label: String, on: Boolean, note: String? = null, onChange: (Boolean) -> Unit) {
+private fun Toggle(label: String, on: Boolean, note: String? = null, enabled: Boolean = true, onChange: (Boolean) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.weight(1f)) { Label(label, note) }
+        Box(Modifier.weight(1f)) { Label(label, note, enabled) }
         Switch(
             checked = on,
             onCheckedChange = onChange,
+            enabled = enabled,
             colors = SwitchDefaults.colors(
                 checkedThumbColor = HudColors.Background,
                 checkedTrackColor = HudColors.Scale,

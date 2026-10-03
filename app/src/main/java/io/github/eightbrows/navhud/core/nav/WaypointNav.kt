@@ -33,7 +33,8 @@ object WaypointNav {
     fun toggleReached(wps: List<Waypoint>, index: Int): List<Waypoint> {
         val wp = wps.getOrNull(index) ?: return wps
         if (!wp.enabled) return wps
-        return wps.toMutableList().also { it[index] = wp.copy(reached = !wp.reached) }
+        // 未到達に戻したら、到達の理由も消す（到達にしたときの理由は呼び出し側が入れる）
+        return wps.toMutableList().also { it[index] = wp.copy(reached = !wp.reached, reach = null) }
     }
 
     /** ETA（epoch ms）= 現在時刻 + 直線距離 / 平均速度。平均速度がない・遅すぎるなら null。 */

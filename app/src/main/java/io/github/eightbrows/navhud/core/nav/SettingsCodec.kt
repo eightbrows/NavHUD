@@ -46,6 +46,17 @@ object SettingsCodec {
         "keepScreenOn" to s.keepScreenOn.toString(),
         "buttonOpacityPct" to s.buttonOpacityPct.toString(),
         "numbersOpacityPct" to s.numbersOpacityPct.toString(),
+    ) + s.customReach.withIndex().flatMap { (i, p) -> encodeProfile("custom${i + 1}.", p).toList() }.toMap()
+
+    private fun encodeProfile(prefix: String, p: ReachProfile): Map<String, String> = mapOf(
+        "${prefix}reachRadiusM" to p.reachRadiusM.toString(),
+        "${prefix}sidePass" to p.sidePass.toString(),
+        "${prefix}sidePassMaxM" to p.sidePassMaxM.toString(),
+        "${prefix}sidePassDepartM" to p.sidePassDepartM.toString(),
+        "${prefix}passDetection" to p.passDetection.toString(),
+        "${prefix}passMaxApproachM" to p.passMaxApproachM.toString(),
+        "${prefix}passDepartM" to p.passDepartM.toString(),
+        "${prefix}passHoldSec" to p.passHoldSec.toString(),
     )
 
     fun decode(m: Map<String, String?>): NavSettings {
@@ -68,15 +79,50 @@ object SettingsCodec {
             ?.takeIf { it.isNotEmpty() }
             ?: d.rangeStepsKm
 
+        // 移動手段: 保存がなければ既定（自動車）。前の版の「CUSTOM」と、移動手段の項目がない設定（D06 より前）は
+        // カスタム1 として読み、保存してあった到達判定の値をカスタム1 に移す（カスタム2・3 は自動車の値で始める）
+        val savedMode = str("travelMode")
+        val travelMode = when {
+            savedMode == "CUSTOM" -> TravelMode.CUSTOM1
+            savedMode != null -> TravelMode.entries.firstOrNull { it.name == savedMode } ?: d.travelMode
+            m.isEmpty() -> d.travelMode
+            else -> TravelMode.CUSTOM1
+        }
+        val flat = ReachProfile(
+            reachRadiusM = dbl("reachRadiusM", d.reachRadiusM),
+            sidePass = bool("sidePass", d.sidePass),
+            sidePassMaxM = dbl("sidePassMaxM", d.sidePassMaxM),
+            sidePassDepartM = dbl("sidePassDepartM", d.sidePassDepartM),
+            passDetection = bool("passDetection", d.passDetection),
+            passMaxApproachM = dbl("passMaxApproachM", d.passMaxApproachM),
+            passDepartM = dbl("passDepartM", d.passDepartM),
+            passHoldSec = int("passHoldSec", d.passHoldSec),
+        )
+        fun profile(n: Int): ReachProfile {
+            val pre = "custom$n."
+            // 枠の保存がない（前の版）: カスタム1 には保存してあった値（移行）、カスタム2・3 は自動車の値
+            val base = if (n == 1 && travelMode == TravelMode.CUSTOM1 && m.keys.none { it.startsWith("custom") }) flat else ReachProfile.CAR
+            return ReachProfile(
+                reachRadiusM = dbl("${pre}reachRadiusM", base.reachRadiusM),
+                sidePass = bool("${pre}sidePass", base.sidePass),
+                sidePassMaxM = dbl("${pre}sidePassMaxM", base.sidePassMaxM),
+                sidePassDepartM = dbl("${pre}sidePassDepartM", base.sidePassDepartM),
+                passDetection = bool("${pre}passDetection", base.passDetection),
+                passMaxApproachM = dbl("${pre}passMaxApproachM", base.passMaxApproachM),
+                passDepartM = dbl("${pre}passDepartM", base.passDepartM),
+                passHoldSec = int("${pre}passHoldSec", base.passHoldSec),
+            )
+        }
+        val customReach = (1..3).map(::profile)
+
         return NavSettings(
             sourceMode = enum("sourceMode", SourceMode.entries.toTypedArray(), d.sourceMode),
             holdEnterSpeedMps = f("holdEnterSpeedMps", d.holdEnterSpeedMps),
             holdExitSpeedMps = f("holdExitSpeedMps", d.holdExitSpeedMps),
             maxGpsAccM = f("maxGpsAccM", d.maxGpsAccM),
             maxGpsBearingAccDeg = f("maxGpsBearingAccDeg", d.maxGpsBearingAccDeg),
-            // 移動手段: 保存がなければ既定（自動車）。ただし前の版で保存した設定（移動手段の項目がない）はカスタムとして読み、
-            // 保存してあった到達半径などはそのまま残す（移行しない）
-            travelMode = enum("travelMode", TravelMode.entries.toTypedArray(), if (m.isEmpty()) d.travelMode else TravelMode.CUSTOM),
+            travelMode = travelMode,
+            customReach = customReach,
             reachRadiusM = dbl("reachRadiusM", d.reachRadiusM),
             sidePass = bool("sidePass", d.sidePass),
             sidePassMaxM = dbl("sidePassMaxM", d.sidePassMaxM),
@@ -113,6 +159,6 @@ object SettingsCodec {
             // 不透明度: 20〜100 の 10 刻み以外は既定値
             buttonOpacityPct = int("buttonOpacityPct", d.buttonOpacityPct).takeIf { it in NavSettings.OPACITY_CHOICES_PCT } ?: d.buttonOpacityPct,
             numbersOpacityPct = int("numbersOpacityPct", d.numbersOpacityPct).takeIf { it in NavSettings.OPACITY_CHOICES_PCT } ?: d.numbersOpacityPct,
-        )
+        ).selectTravelMode(travelMode)
     }
 }

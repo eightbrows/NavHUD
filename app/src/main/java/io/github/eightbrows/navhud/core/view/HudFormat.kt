@@ -1,5 +1,7 @@
 package io.github.eightbrows.navhud.core.view
 
+import io.github.eightbrows.navhud.core.model.ReachInfo
+import io.github.eightbrows.navhud.core.model.ReachReason
 import io.github.eightbrows.navhud.core.nav.Rate
 import java.time.Instant
 import java.time.ZoneId
@@ -69,6 +71,24 @@ object HudFormat {
 
     fun time(ms: Long?, zone: ZoneId): String =
         if (ms == null) NONE else Instant.ofEpochMilli(ms).atZone(zone).format(TIME)
+
+    /**
+     * 到達の理由の 1 行（WP 一覧）: 「真横 08:12:34 最接近 42 m」。シークで飛ばした区間なら「シーク・真横 …」。
+     * 手動は時刻だけ（「手動 08:12:34」）。時刻は到達した Fix の時刻（REPLAY ではログの時刻）をローカル時刻で。
+     */
+    fun reach(r: ReachInfo, zone: ZoneId): String {
+        val reason = when (r.reason) {
+            ReachReason.RADIUS -> "半径"
+            ReachReason.ARRIVAL -> "到着"
+            ReachReason.SIDE -> "真横"
+            ReachReason.PASS -> "通過"
+            ReachReason.MANUAL -> "手動"
+        }
+        val head = if (r.viaSeek) "シーク・$reason" else reason
+        val time = r.timeMs?.let { " " + time(it, zone) } ?: ""
+        val closest = r.closestM?.takeIf { r.reason != ReachReason.MANUAL && it.isFinite() }?.let { " 最接近 %.0f m".format(java.util.Locale.US, it) } ?: ""
+        return head + time + closest
+    }
 
     /** 経過時間 "h:mm"（再生の帯）。 */
     fun elapsed(ms: Long): String {
