@@ -1,5 +1,6 @@
 package io.github.eightbrows.navhud.core.geo
 
+import io.github.eightbrows.navhud.core.TestGeo
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -10,7 +11,7 @@ class GeoTest {
 
     @Test
     fun oneDegreeLatitude() {
-        assertEquals(111_195.0, Geo.distanceM(33.0, 133.0, 34.0, 133.0), 1.0)
+        assertEquals(TestGeo.M_PER_DEG_LAT, Geo.distanceM(33.0, 133.0, 34.0, 133.0), 1.0)
     }
 
     @Test
@@ -30,8 +31,8 @@ class GeoTest {
 
     @Test
     fun planarApproxWithin3km() {
-        val lat0 = 33.5
-        val lon0 = 133.0
+        val lat0 = TestGeo.LAT0
+        val lon0 = TestGeo.LON0
         for (b in 0 until 360 step 15) {
             // 約3km先の点
             val rad = Math.toRadians(b.toDouble())

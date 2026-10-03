@@ -1,5 +1,7 @@
 package io.github.eightbrows.navhud.core.view
 
+import io.github.eightbrows.navhud.core.MeasuredScreen
+import io.github.eightbrows.navhud.core.TestGeo
 import io.github.eightbrows.navhud.core.model.Fix
 import io.github.eightbrows.navhud.core.model.HeadingSrc
 import io.github.eightbrows.navhud.core.model.Waypoint
@@ -22,12 +24,11 @@ import org.junit.Test
  */
 class OverlayFrameTest {
 
-    private val rect = HudRect(0f, 0f, 720f, 1239f)
-    private val reserved = HudInsets(top = 211f, right = 102f, bottom = 204f, rightSpan = 470f..776f)
+    private val rect = MeasuredScreen.RECT
+    private val reserved = MeasuredScreen.LIVE
     private val m = HudMetrics()
-    private val mPerDegLat = 111_195.0
-    private val lat0 = 33.5
-    private val lon0 = 133.0
+    private val lat0 = TestGeo.LAT0
+    private val lon0 = TestGeo.LON0
 
     // 数値の表示（上部バーの下 68..211 px）と、ボタン類（上部バー・操作列・WP 列）
     private val bands = listOf(68f..211f)
@@ -38,7 +39,7 @@ class OverlayFrameTest {
     )
 
     private fun wp(name: String, northM: Double, eastM: Double = 0.0, reached: Boolean = false) = Waypoint(
-        name, lat0 + northM / mPerDegLat, lon0 + eastM / (mPerDegLat * Math.cos(Math.toRadians(lat0))), reached = reached,
+        name, TestGeo.lat(northM), TestGeo.lon(eastM), reached = reached,
     )
 
     private fun state(wps: List<Waypoint>, next: Int, rangeM: Double, mode: DisplayMode = DisplayMode.ARC) = NavState(

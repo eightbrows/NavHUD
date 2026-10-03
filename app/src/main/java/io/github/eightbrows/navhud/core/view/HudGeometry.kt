@@ -73,24 +73,6 @@ object HudGeometry {
         return P(p.x.coerceIn(rect.left, rect.right), p.y.coerceIn(rect.top, rect.bottom))
     }
 
-    /**
-     * ARC（Heading Up）: 自機は下部中央。基準距離環 rangeM が左右端にちょうど接する縮尺（§6.2）。
-     * @param originFromBottomPx 自機の位置（下端からの距離）
-     */
-    fun arcProjection(rect: HudRect, rangeM: Double, upDeg: Double, originFromBottomPx: Float) = HudProjection(
-        origin = P(rect.centerX, rect.bottom - originFromBottomPx),
-        pxPerM = rect.width / 2.0 / rangeM,
-        upDeg = upDeg,
-    )
-
-    /**
-     * North Up: 自機は中央。最外周の距離環 rangeM の外側に目盛りと文字を置く余白 marginPx を残す（§6.3）。
-     */
-    fun northUpProjection(rect: HudRect, rangeM: Double, marginPx: Float): HudProjection {
-        val radius = min(rect.width, rect.height) / 2 - marginPx
-        return HudProjection(P(rect.centerX, rect.centerY), radius / rangeM, 0.0)
-    }
-
     /** 画面上の距離 [px]。 */
     fun dist(a: P, b: P): Float = hypot(b.x - a.x, b.y - a.y)
 

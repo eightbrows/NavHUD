@@ -18,6 +18,7 @@ import io.github.eightbrows.navhud.core.nav.SourceKind
 import io.github.eightbrows.navhud.core.nav.TemporaryWaypoints
 import io.github.eightbrows.navhud.core.nav.Trail
 import io.github.eightbrows.navhud.core.nav.WaypointTimes
+import io.github.eightbrows.navhud.core.nav.resetKeepingCustomReach
 import io.github.eightbrows.navhud.core.replay.LiveClock
 import io.github.eightbrows.navhud.core.replay.ReplayClock
 import io.github.eightbrows.navhud.core.replay.ReplaySpeed
@@ -193,8 +194,8 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
         settingsStore.save(next)
     }
 
-    /** 設定を初期値に戻す。 */
-    fun resetSettings() = updateSettings { NavSettings() }
+    /** 設定を初期値に戻す。カスタム1〜3 の値は残す（移動手段は自動車に戻る）。 */
+    fun resetSettings() = updateSettings { it.resetKeepingCustomReach() }
 
     fun setSourceMode(mode: SourceMode) = updateSettings { it.copy(sourceMode = mode) }
 

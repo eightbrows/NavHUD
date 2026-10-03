@@ -2,6 +2,7 @@ package io.github.eightbrows.navhud.core.nav
 
 import io.github.eightbrows.navhud.core.model.SourceMode
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SettingsCodecTest {
@@ -102,6 +103,17 @@ class SettingsCodecTest {
     }
 
     @Test
+    fun inputAloneIsNotOldSettings() {
+        // 同じ保存先の INPUT（LIVE / REPLAY）だけが保存されている = 設定はまだ保存していない。自動車のまま
+        assertEquals(NavSettings(), SettingsCodec.decode(mapOf("input" to "REPLAY")))
+        assertEquals(NavSettings(), SettingsCodec.decode(mapOf("input" to "LIVE", "somethingElse" to "1")))
+        // 設定の項目が1つでもあれば前の版の設定（カスタム1 に移す）
+        val old = SettingsCodec.decode(mapOf("input" to "REPLAY", "reachRadiusM" to "100.0"))
+        assertEquals(TravelMode.CUSTOM1, old.travelMode)
+        assertEquals(100.0, old.customReach[0].reachRadiusM, 0.0)
+    }
+
+    @Test
     fun oldColorThemeIsCarriedToBothColors() {
         // 古い版の「色テーマ」（1つ）は、UI・地図の両方の初期値として引き継ぐ
         val old = SettingsCodec.decode(mapOf("colorTheme" to "AMBER"))
@@ -148,5 +160,91 @@ class SettingsCodecTest {
         assertEquals(listOf(0.5, 1.0, 10.0), s.rangeStepsKm)
         // 7b までの段（0.25km）は、今の段にないので捨てる
         assertEquals(listOf(0.5, 2.0), SettingsCodec.decode(mapOf("rangeStepsKm" to "0.25,0.5,2")).rangeStepsKm)
+    }
+
+    @Test
+    fun defaultsAreWithinTheRanges() {
+        val d = NavSettings()
+        assertTrue(d.holdEnterSpeedMps in NavSettings.HOLD_ENTER_SPEED_MPS_RANGE)
+        assertTrue(d.holdExitSpeedMps > d.holdEnterSpeedMps && d.holdExitSpeedMps <= NavSettings.HOLD_EXIT_SPEED_MAX_MPS)
+        assertTrue(d.maxGpsAccM in NavSettings.MAX_GPS_ACC_M_RANGE)
+        assertTrue(d.maxGpsBearingAccDeg in NavSettings.MAX_GPS_BEARING_ACC_DEG_RANGE)
+        assertTrue(d.reachRadiusM in NavSettings.REACH_RADIUS_CHOICES_M)
+        assertTrue(d.sidePassMaxM in NavSettings.SIDE_PASS_MAX_M_RANGE)
+        assertTrue(d.sidePassDepartM in NavSettings.SIDE_PASS_DEPART_M_RANGE)
+        assertTrue(d.passMaxApproachM in NavSettings.PASS_MAX_APPROACH_M_RANGE)
+        assertTrue(d.passDepartM in NavSettings.PASS_DEPART_M_RANGE)
+        assertTrue(d.passHoldSec in NavSettings.PASS_HOLD_SEC_RANGE)
+        assertTrue(d.noFixTimeoutSec in NavSettings.NO_FIX_TIMEOUT_SEC_RANGE)
+        assertTrue(d.altOffsetM in NavSettings.ALT_OFFSET_M_RANGE)
+        assertTrue(d.autoRangeZoomInDelaySec in NavSettings.AUTO_RANGE_ZOOM_IN_DELAY_SEC_RANGE)
+        assertTrue(d.initialRangeKm in RangeAuto.ALL_STEPS_KM)
+    }
+
+    @Test
+    fun outOfRangeValuesAreDefaults() {
+        // 設定画面で選べない値（範囲外・段にない値）は、その項目だけ初期値（§6.9）
+        val d = NavSettings()
+        val s = SettingsCodec.decode(
+            mapOf(
+                "travelMode" to "CAR",
+                "maxGpsAccM" to "500",
+                "maxGpsBearingAccDeg" to "1",
+                "noFixTimeoutSec" to "0",
+                "altOffsetM" to "-999",
+                "autoRangeZoomInDelaySec" to "-1",
+                "initialRangeKm" to "3.0",
+            ),
+        )
+        assertEquals(d, s)
+        // 範囲内なら使う（刻みに乗っていなくてもよい）
+        val ok = SettingsCodec.decode(mapOf("maxGpsAccM" to "42", "noFixTimeoutSec" to "120", "altOffsetM" to "-200", "initialRangeKm" to "50.0"))
+        assertEquals(42f, ok.maxGpsAccM, 0f)
+        assertEquals(120, ok.noFixTimeoutSec)
+        assertEquals(-200.0, ok.altOffsetM, 0.0)
+        assertEquals(50.0, ok.initialRangeKm, 0.0)
+    }
+
+    @Test
+    fun holdSpeedsMustBeInOrder() {
+        val d = NavSettings()
+        // 範囲外の入る速度は初期値
+        assertEquals(d.holdEnterSpeedMps, SettingsCodec.decode(mapOf("holdEnterSpeedMps" to "0.1")).holdEnterSpeedMps)
+        // 解く速度が入る速度以下・上限超えなら、初期値（入る速度 + 0.1 の方が大きければそちら）
+        val a = SettingsCodec.decode(mapOf("holdEnterSpeedMps" to "2.5", "holdExitSpeedMps" to "2.5"))
+        assertEquals(2.5f, a.holdEnterSpeedMps, 0f)
+        assertEquals(d.holdExitSpeedMps, a.holdExitSpeedMps, 0f)
+        val b = SettingsCodec.decode(mapOf("holdEnterSpeedMps" to "8.0", "holdExitSpeedMps" to "20"))
+        assertEquals(8.1f, b.holdExitSpeedMps, 1e-5f)
+        val c = SettingsCodec.decode(mapOf("holdEnterSpeedMps" to "4.0", "holdExitSpeedMps" to "6.0"))
+        assertEquals(6f, c.holdExitSpeedMps, 0f)
+    }
+
+    @Test
+    fun outOfRangeReachValuesFallBackPerSlot() {
+        // カスタム枠の値も範囲を確かめる。範囲外の項目だけ、その枠の初期値（自動車の値）
+        val car = ReachProfile.CAR
+        val s = SettingsCodec.decode(
+            mapOf(
+                "travelMode" to "CUSTOM2",
+                "custom2.reachRadiusM" to "75.0",
+                "custom2.sidePassMaxM" to "5000",
+                "custom2.sidePassDepartM" to "40.0",
+                "custom2.passMaxApproachM" to "10",
+                "custom2.passDepartM" to "1000",
+                "custom2.passHoldSec" to "0",
+            ),
+        )
+        assertEquals(car.copy(sidePassDepartM = 40.0), s.customReach[1])
+        assertEquals(car.copy(sidePassDepartM = 40.0), s.reachProfile)
+        assertEquals(40.0, s.sidePassDepartM, 0.0)
+        // 範囲内の値（到着半径 200m、通過判定 1000m・+20m・10 秒）はそのまま
+        val ok = SettingsCodec.decode(
+            mapOf(
+                "travelMode" to "CUSTOM3", "custom3.reachRadiusM" to "200.0", "custom3.passMaxApproachM" to "1000.0",
+                "custom3.passDepartM" to "20.0", "custom3.passHoldSec" to "10",
+            ),
+        )
+        assertEquals(car.copy(reachRadiusM = 200.0, passMaxApproachM = 1000.0, passDepartM = 20.0, passHoldSec = 10), ok.customReach[2])
     }
 }

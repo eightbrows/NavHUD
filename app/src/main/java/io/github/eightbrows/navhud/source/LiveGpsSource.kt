@@ -5,7 +5,6 @@ import android.content.Context
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
-import android.os.Build
 import android.os.Looper
 import io.github.eightbrows.navhud.core.Tuning
 import io.github.eightbrows.navhud.core.model.Fix
@@ -63,6 +62,6 @@ fun Location.toFix(): Fix = LocationFix.toFix(
     altitudeM = if (hasAltitude()) altitude else null,
     speedMps = if (hasSpeed()) speed else null,
     bearingDeg = if (hasBearing()) bearing else null,
-    bearingAccDeg = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && hasBearingAccuracy()) bearingAccuracyDegrees else null,
+    bearingAccDeg = if (hasBearingAccuracy()) bearingAccuracyDegrees else null,
     horizAccM = if (hasAccuracy()) accuracy else null,
 )

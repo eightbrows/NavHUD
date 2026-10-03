@@ -45,7 +45,7 @@ fun ProfileView(state: NavState, modifier: Modifier = Modifier) {
         // 地図の上に重ねるので半透明の地
         drawRect(HudColors.Background.copy(alpha = Tuning.OVERLAY_ALPHA))
         val sc = scene ?: return@Canvas
-        val dash = PathEffect.dashPathEffect(floatArrayOf(5f * density, 4f * density))
+        val dash = PathEffect.dashPathEffect(floatArrayOf(Tuning.PROFILE_DASH_ON_DP * density, Tuning.PROFILE_DASH_OFF_DP * density))
         for (s in sc.segments) {
             drawLine(
                 HudColors.of(s.ink), Offset(s.a.x, s.a.y), Offset(s.b.x, s.b.y),
@@ -56,7 +56,7 @@ fun ProfileView(state: NavState, modifier: Modifier = Modifier) {
         for (p in sc.points) {
             val c = HudColors.of(p.ink)
             drawCircle(c, radius = Tuning.PROFILE_POINT_RADIUS_DP * density, center = Offset(p.at.x, p.at.y))
-            p.name?.let { drawLabel(tm, it, P(p.at.x, p.at.y - 10f * density), c, NameStyle) }
+            p.name?.let { drawLabel(tm, it, P(p.at.x, p.at.y - Tuning.PROFILE_NAME_OFFSET_DP * density), c, NameStyle) }
         }
         for (l in sc.labels) drawLabel(tm, l.text, l.at, HudColors.of(l.ink), AxisStyle)
     }

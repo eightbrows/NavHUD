@@ -28,9 +28,6 @@ object Tuning {
     /** GPS の更新間隔 [ms] */
     const val GPS_INTERVAL_MS = 1_000L
 
-    /** ログの欠損検出: 隣接 Fix の間隔がこれを超えたら欠損 [ms] */
-    const val GAP_THRESHOLD_MS = 1_500L
-
     // ---- RATE・ETA（§5.3・§5.4） ----
 
     /** RATE: base が窓の起点よりこれを超えて古ければ欠損とみなす [ms] */
@@ -96,7 +93,7 @@ object Tuning {
     const val HUD_TICK_MAJOR_DP = 16f
     /** 目盛りから方位の文字まで */
     const val HUD_LABEL_GAP_DP = 12f
-    /** 避ける枠の縁から、画面外の矢印・WP の印を置く所まで */
+    /** 矢印と AUTO の判定の枠（HudSceneBuilder.avoidFrame）の縁から、画面外の矢印・WP の印を置く所まで */
     const val HUD_EDGE_INSET_DP = 22f
     /** 矢印から、その文字まで（自機側） */
     const val HUD_ARROW_TEXT_GAP_DP = 34f
@@ -239,6 +236,13 @@ object Tuning {
     const val PROFILE_LINE_DP = 1.8f
     const val PROFILE_POINT_RADIUS_DP = 3.5f
     const val PROFILE_TEXT_SP = 10f
+
+    /** 標高プロファイル: 破線（標高のない WP を飛ばしてつないだ線）の線の長さ・すき間 [dp] */
+    const val PROFILE_DASH_ON_DP = 5f
+    const val PROFILE_DASH_OFF_DP = 4f
+
+    /** 標高プロファイル: WP の名前を点の上に置く距離 [dp]（文字の中心まで） */
+    const val PROFILE_NAME_OFFSET_DP = 10f
 
     // ---- リプレイ（§6.7） ----
 

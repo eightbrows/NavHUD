@@ -87,13 +87,11 @@ class NavLocationService : Service() {
 
     private fun notification(): Notification {
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            nm.createNotificationChannel(
-                NotificationChannel(CHANNEL_ID, "動作中の表示", NotificationManager.IMPORTANCE_LOW).apply {
-                    setShowBadge(false)
-                },
-            )
-        }
+        nm.createNotificationChannel(
+            NotificationChannel(CHANNEL_ID, "動作中の表示", NotificationManager.IMPORTANCE_LOW).apply {
+                setShowBadge(false)
+            },
+        )
         val open = PendingIntent.getActivity(
             this, 0,
             Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),

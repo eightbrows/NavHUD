@@ -1,5 +1,6 @@
 package io.github.eightbrows.navhud.core.nav
 
+import io.github.eightbrows.navhud.core.TestGeo
 import io.github.eightbrows.navhud.core.model.Fix
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -7,11 +8,8 @@ import org.junit.Test
 
 class TrailTest {
 
-    private val mPerDegLat = 111_195.0
-    private val lat0 = 33.5
-
     /** 北へ stepM ずつ n 点、1 秒ごと。 */
-    private fun line(n: Int, stepM: Double) = (0 until n).map { Fix(timeMs = it * 1000L, lat = lat0 + it * stepM / mPerDegLat, lon = 133.0) }
+    private fun line(n: Int, stepM: Double) = (0 until n).map { Fix(timeMs = it * 1000L, lat = TestGeo.lat(it * stepM), lon = 133.0) }
 
     @Test
     fun decimateKeepsTenMeterSpacingAndEnds() {

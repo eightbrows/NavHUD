@@ -59,6 +59,9 @@ object SettingsCodec {
         "${prefix}passHoldSec" to p.passHoldSec.toString(),
     )
 
+    /** 設定の項目のキー（今の版と、前の版の colorTheme）。移行の判定に使う */
+    private val SETTINGS_KEYS: Set<String> by lazy { encode(NavSettings()).keys + "colorTheme" }
+
     fun decode(m: Map<String, String?>): NavSettings {
         val d = NavSettings()
         fun str(k: String) = m[k]?.trim()
@@ -80,65 +83,65 @@ object SettingsCodec {
             ?: d.rangeStepsKm
 
         // 移動手段: 保存がなければ既定（自動車）。前の版の「CUSTOM」と、移動手段の項目がない設定（D06 より前）は
-        // カスタム1 として読み、保存してあった到達判定の値をカスタム1 に移す（カスタム2・3 は自動車の値で始める）
+        // カスタム1 として読み、保存してあった到達判定の値をカスタム1 に移す（カスタム2・3 は自動車の値で始める）。
+        // 同じ保存先にある設定以外の項目（INPUT など）だけなら、前の版の設定ではない
         val savedMode = str("travelMode")
         val travelMode = when {
             savedMode == "CUSTOM" -> TravelMode.CUSTOM1
             savedMode != null -> TravelMode.entries.firstOrNull { it.name == savedMode } ?: d.travelMode
-            m.isEmpty() -> d.travelMode
+            m.keys.none { it in SETTINGS_KEYS } -> d.travelMode
             else -> TravelMode.CUSTOM1
         }
-        val flat = ReachProfile(
-            reachRadiusM = dbl("reachRadiusM", d.reachRadiusM),
-            sidePass = bool("sidePass", d.sidePass),
-            sidePassMaxM = dbl("sidePassMaxM", d.sidePassMaxM),
-            sidePassDepartM = dbl("sidePassDepartM", d.sidePassDepartM),
-            passDetection = bool("passDetection", d.passDetection),
-            passMaxApproachM = dbl("passMaxApproachM", d.passMaxApproachM),
-            passDepartM = dbl("passDepartM", d.passDepartM),
-            passHoldSec = int("passHoldSec", d.passHoldSec),
+        // 到達判定の値（キーの頭 pre）。範囲外の値は base の値にする
+        fun reach(pre: String, base: ReachProfile) = ReachProfile(
+            reachRadiusM = dbl("${pre}reachRadiusM", base.reachRadiusM).takeIf { it in NavSettings.REACH_RADIUS_CHOICES_M } ?: base.reachRadiusM,
+            sidePass = bool("${pre}sidePass", base.sidePass),
+            sidePassMaxM = dbl("${pre}sidePassMaxM", base.sidePassMaxM).inOr(NavSettings.SIDE_PASS_MAX_M_RANGE, base.sidePassMaxM),
+            sidePassDepartM = dbl("${pre}sidePassDepartM", base.sidePassDepartM).inOr(NavSettings.SIDE_PASS_DEPART_M_RANGE, base.sidePassDepartM),
+            passDetection = bool("${pre}passDetection", base.passDetection),
+            passMaxApproachM = dbl("${pre}passMaxApproachM", base.passMaxApproachM).inOr(NavSettings.PASS_MAX_APPROACH_M_RANGE, base.passMaxApproachM),
+            passDepartM = dbl("${pre}passDepartM", base.passDepartM).inOr(NavSettings.PASS_DEPART_M_RANGE, base.passDepartM),
+            passHoldSec = int("${pre}passHoldSec", base.passHoldSec).inOr(NavSettings.PASS_HOLD_SEC_RANGE, base.passHoldSec),
         )
+        val flat = reach("", ReachProfile.CAR)
         fun profile(n: Int): ReachProfile {
-            val pre = "custom$n."
             // 枠の保存がない（前の版）: カスタム1 には保存してあった値（移行）、カスタム2・3 は自動車の値
             val base = if (n == 1 && travelMode == TravelMode.CUSTOM1 && m.keys.none { it.startsWith("custom") }) flat else ReachProfile.CAR
-            return ReachProfile(
-                reachRadiusM = dbl("${pre}reachRadiusM", base.reachRadiusM),
-                sidePass = bool("${pre}sidePass", base.sidePass),
-                sidePassMaxM = dbl("${pre}sidePassMaxM", base.sidePassMaxM),
-                sidePassDepartM = dbl("${pre}sidePassDepartM", base.sidePassDepartM),
-                passDetection = bool("${pre}passDetection", base.passDetection),
-                passMaxApproachM = dbl("${pre}passMaxApproachM", base.passMaxApproachM),
-                passDepartM = dbl("${pre}passDepartM", base.passDepartM),
-                passHoldSec = int("${pre}passHoldSec", base.passHoldSec),
-            )
+            return reach("custom$n.", base)
         }
         val customReach = (1..3).map(::profile)
 
+        // 保持の速度: 範囲外は初期値。解く速度は入る速度より大きいこと（でなければ 初期値と 入る速度 + 刻み の大きい方）
+        val holdEnter = f("holdEnterSpeedMps", d.holdEnterSpeedMps).inOr(NavSettings.HOLD_ENTER_SPEED_MPS_RANGE, d.holdEnterSpeedMps)
+        val holdExit = f("holdExitSpeedMps", d.holdExitSpeedMps).takeIf { it > holdEnter && it <= NavSettings.HOLD_EXIT_SPEED_MAX_MPS }
+            ?: maxOf(d.holdExitSpeedMps, holdEnter + NavSettings.HOLD_SPEED_MIN_GAP_MPS)
+
         return NavSettings(
             sourceMode = enum("sourceMode", SourceMode.entries.toTypedArray(), d.sourceMode),
-            holdEnterSpeedMps = f("holdEnterSpeedMps", d.holdEnterSpeedMps),
-            holdExitSpeedMps = f("holdExitSpeedMps", d.holdExitSpeedMps),
-            maxGpsAccM = f("maxGpsAccM", d.maxGpsAccM),
-            maxGpsBearingAccDeg = f("maxGpsBearingAccDeg", d.maxGpsBearingAccDeg),
+            holdEnterSpeedMps = holdEnter,
+            holdExitSpeedMps = holdExit,
+            maxGpsAccM = f("maxGpsAccM", d.maxGpsAccM).inOr(NavSettings.MAX_GPS_ACC_M_RANGE, d.maxGpsAccM),
+            maxGpsBearingAccDeg = f("maxGpsBearingAccDeg", d.maxGpsBearingAccDeg).inOr(NavSettings.MAX_GPS_BEARING_ACC_DEG_RANGE, d.maxGpsBearingAccDeg),
             travelMode = travelMode,
             customReach = customReach,
-            reachRadiusM = dbl("reachRadiusM", d.reachRadiusM),
-            sidePass = bool("sidePass", d.sidePass),
-            sidePassMaxM = dbl("sidePassMaxM", d.sidePassMaxM),
-            sidePassDepartM = dbl("sidePassDepartM", d.sidePassDepartM),
-            passDetection = bool("passDetection", d.passDetection),
-            passMaxApproachM = dbl("passMaxApproachM", d.passMaxApproachM),
-            passDepartM = dbl("passDepartM", d.passDepartM),
-            passHoldSec = int("passHoldSec", d.passHoldSec),
+            reachRadiusM = flat.reachRadiusM,
+            sidePass = flat.sidePass,
+            sidePassMaxM = flat.sidePassMaxM,
+            sidePassDepartM = flat.sidePassDepartM,
+            passDetection = flat.passDetection,
+            passMaxApproachM = flat.passMaxApproachM,
+            passDepartM = flat.passDepartM,
+            passHoldSec = flat.passHoldSec,
             rateWindowSec = int("rateWindowSec", d.rateWindowSec).takeIf { it in NavSettings.RATE_WINDOW_CHOICES_SEC } ?: d.rateWindowSec,
-            noFixTimeoutSec = int("noFixTimeoutSec", d.noFixTimeoutSec),
-            altOffsetM = dbl("altOffsetM", d.altOffsetM),
+            noFixTimeoutSec = int("noFixTimeoutSec", d.noFixTimeoutSec).inOr(NavSettings.NO_FIX_TIMEOUT_SEC_RANGE, d.noFixTimeoutSec),
+            altOffsetM = dbl("altOffsetM", d.altOffsetM).inOr(NavSettings.ALT_OFFSET_M_RANGE, d.altOffsetM),
             displayMode = enum("displayMode", DisplayMode.entries.toTypedArray(), d.displayMode),
             rangeStepsKm = steps,
-            initialRangeKm = dbl("initialRangeKm", d.initialRangeKm),
+            // 起動時の縮尺: 段の一覧にない値は既定値（使う段にない段は、設定画面ではいちばん近い段に見える）
+            initialRangeKm = dbl("initialRangeKm", d.initialRangeKm).takeIf { it in RangeAuto.ALL_STEPS_KM } ?: d.initialRangeKm,
             autoRange = bool("autoRange", d.autoRange),
-            autoRangeZoomInDelaySec = int("autoRangeZoomInDelaySec", d.autoRangeZoomInDelaySec),
+            autoRangeZoomInDelaySec = int("autoRangeZoomInDelaySec", d.autoRangeZoomInDelaySec)
+                .inOr(NavSettings.AUTO_RANGE_ZOOM_IN_DELAY_SEC_RANGE, d.autoRangeZoomInDelaySec),
             // AUTO の下限・上限: 段の一覧にない値は既定値（使う段への寄せは RangeAuto.limitsKm）
             autoMinRangeKm = dbl("autoMinRangeKm", d.autoMinRangeKm).takeIf { it in RangeAuto.ALL_STEPS_KM } ?: d.autoMinRangeKm,
             autoMaxRangeKm = dbl("autoMaxRangeKm", d.autoMaxRangeKm).takeIf { it in RangeAuto.ALL_STEPS_KM } ?: d.autoMaxRangeKm,
@@ -161,4 +164,7 @@ object SettingsCodec {
             numbersOpacityPct = int("numbersOpacityPct", d.numbersOpacityPct).takeIf { it in NavSettings.OPACITY_CHOICES_PCT } ?: d.numbersOpacityPct,
         ).selectTravelMode(travelMode)
     }
+
+    /** 範囲内ならその値、範囲外なら def */
+    private fun <T : Comparable<T>> T.inOr(range: ClosedRange<T>, def: T): T = if (this in range) this else def
 }

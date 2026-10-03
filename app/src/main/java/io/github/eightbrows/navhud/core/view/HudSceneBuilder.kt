@@ -216,8 +216,8 @@ object HudSceneBuilder {
     }
 
     /**
-     * ARC: 前方 180° の距離環、描画の枠（画面）の縁に置く方位目盛り、30° ごとの方位線、ラバーライン、上部中央の三角。
-     * 距離環は描画領域（rect）の上の角まで描き、帯の下にもかかってよい。
+     * ARC: 全周の距離環、描画の枠（画面）の縁に置く方位目盛り、30° ごとの方位線、ラバーライン、上部中央の三角。
+     * 距離環は描画領域（rect）の四隅まで描き、重ねた部品の下にもかかってよい。
      */
     private fun buildArcScale(
         proj: HudProjection,
@@ -280,7 +280,7 @@ object HudSceneBuilder {
         val outer = (rangeM * proj.pxPerM).toFloat()
         // 方位サークル: 縮尺の距離環の1つ外側の距離環（AUTO の判定は縮尺の距離環のまま）
         val card = ((rangeM + ringIntervalM) * proj.pxPerM).toFloat()
-        // 最外周（縮尺）より外も、描画の枠の四隅に届くまで同じ間隔で描き足す
+        // 縮尺の距離環より外も、描画の枠の四隅に届くまで同じ間隔で描き足す
         addRings(proj, ringIntervalM, maxOf(outer + 0.5f, farthestCornerPx(o, rect)).toDouble(), 0f, 360f, -45.0, m.ringLabelOffset, arcs, labels)
 
         for (b in 0 until 360 step 10) {

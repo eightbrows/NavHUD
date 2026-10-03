@@ -6,6 +6,7 @@ import android.net.Uri
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.edit
 import io.github.eightbrows.navhud.core.io.TrackCsv
 import io.github.eightbrows.navhud.core.io.TrackParseResult
 
@@ -30,7 +31,7 @@ class TrackDocumentStore(context: Context) {
         } catch (_: SecurityException) {
             // 永続化できないプロバイダ。今回の起動中は読めるので、保存だけしておく
         }
-        prefs.edit().putString(KEY_URI, uri.toString()).apply()
+        prefs.edit { putString(KEY_URI, uri.toString()) }
     }
 
     fun forget() {
@@ -40,7 +41,7 @@ class TrackDocumentStore(context: Context) {
             } catch (_: SecurityException) {
             }
         }
-        prefs.edit().remove(KEY_URI).apply()
+        prefs.edit { remove(KEY_URI) }
     }
 
     /** URI のファイルを読む。ファイル削除・権限失効などで読めなければ例外を投げる。ブロッキングなので IO スレッドで呼ぶ。 */

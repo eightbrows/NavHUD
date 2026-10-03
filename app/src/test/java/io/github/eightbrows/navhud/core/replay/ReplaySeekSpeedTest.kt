@@ -1,5 +1,6 @@
 package io.github.eightbrows.navhud.core.replay
 
+import io.github.eightbrows.navhud.core.TestGeo
 import io.github.eightbrows.navhud.core.model.Fix
 import io.github.eightbrows.navhud.core.model.Waypoint
 import io.github.eightbrows.navhud.core.nav.NavEngine
@@ -14,21 +15,19 @@ import org.junit.Test
 
 class ReplaySeekSpeedTest {
 
-    private val mPerDegLat = 111_195.0
-    private val lat0 = 33.5
-    private val lon0 = 133.0
+    private val lon0 = TestGeo.LON0
     private val t0 = 1_000_000L
 
     /**
      * 北へ 10 m/s、1 秒ごと。60..90 秒は欠損（30 秒の穴 → NO FIX）。WP は 500 m 先の真上（到達）と、1500 m 先の東 150 m（通過判定）。
      */
     private val track: List<Fix> = (0..200).filter { it !in 61..89 }.map { s ->
-        Fix(timeMs = t0 + s * 1000L, lat = lat0 + 10.0 * s / mPerDegLat, lon = lon0, speedMps = 10f, bearingDeg = 0f, horizAccM = 5f, altRawM = 500.0 + s)
+        Fix(timeMs = t0 + s * 1000L, lat = TestGeo.lat(10.0 * s), lon = lon0, speedMps = 10f, bearingDeg = 0f, horizAccM = 5f, altRawM = 500.0 + s)
     }
     private val wps = listOf(
-        Waypoint("A", lat0 + 500 / mPerDegLat, lon0),
-        Waypoint("B", lat0 + 1_500 / mPerDegLat, lon0 + 150 / (mPerDegLat * Math.cos(Math.toRadians(lat0)))),
-        Waypoint("C", lat0 + 5_000 / mPerDegLat, lon0),
+        Waypoint("A", TestGeo.lat(500.0), lon0),
+        Waypoint("B", TestGeo.lat(1_500.0), TestGeo.lon(150.0)),
+        Waypoint("C", TestGeo.lat(5_000.0), lon0),
     )
 
     @Test

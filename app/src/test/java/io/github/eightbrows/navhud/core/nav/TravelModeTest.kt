@@ -48,6 +48,22 @@ class TravelModeTest {
     }
 
     @Test
+    fun resetKeepsCustomSlots() {
+        // カスタム2 を選んで値を変え、ほかの設定も変えてから「初期値に戻す」: 移動手段は自動車、カスタム1〜3 の値は残る
+        val edited = NavSettings(uiTheme = ColorTheme.AMBER, noFixTimeoutSec = 30)
+            .selectTravelMode(TravelMode.CUSTOM2)
+            .editReach { it.copy(reachRadiusM = 100.0, passHoldSec = 9) }
+        val r = edited.resetKeepingCustomReach()
+        assertEquals(TravelMode.CAR, r.travelMode)
+        assertEquals(car, r.reachProfile)
+        assertEquals(edited.customReach, r.customReach)
+        assertEquals(NavSettings(), r.copy(customReach = NavSettings().customReach))
+        // カスタム2 に切り替えれば、変えた値が戻る
+        assertEquals(100.0, r.selectTravelMode(TravelMode.CUSTOM2).reachRadiusM, 0.0)
+        assertEquals(9, r.selectTravelMode(TravelMode.CUSTOM2).passHoldSec)
+    }
+
+    @Test
     fun migrationFromThePreviousVersion() {
         // D06・D07 の「カスタム」: 保存してあった値をカスタム1 に移し、カスタム1 を選ぶ。カスタム2・3 は自動車の値
         val old = mapOf(

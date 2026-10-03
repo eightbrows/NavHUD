@@ -1,5 +1,6 @@
 package io.github.eightbrows.navhud.core.nav
 
+import io.github.eightbrows.navhud.core.TestGeo
 import io.github.eightbrows.navhud.core.geo.EN
 import io.github.eightbrows.navhud.core.geo.Geo
 import io.github.eightbrows.navhud.core.geo.Screen
@@ -15,8 +16,8 @@ import org.junit.Test
 
 class PanTest {
 
-    private val lat0 = 33.5
-    private val lon0 = 133.0
+    private val lat0 = TestGeo.LAT0
+    private val lon0 = TestGeo.LON0
 
     private fun en(lat: Double, lon: Double) = Geo.toEN(lat0, lon0, lat, lon)
 
@@ -70,7 +71,7 @@ class PanTest {
         )
         e.setViewport(viewport)
         // 北へ 1.5km の WP
-        e.setWaypoints(listOf(Waypoint("A", lat0 + 1_500.0 / 111_195.0, lon0)))
+        e.setWaypoints(listOf(Waypoint("A", TestGeo.lat(1_500.0), lon0)))
         e.onFix(Fix(timeMs = 0, lat = lat0, lon = lon0), 0)
         return e
     }
@@ -87,7 +88,7 @@ class PanTest {
         assertEquals(0.0, pan.upDeg, 0.0)
         assertEquals(50.0 / viewport.pxPerM(before, s.settings), en(pan.lat, pan.lon).e, 0.5)
         // PAN 中は AUTO を止める: WP が遠くなっても縮尺は変わらない
-        e.setWaypoints(listOf(Waypoint("A", lat0 + 30_000.0 / 111_195.0, lon0)))
+        e.setWaypoints(listOf(Waypoint("A", TestGeo.lat(30_000.0), lon0)))
         e.onFix(Fix(timeMs = 1_000, lat = lat0, lon = lon0), 1_000)
         assertEquals(before, e.state.rangeM, 0.0)
         assertEquals(true, e.state.rangeAuto)

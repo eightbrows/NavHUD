@@ -1,5 +1,6 @@
 package io.github.eightbrows.navhud.core.nav
 
+import io.github.eightbrows.navhud.core.TestGeo
 import io.github.eightbrows.navhud.core.model.Fix
 import io.github.eightbrows.navhud.core.model.HeadingSrc
 import io.github.eightbrows.navhud.core.model.SourceMode
@@ -17,7 +18,6 @@ import java.time.ZoneId
 class NavEngineTest {
 
     private val jst = ZoneId.of("Asia/Tokyo")
-    private val mPerDegLat = 111_195.0
 
     /** 2026-08-14 10:00:00 JST */
     private val t0 = Instant.parse("2026-08-14T01:00:00Z").toEpochMilli()
@@ -86,6 +86,34 @@ class NavEngineTest {
     }
 
     @Test
+    fun liveNoFixUsesReceiveTimeWhenClockIsOff() {
+        // 端末の時計が GPS の時刻より 60 秒 遅れている / 進んでいる。LIVE の NO FIX は受け取った時刻で決める
+        for (skew in listOf(-60_000L, 60_000L)) {
+            val e = NavEngine(NavSettings(), jst, SourceKind.LIVE)
+            // GPS の時刻で 1 秒ごと（北へ 10 m/s）。受け取った時刻 = GPS の時刻 + skew
+            var s = e.state
+            for (i in 0..60) s = e.onFix(fix(t0 + i * 1_000L, lat = TestGeo.lat(10.0 * i, 33.0)), t0 + i * 1_000L + skew)
+            assertFalse("skew $skew", s.noFix)
+            // RATE は Fix の時刻（GPS の時刻）で計算したまま
+            assertNotNull("skew $skew", s.rate)
+            val last = t0 + 60_000L + skew
+            assertFalse("skew $skew", e.onTick(last + 10_000).noFix)
+            assertTrue("skew $skew", e.onTick(last + 10_001).noFix)
+            // 次の Fix を受け取れば、すぐ NO FIX ではなくなる
+            assertFalse("skew $skew", e.onFix(fix(t0 + 75_000, lat = TestGeo.lat(750.0, 33.0)), last + 15_000).noFix)
+        }
+    }
+
+    @Test
+    fun replayNoFixUsesTrackTime() {
+        // REPLAY は今のまま: 「今（トラックの時計）− 最後の Fix の時刻」。受け取った時刻は使わない
+        val e = engine()
+        e.onFix(fix(t0), t0 + 5_000)
+        assertFalse(e.onTick(t0 + 10_000).noFix)
+        assertTrue(e.onTick(t0 + 10_001).noFix)
+    }
+
+    @Test
     fun tickAloneUpdatesCountdown() {
         val e = engine()
         e.setWaypoints(listOf(Waypoint("A", 33.1, 133.0, targetTime = LocalTime.of(10, 10), deadlineTime = LocalTime.of(10, 5))))
@@ -99,9 +127,9 @@ class NavEngineTest {
     fun nextWaypointBearingDistanceAndEta() {
         val e = engine()
         // 北へ 10m/s で 61 秒
-        for (s in 0..60) e.onFix(fix(t0 + s * 1000L, lat = 33.0 + 10.0 * s / mPerDegLat), t0 + s * 1000L)
-        val lastLat = 33.0 + 600 / mPerDegLat
-        e.setWaypoints(listOf(Waypoint("N", lastLat + 1000 / mPerDegLat, 133.0)))
+        for (s in 0..60) e.onFix(fix(t0 + s * 1000L, lat = TestGeo.lat(10.0 * s, 33.0)), t0 + s * 1000L)
+        val lastLat = TestGeo.lat(600.0, 33.0)
+        e.setWaypoints(listOf(Waypoint("N", TestGeo.lat(1000.0, lastLat), 133.0)))
         val s = e.state
         assertEquals(0, s.nextWpIndex)
         assertEquals(0.0, s.nextWpBearingDeg!!, 1e-6)
@@ -113,13 +141,13 @@ class NavEngineTest {
     @Test
     fun etaFromShortHistory() {
         val e = engine()
-        e.setWaypoints(listOf(Waypoint("N", 33.0 + 2000 / mPerDegLat, 133.0)))
+        e.setWaypoints(listOf(Waypoint("N", TestGeo.lat(2000.0, 33.0), 133.0)))
         // 走り始めて 9 秒: RATE（60 秒）はまだなく、ETA も出さない
-        for (s in 0..9) e.onFix(fix(t0 + s * 1000L, lat = 33.0 + 10.0 * s / mPerDegLat), t0 + s * 1000L)
+        for (s in 0..9) e.onFix(fix(t0 + s * 1000L, lat = TestGeo.lat(10.0 * s, 33.0)), t0 + s * 1000L)
         assertNull(e.state.rate)
         assertNull(e.state.etaMs)
         // 10 秒分たまれば、その平均速度（10 m/s）で ETA。残り 1900m → 190 秒後
-        val s = e.onFix(fix(t0 + 10_000, lat = 33.0 + 100.0 / mPerDegLat), t0 + 10_000)
+        val s = e.onFix(fix(t0 + 10_000, lat = TestGeo.lat(100.0, 33.0)), t0 + 10_000)
         assertNull(s.rate)
         assertEquals((t0 + 10_000 + 190_000).toDouble(), s.etaMs!!.toDouble(), 100.0)
     }
@@ -129,7 +157,7 @@ class NavEngineTest {
         val e = engine(NavSettings(reachRadiusM = 50.0))
         e.setWaypoints(listOf(Waypoint("A", 33.0, 133.0), Waypoint("B", 33.1, 133.0)))
         assertEquals(0, e.state.nextWpIndex)
-        val s = e.onFix(fix(t0, lat = 33.0 + 30 / mPerDegLat), t0)
+        val s = e.onFix(fix(t0, lat = TestGeo.lat(30.0, 33.0)), t0)
         assertTrue(s.waypoints[0].reached)
         assertEquals(1, s.nextWpIndex)
     }
@@ -194,7 +222,7 @@ class NavEngineTest {
     fun switchSourceResetsHistoryButKeepsReached() {
         val e = engine(NavSettings(reachRadiusM = 50.0))
         e.setWaypoints(listOf(Waypoint("A", 33.0, 133.0), Waypoint("B", 33.1, 133.0)))
-        for (s in 0..60) e.onFix(fix(t0 + s * 1000L, lat = 33.0 + 10.0 * s / mPerDegLat), t0 + s * 1000L)
+        for (s in 0..60) e.onFix(fix(t0 + s * 1000L, lat = TestGeo.lat(10.0 * s, 33.0)), t0 + s * 1000L)
         assertTrue(e.state.waypoints[0].reached)
         assertNotNull(e.state.rate)
 
@@ -230,7 +258,7 @@ class NavEngineTest {
         assertEquals(1_000.0, e.state.rangeM, 0.0)
         assertTrue(e.state.rangeAuto)
         // 次の WP が 3.9km 先 → AUTO の上限（1km の段）で止まる（画面が分からないので距離で判定）
-        e.setWaypoints(listOf(Waypoint("A", 33.0 + 3_900 / mPerDegLat, 133.0)))
+        e.setWaypoints(listOf(Waypoint("A", TestGeo.lat(3_900.0, 33.0), 133.0)))
         assertEquals(1_000.0, e.onFix(fix(t0), t0).rangeM, 0.0)
         // ＋ で 500m の段、AUTO は OFF
         val z = e.zoomIn()

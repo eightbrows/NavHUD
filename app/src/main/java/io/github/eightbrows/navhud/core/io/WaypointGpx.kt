@@ -17,7 +17,7 @@ object WaypointGpx {
 
     /** 先頭が XML / GPX らしいか（CSV と見分ける）。 */
     fun looksLikeGpx(bytes: ByteArray): Boolean {
-        val head = String(bytes, 0, minOf(bytes.size, 512), Charsets.UTF_8).trimStart('﻿', ' ', '\t', '\r', '\n')
+        val head = String(bytes, 0, minOf(bytes.size, 512), Charsets.UTF_8).trimStart('\uFEFF', ' ', '\t', '\r', '\n')
         return head.startsWith("<?xml") || head.startsWith("<gpx")
     }
 

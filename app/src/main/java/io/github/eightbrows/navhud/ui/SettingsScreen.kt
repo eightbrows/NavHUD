@@ -108,7 +108,7 @@ fun SettingsScreen(
                 note = "WP ボタン列の下。現在地から次の目標、その先の目標までの標高",
             ) { v -> onChange { it.copy(profileSize = v) } }
             Stepper("標高オフセット", "%.0f m".format(Locale.US, s.altOffsetM), note = "標高 = GPS の楕円体高 − これ") { d ->
-                onChange { it.copy(altOffsetM = (it.altOffsetM + d).coerceIn(-200.0, 200.0)) }
+                onChange { it.copy(altOffsetM = (it.altOffsetM + d).coerceIn(NavSettings.ALT_OFFSET_M_RANGE)) }
             }
         }
 
@@ -124,21 +124,21 @@ fun SettingsScreen(
                 note = "これ未満で GPS 方位を保持（HLD）",
             ) { d ->
                 onChange {
-                    val v = (it.holdEnterSpeedMps + d * STEP_MPS).round1().coerceIn(0.5f, 10f)
+                    val v = (it.holdEnterSpeedMps + d * STEP_MPS).round1().coerceIn(NavSettings.HOLD_ENTER_SPEED_MPS_RANGE)
                     it.copy(holdEnterSpeedMps = v, holdExitSpeedMps = maxOf(it.holdExitSpeedMps, (v + STEP_MPS).round1()))
                 }
             }
             Stepper("保持を解く速度", kmh(s.holdExitSpeedMps), note = "これを超えたら GPS 方位に戻る") { d ->
                 onChange {
-                    val v = (it.holdExitSpeedMps + d * STEP_MPS).round1().coerceIn((it.holdEnterSpeedMps + STEP_MPS).round1(), 15f)
+                    val v = (it.holdExitSpeedMps + d * STEP_MPS).round1().coerceIn((it.holdEnterSpeedMps + STEP_MPS).round1(), NavSettings.HOLD_EXIT_SPEED_MAX_MPS)
                     it.copy(holdExitSpeedMps = v)
                 }
             }
             Stepper("GPS の水平精度の上限", "%.0f m".format(Locale.US, s.maxGpsAccM)) { d ->
-                onChange { it.copy(maxGpsAccM = (it.maxGpsAccM + d).coerceIn(3f, 100f)) }
+                onChange { it.copy(maxGpsAccM = (it.maxGpsAccM + d).coerceIn(NavSettings.MAX_GPS_ACC_M_RANGE)) }
             }
             Stepper("GPS の方位の精度の上限", "%.0f°".format(Locale.US, s.maxGpsBearingAccDeg), note = "値を出している端末のみ") { d ->
-                onChange { it.copy(maxGpsBearingAccDeg = (it.maxGpsBearingAccDeg + d * 5).coerceIn(5f, 90f)) }
+                onChange { it.copy(maxGpsBearingAccDeg = (it.maxGpsBearingAccDeg + d * 5).coerceIn(NavSettings.MAX_GPS_BEARING_ACC_DEG_RANGE)) }
             }
         }
 
@@ -178,7 +178,7 @@ fun SettingsScreen(
                 onChange { it.copy(autoRange = v) }
             }
             Stepper("AUTO で狭めるまでの時間", "${s.autoRangeZoomInDelaySec} 秒", note = "広げる方向はすぐ切り替える") { d ->
-                onChange { it.copy(autoRangeZoomInDelaySec = (it.autoRangeZoomInDelaySec + d).coerceIn(0, 30)) }
+                onChange { it.copy(autoRangeZoomInDelaySec = (it.autoRangeZoomInDelaySec + d).coerceIn(NavSettings.AUTO_RANGE_ZOOM_IN_DELAY_SEC_RANGE)) }
             }
             Stepper(
                 "WP 通過後に AUTO が動くまで", "${s.autoHoldAfterWpSec} 秒",
@@ -233,22 +233,22 @@ fun SettingsScreen(
                 judge { it.copy(sidePass = v) }
             }
             Stepper("真横通過: WP までの距離", "%.0f m 以内".format(Locale.US, s.sidePassMaxM), enabled = custom) { d ->
-                judge { it.copy(sidePassMaxM = (it.sidePassMaxM + d * 10).coerceIn(30.0, 500.0)) }
+                judge { it.copy(sidePassMaxM = (it.sidePassMaxM + d * 10).coerceIn(NavSettings.SIDE_PASS_MAX_M_RANGE)) }
             }
             Stepper("真横通過: 離れたとみなす距離", "+%.0f m".format(Locale.US, s.sidePassDepartM), note = "いちばん近づいた距離から", enabled = custom) { d ->
-                judge { it.copy(sidePassDepartM = (it.sidePassDepartM + d * 5).coerceIn(5.0, 100.0)) }
+                judge { it.copy(sidePassDepartM = (it.sidePassDepartM + d * 5).coerceIn(NavSettings.SIDE_PASS_DEPART_M_RANGE)) }
             }
             Toggle("通過判定（予備）", s.passDetection, note = "方位が取れない場面用。最接近したあと離れていったら到達にする", enabled = custom) { v ->
                 judge { it.copy(passDetection = v) }
             }
             Stepper("通過判定: 最接近距離の上限", "%.0f m".format(Locale.US, s.passMaxApproachM), note = "WP ごとの到達半径 × 3 の方が大きければそちら", enabled = custom) { d ->
-                judge { it.copy(passMaxApproachM = (it.passMaxApproachM + d * 50).coerceIn(50.0, 2000.0)) }
+                judge { it.copy(passMaxApproachM = (it.passMaxApproachM + d * 50).coerceIn(NavSettings.PASS_MAX_APPROACH_M_RANGE)) }
             }
             Stepper("通過判定: 離れたとみなす距離", "+%.0f m".format(Locale.US, s.passDepartM), enabled = custom) { d ->
-                judge { it.copy(passDepartM = (it.passDepartM + d * 10).coerceIn(10.0, 500.0)) }
+                judge { it.copy(passDepartM = (it.passDepartM + d * 10).coerceIn(NavSettings.PASS_DEPART_M_RANGE)) }
             }
             Stepper("通過判定: 離れた状態が続く時間", "${s.passHoldSec} 秒", enabled = custom) { d ->
-                judge { it.copy(passHoldSec = (it.passHoldSec + d).coerceIn(1, 60)) }
+                judge { it.copy(passHoldSec = (it.passHoldSec + d).coerceIn(NavSettings.PASS_HOLD_SEC_RANGE)) }
             }
             Stepper("WP ボタン列に見せる数", "${s.wpButtonsMax} 個", note = "自機の下に横並び。超える分は左右にスクロール") { d ->
                 onChange { it.copy(wpButtonsMax = (it.wpButtonsMax + d).coerceIn(NavSettings.WP_BUTTONS_MAX_RANGE)) }
@@ -263,7 +263,7 @@ fun SettingsScreen(
                 onInput(v)
             }
             Stepper("NO FIX とみなす時間", "${s.noFixTimeoutSec} 秒") { d ->
-                onChange { it.copy(noFixTimeoutSec = (it.noFixTimeoutSec + d).coerceIn(3, 120)) }
+                onChange { it.copy(noFixTimeoutSec = (it.noFixTimeoutSec + d).coerceIn(NavSettings.NO_FIX_TIMEOUT_SEC_RANGE)) }
             }
             Choice("RATE の窓", NavSettings.RATE_WINDOW_CHOICES_SEC.map { "$it 秒" to it }, s.rateWindowSec) { v ->
                 onChange { it.copy(rateWindowSec = v) }

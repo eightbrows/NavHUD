@@ -46,7 +46,7 @@ data class ReachProfile(
     }
 }
 
-/** 仕様の設定値（既定値つき）。保存はまだしない。 */
+/** 仕様の設定値（既定値つき）。SettingsStore が SharedPreferences に保存する（§6.9）。 */
 data class NavSettings(
     /** 方位ソース（§5.2）。既定は GPS（車内ではコンパスが不安定なため。HYBRID と COMPASS は歩行用） */
     val sourceMode: SourceMode = SourceMode.GPS,
@@ -91,7 +91,7 @@ data class NavSettings(
     val displayMode: DisplayMode = DisplayMode.ARC,
     /**
      * 使う縮尺の段 [km]（RangeAuto.ALL_STEPS_KM の中から）。縮尺は ARC では基準の距離環が左右端に接する距離、
-     * North Up では最外周の距離環。距離環の間隔は縮尺の 1/2
+     * North Up では縮尺の距離環（方位サークルはその1つ外側）。距離環の間隔は縮尺の 1/2
      */
     val rangeStepsKm: List<Double> = listOf(0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0),
     /** 起動時の縮尺 [km] */
@@ -135,6 +135,24 @@ data class NavSettings(
         val PAN_RETURN_SEC_RANGE = 5..60
         val HUD_WP_COUNT_RANGE = 1..20
         val REACH_RADIUS_CHOICES_M = listOf(30.0, 50.0, 100.0, 200.0, 500.0)
+
+        // 設定画面のステッパーで変えられる範囲。読み込み（SettingsCodec）でも、範囲外の値はその項目だけ初期値にする（§6.9）
+        /** 保持に入る速度 [m/s] */
+        val HOLD_ENTER_SPEED_MPS_RANGE = 0.5f..10f
+        /** 保持を解く速度の上限 [m/s]（下限は 保持に入る速度 + 刻み） */
+        const val HOLD_EXIT_SPEED_MAX_MPS = 15f
+        /** 保持に入る速度と解く速度の最小の差 [m/s]（設定画面の刻みと同じ） */
+        const val HOLD_SPEED_MIN_GAP_MPS = 0.1f
+        val MAX_GPS_ACC_M_RANGE = 3f..100f
+        val MAX_GPS_BEARING_ACC_DEG_RANGE = 5f..90f
+        val SIDE_PASS_MAX_M_RANGE = 30.0..500.0
+        val SIDE_PASS_DEPART_M_RANGE = 5.0..100.0
+        val PASS_MAX_APPROACH_M_RANGE = 50.0..2000.0
+        val PASS_DEPART_M_RANGE = 10.0..500.0
+        val PASS_HOLD_SEC_RANGE = 1..60
+        val NO_FIX_TIMEOUT_SEC_RANGE = 3..120
+        val ALT_OFFSET_M_RANGE = -200.0..200.0
+        val AUTO_RANGE_ZOOM_IN_DELAY_SEC_RANGE = 0..30
         val RATE_WINDOW_CHOICES_SEC = listOf(10, 30, 60)
 
         /** 不透明度 [%] の選べる値（20, 30, … 100） */
@@ -149,6 +167,9 @@ data class NavSettings(
                 .toList()
     }
 }
+
+/** 「設定を初期値に戻す」（§6.9）: すべて初期値にし、移動手段は自動車に戻す。カスタム1〜3 の値は残す。 */
+fun NavSettings.resetKeepingCustomReach(): NavSettings = NavSettings(customReach = customReach)
 
 /** 今の到達判定の値（選んでいる移動手段の値）。 */
 val NavSettings.reachProfile: ReachProfile

@@ -1,14 +1,12 @@
 package io.github.eightbrows.navhud.core
 
 import io.github.eightbrows.navhud.core.geo.Geo
-import io.github.eightbrows.navhud.core.io.TrackCsv
 import io.github.eightbrows.navhud.core.model.Fix
 import io.github.eightbrows.navhud.core.model.Waypoint
 import io.github.eightbrows.navhud.core.nav.NavEngine
 import io.github.eightbrows.navhud.core.nav.NavSettings
 import io.github.eightbrows.navhud.core.nav.SourceKind
 import org.junit.Assert.assertTrue
-import org.junit.Assume.assumeTrue
 import org.junit.Test
 import java.io.File
 import java.time.Instant
@@ -25,10 +23,6 @@ import kotlin.math.sin
 class PassTimingSampleTest {
 
     companion object {
-        private const val PATH = "sample/session_20260814_075234/track.csv"
-        private val file: File? = listOf(File(PATH), File("../$PATH")).firstOrNull { it.exists() }
-        private val track: List<Fix>? by lazy { file?.inputStream()?.use { TrackCsv.parse(it).fixes } }
-        private const val M_PER_DEG = 111_195.0
         private val OFFSETS = listOf(10.0, 30.0, 50.0, 70.0, 90.0)
 
         /** 前の規則（D05 まで）: 到達半径 100m、真横通過なし、通過判定 300m・+50m・5 秒 */
@@ -39,10 +33,7 @@ class PassTimingSampleTest {
     }
 
     private val fixes: List<Fix>
-        get() {
-            assumeTrue("track.csv がないためスキップ: $PATH", track != null)
-            return track!!
-        }
+        get() = SampleTrack.fixes()
 
     /** 1件の仮の WP。i: 置いた所の Fix の番号、offsetM: 道路から横（+ 右 / − 左）。 */
     data class Probe(val i: Int, val offsetM: Double, val wp: Waypoint)
@@ -59,8 +50,8 @@ class PassTimingSampleTest {
                 val off = OFFSETS[k % OFFSETS.size] * (if ((k / OFFSETS.size) % 2 == 0) 1 else -1)
                 val course = Geo.bearingDeg(f[i - 5].lat, f[i - 5].lon, f[i + 5].lat, f[i + 5].lon)
                 val a = Math.toRadians(course + 90)
-                val lat = f[i].lat + off * cos(a) / M_PER_DEG
-                val lon = f[i].lon + off * sin(a) / (M_PER_DEG * cos(Math.toRadians(f[i].lat)))
+                val lat = TestGeo.lat(off * cos(a), f[i].lat)
+                val lon = TestGeo.lon(off * sin(a), f[i].lat, f[i].lon)
                 out += Probe(i, off, Waypoint("P$k", lat, lon))
                 k++
                 i += 100

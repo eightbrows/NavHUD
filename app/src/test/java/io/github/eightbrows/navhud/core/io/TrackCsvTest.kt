@@ -32,7 +32,7 @@ class TrackCsvTest {
 
     @Test
     fun bomAndEpochPreferred() {
-        val csv = "﻿epoch_ms,utc_iso8601,latitude,longitude\n" +
+        val csv = "\uFEFFepoch_ms,utc_iso8601,latitude,longitude\n" +
             "1000,2026-08-13T22:52:35.000Z,1.0,2.0\n" +
             ",2026-08-13T22:52:35.000Z,1.0,2.0\n"
         val r = TrackCsv.parse(csv)

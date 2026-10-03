@@ -1,6 +1,7 @@
 package io.github.eightbrows.navhud.source
 
 import android.content.Context
+import androidx.core.content.edit
 import io.github.eightbrows.navhud.core.nav.NavSettings
 import io.github.eightbrows.navhud.core.nav.SettingsCodec
 import io.github.eightbrows.navhud.core.nav.SourceKind
@@ -13,17 +14,14 @@ class SettingsStore(context: Context) {
     fun load(): NavSettings = SettingsCodec.decode(prefs.all.mapValues { it.value?.toString() })
 
     fun save(s: NavSettings) {
-        val e = prefs.edit()
-        SettingsCodec.encode(s).forEach { (k, v) -> e.putString(k, v) }
-        e.apply()
+        prefs.edit { SettingsCodec.encode(s).forEach { (k, v) -> putString(k, v) } }
     }
 
     /** INPUT（LIVE / REPLAY）。既定は LIVE。 */
     var input: SourceKind
         get() = SourceKind.entries.firstOrNull { it.name == prefs.getString(KEY_INPUT, null) } ?: SourceKind.LIVE
-        set(v) = prefs.edit().putString(KEY_INPUT, v.name).apply()
+        set(v) = prefs.edit { putString(KEY_INPUT, v.name) }
 
-    fun clear() = prefs.edit().clear().apply()
 
     private companion object {
         const val PREFS = "settings"

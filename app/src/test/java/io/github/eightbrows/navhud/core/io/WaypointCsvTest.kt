@@ -86,7 +86,7 @@ class WaypointCsvTest {
 
     @Test
     fun bomColumnOrderAndExtraColumns() {
-        val text = "﻿name,memo,deadline_time,lon,lat\r\n京都,メモ,10:00,135.7588,34.9858\r\n"
+        val text = "\uFEFFname,memo,deadline_time,lon,lat\r\n京都,メモ,10:00,135.7588,34.9858\r\n"
         val r = WaypointCsv.parse(text.toByteArray(Charsets.UTF_8))
         val w = r.waypoints.single()
         assertEquals("京都", w.name)

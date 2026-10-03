@@ -1,5 +1,6 @@
 package io.github.eightbrows.navhud.core.nav
 
+import io.github.eightbrows.navhud.core.TestGeo
 import io.github.eightbrows.navhud.core.model.Fix
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -8,8 +9,6 @@ import org.junit.Test
 
 class RateTrackerTest {
 
-    private val mPerDegLat = 111_195.0
-
     /** 北へ 10m/s、毎秒 1m 上昇、1秒間隔で seconds+1 点。 */
     private fun steady(seconds: Int): RateTracker {
         val t = RateTracker()
@@ -17,7 +16,7 @@ class RateTrackerTest {
             t.add(
                 Fix(
                     timeMs = 1_000_000L + s * 1000L,
-                    lat = 33.0 + 10.0 * s / mPerDegLat,
+                    lat = TestGeo.lat(10.0 * s, 33.0),
                     lon = 133.0,
                     altRawM = 500.0 + s,
                     speedMps = 10f,
@@ -59,14 +58,14 @@ class RateTrackerTest {
     fun gapSegmentUsesStraightDistance() {
         val t = RateTracker()
         t.add(Fix(timeMs = 0, lat = 33.0, lon = 133.0, speedMps = 0f))
-        t.add(Fix(timeMs = 10_000, lat = 33.0 + 500 / mPerDegLat, lon = 133.0, speedMps = 0f))
+        t.add(Fix(timeMs = 10_000, lat = TestGeo.lat(500.0, 33.0), lon = 133.0, speedMps = 0f))
         assertEquals(500.0, t.rate(10)!!.distanceM, 0.5)
     }
 
     @Test
     fun missingSpeedUsesStraightDistance() {
         val t = RateTracker()
-        for (s in 0..10) t.add(Fix(timeMs = s * 1000L, lat = 33.0 + 5.0 * s / mPerDegLat, lon = 133.0))
+        for (s in 0..10) t.add(Fix(timeMs = s * 1000L, lat = TestGeo.lat(5.0 * s, 33.0), lon = 133.0))
         val r = t.rate(10)!!
         assertEquals(50.0, r.distanceM, 0.05)
         assertNull(r.altDiffM)
@@ -96,7 +95,7 @@ class RateTrackerTest {
         // 0..100 秒のあと 50 秒欠損して、150..165 秒: 窓 60 秒の起点（105 秒）には Fix がない → RATE は null
         val t = steady(100)
         for (s in 150..165) {
-            t.add(Fix(timeMs = 1_000_000L + s * 1000L, lat = 34.0 + 5.0 * (s - 150) / mPerDegLat, lon = 133.0, speedMps = 5f))
+            t.add(Fix(timeMs = 1_000_000L + s * 1000L, lat = TestGeo.lat(5.0 * (s - 150), 34.0), lon = 133.0, speedMps = 5f))
         }
         assertNull(t.rate(60))
         // 窓の中にある 150..165 秒（15 秒）の平均 = 5 m/s

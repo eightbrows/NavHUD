@@ -80,7 +80,7 @@ class WaypointGpxTest {
     @Test
     fun detectsGpx() {
         assertTrue(WaypointGpx.looksLikeGpx(gpx.toByteArray()))
-        assertTrue(WaypointGpx.looksLikeGpx("﻿<gpx></gpx>".toByteArray()))
+        assertTrue(WaypointGpx.looksLikeGpx("\uFEFF<gpx></gpx>".toByteArray()))
         assertFalse(WaypointGpx.looksLikeGpx("lat,lon\n1,1\n".toByteArray()))
     }
 }

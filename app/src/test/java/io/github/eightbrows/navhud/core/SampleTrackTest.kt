@@ -1,7 +1,6 @@
 package io.github.eightbrows.navhud.core
 
 import io.github.eightbrows.navhud.core.geo.Geo
-import io.github.eightbrows.navhud.core.io.TrackCsv
 import io.github.eightbrows.navhud.core.io.TrackParseResult
 import io.github.eightbrows.navhud.core.model.Fix
 import io.github.eightbrows.navhud.core.nav.RateTracker
@@ -10,9 +9,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
-import org.junit.Assume.assumeTrue
 import org.junit.Test
-import java.io.File
 import java.time.Instant
 
 /**
@@ -22,23 +19,12 @@ import java.time.Instant
 class SampleTrackTest {
 
     companion object {
-        private const val PATH = "sample/session_20260814_075234/track.csv"
-
-        // 単体テストの作業ディレクトリは app/ のことが多い
-        private val file: File? = listOf(File(PATH), File("../$PATH")).firstOrNull { it.exists() }
-
-        private val track: TrackParseResult? by lazy {
-            file?.inputStream()?.use { TrackCsv.parse(it) }
-        }
 
         private fun ms(iso: String) = Instant.parse(iso).toEpochMilli()
     }
 
     private val result: TrackParseResult
-        get() {
-            assumeTrue("track.csv がないためスキップ: $PATH", track != null)
-            return track!!
-        }
+        get() = SampleTrack.result()
 
     private val fixes: List<Fix> get() = result.fixes
 

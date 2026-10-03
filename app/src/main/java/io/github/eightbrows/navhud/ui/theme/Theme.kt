@@ -1,58 +1,42 @@
 package io.github.eightbrows.navhud.ui.theme
 
-import android.app.Activity
-import android.os.Build
-import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalContext
+import io.github.eightbrows.navhud.ui.HudColors
 
-private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
-)
-
-private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
-
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    */
-)
-
+/**
+ * アプリのテーマ: HudColors に合わせた固定の暗い配色。端末の壁紙の色（ダイナミックカラー）やライト / ダークの設定は使わない。
+ * Material の部品（起動時のダイアログ、WP 設定の入力欄・確認のダイアログなど）の色がここで決まる。
+ * 文字や枠の色は UI の色（白 / 緑 / 琥珀）に合わせる。
+ */
 @Composable
-fun NavHUDTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
-    content: @Composable () -> Unit
-) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
-    }
-
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography,
-        content = content
-    )
+fun NavHUDTheme(content: @Composable () -> Unit) {
+    MaterialTheme(colorScheme = hudColorScheme(), content = content)
 }
+
+/** HudColors から作る配色（UI の色を変えたら作り直す）。 */
+private fun hudColorScheme(): ColorScheme = darkColorScheme(
+    primary = HudColors.Scale,
+    onPrimary = HudColors.Background,
+    secondary = HudColors.ScaleDim,
+    onSecondary = HudColors.Background,
+    tertiary = HudColors.Active,
+    onTertiary = HudColors.Background,
+    background = HudColors.Background,
+    onBackground = HudColors.Scale,
+    surface = HudColors.Background,
+    onSurface = HudColors.Scale,
+    surfaceVariant = HudColors.Frame,
+    onSurfaceVariant = HudColors.Caption,
+    surfaceContainerLowest = HudColors.Background,
+    surfaceContainerLow = HudColors.Frame,
+    surfaceContainer = HudColors.Frame,
+    surfaceContainerHigh = HudColors.Frame,
+    surfaceContainerHighest = HudColors.Frame,
+    outline = HudColors.ScaleDim,
+    outlineVariant = HudColors.Frame,
+    error = HudColors.Warning,
+    onError = HudColors.Background,
+)

@@ -370,9 +370,7 @@ private fun SideButton(
  */
 private fun Modifier.overlayButton(color: Color, inverted: Boolean, alpha: Float, shape: Shape): Modifier =
     border(1.dp, color.copy(alpha = color.alpha * alpha), shape)
-        .then(
-            if (inverted) background(color.copy(alpha = color.alpha * alpha * Tuning.BUTTON_ON_FILL_ALPHA), shape) else Modifier,
-        )
+        .then(if (inverted) Modifier.background(color.copy(alpha = color.alpha * alpha * Tuning.BUTTON_ON_FILL_ALPHA), shape) else Modifier)
 
 /**
  * 地図に重ねるボタンの文字。ふだんは黒の縁取りを付けた文字。ON（反転）は黒の文字に、塗りが薄くても読めるよう
@@ -637,8 +635,8 @@ private fun RowScope.InlineCell(
     value: AnnotatedString,
     color: Color,
     weight: Float,
-    name: String? = null,
     modifier: Modifier = Modifier,
+    name: String? = null,
 ) {
     Row(modifier.weight(weight), verticalAlignment = Alignment.Bottom) {
         OutlinedText(AnnotatedString(caption), Caption, Modifier.padding(end = 4.dp, bottom = 2.dp))

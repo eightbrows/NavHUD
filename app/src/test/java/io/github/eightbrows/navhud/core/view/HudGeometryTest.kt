@@ -40,15 +40,6 @@ class HudGeometryTest {
     }
 
     @Test
-    fun arcProjectionScaleTouchesSideEdges() {
-        val p = HudGeometry.arcProjection(HudRect(0f, 0f, 720f, 900f), 2_000.0, 0.0, 90f)
-        assertP(P(360f, 810f), p.origin)
-        // 2km の点は左右の端（x = 0 / 720）
-        assertP(P(720f, 810f), p.toScreen(EN(2_000.0, 0.0)))
-        assertP(P(0f, 810f), p.toScreen(EN(-2_000.0, 0.0)))
-    }
-
-    @Test
     fun headingUpRotation() {
         // 機首 090: 東 100m は真上、北 100m は左
         val p = HudProjection(P(0f, 0f), 1.0, 90.0)
@@ -56,14 +47,5 @@ class HudGeometryTest {
         assertP(P(-100f, 0f), p.toScreen(EN(0.0, 100.0)))
         assertEquals(-90.0, p.screenAngle(0.0), 1e-9)
         assertEquals(90.0, p.screenAngle(180.0), 1e-9)
-    }
-
-    @Test
-    fun northUpProjection() {
-        val p = HudGeometry.northUpProjection(HudRect(0f, 0f, 720f, 900f), 2_000.0, 48f)
-        assertP(P(360f, 450f), p.origin)
-        // 最外周の距離環の半径 = 短辺の半分 − 余白
-        assertEquals(312.0, 2_000.0 * p.pxPerM, 1e-6)
-        assertEquals(0.0, p.upDeg, 0.0)
     }
 }

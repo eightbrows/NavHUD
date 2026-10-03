@@ -1,5 +1,6 @@
 package io.github.eightbrows.navhud.core.nav
 
+import io.github.eightbrows.navhud.core.TestGeo
 import io.github.eightbrows.navhud.core.model.Fix
 import io.github.eightbrows.navhud.core.model.Waypoint
 import org.junit.Assert.assertEquals
@@ -14,16 +15,11 @@ import java.time.ZoneId
  */
 class ReachJudgeTest {
 
-    private val lat0 = 33.5
-    private val lon0 = 133.0
-    private val mPerDegLat = 111_195.0
-    private val mPerDegLon = mPerDegLat * Math.cos(Math.toRadians(lat0))
-
     private fun wp(northM: Double, eastM: Double, radiusM: Double? = null) =
-        Waypoint("W", lat0 + northM / mPerDegLat, lon0 + eastM / mPerDegLon, radiusM = radiusM)
+        Waypoint("W", TestGeo.lat(northM), TestGeo.lon(eastM), radiusM = radiusM)
 
     private fun fix(t: Long, northM: Double, eastM: Double = 0.0, speed: Float? = 15f, bearing: Float? = 0f) =
-        Fix(timeMs = t * 1_000, lat = lat0 + northM / mPerDegLat, lon = lon0 + eastM / mPerDegLon, speedMps = speed, bearingDeg = bearing)
+        Fix(timeMs = t * 1_000, lat = TestGeo.lat(northM), lon = TestGeo.lon(eastM), speedMps = speed, bearingDeg = bearing)
 
     /** 1 秒ごとの Fix を流し、WP が到達になった秒を返す（ならなければ null）。 */
     private fun reachedAt(w: Waypoint, fixes: List<Fix>, s: NavSettings = NavSettings()): Long? {
@@ -119,5 +115,32 @@ class ReachJudgeTest {
         assertEquals(21L, reachedAt(wp(500.0, 30.0, radiusM = 200.0), driveNorth()))
         // 半径 10m なら半径では到達せず、真横通過（36 秒目）
         assertEquals(36L, reachedAt(wp(500.0, 30.0, radiusM = 10.0), driveNorth()))
+    }
+
+    /** 真横通過だけを見る: Fix を順に入れ、真横通過になった秒を返す（ならなければ null）。 */
+    private fun sidePassAt(w: Waypoint, fixes: List<Fix>, s: NavSettings = NavSettings()): Long? {
+        val d = SidePassDetector()
+        return fixes.firstOrNull { d.update(it, w, "W", s) }?.let { it.timeMs / 1_000 }
+    }
+
+    @Test
+    fun sidePassUsesBearingOnlyWithinAccuracyLimit() {
+        // 道から 80m の WP（真横を過ぎて 90m 離れた 37 秒目）。方位の精度が上限（20°）を超えたら真横通過は使わない
+        val s = NavSettings()
+        val w = wp(500.0, 80.0)
+        fun drive(acc: Float?) = driveNorth().map { it.copy(bearingAccDeg = acc) }
+        assertEquals(37L, sidePassAt(w, drive(null)))
+        assertEquals(37L, sidePassAt(w, drive(s.maxGpsBearingAccDeg)))
+        assertNull(sidePassAt(w, drive(s.maxGpsBearingAccDeg + 0.5f)))
+    }
+
+    @Test
+    fun sidePassSpeedLimitIsInclusive() {
+        // 速度がちょうど HLD を解く速度（3.0 m/s）なら使う。それ未満は使わない（位置は 15 m/s で進めたまま、速度の値だけ変える）
+        val s = NavSettings()
+        val w = wp(500.0, 80.0)
+        fun drive(v: Float) = driveNorth().map { it.copy(speedMps = v) }
+        assertEquals(37L, sidePassAt(w, drive(s.holdExitSpeedMps)))
+        assertNull(sidePassAt(w, drive(s.holdExitSpeedMps - 0.1f)))
     }
 }

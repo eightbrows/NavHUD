@@ -1,7 +1,6 @@
 package io.github.eightbrows.navhud.core.nav
 
 import io.github.eightbrows.navhud.core.Tuning
-import io.github.eightbrows.navhud.core.geo.Geo
 import io.github.eightbrows.navhud.core.model.Waypoint
 import java.time.Instant
 import java.time.LocalTime
@@ -20,14 +19,6 @@ object WaypointNav {
     /** 次の目標 = enabled かつ未 reached のうちリスト順で最初。なければ null。 */
     fun nextIndex(wps: List<Waypoint>): Int? =
         wps.indexOfFirst { it.enabled && !it.reached }.takeIf { it >= 0 }
-
-    /** 次の目標との距離が到達半径（WP ごとの値、なければ defaultRadiusM）以下なら reached にする。 */
-    fun autoReach(wps: List<Waypoint>, lat: Double, lon: Double, defaultRadiusM: Double): List<Waypoint> {
-        val i = nextIndex(wps) ?: return wps
-        val wp = wps[i]
-        if (Geo.distanceM(lat, lon, wp.lat, wp.lon) > (wp.radiusM ?: defaultRadiusM)) return wps
-        return wps.toMutableList().also { it[i] = wp.copy(reached = true) }
-    }
 
     /** 指定 WP の reached を反転する。他の WP は変えない。無効 WP には効かない。 */
     fun toggleReached(wps: List<Waypoint>, index: Int): List<Waypoint> {

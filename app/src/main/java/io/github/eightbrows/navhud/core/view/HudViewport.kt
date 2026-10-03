@@ -8,7 +8,7 @@ import io.github.eightbrows.navhud.core.nav.NavSettings
 
 /**
  * HUD の描画の枠と、地図の上に重ねた部品（上部バー・数値、右の操作列、WP ボタン列から下）。
- * AUTO 縮尺の判定: 縮尺 rangeM で次の WP を画面に投影し、避ける枠（重ねた部品を除き edgeInset + fitMargin だけ内側）に
+ * AUTO 縮尺の判定: 縮尺 rangeM で次の WP を画面に投影し、矢印と AUTO の判定の枠（重ねた部品を除き edgeInset + fitMargin だけ内側）に
  * 入れば「収まる」。見えている隣り合う目標どうしが画面上で近すぎないか（separated）も見る。ARC / North Up とも同じ判定。
  * PAN の始点とドラッグ量の換算にも使う。
  */

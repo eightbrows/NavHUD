@@ -1,5 +1,6 @@
 package io.github.eightbrows.navhud.core.nav
 
+import io.github.eightbrows.navhud.core.TestGeo
 import io.github.eightbrows.navhud.core.model.Fix
 import io.github.eightbrows.navhud.core.model.ReachInfo
 import io.github.eightbrows.navhud.core.model.ReachReason
@@ -17,18 +18,15 @@ import java.time.ZoneId
  */
 class ReachReasonTest {
 
-    private val lat0 = 33.5
-    private val lon0 = 133.0
-    private val mPerDegLat = 111_195.0
-    private val mPerDegLon = mPerDegLat * Math.cos(Math.toRadians(lat0))
+    private val lon0 = TestGeo.LON0
     private val jst = ZoneId.of("Asia/Tokyo")
     private val t0 = Instant.parse("2026-08-13T23:00:00Z").toEpochMilli()
 
     private fun wp(northM: Double, eastM: Double, radiusM: Double? = null) =
-        Waypoint("W", lat0 + northM / mPerDegLat, lon0 + eastM / mPerDegLon, radiusM = radiusM)
+        Waypoint("W", TestGeo.lat(northM), TestGeo.lon(eastM), radiusM = radiusM)
 
     private fun fix(t: Long, northM: Double, speed: Float? = 15f, bearing: Float? = 0f) =
-        Fix(timeMs = t0 + t * 1_000, lat = lat0 + northM / mPerDegLat, lon = lon0, speedMps = speed, bearingDeg = bearing)
+        Fix(timeMs = t0 + t * 1_000, lat = TestGeo.lat(northM), lon = lon0, speedMps = speed, bearingDeg = bearing)
 
     /** Fix を流して、到達したときの記録を返す。 */
     private fun reachOf(w: Waypoint, fixes: List<Fix>): ReachInfo? {

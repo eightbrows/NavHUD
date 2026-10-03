@@ -1,7 +1,6 @@
 package io.github.eightbrows.navhud.core
 
 import io.github.eightbrows.navhud.core.geo.Geo
-import io.github.eightbrows.navhud.core.io.TrackCsv
 import io.github.eightbrows.navhud.core.model.Fix
 import io.github.eightbrows.navhud.core.model.Waypoint
 import io.github.eightbrows.navhud.core.nav.NavEngine
@@ -10,9 +9,7 @@ import io.github.eightbrows.navhud.core.nav.PassDetector
 import io.github.eightbrows.navhud.core.nav.SourceKind
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
-import org.junit.Assume.assumeTrue
 import org.junit.Test
-import java.io.File
 import java.time.Instant
 import java.time.ZoneId
 import kotlin.math.cos
@@ -24,25 +21,18 @@ import kotlin.math.cos
 class PassSampleTest {
 
     companion object {
-        private const val PATH = "sample/session_20260814_075234/track.csv"
-        private val file: File? = listOf(File(PATH), File("../$PATH")).firstOrNull { it.exists() }
-        private val track: List<Fix>? by lazy { file?.inputStream()?.use { TrackCsv.parse(it).fixes } }
-        private const val M_PER_DEG = 111_195.0
     }
 
     private val fixes: List<Fix>
-        get() {
-            assumeTrue("track.csv がないためスキップ: $PATH", track != null)
-            return track!!
-        }
+        get() = SampleTrack.fixes()
 
     /** fixes[i] から進行方向の右（+）/ 左（−）へ offsetM ずらした地点。 */
     private fun besideTrack(i: Int, offsetM: Double): Waypoint {
         val f = fixes[i]
         val course = Geo.bearingDeg(fixes[i - 5].lat, fixes[i - 5].lon, fixes[i + 5].lat, fixes[i + 5].lon)
         val a = Math.toRadians(course + 90)
-        val lat = f.lat + offsetM * cos(a) / M_PER_DEG
-        val lon = f.lon + offsetM * kotlin.math.sin(a) / (M_PER_DEG * cos(Math.toRadians(f.lat)))
+        val lat = TestGeo.lat(offsetM * cos(a), f.lat)
+        val lon = TestGeo.lon(offsetM * kotlin.math.sin(a), f.lat, f.lon)
         return Waypoint("OFF", lat, lon)
     }
 

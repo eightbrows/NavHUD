@@ -18,7 +18,7 @@ object WaypointCsv {
 
     val HEADER = listOf("lat", "lon", "ele", "name", "target_time", "deadline_time", "enabled", "radius")
 
-    private const val BOM = '﻿'
+    private const val BOM = '\uFEFF'
     private val UTF8_BOM = byteArrayOf(0xEF.toByte(), 0xBB.toByte(), 0xBF.toByte())
     private val WINDOWS_31J: Charset = Charset.forName("windows-31j")
 

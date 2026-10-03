@@ -40,7 +40,7 @@ data class NavState(
     val settings: NavSettings = NavSettings(),
     /** コンパスの状態（CAL / MAG の印）。コンパスの値がなければ null */
     val compass: CompassQuality? = null,
-    /** 縮尺 [m]（ARC では基準の距離環が左右端に接する距離、North Up では最外周の距離環） */
+    /** 縮尺 [m]（ARC では基準の距離環が左右端に接する距離、North Up では縮尺の距離環。方位サークルはその1つ外側） */
     val rangeM: Double = 1_000.0,
     /** 縮尺の AUTO が ON */
     val rangeAuto: Boolean = true,

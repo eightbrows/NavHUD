@@ -1,6 +1,5 @@
 package io.github.eightbrows.navhud.core
 
-import io.github.eightbrows.navhud.core.io.TrackCsv
 import io.github.eightbrows.navhud.core.model.Fix
 import io.github.eightbrows.navhud.core.model.HeadingSrc
 import io.github.eightbrows.navhud.core.model.SourceMode
@@ -15,9 +14,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
-import org.junit.Assume.assumeTrue
 import org.junit.Test
-import java.io.File
 import java.time.Instant
 import java.time.ZoneId
 
@@ -28,10 +25,6 @@ import java.time.ZoneId
 class ReplaySampleTest {
 
     companion object {
-        private const val PATH = "sample/session_20260814_075234/track.csv"
-        private val file: File? = listOf(File(PATH), File("../$PATH")).firstOrNull { it.exists() }
-        private val track: List<Fix>? by lazy { file?.inputStream()?.use { TrackCsv.parse(it).fixes } }
-
         private val JST: ZoneId = ZoneId.of("Asia/Tokyo")
         private const val COMPASS_DEG = 45f
 
@@ -39,10 +32,7 @@ class ReplaySampleTest {
     }
 
     private val fixes: List<Fix>
-        get() {
-            assumeTrue("track.csv がないためスキップ: $PATH", track != null)
-            return track!!
-        }
+        get() = SampleTrack.fixes()
 
     private fun engine() = NavEngine(NavSettings(noFixTimeoutSec = 10), JST, SourceKind.REPLAY)
 

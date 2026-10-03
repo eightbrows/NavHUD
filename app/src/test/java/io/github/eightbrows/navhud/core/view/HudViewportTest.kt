@@ -1,5 +1,7 @@
 package io.github.eightbrows.navhud.core.view
 
+import io.github.eightbrows.navhud.core.MeasuredScreen
+import io.github.eightbrows.navhud.core.TestGeo
 import io.github.eightbrows.navhud.core.geo.EN
 import io.github.eightbrows.navhud.core.model.Fix
 import io.github.eightbrows.navhud.core.model.Waypoint
@@ -9,6 +11,7 @@ import io.github.eightbrows.navhud.core.nav.NavSettings
 import io.github.eightbrows.navhud.core.nav.OwnshipPosition
 import io.github.eightbrows.navhud.core.nav.RangeAuto
 import io.github.eightbrows.navhud.core.nav.SourceKind
+import io.github.eightbrows.navhud.core.nav.desired
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -24,11 +27,11 @@ import kotlin.math.hypot
  */
 class HudViewportTest {
 
-    private val k = 1.7f
+    private val k = MeasuredScreen.DENSITY
     private val m = HudMetrics().scaled(k)
-    private val rect = HudRect(0f, 0f, 720f, 1239f)
-    private val viewport = HudViewport(rect, m, HudInsets(top = 211f, right = 102f, bottom = 204f, rightSpan = 470f..776f))
-    private val replayViewport = HudViewport(rect, m, HudInsets(top = 211f, right = 102f, bottom = 265f, rightSpan = 439.5f..745.5f))
+    private val rect = MeasuredScreen.RECT
+    private val viewport = HudViewport(rect, m, MeasuredScreen.LIVE)
+    private val replayViewport = HudViewport(rect, m, MeasuredScreen.REPLAY)
     private val stepsM = RangeAuto.ALL_STEPS_KM.map { it * 1000 }
     private val arc = NavSettings(displayMode = DisplayMode.ARC)
     private val arcHigh = arc.copy(ownshipPosition = OwnshipPosition.HIGH)
@@ -137,11 +140,11 @@ class HudViewportTest {
 
     /** 既定の AUTO（下限 100m・上限 1km の段）で、自機から見た東 m・北 m の WP（順に）を置いて t 秒まで1秒ごとに進める。 */
     private fun autoRange(seconds: Int, vararg wps: EN, initialKm: Double = 1.0): Double {
-        val lat0 = 33.5
-        val lon0 = 133.0
+        val lat0 = TestGeo.LAT0
+        val lon0 = TestGeo.LON0
         val e = NavEngine(NavSettings(initialRangeKm = initialKm), sourceKind = SourceKind.LIVE)
         e.setViewport(viewport)
-        e.setWaypoints(wps.mapIndexed { i, p -> Waypoint("W$i", lat0 + p.n / 111_195.0, lon0 + p.e / (111_195.0 * Math.cos(Math.toRadians(lat0)))) })
+        e.setWaypoints(wps.mapIndexed { i, p -> Waypoint("W$i", TestGeo.lat(p.n), TestGeo.lon(p.e)) })
         var r = e.onFix(Fix(timeMs = 0, lat = lat0, lon = lon0), 0).rangeM
         for (t in 1..seconds) r = e.onTick(t * 1_000L).rangeM
         return r
@@ -171,13 +174,13 @@ class HudViewportTest {
 
     /** 10 m/s で北へ走り、400m 北の A を通過（到達半径 100m なので 30 秒目）して、次は 5km 北の B。各秒の段を返す。 */
     private fun passRun(holdSec: Int): List<Double> {
-        val lat0 = 33.5
-        val lon0 = 133.0
+        val lat0 = TestGeo.LAT0
+        val lon0 = TestGeo.LON0
         val e = NavEngine(NavSettings(autoHoldAfterWpSec = holdSec, reachRadiusM = 100.0), sourceKind = SourceKind.LIVE)
         e.setViewport(viewport)
-        e.setWaypoints(listOf(Waypoint("A", lat0 + 400.0 / 111_195.0, lon0), Waypoint("B", lat0 + 5_000.0 / 111_195.0, lon0)))
+        e.setWaypoints(listOf(Waypoint("A", TestGeo.lat(400.0), lon0), Waypoint("B", TestGeo.lat(5_000.0), lon0)))
         return (0..60L).map { t ->
-            val s = e.onFix(Fix(timeMs = t * 1_000, lat = lat0 + minOf(t * 10.0, 400.0) / 111_195.0, lon = lon0), t * 1_000)
+            val s = e.onFix(Fix(timeMs = t * 1_000, lat = TestGeo.lat(minOf(t * 10.0, 400.0)), lon = lon0), t * 1_000)
             if (t == 30L) assertEquals(1, s.nextWpIndex)
             if (t == 29L) assertEquals(0, s.nextWpIndex)
             s.rangeM
@@ -229,12 +232,12 @@ class HudViewportTest {
 
     @Test
     fun engineUsesTheViewportWhenKnown() {
-        val lat0 = 33.5
-        val lon0 = 133.0
+        val lat0 = TestGeo.LAT0
+        val lon0 = TestGeo.LON0
         // AUTO の上限は 20km の段（距離の判定と画面の判定の違いを見るため）
         val e = NavEngine(NavSettings(initialRangeKm = 1.0, autoMaxRangeKm = 20.0), sourceKind = SourceKind.LIVE)
         // 北へ 1.9km の WP。方位がないので北が上
-        e.setWaypoints(listOf(Waypoint("A", lat0 + 1_900.0 / 111_195.0, lon0)))
+        e.setWaypoints(listOf(Waypoint("A", TestGeo.lat(1_900.0), lon0)))
         // 画面が分からないうちは距離で判定（1.9km は 2km の段の 0.9 倍を超える）: 1段ずつ広げて 5km
         assertEquals(2_000.0, e.onFix(Fix(timeMs = 0, lat = lat0, lon = lon0), 0).rangeM, 0.0)
         assertEquals(5_000.0, e.onTick(1_000).rangeM, 0.0)

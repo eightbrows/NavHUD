@@ -22,7 +22,7 @@ object TrackCsv {
         val iter = lines.iterator()
         if (!iter.hasNext()) return TrackParseResult(emptyList(), 0)
 
-        val header = iter.next().removePrefix("﻿").split(',').map { it.trim() }
+        val header = iter.next().removePrefix("\uFEFF").split(',').map { it.trim() }
         val col = header.withIndex().associate { (i, name) -> name to i }
         val iLat = col["latitude"]
         val iLon = col["longitude"]

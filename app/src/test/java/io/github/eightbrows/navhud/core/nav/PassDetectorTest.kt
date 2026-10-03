@@ -1,26 +1,22 @@
 package io.github.eightbrows.navhud.core.nav
 
+import io.github.eightbrows.navhud.core.TestGeo
 import io.github.eightbrows.navhud.core.model.Fix
 import io.github.eightbrows.navhud.core.model.Waypoint
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import kotlin.math.cos
 
 class PassDetectorTest {
 
-    private val lat0 = 33.5
-    private val lon0 = 133.0
-    private val mLat = 111_195.0
-    private val mLon = mLat * cos(Math.toRadians(lat0))
     private val s = NavSettings()
 
     /** 北へ northM、東へ eastM の Fix（時刻 t 秒）。 */
     private fun fix(t: Int, northM: Double, eastM: Double = 0.0) =
-        Fix(timeMs = t * 1000L, lat = lat0 + northM / mLat, lon = lon0 + eastM / mLon)
+        Fix(timeMs = t * 1000L, lat = TestGeo.lat(northM), lon = TestGeo.lon(eastM))
 
-    private fun wp(northM: Double, eastM: Double) = Waypoint("W", lat0 + northM / mLat, lon0 + eastM / mLon)
+    private fun wp(northM: Double, eastM: Double) = Waypoint("W", TestGeo.lat(northM), TestGeo.lon(eastM))
 
     /** 北へ 10m/s で走ったとき、通過と判定された時刻（秒）。なければ null。 */
     private fun passTime(w: Waypoint, track: List<Fix>): Int? {

@@ -30,6 +30,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -391,7 +392,7 @@ private fun TimeAdjustDialog(
     onDismiss: () -> Unit,
 ) {
     val timed = wps.indices.filter { wps[it].targetTime != null }
-    var base by remember { mutableStateOf(WaypointTimes.defaultBaseIndex(wps) ?: timed.first()) }
+    var base by remember { mutableIntStateOf(WaypointTimes.defaultBaseIndex(wps) ?: timed.first()) }
     var time by remember { mutableStateOf(wps[base].targetTime?.let(TimeText::format).orEmpty()) }
     var error by remember { mutableStateOf<String?>(null) }
 

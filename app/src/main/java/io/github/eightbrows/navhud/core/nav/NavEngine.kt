@@ -44,6 +44,8 @@ class NavEngine(
     private var seeking = false
 
     private var lastFix: Fix? = null
+    /** 最後に Fix を受け取った時刻（onFix / onFixes の nowMs）。LIVE の NO FIX の判定に使う */
+    private var lastFixAtMs: Long? = null
     private var compassDeg: Float? = null
     private var compassQuality = CompassQuality()
     private var waypoints: List<Waypoint> = emptyList()
@@ -71,6 +73,7 @@ class NavEngine(
     fun onFix(fix: Fix, nowMs: Long): NavState {
         ingest(fix)
         this.nowMs = nowMs
+        lastFixAtMs = nowMs
         return recompute()
     }
 
@@ -80,6 +83,7 @@ class NavEngine(
     fun onFixes(fixes: List<Fix>, nowMs: Long): NavState {
         fixes.forEach(::ingest)
         this.nowMs = nowMs
+        if (fixes.isNotEmpty()) lastFixAtMs = nowMs
         return recompute()
     }
 
@@ -99,8 +103,10 @@ class NavEngine(
         if (sourceKind == SourceKind.LIVE) liveTrail.add(fix)
     }
 
-    /** @param deg コンパス方位（真北）。センサがなくなった・値が使えないなら null */
-    /** @param nowMs 現在時刻。null なら時刻は進めない（REPLAY でトラックがまだないときなど） */
+    /**
+     * @param deg コンパス方位（真北）。センサがなくなった・値が使えないなら null
+     * @param nowMs 現在時刻。null なら時刻は進めない（REPLAY でトラックがまだないときなど）
+     */
     fun onCompass(deg: Float?, nowMs: Long?, quality: CompassQuality = CompassQuality()): NavState {
         compassDeg = deg
         compassQuality = quality
@@ -237,7 +243,7 @@ class NavEngine(
 
     /**
      * リプレイのシーク: RATE の履歴・通過判定の記録・GPS 方位の保持・PAN をリセットする。このあと呼び出し側がシーク先の Fix を入れる。
-     * - 前方へのシーク: 飛ばした区間の Fix（passed）を先に通常どおりの到達判定（半径・通過判定）にかけ、
+     * - 前方へのシーク: 飛ばした区間の Fix（passed）を先に通常どおりの到達判定（WP ごとの半径・到達半径・真横通過・通過判定）にかけ、
      *   トラックが通った WP を到達にする。
      * - 後方へのシーク: WP の到達状態は残す。トラックの先頭まで戻したとき（toStart）だけ、すべて未到達に戻す。
      */
@@ -316,6 +322,7 @@ class NavEngine(
 
     private fun clearHistory() {
         lastFix = null
+        lastFixAtMs = null
         pan = null
         rateTracker.clear()
         headingSelector.reset()
@@ -328,7 +335,10 @@ class NavEngine(
     private fun recompute(): NavState {
         val now = nowMs
         val fix = lastFix
-        val noFix = now == null || isNoFix(now, fix?.timeMs, settings.noFixTimeoutSec * 1000L)
+        // NO FIX（§5.5）: LIVE は「今 − 最後に Fix を受け取った時刻」。Fix の時刻は GPS の時刻で、端末の時計とずれることがあるため
+        // （GS・RATE などは Fix の時刻のまま）。REPLAY は「今（トラックの時計）− 最後の Fix の時刻」
+        val lastFixMs = if (sourceKind == SourceKind.LIVE) lastFixAtMs else fix?.timeMs
+        val noFix = now == null || isNoFix(now, lastFixMs, settings.noFixTimeoutSec * 1000L)
         // NO FIX 中の古い Fix の方位は「今使える GPS 方位」として扱わない
         val heading = headingSelector.select(settings.sourceMode, noFix, compassDeg, compassQuality.lowAccuracy)
         val rate = rateTracker.rate(settings.rateWindowSec)

@@ -1,5 +1,6 @@
 package io.github.eightbrows.navhud.core.view
 
+import io.github.eightbrows.navhud.core.TestGeo
 import io.github.eightbrows.navhud.core.model.Fix
 import io.github.eightbrows.navhud.core.model.Waypoint
 import io.github.eightbrows.navhud.core.nav.NavSettings
@@ -11,13 +12,12 @@ import org.junit.Test
 
 class ProfileBuilderTest {
 
-    private val lat0 = 33.5
-    private val lon0 = 133.0
-    private val mPerDegLat = 111_195.0
+    private val lat0 = TestGeo.LAT0
+    private val lon0 = TestGeo.LON0
 
     /** 自機から北へ northM の WP。 */
     private fun wp(name: String, northM: Double, ele: Double?, enabled: Boolean = true, reached: Boolean = false) =
-        Waypoint(name, lat0 + northM / mPerDegLat, lon0, ele, enabled = enabled, reached = reached)
+        Waypoint(name, TestGeo.lat(northM), lon0, ele, enabled = enabled, reached = reached)
 
     private fun state(wps: List<Waypoint>, next: Int? = 0, alt: Double? = 1_000.0, count: Int = 4, noFix: Boolean = false) = NavState(
         nowMs = 0,

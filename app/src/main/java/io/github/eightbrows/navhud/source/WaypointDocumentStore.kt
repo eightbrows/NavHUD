@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.OpenableColumns
+import androidx.core.content.edit
 import io.github.eightbrows.navhud.core.io.WaypointCsv
 import io.github.eightbrows.navhud.core.io.WaypointGpx
 import io.github.eightbrows.navhud.core.io.WaypointParseResult
@@ -37,11 +38,11 @@ class WaypointDocumentStore(context: Context) {
             } catch (_: SecurityException) {
             }
         }
-        prefs.edit().putString(KEY_URI, uri.toString()).apply()
+        prefs.edit { putString(KEY_URI, uri.toString()) }
     }
 
     fun forget() {
-        prefs.edit().remove(KEY_URI).apply()
+        prefs.edit { remove(KEY_URI) }
     }
 
     /** CSV か GPX を読む。中身で見分ける。ブロッキングなので IO スレッドで呼ぶ。 */

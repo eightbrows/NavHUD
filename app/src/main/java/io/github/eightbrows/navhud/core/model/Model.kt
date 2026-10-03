@@ -69,8 +69,3 @@ enum class HeadingSrc { GPS, COMPASS, NONE }
 interface PositionSource {
     val fixes: Flow<Fix>
 }
-
-/** コンパス（真北補正済み）。 */
-interface HeadingSource {
-    val headingDeg: Flow<Float>
-}

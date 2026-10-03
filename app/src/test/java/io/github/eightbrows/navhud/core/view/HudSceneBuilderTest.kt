@@ -1,5 +1,6 @@
 package io.github.eightbrows.navhud.core.view
 
+import io.github.eightbrows.navhud.core.TestGeo
 import io.github.eightbrows.navhud.core.model.Fix
 import io.github.eightbrows.navhud.core.model.HeadingSrc
 import io.github.eightbrows.navhud.core.model.Waypoint
@@ -19,16 +20,15 @@ class HudSceneBuilderTest {
 
     private val rect = HudRect(0f, 0f, 720f, 900f)
     private val m = HudMetrics()
-    private val mPerDegLat = 111_195.0
-    private val lat0 = 33.5
-    private val lon0 = 133.0
+    private val lat0 = TestGeo.LAT0
+    private val lon0 = TestGeo.LON0
 
     /** 自機から北へ northM、東へ eastM の地点。 */
     private fun wp(name: String, northM: Double, eastM: Double = 0.0, enabled: Boolean = true, reached: Boolean = false) =
         Waypoint(
             name,
-            lat0 + northM / mPerDegLat,
-            lon0 + eastM / (mPerDegLat * Math.cos(Math.toRadians(lat0))),
+            TestGeo.lat(northM),
+            TestGeo.lon(eastM),
             enabled = enabled,
             reached = reached,
         )
@@ -413,7 +413,7 @@ class HudSceneBuilderTest {
     @Test
     fun panMovesTheViewAndFixesTheUpDirection() {
         // North Up・2km: PAN の中心は自機の北 1km。表示枠の中心 (360, 450) に置き、自機は 1km 南（1 m = 352 / 2000 = 0.176 px）
-        val center = io.github.eightbrows.navhud.core.nav.PanView(lat0 + 1_000.0 / mPerDegLat, lon0, 0.0)
+        val center = io.github.eightbrows.navhud.core.nav.PanView(TestGeo.lat(1_000.0), lon0, 0.0)
         val s = state(headingDeg = 0f, mode = DisplayMode.NORTH_UP, wps = listOf(wp("A", 1_500.0)), next = 0).copy(pan = center)
         val scene = build(s)
         val own = scene.ownShip!!.at
@@ -447,7 +447,7 @@ class HudSceneBuilderTest {
     @Test
     fun ringLabelsGiveWayToCompassLabels() {
         // PAN で自機を表示枠の上の縁の近くに置く: 距離環の文字が方位目盛りの文字に重なるなら、距離環の文字を出さない
-        val center = io.github.eightbrows.navhud.core.nav.PanView(lat0 - 2_400.0 / mPerDegLat, lon0 + 2_400.0 / (mPerDegLat * Math.cos(Math.toRadians(lat0))), 0.0)
+        val center = io.github.eightbrows.navhud.core.nav.PanView(TestGeo.lat(-2_400.0), TestGeo.lon(2_400.0), 0.0)
         val scene = build(state(headingDeg = 0f, mode = DisplayMode.NORTH_UP).copy(pan = center))
         val compass = scene.labels.filter { !it.small }.map { HudSceneBuilder.Box(it.at, HudSceneBuilder.textHalfWidth(it.text, m) * 13f / 11f + 2f, m.compassLabelHalf) }
         val rings = scene.labels.filter { it.small }.map { HudSceneBuilder.Box(it.at, HudSceneBuilder.textHalfWidth(it.text, m) + 2f, m.compassLabelHalf) }
@@ -496,7 +496,7 @@ class HudSceneBuilderTest {
         assertEquals(P(360f, below.y + m.wpNameOffset), HudSceneBuilder.placeWpName("A", below, ownBox, m))
         assertNull(HudSceneBuilder.placeWpName("A", below, ownBox, m, allowBelow = false))
         // PAN 中も同じ: 到達済みの WP が自機のすぐ後ろ
-        val pan = io.github.eightbrows.navhud.core.nav.PanView(lat0 + 500.0 / mPerDegLat, lon0, 0.0)
+        val pan = io.github.eightbrows.navhud.core.nav.PanView(TestGeo.lat(500.0), lon0, 0.0)
         val s = state(headingDeg = 0f, wps = listOf(wp("峠", -40.0, reached = true), wp("B", 3_000.0)), next = 1).copy(pan = pan)
         assertNull(build(s).wpMarks.single { it.name == "峠" }.nameAt)
     }
@@ -504,7 +504,7 @@ class HudSceneBuilderTest {
     @Test
     fun trailsForReplayAndLive() {
         // トラック: 南 1000 m から自機の北 1000 m まで、100 m・10 秒ごと。今の Fix は自機の位置（時刻 100 秒）
-        val pts = (0..20).map { io.github.eightbrows.navhud.core.nav.TrackPoint(lat0 + (it * 100.0 - 1_000.0) / mPerDegLat, lon0, it * 10_000L) }
+        val pts = (0..20).map { io.github.eightbrows.navhud.core.nav.TrackPoint(TestGeo.lat(it * 100.0 - 1_000.0), lon0, it * 10_000L) }
         val base = state(headingDeg = 0f).let { it.copy(fix = it.fix!!.copy(timeMs = 100_000L)) }
         val replay = build(base.copy(sourceKind = io.github.eightbrows.navhud.core.nav.SourceKind.REPLAY, replayTrack = pts))
         val (all, done) = replay.trails
@@ -563,7 +563,7 @@ class HudSceneBuilderTest {
     fun onlyTheNextWaypointGetsAnArrow() {
         // 次の WP（1km 先）は画面内、ほかの WP は画面外: 矢印は1つも出ない（ARC・North Up・PAN とも）
         val wps = listOf(wp("A", 1_000.0), wp("B", 30_000.0), wp("C", -30_000.0, 5_000.0))
-        val pan = io.github.eightbrows.navhud.core.nav.PanView(lat0 + 200.0 / mPerDegLat, lon0, 0.0)
+        val pan = io.github.eightbrows.navhud.core.nav.PanView(TestGeo.lat(200.0), lon0, 0.0)
         for (s in listOf(
             state(wps = wps, next = 0),
             state(wps = wps, next = 0, mode = DisplayMode.NORTH_UP),

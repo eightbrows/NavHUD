@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.NavHUD" parent="android:Theme.Material.Light.NoActionBar" />
+    <!-- 固定の暗いテーマ（画面は Compose の NavHUDTheme。起動直後のウィンドウの背景も黒） -->
+    <style name="Theme.NavHUD" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@android:color/black</item>
+    </style>
 </resources>

@@ -1,7 +1,6 @@
 package io.github.eightbrows.navhud.core
 
 import io.github.eightbrows.navhud.core.geo.Geo
-import io.github.eightbrows.navhud.core.io.TrackCsv
 import io.github.eightbrows.navhud.core.model.Fix
 import io.github.eightbrows.navhud.core.model.HeadingSrc
 import io.github.eightbrows.navhud.core.nav.Heading
@@ -9,9 +8,7 @@ import io.github.eightbrows.navhud.core.nav.NavEngine
 import io.github.eightbrows.navhud.core.nav.NavSettings
 import io.github.eightbrows.navhud.core.nav.SourceKind
 import org.junit.Assert.assertTrue
-import org.junit.Assume.assumeTrue
 import org.junit.Test
-import java.io.File
 import java.time.Instant
 import java.time.ZoneId
 import kotlin.math.abs
@@ -26,10 +23,6 @@ import kotlin.math.sin
 class HeadingHoldSampleTest {
 
     companion object {
-        private const val PATH = "sample/session_20260814_075234/track.csv"
-        private val file: File? = listOf(File(PATH), File("../$PATH")).firstOrNull { it.exists() }
-        private val track: List<Fix>? by lazy { file?.inputStream()?.use { TrackCsv.parse(it).fixes } }
-
         /** 停止区間とみなす、速度 0 が続く最短の点数 */
         private const val MIN_STOP_FIXES = 10
 
@@ -38,10 +31,7 @@ class HeadingHoldSampleTest {
     }
 
     private val fixes: List<Fix>
-        get() {
-            assumeTrue("track.csv がないためスキップ: $PATH", track != null)
-            return track!!
-        }
+        get() = SampleTrack.fixes()
 
     /** 既定の設定（方位ソース GPS）でトラック全体を流したときの、Fix ごとの方位。 */
     private val headings: List<Heading> by lazy {

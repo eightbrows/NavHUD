@@ -5,30 +5,11 @@ import io.github.eightbrows.navhud.core.geo.EN
 
 /**
  * 縮尺（ARC では基準の距離環が左右端に接する距離、North Up では縮尺の距離環）の段の扱い。
- * 対地速度は将来「速度に応じた縮尺」を足すためのもので、今は使わない。
  */
 object RangeAuto {
 
     /** 選べる縮尺の全段 [km]。NavSettings の有効リストでこの中から使う段を選ぶ。 */
     val ALL_STEPS_KM = Tuning.RANGE_ALL_STEPS_KM
-
-    /**
-     * 距離だけで見た、次の WP が「縮尺 × fitRatio」以内に収まる最小の段 [m]。どの段にも収まらなければ最大の段。
-     * 次の WP がなければ null。
-     * @param stepsM 有効な段 [m]（昇順）
-     * @param groundSpeedMps 対地速度（今は判定に使わない）
-     */
-    @Suppress("UNUSED_PARAMETER")
-    fun desired(stepsM: List<Double>, nextWpDistanceM: Double?, groundSpeedMps: Float?, fitRatio: Double = Tuning.RANGE_DISTANCE_FIT_RATIO): Double? {
-        if (nextWpDistanceM == null) return null
-        return desired(stepsM) { nextWpDistanceM <= it * fitRatio }
-    }
-
-    /** fits（その縮尺で次の WP が表示枠に収まるか）が true になる最小の段。どの段にも収まらなければ最大の段。 */
-    fun desired(stepsM: List<Double>, fits: (rangeM: Double) -> Boolean): Double? {
-        if (stepsM.isEmpty()) return null
-        return stepsM.firstOrNull(fits) ?: stepsM.last()
-    }
 
     /**
      * AUTO の下限・上限 [km] を、使う段に寄せる。下限は元の下限以上でいちばん狭い段、上限は元の上限以下でいちばん広い段。

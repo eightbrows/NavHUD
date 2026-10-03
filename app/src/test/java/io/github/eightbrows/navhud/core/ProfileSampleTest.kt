@@ -1,6 +1,5 @@
 package io.github.eightbrows.navhud.core
 
-import io.github.eightbrows.navhud.core.io.TrackCsv
 import io.github.eightbrows.navhud.core.io.WaypointCsv
 import io.github.eightbrows.navhud.core.model.Fix
 import io.github.eightbrows.navhud.core.nav.NavEngine
@@ -13,9 +12,7 @@ import io.github.eightbrows.navhud.core.view.ProfileBuilder
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
-import org.junit.Assume.assumeTrue
 import org.junit.Test
-import java.io.File
 import java.time.Instant
 import java.time.ZoneId
 
@@ -26,21 +23,6 @@ import java.time.ZoneId
 class ProfileSampleTest {
 
     companion object {
-        private const val PATH = "sample/session_20260814_075234/track.csv"
-        private val file: File? = listOf(File(PATH), File("../$PATH")).firstOrNull { it.exists() }
-        private val track: List<Fix>? by lazy { file?.inputStream()?.use { TrackCsv.parse(it).fixes } }
-
-        /** 動作確認で使う WP リスト（wp_profile.csv）。標高は 峠の入口・展望台・ダム・終点 */
-        private val WP_PROFILE = """
-            lat,lon,ele,name,target_time,deadline_time,enabled
-            33.47649101,133.00275172,1300,峠の入口,,,1
-            33.46679346,132.96174603,1180,展望台,8:30,8:45,1
-            33.48377796,132.87220649,,旧道（通行止め）,,,0
-            33.48750794,132.90060923,,道の駅,09:10,9:20:00,1
-            33.55944388,133.00766313,620,ダム,,,1
-            33.667743,132.8949383,150,終点,11:00,,1
-        """.trimIndent()
-
         /** 標高が 峠の入口 にしかない WP リスト（waypoints.csv。D02 のスクリーンショットで読まれていたもの） */
         private val WP_NO_ELE = WP_PROFILE.lines().joinToString("\n") { line ->
             val c = line.split(",").toMutableList()
@@ -52,10 +34,7 @@ class ProfileSampleTest {
     }
 
     private val fixes: List<Fix>
-        get() {
-            assumeTrue("track.csv がないためスキップ: $PATH", track != null)
-            return track!!
-        }
+        get() = SampleTrack.fixes()
 
     /** 07:53:43 までをリプレイした NavState。 */
     private fun stateAt(csv: String): NavState {
