@@ -76,6 +76,20 @@ object Tuning {
     const val AUTO_ZOOM_IN_DIST_RATIO_MAX = 4.0
     const val AUTO_ZOOM_IN_DIST_RATIO_STEP = 0.5
 
+    // ---- WP の到達判定（§5.4）。移動手段「自動車」の推奨値（自転車・徒歩はあとで足す） ----
+
+    /** 到着半径 [m]（停車・目的地そのものへ行く場合）。入ったら到達 */
+    const val CAR_ARRIVAL_RADIUS_M = 30.0
+    /** 真横通過: ON / OFF、WP までの距離の上限 [m]、いちばん近づいた距離から離れたとみなす距離 [m] */
+    const val CAR_SIDE_PASS = true
+    const val CAR_SIDE_PASS_MAX_M = 150.0
+    const val CAR_SIDE_PASS_DEPART_M = 10.0
+    /** 通過判定（予備。方位が取れない場面用）: ON / OFF、最接近距離の上限 [m]、離れたとみなす距離 [m]、離れた状態が続く時間 [秒] */
+    const val CAR_PASS_DETECTION = true
+    const val CAR_PASS_MAX_APPROACH_M = 300.0
+    const val CAR_PASS_DEPART_M = 50.0
+    const val CAR_PASS_HOLD_SEC = 5
+
     // ---- 地図の描画（HudMetrics の既定値。dp） ----
 
     const val HUD_TICK_MINOR_DP = 8f

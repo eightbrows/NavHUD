@@ -36,6 +36,9 @@ import io.github.eightbrows.navhud.core.nav.OwnshipPosition
 import io.github.eightbrows.navhud.core.nav.ProfileSize
 import io.github.eightbrows.navhud.core.nav.RangeAuto
 import io.github.eightbrows.navhud.core.nav.SourceKind
+import io.github.eightbrows.navhud.core.nav.TravelMode
+import io.github.eightbrows.navhud.core.nav.withCarPreset
+import io.github.eightbrows.navhud.core.nav.withTravelModeFromValues
 import io.github.eightbrows.navhud.core.view.HudFormat
 import java.util.Locale
 import kotlin.math.roundToInt
@@ -207,23 +210,40 @@ fun SettingsScreen(
         }
 
         Section("WP") {
+            // 到達判定の値を変えたら、自動車の推奨値と同じかどうかで移動手段を決め直す（違えばカスタム）
+            fun judge(f: (NavSettings) -> NavSettings) = onChange { f(it).withTravelModeFromValues() }
             Choice(
-                "到達半径（全体）",
+                "移動手段",
+                listOf("自動車" to TravelMode.CAR, "カスタム" to TravelMode.CUSTOM),
+                s.travelMode,
+                note = "自動車: 到着半径 30 m、真横通過 150 m・+10 m、通過判定 300 m・+50 m・5 秒。下の値を変えるとカスタム",
+            ) { v -> onChange { if (v == TravelMode.CAR) it.withCarPreset() else it.copy(travelMode = TravelMode.CUSTOM) } }
+            Choice(
+                "到着半径（全体）",
                 NavSettings.REACH_RADIUS_CHOICES_M.map { "%.0f m".format(Locale.US, it) to it },
                 s.reachRadiusM,
-                note = "WP ごとの到達半径があればそちらを使う",
-            ) { v -> onChange { it.copy(reachRadiusM = v) } }
-            Toggle("通過判定", s.passDetection, note = "最接近したあと離れていったら到達にする") { v ->
-                onChange { it.copy(passDetection = v) }
+                note = "入ったら到達（停車・目的地そのものへ行く場合）。WP ごとの到達半径があればそちらを使う",
+            ) { v -> judge { it.copy(reachRadiusM = v) } }
+            Toggle("真横通過", s.sidePass, note = "走行中に WP が真横か後ろになり、いちばん近づいた距離から離れたら到達") { v ->
+                judge { it.copy(sidePass = v) }
+            }
+            Stepper("真横通過: WP までの距離", "%.0f m 以内".format(Locale.US, s.sidePassMaxM)) { d ->
+                judge { it.copy(sidePassMaxM = (it.sidePassMaxM + d * 10).coerceIn(30.0, 500.0)) }
+            }
+            Stepper("真横通過: 離れたとみなす距離", "+%.0f m".format(Locale.US, s.sidePassDepartM), note = "いちばん近づいた距離から") { d ->
+                judge { it.copy(sidePassDepartM = (it.sidePassDepartM + d * 5).coerceIn(5.0, 100.0)) }
+            }
+            Toggle("通過判定（予備）", s.passDetection, note = "方位が取れない場面用。最接近したあと離れていったら到達にする") { v ->
+                judge { it.copy(passDetection = v) }
             }
             Stepper("通過判定: 最接近距離の上限", "%.0f m".format(Locale.US, s.passMaxApproachM), note = "WP ごとの到達半径 × 3 の方が大きければそちら") { d ->
-                onChange { it.copy(passMaxApproachM = (it.passMaxApproachM + d * 50).coerceIn(50.0, 2000.0)) }
+                judge { it.copy(passMaxApproachM = (it.passMaxApproachM + d * 50).coerceIn(50.0, 2000.0)) }
             }
             Stepper("通過判定: 離れたとみなす距離", "+%.0f m".format(Locale.US, s.passDepartM)) { d ->
-                onChange { it.copy(passDepartM = (it.passDepartM + d * 10).coerceIn(10.0, 500.0)) }
+                judge { it.copy(passDepartM = (it.passDepartM + d * 10).coerceIn(10.0, 500.0)) }
             }
             Stepper("通過判定: 離れた状態が続く時間", "${s.passHoldSec} 秒") { d ->
-                onChange { it.copy(passHoldSec = (it.passHoldSec + d).coerceIn(1, 60)) }
+                judge { it.copy(passHoldSec = (it.passHoldSec + d).coerceIn(1, 60)) }
             }
             Stepper("WP ボタン列に見せる数", "${s.wpButtonsMax} 個", note = "自機の下に横並び。超える分は左右にスクロール") { d ->
                 onChange { it.copy(wpButtonsMax = (it.wpButtonsMax + d).coerceIn(NavSettings.WP_BUTTONS_MAX_RANGE)) }

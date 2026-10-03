@@ -14,6 +14,9 @@ enum class OwnshipPosition { STANDARD, HIGH }
 /** 標高プロファイルの表示サイズ（§6.6） */
 enum class ProfileSize { OFF, SMALL, MEDIUM, LARGE }
 
+/** 移動手段（§5.4・§6.9）。自動車は到達判定の推奨値（Tuning.CAR_*）。値を変えるとカスタム。自転車・徒歩はあとで足す */
+enum class TravelMode { CAR, CUSTOM }
+
 /** 仕様の設定値（既定値つき）。保存はまだしない。 */
 data class NavSettings(
     /** 方位ソース（§5.2）。既定は GPS（車内ではコンパスが不安定なため。HYBRID と COMPASS は歩行用） */
@@ -26,16 +29,24 @@ data class NavSettings(
     val maxGpsAccM: Float = 15f,
     /** GPS 方位を使う最大の方位の精度 [°]（値を出している端末のみ） */
     val maxGpsBearingAccDeg: Float = 20f,
-    /** 到達半径 [m]。50 / 100 / 200 / 500 から選ぶ（§5.4） */
-    val reachRadiusM: Double = 100.0,
-    /** 通過判定（§5.4 のオプション）。最接近後に離れていったら到達とみなす */
-    val passDetection: Boolean = true,
+    /** 移動手段（§5.4・§6.9）。自動車を選ぶと到達判定の値に推奨値を入れる。値を変えるとカスタム */
+    val travelMode: TravelMode = TravelMode.CAR,
+    /** 到着半径 [m]（全体の到達半径。停車・目的地そのものへ行く場合）。30 / 50 / 100 / 200 / 500 から選ぶ（§5.4） */
+    val reachRadiusM: Double = Tuning.CAR_ARRIVAL_RADIUS_M,
+    /** 真横通過（§5.4）: 走行中に WP が真横か後ろになり、いちばん近づいた距離から離れたら到達 */
+    val sidePass: Boolean = Tuning.CAR_SIDE_PASS,
+    /** 真横通過: WP までの距離の上限 [m] */
+    val sidePassMaxM: Double = Tuning.CAR_SIDE_PASS_MAX_M,
+    /** 真横通過: いちばん近づいた距離からこれだけ離れたら到達 [m] */
+    val sidePassDepartM: Double = Tuning.CAR_SIDE_PASS_DEPART_M,
+    /** 通過判定（§5.4 の予備。方位が取れない場面用）。最接近後に離れていったら到達とみなす */
+    val passDetection: Boolean = Tuning.CAR_PASS_DETECTION,
     /** 通過判定: 最接近距離の上限 [m] */
-    val passMaxApproachM: Double = 300.0,
+    val passMaxApproachM: Double = Tuning.CAR_PASS_MAX_APPROACH_M,
     /** 通過判定: 最接近距離からこれだけ離れたら「離れた」[m] */
-    val passDepartM: Double = 50.0,
+    val passDepartM: Double = Tuning.CAR_PASS_DEPART_M,
     /** 通過判定: 離れた状態がこれだけ続いたら到達 [秒] */
-    val passHoldSec: Int = 5,
+    val passHoldSec: Int = Tuning.CAR_PASS_HOLD_SEC,
     /** RATE の窓 [秒]。10 / 30 / 60 から選ぶ（§5.3） */
     val rateWindowSec: Int = 60,
     /** NO FIX とみなす秒数（§5.5） */
@@ -89,7 +100,7 @@ data class NavSettings(
         val WP_BUTTONS_MAX_RANGE = 3..6
         val PAN_RETURN_SEC_RANGE = 5..60
         val HUD_WP_COUNT_RANGE = 1..20
-        val REACH_RADIUS_CHOICES_M = listOf(50.0, 100.0, 200.0, 500.0)
+        val REACH_RADIUS_CHOICES_M = listOf(30.0, 50.0, 100.0, 200.0, 500.0)
         val RATE_WINDOW_CHOICES_SEC = listOf(10, 30, 60)
 
         /** 不透明度 [%] の選べる値（20, 30, … 100） */
@@ -104,3 +115,20 @@ data class NavSettings(
                 .toList()
     }
 }
+
+/** 移動手段「自動車」の推奨値（到着半径・真横通過・通過判定）を入れる。 */
+fun NavSettings.withCarPreset(): NavSettings = copy(
+    travelMode = TravelMode.CAR,
+    reachRadiusM = Tuning.CAR_ARRIVAL_RADIUS_M,
+    sidePass = Tuning.CAR_SIDE_PASS,
+    sidePassMaxM = Tuning.CAR_SIDE_PASS_MAX_M,
+    sidePassDepartM = Tuning.CAR_SIDE_PASS_DEPART_M,
+    passDetection = Tuning.CAR_PASS_DETECTION,
+    passMaxApproachM = Tuning.CAR_PASS_MAX_APPROACH_M,
+    passDepartM = Tuning.CAR_PASS_DEPART_M,
+    passHoldSec = Tuning.CAR_PASS_HOLD_SEC,
+)
+
+/** 到達判定の値を変えたあと: 自動車の推奨値と同じなら自動車、違えばカスタムにする。 */
+fun NavSettings.withTravelModeFromValues(): NavSettings =
+    copy(travelMode = if (withCarPreset() == copy(travelMode = TravelMode.CAR)) TravelMode.CAR else TravelMode.CUSTOM)

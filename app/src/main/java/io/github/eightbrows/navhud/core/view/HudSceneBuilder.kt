@@ -400,14 +400,23 @@ object HudSceneBuilder {
         }
         // 先に画面内の WP（印と名前）を置き、矢印の文字はそれも避ける
         val marks = mutableListOf<WpMark>()
-        for (i in shown) {
+        // 印は描画の枠の中なら描く（重ねた表示の下でも）
+        val inFrame = shown.filter { drawFrame.contains(pts[it]) }
+        // 名前: 重ねた数値の表示・ボタン類と重なるなら出さない。名前どうしが重なるなら、次の WP の名前を残し、
+        // ほかはルートの順に先に置いた名前を残す（もう一方は印と線だけ）
+        val names = HashMap<Int, P?>()
+        val nameBoxes = mutableListOf<Box>()
+        for (i in inFrame.sortedBy { if (it == next) -1 else inFrame.indexOf(it) }) {
             val wp = wps[i]
-            // 印は描画の枠の中なら描く（重ねた表示の下でも）
-            if (!drawFrame.contains(pts[i])) continue
-            // 名前は、重ねた数値の表示・ボタン類と重なるなら出さない（印と線は描く）
             val nameHw = textHalfWidth(wp.name, m) * LABEL_WIDTH_RATIO
             val nameAt = placeWpName(wp.name, pts[i], ownShipBox, m, allowBelow = !wp.reached)
-                ?.takeIf { p -> numberBoxes.none { it.overlaps(Box(p, nameHw, m.arrowLabelLine / 2)) } }
+                ?.takeIf { p -> (numberBoxes + nameBoxes).none { it.overlaps(Box(p, nameHw, m.arrowLabelLine / 2)) } }
+            names[i] = nameAt
+            if (nameAt != null) nameBoxes += Box(nameAt, nameHw, m.arrowLabelLine / 2)
+        }
+        for (i in inFrame) {
+            val wp = wps[i]
+            val nameAt = names[i]
             marks += WpMark(pts[i], wp.name, wpInk(wp, i == next), dashed = !wp.enabled, nameAt = nameAt)
             obstacles += Box(pts[i], m.pointerSize * 0.6f, m.pointerSize * 0.6f)
             if (nameAt != null) obstacles += Box(nameAt, textHalfWidth(wp.name, m) * LABEL_WIDTH_RATIO, m.arrowLabelLine / 2)

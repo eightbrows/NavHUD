@@ -31,6 +31,7 @@ class NavEngine(
     )
     private val rateTracker = RateTracker(maxWindowSec = NavSettings.RATE_WINDOW_CHOICES_SEC.max())
     private val passDetector = PassDetector()
+    private val sidePassDetector = SidePassDetector()
 
     private var lastFix: Fix? = null
     private var compassDeg: Float? = null
@@ -80,6 +81,7 @@ class NavEngine(
         rateTracker.add(fix)
         val nextBefore = WaypointNav.nextIndex(waypoints)
         waypoints = WaypointNav.autoReach(waypoints, fix.lat, fix.lon, settings.reachRadiusM)
+        checkSidePass(fix)
         checkPass(fix)
         if (WaypointNav.nextIndex(waypoints) != nextBefore) wpChanged = true
         // LIVE の軌跡（起動してからの分。保存しない）
@@ -241,7 +243,20 @@ class NavEngine(
         return recompute()
     }
 
-    /** 通過判定（§5.4）。次の WP に最接近したあと離れていったら到達にする。 */
+    /** 真横通過（§5.4）。走行中に次の WP が真横か後ろになり、いちばん近づいた距離から離れたら到達にする。 */
+    private fun checkSidePass(fix: Fix) {
+        val i = WaypointNav.nextIndex(waypoints)
+        if (i == null) {
+            sidePassDetector.reset()
+            return
+        }
+        val wp = waypoints[i]
+        if (sidePassDetector.update(fix, wp, Triple(i, wp.lat, wp.lon), settings)) {
+            waypoints = waypoints.toMutableList().also { it[i] = wp.copy(reached = true) }
+        }
+    }
+
+    /** 通過判定（§5.4 の予備。方位が取れない場面用）。次の WP に最接近したあと離れていったら到達にする。 */
     private fun checkPass(fix: Fix) {
         val i = WaypointNav.nextIndex(waypoints)
         if (!settings.passDetection || i == null) {
@@ -260,6 +275,7 @@ class NavEngine(
         rateTracker.clear()
         headingSelector.reset()
         passDetector.reset()
+        sidePassDetector.reset()
     }
 
     private fun recompute(): NavState {

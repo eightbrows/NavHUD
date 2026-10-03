@@ -43,6 +43,10 @@ class SettingsCodecTest {
             autoMaxRangeKm = 5.0,
             autoHoldAfterWpSec = 20,
             autoZoomInDistRatio = 3.0,
+            travelMode = TravelMode.CUSTOM,
+            sidePass = false,
+            sidePassMaxM = 200.0,
+            sidePassDepartM = 20.0,
         )
         val d = NavSettings()
         // 念のため、ほんとうに全項目が既定値と違うことを確かめる（項目を足したらここも足す）
@@ -96,7 +100,8 @@ class SettingsCodecTest {
     @Test
     fun missingValuesAreDefaults() {
         assertEquals(NavSettings(), SettingsCodec.decode(emptyMap()))
-        assertEquals(NavSettings(uiTheme = ColorTheme.GREEN), SettingsCodec.decode(mapOf("uiTheme" to "GREEN")))
+        // 前の版で保存した設定（移動手段の項目がない）はカスタムとして読む
+        assertEquals(NavSettings(uiTheme = ColorTheme.GREEN, travelMode = TravelMode.CUSTOM), SettingsCodec.decode(mapOf("uiTheme" to "GREEN")))
     }
 
     @Test

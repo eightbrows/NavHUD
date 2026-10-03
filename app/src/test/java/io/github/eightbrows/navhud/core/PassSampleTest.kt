@@ -61,7 +61,8 @@ class PassSampleTest {
         return e.state.waypoints.single().reached
     }
 
-    private val radius100 = NavSettings(reachRadiusM = 100.0)
+    // 前の版の判定（到達半径 100m と通過判定）を確かめる。真横通過は切る
+    private val radius100 = NavSettings(reachRadiusM = 100.0, sidePass = false)
 
     @Test
     fun waypointOffTheRoadIsReachedByPassing() {

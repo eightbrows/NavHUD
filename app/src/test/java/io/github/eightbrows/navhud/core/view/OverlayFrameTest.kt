@@ -184,4 +184,18 @@ class OverlayFrameTest {
         // S（y = 1123）は WP 列（〜1103）より下のプロファイルの範囲なので出す
         assertTrue(s.labels.any { it.text == "S" })
     }
+
+    @Test
+    fun overlappingNamesKeepOnlyTheNextWaypoint() {
+        // 次の WP（北 300m）と、その先の WP（北 310m・東 5m）は 1km の段で 4 px ほどしか離れず、名前が重なる:
+        // 次の WP の名前だけ出し、もう一方は印と線だけ（D05 の回答 1-B）
+        val s = build(state(listOf(wp("NEXT", 300.0), wp("AFTER", 310.0, 5.0)), 0, 1_000.0))
+        assertNotNull(s.wpMarks.single { it.name == "NEXT" }.nameAt)
+        assertNull(s.wpMarks.single { it.name == "AFTER" }.nameAt)
+        assertEquals(2, s.wpMarks.size)
+        // 並びが逆（次の WP がルートの後ろ）でも、次の WP の名前を残す
+        val r = build(state(listOf(wp("BEFORE", 310.0, 5.0, reached = true), wp("NEXT", 300.0)), 1, 1_000.0))
+        assertNotNull(r.wpMarks.single { it.name == "NEXT" }.nameAt)
+        assertNull(r.wpMarks.single { it.name == "BEFORE" }.nameAt)
+    }
 }

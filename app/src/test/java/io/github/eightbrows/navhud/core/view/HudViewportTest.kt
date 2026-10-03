@@ -173,7 +173,7 @@ class HudViewportTest {
     private fun passRun(holdSec: Int): List<Double> {
         val lat0 = 33.5
         val lon0 = 133.0
-        val e = NavEngine(NavSettings(autoHoldAfterWpSec = holdSec), sourceKind = SourceKind.LIVE)
+        val e = NavEngine(NavSettings(autoHoldAfterWpSec = holdSec, reachRadiusM = 100.0), sourceKind = SourceKind.LIVE)
         e.setViewport(viewport)
         e.setWaypoints(listOf(Waypoint("A", lat0 + 400.0 / 111_195.0, lon0), Waypoint("B", lat0 + 5_000.0 / 111_195.0, lon0)))
         return (0..60L).map { t ->
