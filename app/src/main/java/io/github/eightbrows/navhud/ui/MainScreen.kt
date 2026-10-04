@@ -49,6 +49,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -70,6 +71,8 @@ import io.github.eightbrows.navhud.core.view.HudFormat
 import io.github.eightbrows.navhud.core.view.HudInsets
 import io.github.eightbrows.navhud.core.view.HudRect
 import io.github.eightbrows.navhud.core.view.HudViewport
+import io.github.eightbrows.navhud.core.view.NumberField
+import io.github.eightbrows.navhud.core.view.NumberRows
 import io.github.eightbrows.navhud.core.view.WpStripLayout
 import java.time.ZoneId
 import kotlin.math.roundToInt
@@ -174,7 +177,7 @@ fun MainScreen(
             }
             if (showReplay) {
                 ReplayBand(
-                    state, replay, zone, onTogglePlay, onSlower, onFaster, onSeek,
+                    state, replay, onTogglePlay, onSlower, onFaster, onSeek,
                     Modifier.fillMaxWidth().height(ReplayBandHeight).onSizeChanged { bandPx = it.height },
                 )
             }
@@ -234,14 +237,13 @@ private fun profileHeight(size: ProfileSize): Dp? = when (size) {
 
 /**
  * 再生の帯（§6.7、REPLAY のときだけ画面の一番下・ナビゲーションバーの上）。左から 再生 / 一時停止（▶ / ❚❚、終わりは END）、
- * 倍速の [−] ×N [＋]（×1 / ×2 / ×5 / ×10 / ×30。端ではグレー）、再生位置のスライダー、経過 / 全体の時間。
- * スライダーは指を離したときにシークし、動かしている間は行き先の時刻を出す。
+ * 倍速の [−] ×N [＋]（×1 / ×2 / ×5 / ×10 / ×30。端ではグレー）、再生位置のスライダー（残りの幅いっぱい）。
+ * 時刻は数値の TIME で見るので、帯には出さない。スライダーは指を離したときにシークする。
  */
 @Composable
 private fun ReplayBand(
     state: NavState,
     replay: ReplayUiState,
-    zone: ZoneId,
     onTogglePlay: () -> Unit,
     onSlower: () -> Unit,
     onFaster: () -> Unit,
@@ -290,9 +292,6 @@ private fun ReplayBand(
                     inactiveTrackColor = HudColors.WpReached,
                 ),
             )
-            val label = dragging?.let { HudFormat.time(start + ((end - start) * it).toLong(), zone) }
-                ?: "${HudFormat.elapsed(now - start)} / ${HudFormat.elapsed(end - start)}"
-            OutlinedText(AnnotatedString(label), Caption.copy(fontSize = 12.sp), Modifier.alpha(a))
         } else {
             Spacer(Modifier.weight(1f))
         }
@@ -567,21 +566,19 @@ private fun RowScope.HeadingCell(state: NavState, valueColor: Color, weight: Flo
 
 /**
  * 数値の表示（上部バーの下、4行）。見出しは値の左に小さく並べる。箱なしで、文字に黒の縁取り。
- * 1行目: TIME / ALT / RATE（タップで窓の切替）、2行目: HDG / GS / ETA、
- * 3行目: NEXT（名前は入りきらなければ …。方位と距離は必ず出す）/ TGT / DDL、4行目: LAT/LON。
+ * 1行目: TIME / ALT / RATE（タップで窓の切替）、2行目: HDG / GS / ETA、3行目: TGT / DDL、4行目: LAT/LON。
+ * 次の WP の名前・方位・距離は地図上の WP の文字で見る（§6.1）。
  * 不透明度は設定（numbersOpacityPct）。警告の表示（締切超過の DDL、CAL / MAG の付いた HDG）は常に 100%。
  */
 @Composable
 private fun NumbersPanel(state: NavState, zone: ZoneId, valueColor: Color, onCycleRate: () -> Unit) {
     val fix = state.fix
-    val next = state.nextWpIndex?.let { state.waypoints[it] }
     val deadline = state.deadlineCountdownSec
     val deadlineColor = when {
         deadline == null -> valueColor
         deadline < 0 -> HudColors.Warning
         else -> valueColor
     }
-    val nextColor = if (next != null && !state.noFix) HudColors.Active else valueColor
     val n = Modifier.alpha(state.settings.numbersOpacityPct / 100f)
     Column(
         Modifier
@@ -589,46 +586,70 @@ private fun NumbersPanel(state: NavState, zone: ZoneId, valueColor: Color, onCyc
             .padding(horizontal = 10.dp, vertical = Tuning.NUMBERS_PADDING_V_DP.dp),
         verticalArrangement = Arrangement.spacedBy(Tuning.NUMBERS_ROW_GAP_DP.dp),
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            InlineCell("TIME", AnnotatedString(HudFormat.time(state.nowMs, zone)), HudColors.Scale, 1f, modifier = n)
-            InlineCell("ALT", AnnotatedString(HudFormat.altitude(state.altM)), valueColor, 0.85f, modifier = n)
-            InlineCell(
-                "RATE ${state.settings.rateWindowSec}s",
-                AnnotatedString(HudFormat.rate(state.rate)),
-                valueColor,
-                1.55f,
-                modifier = Modifier.clickable(onClick = onCycleRate).then(n),
-            )
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            HeadingCell(state, valueColor, weight = 1.25f, alpha = state.settings.numbersOpacityPct / 100f)
-            InlineCell("GS", AnnotatedString(HudFormat.speedKmh(state.groundSpeedMps)), valueColor, 1f, modifier = n)
-            InlineCell("ETA", AnnotatedString(HudFormat.time(state.etaMs, zone)), valueColor, 1.15f, modifier = n)
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            InlineCell("NEXT", AnnotatedString(nextText(state)), nextColor, 1.9f, name = next?.name, modifier = n)
-            InlineCell("TGT", AnnotatedString(HudFormat.countdown(state.targetCountdownSec)), valueColor, 1f, modifier = n)
-            // 締切を過ぎたら警告なので 100%
-            InlineCell(
-                "DDL", AnnotatedString(HudFormat.countdown(deadline)), deadlineColor, 1f,
-                modifier = if (deadline != null && deadline < 0) Modifier else n,
-            )
-        }
-        Row {
-            InlineCell("LAT/LON", AnnotatedString(HudFormat.latLon(fix?.lat, fix?.lon)), valueColor, 1f, modifier = n)
+        // 1行目（TIME / ALT / RATE）は切れない幅を先に取る。2行目から下は NumberRows の順に重みで並べる
+        FirstNumbersRow(state, zone, valueColor, state.settings.numbersOpacityPct / 100f, onCycleRate)
+        for (row in NumberRows.ROWS.drop(1)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(Tuning.NUMBERS_CELL_GAP_DP.dp)) {
+                for (field in row) {
+                    val c = field.caption
+                    when (field) {
+                        NumberField.HDG -> HeadingCell(state, valueColor, weight = 1.25f, alpha = state.settings.numbersOpacityPct / 100f)
+                        NumberField.GS -> InlineCell(c, AnnotatedString(HudFormat.speedKmh(state.groundSpeedMps)), valueColor, 1f, modifier = n)
+                        NumberField.ETA -> InlineCell(c, AnnotatedString(HudFormat.time(state.etaMs, zone)), valueColor, 1.15f, modifier = n)
+                        NumberField.TGT -> InlineCell(c, AnnotatedString(HudFormat.countdown(state.targetCountdownSec)), valueColor, 1f, modifier = n)
+                        // 締切を過ぎたら警告なので 100%
+                        NumberField.DDL -> InlineCell(
+                            c, AnnotatedString(HudFormat.countdown(deadline)), deadlineColor, 1f,
+                            modifier = if (deadline != null && deadline < 0) Modifier else n,
+                        )
+                        NumberField.LAT_LON -> InlineCell(c, AnnotatedString(HudFormat.latLon(fix?.lat, fix?.lon)), valueColor, 1f, modifier = n)
+                        // 1行目の欄は FirstNumbersRow で出す
+                        NumberField.TIME, NumberField.ALT, NumberField.RATE -> Unit
+                    }
+                }
+            }
         }
     }
 }
 
-private fun nextText(state: NavState): String {
-    if (state.nextWpBearingDeg == null || state.nextWpDistanceM == null) return HudFormat.NONE
-    return "${HudFormat.bearing(state.nextWpBearingDeg)} ${HudFormat.distance(state.nextWpDistanceM)}"
+/**
+ * 数値の1行目（TIME / ALT / RATE）。どの画面幅でも切れないよう、各欄にいちばん長くなる値（Tuning.NUMBERS_ROW1_SAMPLES）の
+ * 幅を先に取り、余りを前の比率（Tuning.NUMBERS_ROW1_WEIGHTS）で分ける。それでも入りきらない狭い画面では、1行目の文字を縮める。
+ */
+@Composable
+private fun FirstNumbersRow(state: NavState, zone: ZoneId, valueColor: Color, alpha: Float, onCycleRate: () -> Unit) {
+    val n = Modifier.alpha(alpha)
+    val tm = rememberTextMeasurer()
+    val density = LocalDensity.current
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val gap = Tuning.NUMBERS_CELL_GAP_DP.dp
+        val samples = Tuning.NUMBERS_ROW1_SAMPLES
+        val weights = Tuning.NUMBERS_ROW1_WEIGHTS
+        // 各欄の要る幅 [px]（見出し + すき間 + 値。丸めの分を少し足す）
+        val need = with(density) {
+            samples.map { (cap, value) ->
+                tm.measure(cap, Caption).size.width + Tuning.NUMBERS_CAPTION_PAD_DP.dp.toPx() + tm.measure(value, Value).size.width + 2f
+            }
+        }
+        val avail = constraints.maxWidth - with(density) { gap.toPx() } * (samples.size - 1)
+        val scale = minOf(1f, avail / need.sum())
+        val spare = (avail - need.sum() * scale).coerceAtLeast(0f)
+        val widths = need.mapIndexed { i, w -> with(density) { (w * scale + spare * weights[i] / weights.sum()).toDp() } }
+        Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
+            NumberCell(NumberField.TIME.caption, AnnotatedString(HudFormat.time(state.nowMs, zone)), HudColors.Scale, n.width(widths[0]), scale)
+            NumberCell(NumberField.ALT.caption, AnnotatedString(HudFormat.altitude(state.altM)), valueColor, n.width(widths[1]), scale)
+            NumberCell(
+                "${NumberField.RATE.caption} ${state.settings.rateWindowSec}s",
+                AnnotatedString(HudFormat.rate(state.rate)),
+                valueColor,
+                Modifier.width(widths[2]).clickable(onClick = onCycleRate).then(n),
+                scale,
+            )
+        }
+    }
 }
 
-/**
- * 数値のセル: 見出しを値の左に小さく並べる。name（NEXT の WP の名前）は、入りきらなければ … で省く
- * （値の方を先に場所を取る）。
- */
+/** 数値のセル（重みで幅を決める）。 */
 @Composable
 private fun RowScope.InlineCell(
     caption: String,
@@ -636,18 +657,20 @@ private fun RowScope.InlineCell(
     color: Color,
     weight: Float,
     modifier: Modifier = Modifier,
-    name: String? = null,
-) {
-    Row(modifier.weight(weight), verticalAlignment = Alignment.Bottom) {
-        OutlinedText(AnnotatedString(caption), Caption, Modifier.padding(end = 4.dp, bottom = 2.dp))
-        if (name != null) {
-            OutlinedText(
-                AnnotatedString(name),
-                Caption.copy(color = color, fontSize = 13.sp),
-                Modifier.weight(1f, fill = false).padding(end = 4.dp, bottom = 1.dp),
-            )
-        }
-        OutlinedText(value, Value.copy(color = color))
+) = NumberCell(caption, value, color, modifier.weight(weight))
+
+/**
+ * 数値のセル: 見出しを値の左に小さく並べる。幅は modifier で決める。textScale は文字の倍率（1行目が入りきらない狭い画面だけ 1 未満）。
+ */
+@Composable
+private fun NumberCell(caption: String, value: AnnotatedString, color: Color, modifier: Modifier, textScale: Float = 1f) {
+    Row(modifier, verticalAlignment = Alignment.Bottom) {
+        OutlinedText(
+            AnnotatedString(caption),
+            Caption.copy(fontSize = Caption.fontSize * textScale),
+            Modifier.padding(end = Tuning.NUMBERS_CAPTION_PAD_DP.dp, bottom = 2.dp),
+        )
+        OutlinedText(value, Value.copy(color = color, fontSize = Value.fontSize * textScale))
     }
 }
 

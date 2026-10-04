@@ -34,7 +34,8 @@ object SettingsCodec {
         "autoMinRangeKm" to s.autoMinRangeKm.toString(),
         "autoMaxRangeKm" to s.autoMaxRangeKm.toString(),
         "autoHoldAfterWpSec" to s.autoHoldAfterWpSec.toString(),
-        "autoZoomInDistRatio" to s.autoZoomInDistRatio.toString(),
+        // D10 で意味が変わった（1段狭い段の R1 → 今の段の R1）ので、前の版のキー autoZoomInDistRatio とは別のキーにする
+        KEY_ZOOM_IN_RATIO to s.autoZoomInDistRatio.toString(),
         "wpButtonsMax" to s.wpButtonsMax.toString(),
         "hudWpCount" to s.hudWpCount.toString(),
         "uiTheme" to s.uiTheme.name,
@@ -60,7 +61,13 @@ object SettingsCodec {
     )
 
     /** 設定の項目のキー（今の版と、前の版の colorTheme）。移行の判定に使う */
-    private val SETTINGS_KEYS: Set<String> by lazy { encode(NavSettings()).keys + "colorTheme" }
+    private val SETTINGS_KEYS: Set<String> by lazy { encode(NavSettings()).keys + "colorTheme" + OLD_KEY_ZOOM_IN_RATIO }
+
+    /** AUTO で狭め始める距離の倍率（今の段の R1 が基準。D10 から） */
+    private const val KEY_ZOOM_IN_RATIO = "autoZoomInR1Ratio"
+
+    /** 前の版の倍率（1段狭い段の R1 が基準）。意味が違うので読まない（初期値にする） */
+    private const val OLD_KEY_ZOOM_IN_RATIO = "autoZoomInDistRatio"
 
     fun decode(m: Map<String, String?>): NavSettings {
         val d = NavSettings()
@@ -147,7 +154,7 @@ object SettingsCodec {
             autoMaxRangeKm = dbl("autoMaxRangeKm", d.autoMaxRangeKm).takeIf { it in RangeAuto.ALL_STEPS_KM } ?: d.autoMaxRangeKm,
             autoHoldAfterWpSec = int("autoHoldAfterWpSec", d.autoHoldAfterWpSec).takeIf { it in NavSettings.AUTO_HOLD_AFTER_WP_SEC_RANGE }
                 ?: d.autoHoldAfterWpSec,
-            autoZoomInDistRatio = dbl("autoZoomInDistRatio", d.autoZoomInDistRatio)
+            autoZoomInDistRatio = dbl(KEY_ZOOM_IN_RATIO, d.autoZoomInDistRatio)
                 .takeIf { v -> NavSettings.AUTO_ZOOM_IN_DIST_RATIO_CHOICES.any { kotlin.math.abs(it - v) < 1e-9 } } ?: d.autoZoomInDistRatio,
             wpButtonsMax = int("wpButtonsMax", d.wpButtonsMax).coerceIn(NavSettings.WP_BUTTONS_MAX_RANGE),
             hudWpCount = int("hudWpCount", d.hudWpCount).coerceIn(NavSettings.HUD_WP_COUNT_RANGE),

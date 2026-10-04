@@ -85,7 +85,10 @@ fun HudCanvas(
 }
 
 private val LabelStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = Tuning.LABEL_SP.sp)
-private val SmallLabelStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = Tuning.ARROW_LABEL_SP.sp)
+
+/** WP の文字: 地図上の名前・方位 / 画面外の矢印の距離・名前・方位 */
+private val WpLabelStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = Tuning.WP_LABEL_SP.sp)
+private val WpArrowLabelStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = Tuning.WP_ARROW_LABEL_SP.sp)
 
 /** 距離環の文字: 方位目盛り（13sp）より小さく、色も薄い（SCALE_DIM） */
 private val RingLabelStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = Tuning.RING_LABEL_SP.sp)
@@ -96,6 +99,7 @@ private fun DrawScope.drawScene(scene: HudScene, tm: TextMeasurer, density: Floa
     val thin = Tuning.LINE_THIN_DP * density
     val bold = Tuning.LINE_BOLD_DP * density
     val dash = PathEffect.dashPathEffect(floatArrayOf(Tuning.DASH_ON_DP * density, Tuning.DASH_OFF_DP * density))
+    val longDash = PathEffect.dashPathEffect(floatArrayOf(Tuning.ACTIVE_DASH_ON_DP * density, Tuning.ACTIVE_DASH_OFF_DP * density))
 
     drawRect(HudColors.Background)
 
@@ -125,7 +129,11 @@ private fun DrawScope.drawScene(scene: HudScene, tm: TextMeasurer, density: Floa
             start = s.a.o(),
             end = s.b.o(),
             strokeWidth = if (s.bold) bold else thin,
-            pathEffect = if (s.dashed) dash else null,
+            pathEffect = when {
+                s.longDash -> longDash
+                s.dashed -> dash
+                else -> null
+            },
         )
     }
     for (l in scene.labels) drawLabel(tm, l.text, l.at, HudColors.ofMap(l.ink), if (l.small) RingLabelStyle else LabelStyle)
@@ -142,13 +150,13 @@ private fun DrawScope.drawScene(scene: HudScene, tm: TextMeasurer, density: Floa
             close()
         }
         drawPath(path, c, style = Stroke(bold, pathEffect = if (w.dashed) dash else null))
-        // 名前は core が決めた位置（自機の記号と重なるなら null で描かない）
-        w.nameAt?.let { drawLabel(tm, w.name, it, c, LabelStyle) }
+        // 文字（名前、次の WP は方位も）は core が決めた位置（自機の記号と重なるなら null で描かない）
+        w.nameAt?.let { drawLines(tm, w.lines, it, w.linePx, c, WpLabelStyle) }
     }
     for (a in scene.arrows) {
         val c = HudColors.ofMap(a.ink)
         triangle(a.at, a.angleDeg, Tuning.EDGE_ARROW_DP * density, c)
-        drawLabel(tm, a.text, a.textAt, c, SmallLabelStyle)
+        drawLines(tm, a.lines, a.textAt, a.linePx, c, WpArrowLabelStyle)
     }
     for (p in scene.pointers) triangle(p.tip, p.angleDeg, p.sizePx, HudColors.ofMap(p.ink), filled = false, stroke = bold)
 
@@ -183,6 +191,12 @@ private fun DrawScope.triangle(tip: P, angleDeg: Float, size: Float, color: Colo
         }
         if (filled) drawPath(path, color) else drawPath(path, color, style = Stroke(stroke))
     }
+}
+
+/** 複数行の文字の塊を、中心を at に合わせて描く（各行は横の中央ぞろえ、行の間隔は linePx）。 */
+private fun DrawScope.drawLines(tm: TextMeasurer, lines: List<String>, at: P, linePx: Float, color: Color, style: TextStyle) {
+    val top = at.y - (lines.size - 1) * linePx / 2
+    lines.forEachIndexed { k, line -> drawLabel(tm, line, P(at.x, top + k * linePx), color, style) }
 }
 
 /** 文字の中心を at に合わせて描く。 */

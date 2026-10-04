@@ -64,15 +64,30 @@ class SettingsCodecTest {
         assertEquals(0.1, s.autoMinRangeKm, 0.0)
         assertEquals(1.0, s.autoMaxRangeKm, 0.0)
         assertEquals(0.05, SettingsCodec.decode(mapOf("autoMinRangeKm" to "0.05")).autoMinRangeKm, 0.0)
-        // WP 通過後の待機（既定 10 秒、0〜60）と、狭め始める距離（既定 2.0、1.0〜4.0 の 0.5 刻み）
+        // WP 通過後の待機（既定 10 秒、0〜60）と、狭め始める距離（既定 1.3、1.0〜3.0 の 0.1 刻み。今の段の R1 が基準）
         assertEquals(10, NavSettings().autoHoldAfterWpSec)
-        assertEquals(2.0, NavSettings().autoZoomInDistRatio, 0.0)
+        assertEquals(1.3, NavSettings().autoZoomInDistRatio, 0.0)
         assertEquals(0, SettingsCodec.decode(mapOf("autoHoldAfterWpSec" to "0")).autoHoldAfterWpSec)
         assertEquals(10, SettingsCodec.decode(mapOf("autoHoldAfterWpSec" to "61")).autoHoldAfterWpSec)
-        assertEquals(1.5, SettingsCodec.decode(mapOf("autoZoomInDistRatio" to "1.5")).autoZoomInDistRatio, 0.0)
-        assertEquals(2.0, SettingsCodec.decode(mapOf("autoZoomInDistRatio" to "1.2")).autoZoomInDistRatio, 0.0)
-        assertEquals(2.0, SettingsCodec.decode(mapOf("autoZoomInDistRatio" to "4.5")).autoZoomInDistRatio, 0.0)
-        assertEquals(listOf(1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0), NavSettings.AUTO_ZOOM_IN_DIST_RATIO_CHOICES)
+        assertEquals(1.7, SettingsCodec.decode(mapOf("autoZoomInR1Ratio" to "1.7")).autoZoomInDistRatio, 0.0)
+        assertEquals(1.3, SettingsCodec.decode(mapOf("autoZoomInR1Ratio" to "1.25")).autoZoomInDistRatio, 0.0)
+        assertEquals(1.3, SettingsCodec.decode(mapOf("autoZoomInR1Ratio" to "3.5")).autoZoomInDistRatio, 0.0)
+        val choices = NavSettings.AUTO_ZOOM_IN_DIST_RATIO_CHOICES
+        assertEquals(21, choices.size)
+        assertEquals((10..30).map { it / 10.0 }, choices)
+        // 保存は新しいキー
+        assertEquals("1.3", SettingsCodec.encode(NavSettings())["autoZoomInR1Ratio"])
+        assertEquals(null, SettingsCodec.encode(NavSettings())["autoZoomInDistRatio"])
+    }
+
+    @Test
+    fun oldZoomInRatioIsNotUsed() {
+        // 前の版の倍率（1段狭い段の R1 が基準）は意味が違うので読まず、初期値（1.3）にする。ほかの設定はそのまま読む
+        val s = SettingsCodec.decode(mapOf("travelMode" to "CAR", "autoZoomInDistRatio" to "2.5", "autoHoldAfterWpSec" to "20"))
+        assertEquals(1.3, s.autoZoomInDistRatio, 0.0)
+        assertEquals(20, s.autoHoldAfterWpSec)
+        // 前の版の倍率だけが保存されていても、前の版の設定として扱う（移動手段の移行と同じ）
+        assertEquals(TravelMode.CUSTOM1, SettingsCodec.decode(mapOf("autoZoomInDistRatio" to "2.0")).travelMode)
     }
 
     @Test

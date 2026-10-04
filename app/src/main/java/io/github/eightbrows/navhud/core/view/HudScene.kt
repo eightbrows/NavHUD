@@ -38,7 +38,8 @@ enum class Ink {
     TRACK_DONE,
 }
 
-data class Segment(val a: P, val b: P, val ink: Ink, val dashed: Boolean = false, val bold: Boolean = false)
+/** 線。dashed は無効 WP の破線、longDash は次の WP への方位線の長い破線（Tuning.ACTIVE_DASH_*）。 */
+data class Segment(val a: P, val b: P, val ink: Ink, val dashed: Boolean = false, val bold: Boolean = false, val longDash: Boolean = false)
 
 /** 円弧。角度は画面上の角度（上が 0、時計回り）。 */
 data class Arc(val center: P, val radius: Float, val startDeg: Float, val sweepDeg: Float, val ink: Ink)
@@ -46,11 +47,28 @@ data class Arc(val center: P, val radius: Float, val startDeg: Float, val sweepD
 /** 文字。at は文字の中心。 */
 data class Label(val text: String, val at: P, val ink: Ink, val small: Boolean = false)
 
-/** 画面内の WP。nameAt は名前の中心（自機の記号と重なるなら null で、名前を描かない）。 */
-data class WpMark(val at: P, val name: String, val ink: Ink, val dashed: Boolean, val nameAt: P? = null)
+/**
+ * 画面内の WP。lines は印の近くに出す文字（次の WP は 名前・方位 の2行、ほかは名前だけ）。nameAt は文字の塊の中心
+ * （自機の記号などと重なるなら null で、文字を描かない）。linePx は1行の高さ [px]。
+ */
+data class WpMark(
+    val at: P,
+    val name: String,
+    val ink: Ink,
+    val dashed: Boolean,
+    val nameAt: P? = null,
+    val lines: List<String> = listOf(name),
+    val linePx: Float = 0f,
+)
 
-/** 画面外の WP を示す、表示枠の縁の矢印。angleDeg は矢印の向き（上が 0、時計回り）。 */
-data class EdgeArrow(val at: P, val angleDeg: Float, val text: String, val textAt: P, val ink: Ink)
+/**
+ * 画面外の WP を示す、表示枠の縁の矢印。angleDeg は矢印の向き（上が 0、時計回り）。lines は上から 距離・名前・方位、
+ * textAt は文字の塊の中心、linePx は1行の高さ [px]。
+ */
+data class EdgeArrow(val at: P, val angleDeg: Float, val lines: List<String>, val textAt: P, val ink: Ink, val linePx: Float = 0f) {
+    /** 1行にまとめた文字（テスト・ログ用） */
+    val text: String get() = lines.joinToString(" ")
+}
 
 /** 折れ線（軌跡）。widthDp は線の太さ [dp]。 */
 data class Polyline(val points: List<P>, val ink: Ink, val widthDp: Float)

@@ -105,7 +105,7 @@ data class NavSettings(
     val autoMaxRangeKm: Double = Tuning.AUTO_MAX_RANGE_KM,
     /** WP 通過後（次の WP が変わってから）AUTO の段を動かさない時間 [秒]。0〜60 */
     val autoHoldAfterWpSec: Int = Tuning.AUTO_HOLD_AFTER_WP_SEC,
-    /** AUTO で狭め始める距離: 次の WP が「これ × 1段狭い段の R1」以内のときだけ狭める。1.0〜4.0、0.5 刻み */
+    /** AUTO で狭め始める距離: 次の WP が「これ × 今の段の R1（1つ目の距離環）」以内のときだけ狭める。1.0〜3.0、0.1 刻み */
     val autoZoomInDistRatio: Double = Tuning.AUTO_ZOOM_IN_DIST_RATIO,
     /** 横並びの WP ボタン列に一度に見せる数（ボタンの幅はこれで決まる。超える分は左右にスクロール） */
     val wpButtonsMax: Int = 4,
@@ -160,11 +160,11 @@ data class NavSettings(
 
         val AUTO_HOLD_AFTER_WP_SEC_RANGE = 0..Tuning.AUTO_HOLD_AFTER_WP_MAX_SEC
 
-        /** 狭め始める距離の倍率の選べる値（1.0, 1.5, … 4.0） */
-        val AUTO_ZOOM_IN_DIST_RATIO_CHOICES: List<Double> =
-            generateSequence(Tuning.AUTO_ZOOM_IN_DIST_RATIO_MIN) { it + Tuning.AUTO_ZOOM_IN_DIST_RATIO_STEP }
-                .takeWhile { it <= Tuning.AUTO_ZOOM_IN_DIST_RATIO_MAX + 1e-9 }
-                .toList()
+        /** 狭め始める距離の倍率の選べる値（1.0, 1.1, … 3.0）。足し算の誤差が残らないよう、刻みの数から作って丸める */
+        val AUTO_ZOOM_IN_DIST_RATIO_CHOICES: List<Double> = run {
+            val n = Math.round((Tuning.AUTO_ZOOM_IN_DIST_RATIO_MAX - Tuning.AUTO_ZOOM_IN_DIST_RATIO_MIN) / Tuning.AUTO_ZOOM_IN_DIST_RATIO_STEP).toInt()
+            (0..n).map { i -> Math.round((Tuning.AUTO_ZOOM_IN_DIST_RATIO_MIN + i * Tuning.AUTO_ZOOM_IN_DIST_RATIO_STEP) * 1e6) / 1e6 }
+        }
     }
 }
 

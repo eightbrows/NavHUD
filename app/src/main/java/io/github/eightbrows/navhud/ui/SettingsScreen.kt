@@ -189,15 +189,16 @@ fun SettingsScreen(
                     it.copy(autoHoldAfterWpSec = (it.autoHoldAfterWpSec + d).coerceIn(r.first, r.last))
                 }
             }
-            // 今の段での例: 「250m → 100m: WP まで 200m 以内」（R1 の表記）
-            val narrowerKm = s.rangeStepsKm.filter { it >= lo && it < rangeM / 1000 - 1e-9 }.maxOrNull()
-            val example = narrowerKm?.let { n ->
-                "今の段 ${HudFormat.rangeLabel(rangeM)} → ${HudFormat.rangeLabel(n * 1000)}: " +
-                    "WP まで ${HudFormat.rangeStep(s.autoZoomInDistRatio * n * 1000 / 2)} 以内で狭め始める"
-            } ?: "今の段 ${HudFormat.rangeLabel(rangeM)} より狭い段はありません（AUTO の下限）"
+            // 今の段での例: 「今の段 R1 500m: WP まで 650m 以内」（R1 = 1つ目の距離環 = 段の 1/2）
+            val hasNarrower = s.rangeStepsKm.any { it >= lo && it < rangeM / 1000 - 1e-9 }
+            val example = if (hasNarrower) {
+                "今の段 R1 ${HudFormat.rangeLabel(rangeM)}: WP まで ${HudFormat.rangeStep(s.autoZoomInDistRatio * rangeM / 2)} 以内"
+            } else {
+                "今の段 R1 ${HudFormat.rangeLabel(rangeM)} より狭い段はありません（AUTO の下限）"
+            }
             Stepper(
                 "AUTO で狭め始める距離", "%.1f 倍".format(Locale.US, s.autoZoomInDistRatio),
-                note = "狭めたあとの 1つ目の距離環の何倍以内か。$example",
+                note = "今の1つ目の距離環の何倍以内で狭め始める。$example",
             ) { d ->
                 onChange {
                     val c = NavSettings.AUTO_ZOOM_IN_DIST_RATIO_CHOICES

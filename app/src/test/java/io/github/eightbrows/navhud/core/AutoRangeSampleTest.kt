@@ -4,6 +4,7 @@ import io.github.eightbrows.navhud.core.io.WaypointCsv
 import io.github.eightbrows.navhud.core.model.Fix
 import io.github.eightbrows.navhud.core.nav.NavEngine
 import io.github.eightbrows.navhud.core.nav.NavSettings
+import io.github.eightbrows.navhud.core.nav.NavState
 import io.github.eightbrows.navhud.core.nav.SourceKind
 import io.github.eightbrows.navhud.core.view.HudMetrics
 import io.github.eightbrows.navhud.core.view.HudViewport
@@ -13,6 +14,7 @@ import java.io.File
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 /**
  * AUTO 縮尺を track.csv の REPLAY（WP は wp_profile.csv）で通して、段が変わった回数と時刻を数える（§6.1）。
@@ -32,8 +34,11 @@ class AutoRangeSampleTest {
     private val fixes: List<Fix>
         get() = SampleTrack.fixes()
 
-    /** 段が変わった記録（時刻 [ms]、前の段 [m]、後の段 [m]）。 */
-    data class Change(val timeMs: Long, val fromM: Double, val toM: Double)
+    /** 段が変わった記録（時刻 [ms]、前の段 [m]、後の段 [m]、そのときの次の WP までの距離 [m]）。 */
+    data class Change(val timeMs: Long, val fromM: Double, val toM: Double, val wpDistM: Double?) {
+        /** 狭めたときの「次の WP までの距離 ÷ 狭める前の R1（1つ目の距離環 = 段の 1/2）」。1 より大きければ1つ目の円の外で狭めた */
+        val zoomInRatio: Double? get() = if (toM < fromM) wpDistM?.let { it / (fromM / 2) } else null
+    }
 
     /** トラック全体を流す。Fix の間も 1 秒ごとに時計を進める（アプリの刻みの代わり）。 */
     private fun run(vp: HudViewport, settings: NavSettings = NavSettings()): List<Change> {
@@ -42,14 +47,15 @@ class AutoRangeSampleTest {
         e.setViewport(vp)
         val changes = mutableListOf<Change>()
         var last = e.state.rangeM
-        fun record(t: Long, r: Double) {
-            if (r != last) changes += Change(t, last, r)
+        fun record(t: Long, st: NavState) {
+            val r = st.rangeM
+            if (r != last) changes += Change(t, last, r, st.nextWpDistanceM)
             last = r
         }
         var prev: Long? = null
         for (f in fixes) {
-            prev?.let { p -> var t = p + 1_000; while (t < f.timeMs) { record(t, e.onTick(t).rangeM); t += 1_000 } }
-            record(f.timeMs, e.onFix(f, f.timeMs).rangeM)
+            prev?.let { p -> var t = p + 1_000; while (t < f.timeMs) { record(t, e.onTick(t)); t += 1_000 } }
+            record(f.timeMs, e.onFix(f, f.timeMs))
             prev = f.timeMs
         }
         return changes
@@ -59,7 +65,10 @@ class AutoRangeSampleTest {
         val fmt = DateTimeFormatter.ofPattern("HH:mm:ss").withZone(JST)
         val dir = File("build/auto-range").apply { mkdirs() }
         File(dir, "$name.csv").writeText(
-            "time,from_m,to_m\n" + changes.joinToString("\n") { "${fmt.format(Instant.ofEpochMilli(it.timeMs))},${it.fromM.toInt()},${it.toM.toInt()}" } + "\n",
+            "time,from_m,to_m,wp_dist_m,dist_per_r1\n" + changes.joinToString("\n") {
+                "${fmt.format(Instant.ofEpochMilli(it.timeMs))},${it.fromM.toInt()},${it.toM.toInt()}," +
+                    "${it.wpDistM?.toInt() ?: ""},${it.zoomInRatio?.let { r -> "%.2f".format(Locale.US, r) } ?: ""}"
+            } + "\n",
         )
     }
 

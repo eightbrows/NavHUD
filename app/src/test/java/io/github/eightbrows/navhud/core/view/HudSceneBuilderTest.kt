@@ -1,6 +1,7 @@
 package io.github.eightbrows.navhud.core.view
 
 import io.github.eightbrows.navhud.core.TestGeo
+import io.github.eightbrows.navhud.core.Tuning
 import io.github.eightbrows.navhud.core.model.Fix
 import io.github.eightbrows.navhud.core.model.HeadingSrc
 import io.github.eightbrows.navhud.core.model.Waypoint
@@ -71,25 +72,25 @@ class HudSceneBuilderTest {
 
     @Test
     fun arcCompassLabelsSitOnFrameEdge() {
-        // 機首 000: N は上端の中央、E は右端、W は左端。S（後方）は出ない
+        // 機首 000: N は上端の中央、E は右端、W は左端、S（後方）は下端の中央（WP 列などの下にかかってよい）
         val labels = build(state(headingDeg = 0f)).labels.associateBy { it.text }
         val gap = m.tickMajor + m.labelGap
         assertP(P(360f, gap), labels.getValue("N").at)
         assertP(P(720f - gap, 876f), labels.getValue("E").at)
         assertP(P(gap, 876f), labels.getValue("W").at)
-        assertFalse(labels.containsKey("S"))
+        assertP(P(360f, 900f - gap), labels.getValue("S").at)
     }
 
     @Test
     fun arcCompassLabelsRotateWithHeading() {
-        // 機首 090: E が上端の中央、N は左端、S は右端
+        // 機首 090: E が上端の中央、N は左端、S は右端、W は下端
         val labels = build(state(headingDeg = 90f)).labels.associateBy { it.text }
         val gap = m.tickMajor + m.labelGap
         assertEquals(360f, labels.getValue("E").at.x, 1e-3f)
         assertEquals(gap, labels.getValue("E").at.y, 1e-3f)
         assertEquals(gap, labels.getValue("N").at.x, 1e-3f)
         assertEquals(720f - gap, labels.getValue("S").at.x, 1e-3f)
-        assertFalse(labels.containsKey("W"))
+        assertEquals(900f - gap, labels.getValue("W").at.y, 1e-3f)
     }
 
     @Test
@@ -97,7 +98,7 @@ class HudSceneBuilderTest {
         // 目盛りの外側の端はすべて表示枠の縁にある（同心円に沿わない）
         val o = P(360f, 876f)
         val ticks = build(state(headingDeg = 30f)).segments.filter { it.ink == Ink.SCALE }
-        assertEquals(19, ticks.size) // -90°..+90° を 10° ごと
+        assertEquals(36, ticks.size) // 1周分（自機の後ろ側も）を 10° ごと
         for (t in ticks) {
             val e = 1e-2f
             val onEdge = abs(t.a.x) < e || abs(t.a.x - 720f) < e || abs(t.a.y) < e || abs(t.a.y - 900f) < e
@@ -110,7 +111,7 @@ class HudSceneBuilderTest {
     @Test
     fun bearingLinesEvery30Degrees() {
         val lines = build(state(headingDeg = 0f)).segments.filter { it.ink == Ink.BEARING_LINE }
-        assertEquals(7, lines.size) // -90, -60, … , +90
+        assertEquals(12, lines.size) // 1周分を 30° ごと（後ろ側も）
         assertTrue(lines.all { it.a == P(360f, 876f) })
     }
 
@@ -126,7 +127,8 @@ class HudSceneBuilderTest {
         assertTrue(abs(arrow.at.y - 876f) <= m.pointerSize * 4 + 0.5f)
         assertEquals(-90f, arrow.angleDeg, 0.1f)
         assertEquals(Ink.ACTIVE, arrow.ink)
-        assertTrue(arrow.text, arrow.text.startsWith("WP1 5.00 km"))
+        // 3行: 距離・名前・方位（自機から WP への方位。北 = 000°）
+        assertEquals(listOf("5.00 km", "WP1", "000°"), arrow.lines)
         // 文字は矢印より内側
         assertTrue(arrow.textAt.x > arrow.at.x)
     }
@@ -178,7 +180,7 @@ class HudSceneBuilderTest {
         )
         val scene = build(state(headingDeg = 0f, wps = wps, next = 2))
         val arrow = scene.arrows.single()
-        assertTrue(arrow.text.startsWith("C "))
+        assertEquals("C", arrow.lines[1])
         // 真後ろ → 下端
         assertEquals(900f - m.edgeInset, arrow.at.y, 1e-3f)
         assertEquals(180f, kotlin.math.abs(arrow.angleDeg), 0.1f)
@@ -257,21 +259,20 @@ class HudSceneBuilderTest {
         val wps = listOf(wp("AAA", 5_000.0, 5_000.0), wp("BBB", 6_000.0, 6_100.0), wp("CCC", 7_000.0, 7_000.0))
         val arrows = build(state(headingDeg = 0f, wps = wps, next = 0)).arrows
         assertEquals(1, arrows.size)
-        assertTrue(arrows.single().text.startsWith("AAA"))
+        assertEquals("AAA", arrows.single().lines[1])
         val frame = rect.inset(m.edgeInset)
         for (a in arrows) {
-            // 文字は枠の内側
-            val half = a.text.length * m.labelCharWidth / 2
-            assertTrue(a.text, a.textAt.x - half >= frame.left - 1e-3f && a.textAt.x + half <= frame.right + 1e-3f)
+            // 文字の塊（3行）は枠の内側
+            val b = HudSceneBuilder.arrowTextBox(a.lines, a.textAt, m)
+            assertTrue(a.text, b.c.x - b.hw >= frame.left - 1e-3f && b.c.x + b.hw <= frame.right + 1e-3f)
+            assertTrue(a.text, b.c.y - b.hh >= frame.top - 1e-3f && b.c.y + b.hh <= frame.bottom + 1e-3f)
             // 文字は矢印より自機側（自機は下にある）
             assertTrue(a.text, a.textAt.y > a.at.y)
         }
         for (i in arrows.indices) for (j in i + 1 until arrows.size) {
             val a = arrows[i]
             val b = arrows[j]
-            val apart = abs(a.textAt.y - b.textAt.y) >= m.arrowLabelLine - 1e-3f ||
-                abs(a.textAt.x - b.textAt.x) >= (a.text.length + b.text.length) * m.labelCharWidth / 2 - 1e-3f
-            assertTrue("${a.text} / ${b.text}", apart)
+            assertFalse("${a.text} / ${b.text}", HudSceneBuilder.arrowTextBox(a.lines, a.textAt, m).overlaps(HudSceneBuilder.arrowTextBox(b.lines, b.textAt, m)))
         }
     }
 
@@ -366,7 +367,7 @@ class HudSceneBuilderTest {
             } + HudSceneBuilder.Box(scene.ownShip!!.at, m.ownShipClear, m.ownShipClear) +
                 // 上部の三角（機首方位の印）
                 scene.pointers.map { HudSceneBuilder.Box(P(it.tip.x, it.tip.y + it.sizePx / 2), it.sizePx * 0.7f, it.sizePx * 0.7f) }
-            val texts = scene.arrows.map { HudSceneBuilder.Box(it.textAt, HudSceneBuilder.textHalfWidth(it.text, m), m.arrowLabelLine / 2) }
+            val texts = scene.arrows.map { HudSceneBuilder.arrowTextBox(it.lines, it.textAt, m) }
             for ((i, t) in texts.withIndex()) {
                 assertTrue("$mode ${scene.arrows[i].text}", obstacles.none { it.overlaps(t) })
                 // 自分の矢印にも重ならない
@@ -577,7 +578,7 @@ class HudSceneBuilderTest {
         // 次の WP が画面外なら、その分の矢印だけ（B の分）
         val far = build(state(wps = wps.map { it.copy() }.let { listOf(it[0].copy(reached = true), it[1], it[2]) }, next = 1))
         assertEquals(1, far.arrows.size)
-        assertTrue(far.arrows.single().text.startsWith("B"))
+        assertEquals("B", far.arrows.single().lines[1])
         assertEquals(Ink.ACTIVE, far.arrows.single().ink)
     }
 
@@ -593,5 +594,69 @@ class HudSceneBuilderTest {
         val nu = build(state(mode = DisplayMode.NORTH_UP).copy(rangeM = 1_000.0))
         assertEquals(3, nu.arcs.size)
         assertTrue(nu.labels.filter { it.small }.map { it.text }.containsAll(listOf("500", "1k")))
+    }
+
+    @Test
+    fun nextWaypointLabelHasNameAndBearing() {
+        // 次の WP（画面内、東 1km）: 名前・方位の2行。方位は自機から WP への方位（真北基準の3桁）。ほかの WP は名前だけ
+        val s = build(state(headingDeg = 0f, wps = listOf(wp("東", 0.0, 1_000.0), wp("北", 1_500.0)), next = 0))
+        val east = s.wpMarks.single { it.name == "東" }
+        val north = s.wpMarks.single { it.name == "北" }
+        assertEquals(listOf("東", "090°"), east.lines)
+        assertEquals(listOf("北"), north.lines)
+        // 1行の高さは WP の文字（Tuning.WP_LABEL_SP）の大きさ
+        assertEquals(HudSceneBuilder.lineHeight(Tuning.WP_LABEL_SP, m), east.linePx, 1e-3f)
+        // 2行の塊は印の上: いちばん下の行（方位）の中心が印から wpNameOffset
+        assertEquals(east.at.y - m.wpNameOffset - east.linePx / 2, east.nameAt!!.y, 1e-3f)
+        assertEquals(north.at.y - m.wpNameOffset, north.nameAt!!.y, 1e-3f)
+        // 文字の大きさは前より +2 sp（名前 13 → 15、矢印 11 → 13）
+        assertEquals(Tuning.LABEL_SP + 2, Tuning.WP_LABEL_SP, 0f)
+        assertEquals(13f, Tuning.WP_ARROW_LABEL_SP, 0f)
+    }
+
+    @Test
+    fun offScreenNextWaypointArrowHasThreeLines() {
+        // 画面外の次の WP（南西 9km）: 矢印の文字は 距離・名前・方位 の3行
+        val s = build(state(headingDeg = 0f, wps = listOf(wp("ダム", -6_000.0, -6_000.0)), next = 0))
+        val a = s.arrows.single()
+        assertEquals(listOf("8.49 km", "ダム", "225°"), a.lines)
+        assertEquals(HudSceneBuilder.lineHeight(Tuning.WP_ARROW_LABEL_SP, m), a.linePx, 1e-3f)
+        // 箱は3行分の高さ
+        assertEquals(a.linePx * 3 / 2, HudSceneBuilder.arrowTextBox(a.lines, a.textAt, m).hh, 1e-3f)
+    }
+
+    @Test
+    fun overlapCheckCoversTheBearingLine() {
+        // 次の WP（北 1km）の2行の塊（名前・方位）と、その少し北の WP の名前: 1行目の高さ 1.5 行分だけ北にあると、
+        // 名前だけなら重ならないが、2行の塊とは重なる → 次の WP の文字を残し、北の WP の名前は出さない
+        val line = HudSceneBuilder.lineHeight(Tuning.WP_LABEL_SP, m)
+        val pxPerM = 360.0 / 2_000.0
+        fun names(gapLines: Double): Map<String, P?> {
+            val gapM = gapLines * line / pxPerM
+            val s = build(state(headingDeg = 0f, wps = listOf(wp("A", 1_000.0), wp("B", 1_000.0 + gapM)), next = 0))
+            return s.wpMarks.associate { it.name to it.nameAt }
+        }
+        val close = names(1.5)
+        assertTrue(close["A"] != null)
+        assertNull(close["B"])
+        // 2.5 行分離れていれば、どちらも出す
+        val apart = names(2.5)
+        assertTrue(apart["A"] != null && apart["B"] != null)
+        // 箱の高さは行数分
+        assertEquals(line, HudSceneBuilder.wpTextBox(listOf("A", "000°"), P(0f, 0f), m).hh, 1e-3f)
+        assertEquals(line / 2, HudSceneBuilder.wpTextBox(listOf("B"), P(0f, 0f), m).hh, 1e-3f)
+    }
+
+    @Test
+    fun nextWaypointLineIsLongDashedAndRubberLineIsSolid() {
+        val s = build(state(headingDeg = 0f, wps = listOf(wp("A", 1_000.0, 300.0)), next = 0))
+        val active = s.segments.single { it.ink == Ink.ACTIVE }
+        assertTrue(active.longDash)
+        assertFalse(active.dashed)
+        // 自機の方位線（ラバーライン）は今のまま実線
+        val rubber = s.segments.single { it.ink == Ink.OWNSHIP }
+        assertFalse(rubber.longDash || rubber.dashed)
+        // 長い破線のすき間は、無効 WP の破線より長い
+        assertTrue(Tuning.ACTIVE_DASH_OFF_DP > Tuning.DASH_OFF_DP && Tuning.ACTIVE_DASH_ON_DP > Tuning.DASH_ON_DP)
     }
 }

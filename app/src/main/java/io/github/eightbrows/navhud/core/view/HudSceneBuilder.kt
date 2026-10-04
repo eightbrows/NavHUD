@@ -216,8 +216,8 @@ object HudSceneBuilder {
     }
 
     /**
-     * ARC: 全周の距離環、描画の枠（画面）の縁に置く方位目盛り、30° ごとの方位線、ラバーライン、上部中央の三角。
-     * 距離環は描画領域（rect）の四隅まで描き、重ねた部品の下にもかかってよい。
+     * ARC: 全周の距離環、描画の枠（画面）の縁に置く方位目盛り（1周分。自機の後ろ側も）、30° ごとの方位線、ラバーライン、
+     * 上部中央の三角。距離環と後ろ側の目盛り・文字は、重ねた部品（WP 列・プロファイル・再生の帯）の下にかかってよい。
      */
     private fun buildArcScale(
         proj: HudProjection,
@@ -239,7 +239,6 @@ object HudSceneBuilder {
 
         for (b in 0 until 360 step 10) {
             val a = proj.screenAngle(b.toDouble())
-            if (a < -90.0 || a > 90.0) continue
             val edge = HudGeometry.rayToRect(o, a, frame)
             val major = b % 30 == 0
             val inner = HudGeometry.pointAt(edge, a + 180, if (major) m.tickMajor else m.tickMinor)
@@ -384,8 +383,10 @@ object HudSceneBuilder {
             }
             segments += Segment(pts[i], pts[j], ink, dashed)
         }
-        // 自機から次の WP への線（マゼンタ）
-        if (next != null && ownAt != null) segments += Segment(ownAt, pts[next], Ink.ACTIVE, bold = true)
+        // 自機から次の WP への方位線（マゼンタの長い破線。ラバーラインと重なっても、すき間から自機の線が見える）
+        if (next != null && ownAt != null) segments += Segment(ownAt, pts[next], Ink.ACTIVE, bold = true, longDash = true)
+        // 次の WP の方位（自機から。HDG と同じ真北基準の3桁）
+        val nextBearing = next?.let { HudFormat.bearing(Geo.bearingDeg(fix.lat, fix.lon, wps[it].lat, wps[it].lon)) }
 
         // inner: 矢印を置く枠（TargetFrame の縁から edgeInset 内側）
         // 文字を置かない所: 自機の記号、方位目盛り・距離環の文字、画面内の WP の印と名前、数値の表示、操作列
@@ -402,24 +403,28 @@ object HudSceneBuilder {
         val marks = mutableListOf<WpMark>()
         // 印は描画の枠の中なら描く（重ねた表示の下でも）
         val inFrame = shown.filter { drawFrame.contains(pts[it]) }
-        // 名前: 重ねた数値の表示・ボタン類と重なるなら出さない。名前どうしが重なるなら、次の WP の名前を残し、
-        // ほかはルートの順に先に置いた名前を残す（もう一方は印と線だけ）
+        // 文字: 次の WP は 名前・方位 の2行、ほかは名前だけ。重ねた数値の表示・ボタン類と重なるなら出さない。
+        // 文字どうしが重なるなら、次の WP の文字を残し、ほかはルートの順に先に置いた文字を残す（もう一方は印と線だけ）。
+        // 重なりは行数分の高さの箱で判定する
+        fun linesOf(i: Int) = if (i == next) listOfNotNull(wps[i].name, nextBearing) else listOf(wps[i].name)
         val names = HashMap<Int, P?>()
         val nameBoxes = mutableListOf<Box>()
         for (i in inFrame.sortedBy { if (it == next) -1 else inFrame.indexOf(it) }) {
             val wp = wps[i]
-            val nameHw = textHalfWidth(wp.name, m) * LABEL_WIDTH_RATIO
-            val nameAt = placeWpName(wp.name, pts[i], ownShipBox, m, allowBelow = !wp.reached)
-                ?.takeIf { p -> (numberBoxes + nameBoxes).none { it.overlaps(Box(p, nameHw, m.arrowLabelLine / 2)) } }
+            val lines = linesOf(i)
+            val nameAt = placeWpLines(lines, pts[i], ownShipBox, m, allowBelow = !wp.reached)
+                ?.takeIf { p -> (numberBoxes + nameBoxes).none { it.overlaps(wpTextBox(lines, p, m)) } }
             names[i] = nameAt
-            if (nameAt != null) nameBoxes += Box(nameAt, nameHw, m.arrowLabelLine / 2)
+            if (nameAt != null) nameBoxes += wpTextBox(lines, nameAt, m)
         }
+        val wpLinePx = lineHeight(Tuning.WP_LABEL_SP, m)
         for (i in inFrame) {
             val wp = wps[i]
             val nameAt = names[i]
-            marks += WpMark(pts[i], wp.name, wpInk(wp, i == next), dashed = !wp.enabled, nameAt = nameAt)
+            val lines = linesOf(i)
+            marks += WpMark(pts[i], wp.name, wpInk(wp, i == next), dashed = !wp.enabled, nameAt = nameAt, lines = lines, linePx = wpLinePx)
             obstacles += Box(pts[i], m.pointerSize * 0.6f, m.pointerSize * 0.6f)
-            if (nameAt != null) obstacles += Box(nameAt, textHalfWidth(wp.name, m) * LABEL_WIDTH_RATIO, m.arrowLabelLine / 2)
+            if (nameAt != null) obstacles += wpTextBox(lines, nameAt, m)
         }
         val arrows = mutableListOf<EdgeArrow>()
         for (i in shown) {
@@ -436,16 +441,24 @@ object HudSceneBuilder {
                 // 縁に来る）に来るなら、縁に沿ってずらす
                 val at = slideArrow(inner.rayHit(proj.origin, a), inner, labelBoxes + arrowKeepOut + ownShipBox, m)
                 val dist = Geo.distanceM(fix.lat, fix.lon, wp.lat, wp.lon)
-                val text = "${wp.name} ${HudFormat.distance(dist)}"
+                // 3行: 距離・名前・方位
+                val lines = listOfNotNull(HudFormat.distance(dist), wp.name, nextBearing)
+                val box0 = arrowTextBox(lines, P(0f, 0f), m)
+                // 自機への線（マゼンタ）と重ならないよう、線と直角に、文字の塊が線にかからない所までずらす
+                val r = Math.toRadians(a)
+                val clear = box0.hw * kotlin.math.abs(kotlin.math.cos(r)).toFloat() + box0.hh * kotlin.math.abs(kotlin.math.sin(r)).toFloat() +
+                    m.arrowLabelLine * 0.25f
                 val textAt = placeArrowText(
-                    text,
-                    // 自機への線（マゼンタ）と重ならないよう、線と直角に少しずらす
-                    HudGeometry.pointAt(HudGeometry.pointAt(at, a + 180, m.arrowTextGap), a + 90, m.arrowLabelLine * 0.75f),
+                    lines,
+                    HudGeometry.pointAt(HudGeometry.pointAt(at, a + 180, m.arrowTextGap), a + 90, clear),
                     // 矢印そのものにも重ねない
                     a, inner.outer, obstacles + Box(at, m.pointerSize, m.pointerSize), m,
                 )
-                obstacles += Box(textAt, textHalfWidth(text, m), m.arrowLabelLine / 2)
-                arrows += EdgeArrow(at = at, angleDeg = a.toFloat(), text = text, textAt = textAt, ink = ink)
+                obstacles += arrowTextBox(lines, textAt, m)
+                arrows += EdgeArrow(
+                    at = at, angleDeg = a.toFloat(), lines = lines, textAt = textAt, ink = ink,
+                    linePx = lineHeight(Tuning.WP_ARROW_LABEL_SP, m),
+                )
             }
         }
         return marks to arrows
@@ -487,42 +500,62 @@ object HudSceneBuilder {
             kotlin.math.abs(c.x - o.c.x) < hw + o.hw && kotlin.math.abs(c.y - o.c.y) < hh + o.hh
     }
 
+    /** WP の名前（1行）の位置。placeWpLines の1行の場合。 */
+    internal fun placeWpName(name: String, at: P, ownShip: Box, m: HudMetrics, allowBelow: Boolean = true): P? =
+        placeWpLines(listOf(name), at, ownShip, m, allowBelow)
+
     /**
-     * WP の名前の位置: 印の上。自機の記号と重なるなら下、それでも重なるなら null（名前を描かない）。
+     * WP の文字の塊（lines）の中心: 印の上（いちばん下の行の中心が印から wpNameOffset）。自機の記号と重なるなら下
+     * （いちばん上の行が印から wpNameOffset）、それでも重なるなら null（文字を描かない）。
      * 到達済みの WP（allowBelow = false）は下へ逃がさず、重なるなら描かない（PAN 中も同じ）。
      */
-    internal fun placeWpName(name: String, at: P, ownShip: Box, m: HudMetrics, allowBelow: Boolean = true): P? {
-        val hw = textHalfWidth(name, m) * LABEL_WIDTH_RATIO
-        val above = P(at.x, at.y - m.wpNameOffset)
-        return listOfNotNull(above, P(at.x, at.y + m.wpNameOffset).takeIf { allowBelow })
-            .firstOrNull { !Box(it, hw, m.arrowLabelLine / 2).overlaps(ownShip) }
+    internal fun placeWpLines(lines: List<String>, at: P, ownShip: Box, m: HudMetrics, allowBelow: Boolean = true): P? {
+        val d = m.wpNameOffset + (lines.size - 1) * lineHeight(Tuning.WP_LABEL_SP, m) / 2
+        return listOfNotNull(P(at.x, at.y - d), P(at.x, at.y + d).takeIf { allowBelow })
+            .firstOrNull { !wpTextBox(lines, it, m).overlaps(ownShip) }
     }
 
     /**
-     * 矢印の文字の位置。枠からはみ出さないよう詰め、文字を置かない所（自機・方位目盛り・先に置いた文字）と重なるなら、
-     * 自機側・線と直角の両側へ1行ずつずらした候補を順に試す（最大3行）。どれも重なるなら最初の位置。
+     * 矢印の文字の塊の位置。枠からはみ出さないよう詰め、文字を置かない所（自機・方位目盛り・先に置いた文字）と重なるなら、
+     * 自機側・線と直角の両側へ、塊の高さずつずらした候補を順に試す（最大3つ分）。どれも重なるなら最初の位置。
      */
-    private fun placeArrowText(text: String, start: P, angleDeg: Double, frame: HudRect, obstacles: List<Box>, m: HudMetrics): P {
-        val half = textHalfWidth(text, m)
+    private fun placeArrowText(lines: List<String>, start: P, angleDeg: Double, frame: HudRect, obstacles: List<Box>, m: HudMetrics): P {
+        val b = arrowTextBox(lines, start, m)
         fun clamp(p: P) = P(
-            p.x.coerceIn(frame.left + half, maxOf(frame.left + half, frame.right - half)),
-            p.y.coerceIn(frame.top + m.arrowLabelLine / 2, maxOf(frame.top, frame.bottom - m.arrowLabelLine / 2)),
+            p.x.coerceIn(frame.left + b.hw, maxOf(frame.left + b.hw, frame.right - b.hw)),
+            p.y.coerceIn(frame.top + b.hh, maxOf(frame.top + b.hh, frame.bottom - b.hh)),
         )
-        val line = m.arrowLabelLine
+        val step = b.hh * 2
         val candidates = sequence {
             yield(start)
             for (n in 1..Tuning.ARROW_TEXT_MAX_SHIFT_LINES) {
-                yield(HudGeometry.pointAt(start, angleDeg + 180, line * n))
-                yield(HudGeometry.pointAt(start, angleDeg + 90, line * n))
-                yield(HudGeometry.pointAt(start, angleDeg - 90, line * n))
+                yield(HudGeometry.pointAt(start, angleDeg + 180, step * n))
+                yield(HudGeometry.pointAt(start, angleDeg + 90, step * n))
+                yield(HudGeometry.pointAt(start, angleDeg - 90, step * n))
             }
         }.map(::clamp)
-        return candidates.firstOrNull { p -> obstacles.none { it.overlaps(Box(p, half, line / 2)) } } ?: clamp(start)
+        return candidates.firstOrNull { p -> obstacles.none { it.overlaps(b.copy(c = p)) } } ?: clamp(start)
     }
 
-    /** 文字の幅の半分の目安。全角（日本語など）は半角2文字分として数える。 */
+    /** 文字の幅の半分の目安（HUD_TEXT_METRICS_SP の文字で）。全角（日本語など）は半角2文字分として数える。 */
     internal fun textHalfWidth(text: String, m: HudMetrics): Float =
         text.sumOf { c -> if (c.code >= 0x2E80) 2 else 1 }.toInt() * m.labelCharWidth / 2
+
+    /** 文字の大きさ sp の1行の高さ [px]。 */
+    internal fun lineHeight(sp: Float, m: HudMetrics): Float = m.arrowLabelLine * sp / Tuning.HUD_TEXT_METRICS_SP
+
+    /** 文字の大きさ sp の複数行の塊（中心 at）の箱。幅はいちばん長い行、高さは行数分。 */
+    internal fun textBlockBox(lines: List<String>, at: P, sp: Float, m: HudMetrics): Box {
+        val k = sp / Tuning.HUD_TEXT_METRICS_SP
+        val hw = (lines.maxOfOrNull { textHalfWidth(it, m) } ?: 0f) * k
+        return Box(at, hw, lines.size * lineHeight(sp, m) / 2)
+    }
+
+    /** 地図上の WP の文字（名前・方位）の箱。 */
+    internal fun wpTextBox(lines: List<String>, at: P, m: HudMetrics) = textBlockBox(lines, at, Tuning.WP_LABEL_SP, m)
+
+    /** 画面外の矢印の文字（距離・名前・方位）の箱。 */
+    internal fun arrowTextBox(lines: List<String>, at: P, m: HudMetrics) = textBlockBox(lines, at, Tuning.WP_ARROW_LABEL_SP, m)
 
     /**
      * HUD に描く WP の番号（登録順）。次の WP から先の目標（有効かつ未到達）count 個と、その直前に到達した WP を1つ。
@@ -570,6 +603,6 @@ object HudSceneBuilder {
         P(rect.left, rect.top), P(rect.right, rect.top), P(rect.left, rect.bottom), P(rect.right, rect.bottom),
     ).maxOf { HudGeometry.dist(o, it) }
 
-    /** 方位目盛り・WP の名前（13sp）と、矢印の文字（11sp、labelCharWidth の基準）の幅の比 */
-    private const val LABEL_WIDTH_RATIO = 13f / 11f
+    /** 方位目盛りの文字（13sp）と、labelCharWidth を測った文字（11sp）の幅の比 */
+    private const val LABEL_WIDTH_RATIO = Tuning.LABEL_SP / Tuning.HUD_TEXT_METRICS_SP
 }

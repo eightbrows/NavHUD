@@ -67,11 +67,11 @@ object Tuning {
     const val AUTO_HOLD_AFTER_WP_SEC = 10
     const val AUTO_HOLD_AFTER_WP_MAX_SEC = 60
 
-    /** AUTO: 狭め始める距離 = これ × 1段狭い段の R1（次の WP がこの距離以内のときだけ狭める）。既定と範囲・刻み */
-    const val AUTO_ZOOM_IN_DIST_RATIO = 2.0
+    /** AUTO: 狭め始める距離 = これ × 今の段の R1（1つ目の距離環。次の WP がこの距離以内のときだけ狭める）。既定と範囲・刻み */
+    const val AUTO_ZOOM_IN_DIST_RATIO = 1.3
     const val AUTO_ZOOM_IN_DIST_RATIO_MIN = 1.0
-    const val AUTO_ZOOM_IN_DIST_RATIO_MAX = 4.0
-    const val AUTO_ZOOM_IN_DIST_RATIO_STEP = 0.5
+    const val AUTO_ZOOM_IN_DIST_RATIO_MAX = 3.0
+    const val AUTO_ZOOM_IN_DIST_RATIO_STEP = 0.1
 
     // ---- WP の到達判定（§5.4）。移動手段「自動車」の推奨値（自転車・徒歩はあとで足す） ----
 
@@ -104,16 +104,18 @@ object Tuning {
     const val HUD_NORTH_UP_EDGE_MARGIN_DP = 8f
     /** 方位マーカー（三角）の大きさ */
     const val HUD_POINTER_DP = 14f
-    /** 矢印の文字の1行の高さ（重なったときにずらす量） */
+    /** 文字の1行の高さの目安（HUD_TEXT_METRICS_SP の文字で。大きい文字はその比で伸ばす） */
     const val HUD_ARROW_LABEL_LINE_DP = 16f
-    /** 矢印の文字の1文字の幅の目安（等幅 11sp） */
+    /** 文字の1文字の幅の目安（等幅、HUD_TEXT_METRICS_SP の文字で。全角は2文字分） */
     const val HUD_LABEL_CHAR_WIDTH_DP = 7f
+    /** 上の2つ（1行の高さ・1文字の幅）を測った文字の大きさ [sp] */
+    const val HUD_TEXT_METRICS_SP = 11f
     /** AUTO 縮尺: 矢印の枠から、さらにこれだけ内側に収める */
     const val HUD_FIT_MARGIN_DP = 16f
     /** 自機の記号の大きさの目安（半幅・半高） */
     const val HUD_OWN_SHIP_CLEAR_DP = 16f
-    /** WP の印の中心から名前の中心まで */
-    const val HUD_WP_NAME_OFFSET_DP = 18f
+    /** WP の印の中心から、いちばん近い行（名前）の中心まで（WP の文字を大きくしたので 18 → 20） */
+    const val HUD_WP_NAME_OFFSET_DP = 20f
     /** 方位目盛りの文字の大きさの目安（半幅・半高） */
     const val HUD_COMPASS_LABEL_HALF_DP = 10f
 
@@ -215,13 +217,36 @@ object Tuning {
     const val DASH_ON_DP = 6f
     const val DASH_OFF_DP = 5f
 
+    /**
+     * 次の WP への方位線（マゼンタ）の長い破線: 線 / すき間 [dp]。自機の方位線（ラバーライン）と重なっても、
+     * すき間から自機の線が見えるように
+     */
+    const val ACTIVE_DASH_ON_DP = 18f
+    const val ACTIVE_DASH_OFF_DP = 12f
+
     /** 数値の表示の文字の黒の縁取りの太さ [dp] */
     const val TEXT_OUTLINE_DP = 2.5f
 
-    /** 文字の大きさ [sp]: 方位目盛り・WP の名前 / 画面外の矢印 / 距離環 */
+    /** 数値の表示: 欄の間のすき間 [dp]、見出しと値の間 [dp] */
+    const val NUMBERS_CELL_GAP_DP = 10f
+    const val NUMBERS_CAPTION_PAD_DP = 4f
+
+    /**
+     * 数値の1行目（TIME / ALT / RATE）の、いちばん長くなる見出しと値。この幅は必ず取る（切れないように）。
+     * RATE は 60 秒の窓で 10 km 近く・高低差 3 桁まで
+     */
+    val NUMBERS_ROW1_SAMPLES = listOf("TIME" to "88:88:88", "ALT" to "8888 m", "RATE 60s" to "88.8 km  +888 m")
+
+    /** 数値の1行目の、余った幅の分け方（TIME : ALT : RATE。前の欄の比率） */
+    val NUMBERS_ROW1_WEIGHTS = listOf(1f, 0.85f, 1.55f)
+
+    /** 文字の大きさ [sp]: 方位目盛り / 距離環 */
     const val LABEL_SP = 13f
-    const val ARROW_LABEL_SP = 11f
     const val RING_LABEL_SP = 10f
+
+    /** WP の文字の大きさ [sp]: 地図上の名前・方位（前は 13）/ 画面外の矢印の距離・名前・方位（前は 11） */
+    const val WP_LABEL_SP = 15f
+    const val WP_ARROW_LABEL_SP = 13f
 
     /** 図形の大きさ [dp]: WP の印（ひし形の半径）/ 画面外の矢印（三角）/ 自機（三角の基準 / 方位なしの丸の半径） */
     const val WP_MARK_DP = 6f

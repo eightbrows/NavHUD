@@ -200,9 +200,9 @@ class RangeSelectorTest {
 
     @Test
     fun zoomInDistanceRatioDecidesWhenToStartNarrowing() {
-        // 1km の段で次の WP に近づいていく（1 秒に 10m）。1段狭い 500m の段の R1 は 250m。
+        // 1km の段（今の R1 は 500m）で次の WP に近づいていく（1 秒に 10m）。
         // 画面は ARC の前方のように「段の 2 倍」まで収まるものとする（500m の段に 1.25 倍で収まるのは 800m 以内）
-        // 倍率 2.0（既定）: 500m 以内で狭め始め、5 秒続いたら狭める。倍率 1.0: 250m 以内から
+        // 倍率 1.3（既定）: 650m 以内で狭め始め、5 秒続いたら狭める。倍率 1.0: 今の1つ目の円（500m）に入ってから
         fun wide(d: Double) = object : RangeProbe {
             override fun fits(rangeM: Double, spread: Double) = d * spread <= rangeM * 2
             override val distanceM = d
@@ -215,12 +215,12 @@ class RangeSelectorTest {
             }
             return -1
         }
-        // 2.0: 50 秒目に 500m 以内 → 55 秒目に 500m の段
-        assertEquals(55L, firstNarrowAt(2.0))
-        // 1.0: 75 秒目に 250m 以内 → 80 秒目
-        assertEquals(80L, firstNarrowAt(1.0))
-        // 4.0: 1000m 以内なので距離では止めない。1.25 倍の余裕で決まる（800m 以内 = 20 秒目 → 25 秒目）
-        assertEquals(25L, firstNarrowAt(4.0))
+        // 1.3: 35 秒目に 650m 以内 → 40 秒目に 500m の段（WP は今の1つ目の円の外、600m）
+        assertEquals(40L, firstNarrowAt(1.3))
+        // 1.0: 50 秒目に 500m 以内 → 55 秒目
+        assertEquals(55L, firstNarrowAt(1.0))
+        // 3.0: 1500m 以内なので距離では止めない。1.25 倍の余裕で決まる（800m 以内 = 20 秒目 → 25 秒目）
+        assertEquals(25L, firstNarrowAt(3.0))
     }
 
     @Test

@@ -157,12 +157,14 @@ class HudViewportTest {
         assertEquals(1_000.0, autoRange(30, at(166.0, 4_190.0), initialKm = 0.1), 0.0)
         // 前方 1.9km: 1km の段に収まる。500m の段には 1.25 倍で収まらないので 1km の段のまま
         assertEquals(1_000.0, autoRange(30, EN(0.0, 1_900.0)), 0.0)
-        // 前方 130m: 1段ずつ、それぞれ 5 秒待って狭める（5 秒で 500m、11 秒で 200m の段）。100m の段（R1 50m）へは、
-        // 次の WP が 2.0 × 50m = 100m 以内になるまで狭めない（既定の到達半径 100m なので、その前に到達する）
-        assertEquals(500.0, autoRange(5, EN(0.0, 130.0)), 0.0)
-        assertEquals(200.0, autoRange(16, EN(0.0, 130.0)), 0.0)
-        assertEquals(200.0, autoRange(17, EN(0.0, 130.0)), 0.0)
-        assertEquals(200.0, autoRange(60, EN(0.0, 130.0)), 0.0)
+        // 前方 140m: 1段ずつ、それぞれ 5 秒待って狭める（5 秒で 500m、11 秒で 200m の段）。100m の段へは、
+        // 次の WP が 1.3 × 200m の段の R1（100m）= 130m 以内になるまで狭めない
+        assertEquals(500.0, autoRange(5, EN(0.0, 140.0)), 0.0)
+        assertEquals(200.0, autoRange(16, EN(0.0, 140.0)), 0.0)
+        assertEquals(200.0, autoRange(60, EN(0.0, 140.0)), 0.0)
+        // 前方 120m（130m 以内）: 200m の段からさらに 5 秒で 100m の段
+        assertEquals(200.0, autoRange(16, EN(0.0, 120.0)), 0.0)
+        assertEquals(100.0, autoRange(60, EN(0.0, 120.0)), 0.0)
         // 近い2つ（前方 300m と、その 100m 先）: 1km の段では 36 px で近すぎるので、すぐ 500m の段（72 px）
         assertEquals(500.0, autoRange(0, EN(0.0, 300.0), EN(0.0, 400.0)), 0.0)
         // 近い2つが遠くにある（前方 800m と、その 50m 先）: 1km の段（18 px）では近すぎるので 500m の段へ狭める。
