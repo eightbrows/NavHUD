@@ -16,3 +16,6 @@
 local.properties
 /sample
 /docs/reports
+# リリース署名の鍵（リポジトリに入れない）
+*.jks
+*.keystore

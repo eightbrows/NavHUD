@@ -1,0 +1,83 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - '*-R*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # タグの名前と app/build.gradle.kts の appVersionName が同じかを確かめる（バージョンは手で書き換える）。
+      # 手動実行（タグがない）のときは確かめない。改行が CRLF でも読めるよう、CR を取り除いてから探す。
+      - name: Check version name
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          VERSION_NAME=$(tr -d '\r' < app/build.gradle.kts | sed -n 's/^val appVersionName = "\(.*\)"$/\1/p')
+          echo "タグ: ${GITHUB_REF_NAME}"
+          echo "appVersionName: ${VERSION_NAME}"
+          if [ "${GITHUB_REF_NAME}" != "${VERSION_NAME}" ]; then
+            echo "タグの名前と appVersionName が違います。appVersionName を書き換えてコミットし、同じ名前のタグを付けてください。"
+            echo "  タグ: ${GITHUB_REF_NAME}"
+            echo "  appVersionName: ${VERSION_NAME}"
+            exit 1
+          fi
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Decode keystore
+        run: echo "${{ secrets.SIGNING_KEY }}" | base64 -d > "${{ github.workspace }}/keystore.jks"
+
+      - name: Build release APK
+        env:
+          KEYSTORE_PATH: ${{ github.workspace }}/keystore.jks
+          KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: ./gradlew assembleRelease
+
+      - name: Rename APK
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          # 署名済みビルドの成果物だけを対象にする。署名情報が渡っていないと AGP は
+          # app-release-unsigned.apk を出すので、それをリリースに載せないための番人。
+          SRC=app/build/outputs/apk/release/app-release.apk
+          if [ ! -f "$SRC" ]; then
+            echo "署名済み APK が見つかりません。シークレットが空になっていないか確認してください:"
+            ls -l app/build/outputs/apk/release
+            exit 1
+          fi
+          mkdir -p dist
+          cp "$SRC" "dist/navhud-${VERSION}.apk"
+          cp "$SRC" "dist/navhud-latest.apk"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk
+          path: dist/*.apk
+
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          files: |
+            dist/navhud-*.apk
+          generate_release_notes: true

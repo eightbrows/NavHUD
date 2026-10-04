@@ -360,3 +360,9 @@ lat,lon,ele,name,target_time,deadline_time,enabled,radius
 （決定済み: WP CSV には enabled を保存し、reached は保存しない。§7.1）
 （決定済み: リプレイの早送り（×1 / ×2 / ×5 / ×10 / ×30）とシーク（スライダー）。§6.7）
 （予約: 将来、測位ソース（GPS / GNSS の種類など）を表示するときの名前は「POS」とする。方位ソースは HDG、入力は INPUT。）
+
+## 11. ビルドとリリース
+- バージョン名は `app/build.gradle.kts` の `appVersionName`（`yyyyMMdd-Xnn`。X は D = 開発版、R = リリース版、nn はその日の通し番号 01〜99）を手で書き換える。git のコミット数やタグから自動では決めない。versionCode はそこから自動で決まる（yyyyMMdd × 100 + nn）。
+- リリースの手順: `appVersionName` を `20261004-R01` のように `-Rnn` に書き換えてコミットし、同じ名前のタグを付けて push する。GitHub Actions（`.github/workflows/release.yml`）がリリース用の APK を作り、GitHub のリリースに載せる。
+- タグの名前と `appVersionName` が違うと、ビルドは失敗する（両方の値を出す）。
+- リリースビルドは R8 でコードを縮小し（`optimization { enable = true }`）、未使用リソースを削除する（`isShrinkResources = true`）。残す規則は `app/proguard-rules.pro`。言語の文字列は日本語・英語だけを入れる（`androidResources { localeFilters += listOf("ja", "en") }`。ほかの言語の端末では、ライブラリの文字が英語になる）。
