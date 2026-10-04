@@ -265,9 +265,13 @@ object Tuning {
     /** 数値の1行目の、余った幅の分け方（TIME : ALT : RATE。前の欄の比率） */
     val NUMBERS_ROW1_WEIGHTS = listOf(1f, 0.85f, 1.55f)
 
-    /** 文字の大きさ [sp]: 方位目盛り / 距離環 */
+    /** 文字の大きさ [sp]: 方位目盛り / 距離環（距離環の数字は、これに設定の大きさ ringLabelScalePct を掛ける） */
     const val LABEL_SP = 13f
     const val RING_LABEL_SP = 10f
+
+    /** 距離環の数字の大きさ [%]（RING_LABEL_SP を 100% として）の既定と選べる値 */
+    const val RING_LABEL_SCALE_DEFAULT_PCT = 200
+    val RING_LABEL_SCALE_CHOICES_PCT = listOf(100, 150, 200, 250)
 
     /** WP の文字の大きさ [sp]: 地図上の名前・方位（前は 13）/ 画面外の矢印の距離・名前・方位（前は 11） */
     const val WP_LABEL_SP = 15f

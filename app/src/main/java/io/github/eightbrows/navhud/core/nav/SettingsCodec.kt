@@ -48,6 +48,7 @@ object SettingsCodec {
         "buttonOpacityPct" to s.buttonOpacityPct.toString(),
         "numbersOpacityPct" to s.numbersOpacityPct.toString(),
         "trackBrightnessPct" to s.trackBrightnessPct.toString(),
+        "ringLabelScalePct" to s.ringLabelScalePct.toString(),
     ) + s.customReach.withIndex().flatMap { (i, p) -> encodeProfile("custom${i + 1}.", p).toList() }.toMap()
 
     private fun encodeProfile(prefix: String, p: ReachProfile): Map<String, String> = mapOf(
@@ -173,6 +174,9 @@ object SettingsCodec {
             // 読み込んだ軌跡の明るさ: 25 / 50 / 75 / 100 以外は既定値
             trackBrightnessPct = int("trackBrightnessPct", d.trackBrightnessPct).takeIf { it in NavSettings.TRACK_BRIGHTNESS_CHOICES_PCT }
                 ?: d.trackBrightnessPct,
+            // 距離環の数字の大きさ: 100 / 150 / 200 / 250 以外は既定値
+            ringLabelScalePct = int("ringLabelScalePct", d.ringLabelScalePct).takeIf { it in NavSettings.RING_LABEL_SCALE_CHOICES_PCT }
+                ?: d.ringLabelScalePct,
         ).selectTravelMode(travelMode)
     }
 

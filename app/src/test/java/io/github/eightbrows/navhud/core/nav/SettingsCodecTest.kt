@@ -39,6 +39,7 @@ class SettingsCodecTest {
             buttonOpacityPct = 40,
             numbersOpacityPct = 60,
             trackBrightnessPct = 75,
+            ringLabelScalePct = 150,
             autoMinRangeKm = 0.2,
             autoMaxRangeKm = 5.0,
             autoHoldAfterWpSec = 20,
@@ -130,6 +131,27 @@ class SettingsCodecTest {
         }
         // 保存がない（前の版）なら既定値
         assertEquals(50, SettingsCodec.decode(mapOf("travelMode" to "CAR")).trackBrightnessPct)
+    }
+
+    @Test
+    fun ringLabelScaleIsSavedAndInvalidValuesAreDefault() {
+        // 距離環の数字の大きさ: 既定 200%（D12 までの2倍）、100 / 150 / 200 / 250 から選ぶ
+        assertEquals(200, NavSettings().ringLabelScalePct)
+        assertEquals(listOf(100, 150, 200, 250), NavSettings.RING_LABEL_SCALE_CHOICES_PCT)
+        // 保存して読み直すと同じ値
+        for (v in NavSettings.RING_LABEL_SCALE_CHOICES_PCT) {
+            val s = NavSettings(ringLabelScalePct = v)
+            assertEquals(v.toString(), SettingsCodec.encode(s)["ringLabelScalePct"])
+            assertEquals(s, SettingsCodec.decode(SettingsCodec.encode(s)))
+        }
+        // 範囲外・選べない値・読めない値は、その項目だけ既定値（ほかの項目はそのまま）
+        for (bad in listOf("0", "50", "175", "300", "x", "")) {
+            val s = SettingsCodec.decode(mapOf("ringLabelScalePct" to bad, "trackBrightnessPct" to "75"))
+            assertEquals(200, s.ringLabelScalePct)
+            assertEquals(75, s.trackBrightnessPct)
+        }
+        // 保存がない（前の版）なら既定値
+        assertEquals(200, SettingsCodec.decode(mapOf("travelMode" to "CAR")).ringLabelScalePct)
     }
 
     @Test

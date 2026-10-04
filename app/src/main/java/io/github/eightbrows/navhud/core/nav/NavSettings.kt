@@ -134,6 +134,8 @@ data class NavSettings(
     val numbersOpacityPct: Int = Tuning.NUMBERS_OPACITY_DEFAULT_PCT,
     /** 読み込んだ軌跡（REPLAY のトラック全体の線。グレー）の明るさ [%]。25 / 50 / 75 / 100（100 がいちばん明るい） */
     val trackBrightnessPct: Int = Tuning.TRACK_BRIGHTNESS_DEFAULT_PCT,
+    /** 距離環の数字の大きさ [%]。Tuning.RING_LABEL_SP（10sp）を 100% として 100 / 150 / 200 / 250 */
+    val ringLabelScalePct: Int = Tuning.RING_LABEL_SCALE_DEFAULT_PCT,
 ) {
     companion object {
         val WP_BUTTONS_MAX_RANGE = 3..6
@@ -165,6 +167,9 @@ data class NavSettings(
 
         /** 読み込んだ軌跡の明るさ [%] の選べる値 */
         val TRACK_BRIGHTNESS_CHOICES_PCT = Tuning.TRACK_BRIGHTNESS_CHOICES_PCT
+
+        /** 距離環の数字の大きさ [%] の選べる値 */
+        val RING_LABEL_SCALE_CHOICES_PCT = Tuning.RING_LABEL_SCALE_CHOICES_PCT
 
         val AUTO_HOLD_AFTER_WP_SEC_RANGE = 0..Tuning.AUTO_HOLD_AFTER_WP_MAX_SEC
 

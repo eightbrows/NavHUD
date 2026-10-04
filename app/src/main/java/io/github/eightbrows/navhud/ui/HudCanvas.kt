@@ -81,7 +81,7 @@ fun HudCanvas(
                 }
             },
     ) {
-        scene?.let { drawScene(it, textMeasurer, density, state.settings.buttonOpacityPct / 100f) }
+        scene?.let { drawScene(it, textMeasurer, density, state.settings.buttonOpacityPct / 100f, ringLabelStyle(state.settings.ringLabelScalePct)) }
     }
 }
 
@@ -91,12 +91,12 @@ private val LabelStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize =
 private val WpLabelStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = Tuning.WP_LABEL_SP.sp)
 private val WpArrowLabelStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = Tuning.WP_ARROW_LABEL_SP.sp)
 
-/** 距離環の文字: 方位目盛り（13sp）より小さく、色も薄い（SCALE_DIM） */
-private val RingLabelStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = Tuning.RING_LABEL_SP.sp)
+/** 距離環の数字: Tuning.RING_LABEL_SP に設定の大きさ（ringLabelScalePct）を掛ける */
+private fun ringLabelStyle(scalePct: Int) = TextStyle(fontFamily = FontFamily.Monospace, fontSize = (Tuning.RING_LABEL_SP * scalePct / 100f).sp)
 
 private fun P.o() = Offset(x, y)
 
-private fun DrawScope.drawScene(scene: HudScene, tm: TextMeasurer, density: Float, buttonAlpha: Float) {
+private fun DrawScope.drawScene(scene: HudScene, tm: TextMeasurer, density: Float, buttonAlpha: Float, ringStyle: TextStyle) {
     val thin = Tuning.LINE_THIN_DP * density
     val bold = Tuning.LINE_BOLD_DP * density
     val dash = PathEffect.dashPathEffect(floatArrayOf(Tuning.DASH_ON_DP * density, Tuning.DASH_OFF_DP * density))
@@ -140,7 +140,7 @@ private fun DrawScope.drawScene(scene: HudScene, tm: TextMeasurer, density: Floa
     for (l in scene.labels) {
         // 距離環の数字は UI の色で、不透明度はボタンと同じ
         val c = HudColors.ofMap(l.ink).let { if (l.ink == Ink.RING_LABEL) it.copy(alpha = it.alpha * buttonAlpha) else it }
-        drawLabel(tm, l.text, l.at, c, if (l.small) RingLabelStyle else LabelStyle)
+        drawLabel(tm, l.text, l.at, c, if (l.small) ringStyle else LabelStyle)
     }
 
     for (w in scene.wpMarks) {

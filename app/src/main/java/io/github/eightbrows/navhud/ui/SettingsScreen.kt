@@ -92,7 +92,7 @@ fun SettingsScreen(
                 note = "地図に重ねるボタン（上部バー・操作列・WP ボタン列・再生の帯）。ON の塗りはさらに半分",
             ) { v -> onChange { it.copy(buttonOpacityPct = v) } }
             PercentSlider(
-                "数値の不透明度（お試し）", s.numbersOpacityPct,
+                "数値の不透明度", s.numbersOpacityPct,
                 note = "上の4行の数値。警告の表示（締切超過・CAL / MAG）は常に 100%",
             ) { v -> onChange { it.copy(numbersOpacityPct = v) } }
             PercentSlider(
@@ -100,6 +100,11 @@ fun SettingsScreen(
                 note = "REPLAY のトラック全体の線（グレー）。走った跡の線は変わらない",
                 choices = NavSettings.TRACK_BRIGHTNESS_CHOICES_PCT,
             ) { v -> onChange { it.copy(trackBrightnessPct = v) } }
+            PercentSlider(
+                "距離環の数字の大きさ", s.ringLabelScalePct,
+                note = "距離環の左右に付ける数字（250・1k など）。100% が D12 までの大きさ",
+                choices = NavSettings.RING_LABEL_SCALE_CHOICES_PCT,
+            ) { v -> onChange { it.copy(ringLabelScalePct = v) } }
             Choice(
                 "ARC の自機の位置",
                 listOf("標準" to OwnshipPosition.STANDARD, "高め" to OwnshipPosition.HIGH),
