@@ -5,6 +5,7 @@ import android.net.Uri
 import android.os.SystemClock
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import io.github.eightbrows.navhud.R
 import io.github.eightbrows.navhud.core.Tuning
 import io.github.eightbrows.navhud.core.io.CoordinateText
 import io.github.eightbrows.navhud.core.model.Fix
@@ -52,7 +53,7 @@ data class ReplayUiState(
     val skippedLines: Int = 0,
     val loading: Boolean = false,
     val finished: Boolean = false,
-    val message: String? = null,
+    val message: UiText? = null,
     /** 倍速（×1 / ×2 / ×5 / ×10 / ×30） */
     val speed: Int = 1,
     /** トラックの最初と最後の時刻（シークバーの範囲） */
@@ -68,7 +69,7 @@ data class WaypointUiState(
     val listName: String? = null,
     /** 未エクスポートの編集がある */
     val dirty: Boolean = false,
-    val message: String? = null,
+    val message: UiText? = null,
     /** 「前回のリスト」がある */
     val hasSavedList: Boolean = false,
     /** 起動時の選択（前回のリスト / リストを選ぶ / リストなし）をまだしていない */
@@ -268,7 +269,7 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
     private val waypoints: List<Waypoint> get() = engine.state.waypoints
 
     /** 編集した WP リストを反映する。未エクスポートの編集ありにする。 */
-    private fun edit(wps: List<Waypoint>, message: String? = null) {
+    private fun edit(wps: List<Waypoint>, message: UiText? = null) {
         publish(engine.setWaypoints(wps))
         _wp.value = _wp.value.copy(dirty = true, message = message)
     }
@@ -276,20 +277,20 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
     /** 逆順にする（§6.5）: 並びを反転し、到達済みをすべて解除する。 */
     fun reverseWaypoints() {
         if (waypoints.size < 2) return
-        edit(WaypointTimes.reverse(waypoints), "順番を逆にしました（到達済みはすべて解除）")
+        edit(WaypointTimes.reverse(waypoints), uiText(R.string.msg_reversed))
     }
 
     /** 時刻を一括調整する（§6.5）。基準の WP（index）の目標時刻を target にして、前後を決め直す。 */
     fun adjustWaypointTimes(index: Int, target: LocalTime) {
         val next = WaypointTimes.adjust(waypoints, index, target)
         if (next == waypoints) return
-        edit(next, "時刻を一括調整しました（基準: ${waypoints[index].name}）")
+        edit(next, uiText(R.string.msg_times_adjusted, waypoints[index].name))
     }
 
     /** 新しい WP の名前の既定値（WP<番号>）。 */
     fun defaultWaypointName(): String = "WP${waypoints.size + 1}"
 
-    fun addWaypoint(wp: Waypoint) = edit(waypoints + wp, "${wp.name} を追加しました")
+    fun addWaypoint(wp: Waypoint) = edit(waypoints + wp, uiText(R.string.msg_added, wp.name))
 
     fun updateWaypoint(index: Int, wp: Waypoint) {
         if (index !in waypoints.indices) return
@@ -299,7 +300,7 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
     fun deleteWaypoint(index: Int) {
         if (index !in waypoints.indices) return
         val name = waypoints[index].name
-        edit(waypoints.toMutableList().also { it.removeAt(index) }, "$name を削除しました")
+        edit(waypoints.toMutableList().also { it.removeAt(index) }, uiText(R.string.msg_deleted, name))
     }
 
     fun moveWaypoint(from: Int, to: Int) {
@@ -316,7 +317,7 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
     fun pasteCoordinates(text: String?) {
         val ll = text?.let(CoordinateText::parse)
         if (ll == null) {
-            _wp.value = _wp.value.copy(message = "クリップボードに座標がありません（例: 34.69370, 135.50230）")
+            _wp.value = _wp.value.copy(message = uiText(R.string.msg_no_clipboard_coord))
             return
         }
         addWaypoint(Waypoint(defaultWaypointName(), ll.lat, ll.lon))
@@ -339,10 +340,10 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
                     wpStore.remember(uri, writable = true)
                     _wp.value = _wp.value.copy(
                         listName = name, dirty = false, hasSavedList = true,
-                        message = "$name に ${wps.size} 件を書き出しました",
+                        message = uiText(R.string.msg_exported, name, wps.size.toString()),
                     )
                 }
-                .onFailure { e -> _wp.value = _wp.value.copy(message = "書き出せませんでした（${e.message}）") }
+                .onFailure { e -> _wp.value = _wp.value.copy(message = uiText(R.string.msg_export_failed, e.reason())) }
         }
     }
 
@@ -367,16 +368,18 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
                     val skipped = loaded.result.skippedLines
                     _wp.value = _wp.value.copy(
                         listName = loaded.displayName, dirty = false, loading = false, hasSavedList = true,
-                        message = "${loaded.displayName} から ${loaded.result.waypoints.size} 件を読み込みました" +
-                            if (skipped > 0) "（読めない行 $skipped 件をスキップ）" else "",
+                        message = uiText(
+                            R.string.msg_loaded, loaded.displayName, loaded.result.waypoints.size.toString(),
+                            if (skipped > 0) uiText(R.string.msg_skipped_lines, skipped.toString()) else "",
+                        ),
                     )
                 }
                 .onFailure { e ->
                     if (isSaved) wpStore.forget()
-                    val what = if (isSaved) "前回のリスト" else "選んだファイル"
+                    val what = uiText(if (isSaved) R.string.what_last_list else R.string.what_chosen_file)
                     _wp.value = _wp.value.copy(
                         loading = false, hasSavedList = wpStore.savedUri != null,
-                        message = "${what}を読めませんでした（${e.message}）",
+                        message = uiText(R.string.msg_read_failed, what, e.reason()),
                     )
                 }
         }
@@ -397,7 +400,7 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
     fun loadTemporaryWaypoints() {
         if (!canLoadTemporaryWaypoints) return
         publish(engine.setWaypoints(TemporaryWaypoints.fromTrack(trackFixes, zone)))
-        _wp.value = _wp.value.copy(listName = "仮 WP（開発用）", dirty = false, message = null)
+        _wp.value = _wp.value.copy(listName = getApplication<Application>().getString(R.string.temp_wp_list), dirty = false, message = null)
     }
 
     private fun load(uri: Uri, isSaved: Boolean) {
@@ -411,8 +414,8 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
                 .onFailure { e ->
                     store.forget()
                     if (kind == SourceKind.REPLAY) publish(engine.resetPosition())
-                    val what = if (isSaved) "前回のファイル" else "選んだファイル"
-                    _replay.value = ReplayUiState(message = "${what}を読めませんでした。もう一度選んでください（${e.message}）")
+                    val what = uiText(if (isSaved) R.string.what_last_file else R.string.what_chosen_file)
+                    _replay.value = ReplayUiState(message = uiText(R.string.msg_read_failed_retry, what, e.reason()))
                 }
         }
     }
@@ -421,7 +424,7 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
         val fixes = track.result.fixes
         if (fixes.isEmpty()) {
             _replay.value = ReplayUiState(
-                message = "${track.displayName} に読める行がありません（スキップ ${track.result.skippedLines} 行）",
+                message = uiText(R.string.msg_track_empty, track.displayName, track.result.skippedLines.toString()),
             )
             return
         }
@@ -568,3 +571,6 @@ data class LiveUiState(
     /** コンパスがある端末 */
     val hasCompass: Boolean = true,
 )
+
+/** 例外の理由（メッセージがなければ例外の種類）。 */
+private fun Throwable.reason(): String = message ?: javaClass.simpleName

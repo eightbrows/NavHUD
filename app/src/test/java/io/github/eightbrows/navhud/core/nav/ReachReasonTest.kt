@@ -45,7 +45,7 @@ class ReachReasonTest {
         assertEquals(ReachReason.RADIUS, r.reason)
         assertEquals(t0 + 21_000, r.timeMs)
         assertEquals(187.4, r.closestM!!, 1.0)
-        assertEquals("半径 08:00:21 最接近 187 m", HudFormat.reach(r, jst))
+        assertEquals(HudFormat.ReachLine(ReachReason.RADIUS, false, "08:00:21", "187"), HudFormat.reach(r, jst))
     }
 
     @Test
@@ -65,7 +65,7 @@ class ReachReasonTest {
         assertEquals(ReachReason.SIDE, r.reason)
         assertEquals(t0 + 36_000, r.timeMs)
         assertEquals(30.0, r.closestM!!, 0.5)
-        assertEquals("真横 08:00:36 最接近 30 m", HudFormat.reach(r, jst))
+        assertEquals(HudFormat.ReachLine(ReachReason.SIDE, false, "08:00:36", "30"), HudFormat.reach(r, jst))
     }
 
     @Test
@@ -89,7 +89,7 @@ class ReachReasonTest {
         assertEquals(ReachReason.MANUAL, r.reason)
         assertEquals(t0 + 5_000, r.timeMs)
         assertNull(r.closestM)
-        assertEquals("手動 08:00:05", HudFormat.reach(r, jst))
+        assertEquals(HudFormat.ReachLine(ReachReason.MANUAL, false, "08:00:05", null), HudFormat.reach(r, jst))
         assertNull(e.toggleReached(0).waypoints.single().reach)
     }
 
@@ -105,7 +105,7 @@ class ReachReasonTest {
         assertEquals(ReachReason.SIDE, r.reason)
         assertTrue(r.viaSeek)
         assertEquals(t0 + 36_000, r.timeMs)
-        assertEquals("シーク・真横 08:00:36 最接近 30 m", HudFormat.reach(r, jst))
+        assertEquals(HudFormat.ReachLine(ReachReason.SIDE, true, "08:00:36", "30"), HudFormat.reach(r, jst))
         // 先頭まで戻したら、到達と一緒に理由も消える
         e.seekReset(toStart = true)
         assertNull(e.state.waypoints.single().reach)

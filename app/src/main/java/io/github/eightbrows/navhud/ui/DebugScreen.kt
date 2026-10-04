@@ -15,11 +15,13 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.github.eightbrows.navhud.R
 import io.github.eightbrows.navhud.core.model.SourceMode
 import io.github.eightbrows.navhud.core.nav.NavState
 import java.time.Instant
@@ -60,16 +62,16 @@ fun DebugScreen(
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = onClose) { Text("メイン画面へ") }
+            OutlinedButton(onClick = onClose) { Text(stringResource(R.string.debug_to_main)) }
             // WP リストが空のときだけ、トラックから仮 WP を入れられる
-            OutlinedButton(onClick = onLoadTemporaryWaypoints, enabled = canLoadTemporaryWaypoints) { Text("仮 WP を入れる") }
-            OutlinedButton(onClick = onPickTrack) { Text("track.csv を選ぶ") }
+            OutlinedButton(onClick = onLoadTemporaryWaypoints, enabled = canLoadTemporaryWaypoints) { Text(stringResource(R.string.debug_temp_wps)) }
+            OutlinedButton(onClick = onPickTrack) { Text(stringResource(R.string.debug_choose_track)) }
             Button(onClick = onTogglePlay, enabled = replay.ready && !replay.finished) {
                 Text(
                     when {
-                        replay.finished -> "再生終了"
-                        state.playing -> "一時停止"
-                        else -> "再生"
+                        replay.finished -> stringResource(R.string.debug_finished)
+                        state.playing -> stringResource(R.string.debug_pause)
+                        else -> stringResource(R.string.debug_play)
                     },
                 )
             }
@@ -84,10 +86,10 @@ fun DebugScreen(
             }
         }
 
-        Line("FILE", replay.fileName ?: "（未選択）", Mono)
-        if (replay.fileName != null) Line("", "${replay.fixCount} 点 / スキップ ${replay.skippedLines} 行", Mono)
-        if (replay.loading) Line("", "読み込み中…", Warn)
-        replay.message?.let { Line("", it, Warn) }
+        Line("FILE", replay.fileName ?: stringResource(R.string.debug_none), Mono)
+        if (replay.fileName != null) Line("", stringResource(R.string.debug_track_info, replay.fixCount.toString(), replay.skippedLines.toString()), Mono)
+        if (replay.loading) Line("", stringResource(R.string.loading), Warn)
+        replay.message?.let { Line("", it.asString(), Warn) }
 
         Line("INPUT", "${state.sourceKind}  ${if (state.playing) "PLAY" else "PAUSE"}", Mono)
         Line("TIME", state.nowMs?.let { local(it, zone) } ?: "---", Mono)
@@ -129,7 +131,7 @@ fun DebugScreen(
             if ((state.deadlineCountdownSec ?: 0) < 0) Warn else value,
         )
 
-        Text("WAYPOINTS（タップで到達済みを切り替え）", style = Mono, modifier = Modifier.padding(top = 8.dp))
+        Text(stringResource(R.string.debug_waypoints), style = Mono, modifier = Modifier.padding(top = 8.dp))
         state.waypoints.forEachIndexed { i, wp ->
             val mark = when {
                 i == next -> "▶"
@@ -137,8 +139,8 @@ fun DebugScreen(
                 else -> " "
             }
             val times = listOfNotNull(
-                wp.targetTime?.let { "目標 $it" },
-                wp.deadlineTime?.let { "締切 $it" },
+                wp.targetTime?.let { stringResource(R.string.wp_detail_target, it.toString()) },
+                wp.deadlineTime?.let { stringResource(R.string.wp_detail_deadline, it.toString()) },
             ).joinToString("  ")
             OutlinedButton(onClick = { onToggleWp(i) }, enabled = wp.enabled) {
                 Text("$mark ${wp.name}  %.5f, %.5f  $times".format(Locale.US, wp.lat, wp.lon))

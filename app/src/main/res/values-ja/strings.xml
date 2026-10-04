@@ -1,0 +1,215 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  日本語（日本語の端末だけ）。英語の初期値は values/strings.xml。キーと引数（%1$s など）は英語と同じにする。
+-->
+<resources>
+    <string name="app_name">移動目標案内アプリ</string>
+
+    <!-- 共通 -->
+    <string name="back">← 戻る</string>
+    <string name="cancel">キャンセル</string>
+    <string name="save">保存</string>
+    <string name="delete">削除</string>
+    <string name="loading">読み込み中…</string>
+    <string name="value_seconds">%1$s 秒</string>
+    <string name="value_count">%1$s 個</string>
+    <string name="value_kmh_mps">%1$s km/h（%2$s m/s）</string>
+
+    <!-- 起動時の WP リストの選択 -->
+    <string name="startup_title">WP リスト</string>
+    <string name="startup_previous">前回のリスト</string>
+    <string name="startup_choose">リストを選ぶ（CSV / GPX）</string>
+    <string name="startup_none">リストなし</string>
+
+    <!-- メイン画面 -->
+    <string name="side_here">現在地</string>
+    <string name="wp_settings_button">WP設定</string>
+    <string name="hint_waiting_permission">位置情報の許可を待っています</string>
+    <string name="hint_gps_off">端末の位置情報（GPS）がオフです。設定でオンにしてください</string>
+    <string name="hint_acquiring_gps">GPS を受信しています…</string>
+    <string name="hint_choose_track">FILE で track.csv を選んでください</string>
+    <string name="perm_title">位置情報を使えません</string>
+    <string name="perm_approximate">「おおよその位置」だけが許可されています。GPS で走行位置を出すには「正確な位置」の許可が必要です。</string>
+    <string name="perm_denied">LIVE で現在地を表示するには、位置情報の許可が必要です。許可しなくても REPLAY（track.csv の再生）は使えます。</string>
+    <string name="perm_allow">許可する</string>
+    <string name="perm_open_settings">設定を開く</string>
+    <string name="perm_switch_replay">REPLAY に切り替え</string>
+
+    <!-- 通知（LIVE で位置を取っている間） -->
+    <string name="notif_channel">動作中の表示</string>
+    <string name="notif_running">NavHUD 動作中</string>
+
+    <!-- 到達の理由（WP 一覧） -->
+    <string name="reach_radius">半径</string>
+    <string name="reach_arrival">到着</string>
+    <string name="reach_side">真横</string>
+    <string name="reach_pass">通過</string>
+    <string name="reach_manual">手動</string>
+    <string name="reach_seek">シーク・%1$s</string>
+    <string name="reach_closest">最接近 %1$s m</string>
+
+    <!-- WP のメッセージ -->
+    <string name="msg_reversed">順番を逆にしました（到達済みはすべて解除）</string>
+    <string name="msg_times_adjusted">時刻を一括調整しました（基準: %1$s）</string>
+    <string name="msg_added">%1$s を追加しました</string>
+    <string name="msg_deleted">%1$s を削除しました</string>
+    <string name="msg_no_clipboard_coord">クリップボードに座標がありません（例: 34.69370, 135.50230）</string>
+    <string name="msg_exported">%1$s に %2$s 件を書き出しました</string>
+    <string name="msg_export_failed">書き出せませんでした（%1$s）</string>
+    <string name="msg_loaded">%1$s から %2$s 件を読み込みました%3$s</string>
+    <string name="msg_skipped_lines">（読めない行 %1$s 件をスキップ）</string>
+    <string name="msg_read_failed">%1$sを読めませんでした（%2$s）</string>
+    <string name="msg_read_failed_retry">%1$sを読めませんでした。もう一度選んでください（%2$s）</string>
+    <string name="msg_track_empty">%1$s に読める行がありません（スキップ %2$s 行）</string>
+    <string name="what_last_list">前回のリスト</string>
+    <string name="what_last_file">前回のファイル</string>
+    <string name="what_chosen_file">選んだファイル</string>
+    <string name="temp_wp_list">仮 WP（開発用）</string>
+    <string name="err_file_open">ファイルを開けません</string>
+    <string name="err_file_write">ファイルに書き込めません</string>
+
+    <!-- 設定画面 -->
+    <string name="settings_title">設定</string>
+    <string name="settings_note">変更はすぐ画面に反映され、保存されます。</string>
+    <string name="sec_display">表示</string>
+    <string name="display_mode">表示モード</string>
+    <string name="color_white">白</string>
+    <string name="color_green">緑</string>
+    <string name="color_amber">琥珀</string>
+    <string name="ui_color">UI の色（ボタン・数値・標高プロファイル）</string>
+    <string name="map_color">地図の色（距離環・目盛り・自機・WP・軌跡）</string>
+    <string name="button_opacity">ボタンの不透明度</string>
+    <string name="button_opacity_note">地図に重ねるボタン（上部バー・操作列・WP ボタン列・再生の帯）。ON の塗りはさらに半分</string>
+    <string name="numbers_opacity">数値の不透明度</string>
+    <string name="numbers_opacity_note" formatted="false">上の4行の数値。警告の表示（締切超過・CAL / MAG）は常に 100%</string>
+    <string name="track_brightness">読み込んだ軌跡の明るさ</string>
+    <string name="track_brightness_note">REPLAY のトラック全体の線（グレー）。走った跡の線は変わらない</string>
+    <string name="ring_label_size">距離環の数字の大きさ</string>
+    <string name="ring_label_size_note" formatted="false">距離環の左右に付ける数字（250・1k など）。100% が D12 までの大きさ</string>
+    <string name="ownship_position">ARC の自機の位置</string>
+    <string name="position_standard">標準</string>
+    <string name="position_high">高め</string>
+    <string name="ownship_position_note">WP ボタン列の上端から 標準 24dp / 高め 84dp（LIVE・REPLAY とも）。高めにすると後方の WP や矢印に余裕ができます</string>
+    <string name="profile">標高プロファイル</string>
+    <string name="size_small">小</string>
+    <string name="size_medium">中</string>
+    <string name="size_large">大</string>
+    <string name="profile_note">WP ボタン列の下。現在地から次の目標、その先の目標までの標高</string>
+    <string name="alt_offset">標高オフセット</string>
+    <string name="alt_offset_note">標高 = GPS の楕円体高 − これ</string>
+    <string name="sec_heading">方位</string>
+    <string name="heading_source">方位ソース</string>
+    <string name="heading_source_note">車は GPS、歩行は HYBRID か COMPASS</string>
+    <string name="hold_enter">保持に入る速度</string>
+    <string name="hold_enter_note">これ未満で GPS 方位を保持（HLD）</string>
+    <string name="hold_exit">保持を解く速度</string>
+    <string name="hold_exit_note">これを超えたら GPS 方位に戻る</string>
+    <string name="max_gps_acc">GPS の水平精度の上限</string>
+    <string name="max_gps_bearing_acc">GPS の方位の精度の上限</string>
+    <string name="max_gps_bearing_acc_note">値を出している端末のみ</string>
+    <string name="sec_range">縮尺</string>
+    <string name="range_steps">使う段（1つ以上。表示は自機から1つ目の距離環の距離）</string>
+    <string name="initial_range">起動時の縮尺</string>
+    <string name="auto_min">AUTO の下限</string>
+    <string name="auto_min_note">これより狭くしない</string>
+    <string name="auto_max">AUTO の上限</string>
+    <string name="auto_max_note">これより広くしない。次の WP が入らなければ画面の端の矢印で示す</string>
+    <string name="auto_on_start">起動時に AUTO</string>
+    <string name="auto_on_start_note">次の WP が画面に収まる段を、下限〜上限の中で自動で選ぶ</string>
+    <string name="zoom_in_delay">AUTO で狭めるまでの時間</string>
+    <string name="zoom_in_delay_note">広げる方向はすぐ切り替える</string>
+    <string name="hold_after_wp">WP を通り過ぎてから縮尺を変えるまで</string>
+    <string name="hold_after_wp_note">到達した WP を通り過ぎるまでと、通り過ぎてからこの秒数は縮尺を変えない（真横通過・手動は到達してから数える。矢印は出す）</string>
+    <string name="zoom_in_ratio">AUTO で狭め始める距離</string>
+    <string name="zoom_in_ratio_value">%1$s 倍</string>
+    <string name="zoom_in_ratio_note">今の1つ目の距離環の何倍以内で狭め始める。%1$s</string>
+    <string name="zoom_in_example">今の段 R1 %1$s: WP まで %2$s 以内</string>
+    <string name="zoom_in_example_none">今の段 R1 %1$s より狭い段はありません（AUTO の下限）</string>
+    <string name="pan_return">PAN から現在地へ戻るまで</string>
+    <string name="pan_return_note">地図をドラッグしたあと、操作がないまま この時間で戻る</string>
+    <string name="sec_wp">WP</string>
+    <string name="travel_mode">移動手段</string>
+    <string name="travel_car">自動車</string>
+    <string name="travel_custom1">カスタム1</string>
+    <string name="travel_custom2">カスタム2</string>
+    <string name="travel_custom3">カスタム3</string>
+    <string name="travel_custom_note">下の値はこの枠に保存される（ほかの枠・自動車に切り替えても残る）</string>
+    <string name="travel_car_note">自動車は推奨値で固定（変えるときはカスタム1〜3 を選ぶ）</string>
+    <string name="reset_to_car">自動車の値に戻す</string>
+    <string name="arrival_radius">到着半径（全体）</string>
+    <string name="arrival_radius_note">入ったら到達（停車・目的地そのものへ行く場合）。WP ごとの到達半径があればそちらを使う</string>
+    <string name="side_pass">真横通過</string>
+    <string name="side_pass_note">走行中に WP が真横か後ろになり、いちばん近づいた距離から離れたら到達</string>
+    <string name="side_pass_max">真横通過: WP までの距離</string>
+    <string name="within_meters">%1$s m 以内</string>
+    <string name="side_pass_depart">真横通過: 離れたとみなす距離</string>
+    <string name="side_pass_depart_note">いちばん近づいた距離から</string>
+    <string name="pass_detection">通過判定（予備）</string>
+    <string name="pass_detection_note">方位が取れない場面用。最接近したあと離れていったら到達にする</string>
+    <string name="pass_max">通過判定: 最接近距離の上限</string>
+    <string name="pass_max_note">WP ごとの到達半径 × 3 の方が大きければそちら</string>
+    <string name="pass_depart">通過判定: 離れたとみなす距離</string>
+    <string name="pass_hold">通過判定: 離れた状態が続く時間</string>
+    <string name="wp_buttons">WP ボタン列に見せる数</string>
+    <string name="wp_buttons_note">自機の下に横並び。超える分は左右にスクロール</string>
+    <string name="hud_wp_count">HUD に描く WP の数</string>
+    <string name="hud_wp_count_note">次の WP から先。直前に到達した WP は1つだけ薄く残す</string>
+    <string name="sec_input">測位・入力</string>
+    <string name="input_live">LIVE（GPS）</string>
+    <string name="input_replay">REPLAY（track.csv）</string>
+    <string name="no_fix_timeout">NO FIX とみなす時間</string>
+    <string name="rate_window">RATE の窓</string>
+    <string name="sec_other">その他</string>
+    <string name="keep_screen_on">画面常時点灯</string>
+    <string name="auto_open_last">前回の WP リストを自動で開く</string>
+    <string name="auto_open_last_note">起動時の選択を出さずに、最後に読み込んだか書き出したリストを開く</string>
+    <string name="reset_settings">設定を初期値に戻す</string>
+
+    <!-- WP 設定 -->
+    <string name="wp_settings_title">WP設定</string>
+    <string name="wp_add">追加</string>
+    <string name="wp_paste">貼り付け</string>
+    <string name="wp_import">インポート</string>
+    <string name="wp_export">エクスポート</string>
+    <string name="wp_reverse">逆順にする</string>
+    <string name="wp_adjust_times">時刻を一括調整</string>
+    <string name="wp_list_label">リスト: %1$s%2$s</string>
+    <string name="wp_list_none">なし</string>
+    <string name="wp_list_dirty">（未エクスポートの変更あり）</string>
+    <string name="wp_not_saved_note">アプリ内には保存しません。未エクスポートの編集はアプリ終了で失われます。</string>
+    <string name="wp_empty">WP がありません。追加・貼り付け・インポートで作ってください。</string>
+    <string name="wp_reverse_confirm">リストの順番を反転します。到達済みはすべて解除します。</string>
+    <string name="wp_detail_elevation">標高 %1$s m</string>
+    <string name="wp_detail_target">目標 %1$s</string>
+    <string name="wp_detail_deadline">締切 %1$s</string>
+    <string name="wp_detail_radius">半径 %1$s m</string>
+    <string name="wp_add_title">WP を追加</string>
+    <string name="wp_edit_title">WP を編集</string>
+    <string name="wp_name">名前</string>
+    <string name="wp_elevation_hint">標高 m（空欄可）</string>
+    <string name="wp_target_hint">目標時刻 H:mm（空欄可）</string>
+    <string name="wp_deadline_hint">締切時刻 H:mm（空欄可）</string>
+    <string name="wp_radius_hint">到達半径 m（空欄で全体の設定）</string>
+    <string name="wp_err_coord">座標は「34.69370, 135.50230」の形で入力してください</string>
+    <string name="wp_err_elevation">標高は数値で入力してください（空欄可）</string>
+    <string name="wp_err_target">目標時刻は 9:30 や 09:30:00 の形で入力してください（空欄可）</string>
+    <string name="wp_err_deadline">締切時刻は 9:30 や 09:30:00 の形で入力してください（空欄可）</string>
+    <string name="wp_err_radius">到達半径は 0 より大きい数値で入力してください（空欄で全体の設定）</string>
+    <string name="wp_base">基準の WP</string>
+    <string name="wp_disabled_suffix">（無効）</string>
+    <string name="wp_base_target_hint">基準の WP の目標時刻 H:mm</string>
+    <string name="wp_adjust_note">時刻の入った WP（無効も含む）について、元の隣どうしの時間差を保って並び順に決め直します。締切は目標との差を保ちます。</string>
+    <string name="wp_err_time">9:30 や 09:30:00 の形で入力してください</string>
+    <string name="wp_adjust">調整する</string>
+
+    <!-- 開発用画面 -->
+    <string name="debug_to_main">メイン画面へ</string>
+    <string name="debug_temp_wps">仮 WP を入れる</string>
+    <string name="debug_choose_track">track.csv を選ぶ</string>
+    <string name="debug_finished">再生終了</string>
+    <string name="debug_pause">一時停止</string>
+    <string name="debug_play">再生</string>
+    <string name="debug_none">（未選択）</string>
+    <string name="debug_track_info">%1$s 点 / スキップ %2$s 行</string>
+    <string name="debug_waypoints">WAYPOINTS（タップで到達済みを切り替え）</string>
+</resources>

@@ -7,6 +7,7 @@ import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.edit
+import io.github.eightbrows.navhud.R
 import io.github.eightbrows.navhud.core.io.TrackCsv
 import io.github.eightbrows.navhud.core.io.TrackParseResult
 
@@ -48,7 +49,7 @@ class TrackDocumentStore(context: Context) {
     fun load(uri: Uri): LoadedTrack {
         val resolver = appContext.contentResolver
         val result = resolver.openInputStream(uri)?.use { TrackCsv.parse(it) }
-            ?: error("ファイルを開けません")
+            ?: error(appContext.getString(R.string.err_file_open))
         val name = resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
             if (c.moveToFirst()) c.getString(0) else null
         } ?: uri.lastPathSegment ?: uri.toString()

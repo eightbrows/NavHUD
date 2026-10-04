@@ -7,6 +7,7 @@ import java.nio.charset.CharacterCodingException
 import java.nio.charset.Charset
 import java.nio.charset.CodingErrorAction
 import java.time.LocalTime
+import java.util.Locale
 
 data class WaypointParseResult(val waypoints: List<Waypoint>, val skippedLines: Int)
 
@@ -141,7 +142,7 @@ object TimeText {
 
     /** 秒が 0 なら HH:mm、そうでなければ HH:mm:ss。 */
     fun format(t: LocalTime): String =
-        if (t.second == 0) "%02d:%02d".format(t.hour, t.minute) else "%02d:%02d:%02d".format(t.hour, t.minute, t.second)
+        if (t.second == 0) "%02d:%02d".format(Locale.US, t.hour, t.minute) else "%02d:%02d:%02d".format(Locale.US, t.hour, t.minute, t.second)
 }
 
 /**

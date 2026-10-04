@@ -34,6 +34,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
@@ -248,12 +249,12 @@ class MainActivity : ComponentActivity() {
 private fun StartupDialog(wpUi: WaypointUiState, onPrevious: () -> Unit, onChoose: () -> Unit, onNone: () -> Unit) {
     AlertDialog(
         onDismissRequest = onNone,
-        title = { Text("WP リスト") },
+        title = { Text(stringResource(R.string.startup_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                TextButton(onClick = onPrevious, enabled = wpUi.hasSavedList) { Text("前回のリスト") }
-                TextButton(onClick = onChoose) { Text("リストを選ぶ（CSV / GPX）") }
-                TextButton(onClick = onNone) { Text("リストなし") }
+                TextButton(onClick = onPrevious, enabled = wpUi.hasSavedList) { Text(stringResource(R.string.startup_previous)) }
+                TextButton(onClick = onChoose) { Text(stringResource(R.string.startup_choose)) }
+                TextButton(onClick = onNone) { Text(stringResource(R.string.startup_none)) }
             }
         },
         confirmButton = {},

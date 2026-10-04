@@ -37,6 +37,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
@@ -60,6 +61,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.github.eightbrows.navhud.R
 import io.github.eightbrows.navhud.core.Tuning
 import io.github.eightbrows.navhud.core.model.HeadingSrc
 import io.github.eightbrows.navhud.core.nav.DisplayMode
@@ -331,7 +333,7 @@ private fun SideColumn(
         SideButton("−", onZoomOut, fontSize = 22.sp, alpha = a)
         RangeButton(state, onToggleAutoRange, alpha = a)
         SideButton("＋", onZoomIn, fontSize = 22.sp, alpha = a)
-        if (state.pan != null) SideButton("現在地", onEndPan, color = HudColors.Caution, inverted = true, alpha = a)
+        if (state.pan != null) SideButton(stringResource(R.string.side_here), onEndPan, color = HudColors.Caution, inverted = true, alpha = a)
     }
 }
 
@@ -469,7 +471,7 @@ private fun WpStrip(
         }
         val a = state.settings.buttonOpacityPct / 100f
         Row(horizontalArrangement = Arrangement.spacedBy(WpButtonGap)) {
-            WpStripButton("WP設定", WpSettingsWidth, HudColors.Scale, inverted = false, enabled = true, alpha = a, onTap = onOpenSettings)
+            WpStripButton(stringResource(R.string.wp_settings_button), WpSettingsWidth, HudColors.Scale, inverted = false, enabled = true, alpha = a, onTap = onOpenSettings)
             Row(
                 Modifier.width(listWidth).horizontalScroll(scroll),
                 horizontalArrangement = Arrangement.spacedBy(WpButtonGap),
@@ -759,19 +761,20 @@ private fun NoFixBox(hint: String?, modifier: Modifier = Modifier) {
 }
 
 /** NO FIX の枠に添える案内。 */
+@Composable
 private fun noFixHint(state: NavState, replay: ReplayUiState, live: LiveUiState): String? =
     if (state.sourceKind == SourceKind.LIVE) {
         when {
-            live.permission == LocationPermission.UNKNOWN -> "位置情報の許可を待っています"
-            !live.gpsEnabled -> "端末の位置情報（GPS）がオフです。設定でオンにしてください"
-            state.fix == null -> "GPS を受信しています…"
+            live.permission == LocationPermission.UNKNOWN -> stringResource(R.string.hint_waiting_permission)
+            !live.gpsEnabled -> stringResource(R.string.hint_gps_off)
+            state.fix == null -> stringResource(R.string.hint_acquiring_gps)
             else -> null
         }
     } else {
         when {
-            replay.loading -> "読み込み中…"
-            replay.message != null -> replay.message
-            replay.fileName == null -> "FILE で track.csv を選んでください"
+            replay.loading -> stringResource(R.string.loading)
+            replay.message != null -> replay.message.asString()
+            replay.fileName == null -> stringResource(R.string.hint_choose_track)
             else -> null
         }
     }
@@ -793,21 +796,21 @@ private fun PermissionBox(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text("位置情報を使えません", style = Value.copy(color = HudColors.Caution, fontWeight = FontWeight.Bold, fontSize = 17.sp))
+        Text(stringResource(R.string.perm_title), style = Value.copy(color = HudColors.Caution, fontWeight = FontWeight.Bold, fontSize = 17.sp))
         Text(
             if (permission == LocationPermission.APPROXIMATE_ONLY) {
-                "「おおよその位置」だけが許可されています。GPS で走行位置を出すには「正確な位置」の許可が必要です。"
+                stringResource(R.string.perm_approximate)
             } else {
-                "LIVE で現在地を表示するには、位置情報の許可が必要です。許可しなくても REPLAY（track.csv の再生）は使えます。"
+                stringResource(R.string.perm_denied)
             },
             style = Caption.copy(color = HudColors.Scale, fontSize = 13.sp),
             textAlign = TextAlign.Center,
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            HudButton("許可する", onRequest)
-            HudButton("設定を開く", onOpenSettings)
+            HudButton(stringResource(R.string.perm_allow), onRequest)
+            HudButton(stringResource(R.string.perm_open_settings), onOpenSettings)
         }
-        HudButton("REPLAY に切り替え", onUseReplay)
+        HudButton(stringResource(R.string.perm_switch_replay), onUseReplay)
     }
 }
 

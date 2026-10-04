@@ -88,7 +88,7 @@ class NavLocationService : Service() {
     private fun notification(): Notification {
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         nm.createNotificationChannel(
-            NotificationChannel(CHANNEL_ID, "動作中の表示", NotificationManager.IMPORTANCE_LOW).apply {
+            NotificationChannel(CHANNEL_ID, getString(R.string.notif_channel), NotificationManager.IMPORTANCE_LOW).apply {
                 setShowBadge(false)
             },
         )
@@ -99,7 +99,7 @@ class NavLocationService : Service() {
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_navhud)
-            .setContentTitle("NavHUD 動作中")
+            .setContentTitle(getString(R.string.notif_running))
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setShowWhen(false)

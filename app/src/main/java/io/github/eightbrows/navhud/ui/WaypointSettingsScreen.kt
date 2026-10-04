@@ -39,6 +39,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
@@ -46,14 +47,17 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import io.github.eightbrows.navhud.R
 import io.github.eightbrows.navhud.core.io.CoordinateText
 import io.github.eightbrows.navhud.core.io.TimeText
+import io.github.eightbrows.navhud.core.model.ReachReason
 import io.github.eightbrows.navhud.core.model.Waypoint
 import io.github.eightbrows.navhud.core.nav.NavState
 import io.github.eightbrows.navhud.core.nav.WaypointTimes
 import io.github.eightbrows.navhud.core.view.HudFormat
 import java.time.LocalTime
 import java.time.ZoneId
+import java.util.Locale
 
 private val Body get() = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 14.sp, color = HudColors.Scale)
 private val Small get() = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 12.sp, color = HudColors.ScaleDim)
@@ -94,27 +98,31 @@ fun WaypointSettingsScreen(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            HudButton("← 戻る", onBack)
-            Text("WP設定", style = Body.copy(fontSize = 18.sp))
+            HudButton(stringResource(R.string.back), onBack)
+            Text(stringResource(R.string.wp_settings_title), style = Body.copy(fontSize = 18.sp))
         }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            HudButton("追加", { editing = -1 })
-            HudButton("貼り付け", onPaste)
-            HudButton("インポート", onImport)
-            HudButton("エクスポート", onExport, enabled = wps.isNotEmpty())
-            HudButton("逆順にする", { confirmReverse = true }, enabled = wps.size >= 2)
-            HudButton("時刻を一括調整", { adjusting = true }, enabled = wps.any { it.targetTime != null })
+            HudButton(stringResource(R.string.wp_add), { editing = -1 })
+            HudButton(stringResource(R.string.wp_paste), onPaste)
+            HudButton(stringResource(R.string.wp_import), onImport)
+            HudButton(stringResource(R.string.wp_export), onExport, enabled = wps.isNotEmpty())
+            HudButton(stringResource(R.string.wp_reverse), { confirmReverse = true }, enabled = wps.size >= 2)
+            HudButton(stringResource(R.string.wp_adjust_times), { adjusting = true }, enabled = wps.any { it.targetTime != null })
         }
         Text(
-            "リスト: " + (wpUi.listName ?: "なし") + if (wpUi.dirty) "（未エクスポートの変更あり）" else "",
+            stringResource(
+                R.string.wp_list_label,
+                wpUi.listName ?: stringResource(R.string.wp_list_none),
+                if (wpUi.dirty) stringResource(R.string.wp_list_dirty) else "",
+            ),
             style = Small.copy(color = if (wpUi.dirty) HudColors.Caution else HudColors.ScaleDim),
         )
-        Text("アプリ内には保存しません。未エクスポートの編集はアプリ終了で失われます。", style = Small.copy(fontSize = 11.sp))
-        if (wpUi.loading) Text("読み込み中…", style = Small.copy(color = HudColors.Caution))
-        wpUi.message?.let { Text(it, style = Small.copy(color = HudColors.Caution)) }
+        Text(stringResource(R.string.wp_not_saved_note), style = Small.copy(fontSize = 11.sp))
+        if (wpUi.loading) Text(stringResource(R.string.loading), style = Small.copy(color = HudColors.Caution))
+        wpUi.message?.let { Text(it.asString(), style = Small.copy(color = HudColors.Caution)) }
 
         if (wps.isEmpty()) {
-            Text("WP がありません。追加・貼り付け・インポートで作ってください。", style = Body.copy(color = HudColors.ScaleDim))
+            Text(stringResource(R.string.wp_empty), style = Body.copy(color = HudColors.ScaleDim))
         }
         ReorderableWaypointList(
             wps = wps,
@@ -129,15 +137,15 @@ fun WaypointSettingsScreen(
     if (confirmReverse) {
         AlertDialog(
             onDismissRequest = { confirmReverse = false },
-            title = { Text("逆順にする") },
-            text = { Text("リストの順番を反転します。到達済みはすべて解除します。") },
+            title = { Text(stringResource(R.string.wp_reverse)) },
+            text = { Text(stringResource(R.string.wp_reverse_confirm)) },
             confirmButton = {
                 TextButton(onClick = {
                     onReverse()
                     confirmReverse = false
-                }) { Text("逆順にする") }
+                }) { Text(stringResource(R.string.wp_reverse)) }
             },
-            dismissButton = { TextButton(onClick = { confirmReverse = false }) { Text("キャンセル") } },
+            dismissButton = { TextButton(onClick = { confirmReverse = false }) { Text(stringResource(R.string.cancel)) } },
         )
     }
     if (adjusting) {
@@ -269,15 +277,15 @@ private fun ReorderableWaypointList(
                     )
                     Text(CoordinateText.format(wp.lat, wp.lon), style = Small, maxLines = 1)
                     val details = listOfNotNull(
-                        wp.eleM?.let { "標高 %.0f m".format(it) },
-                        wp.targetTime?.let { "目標 ${TimeText.format(it)}" },
-                        wp.deadlineTime?.let { "締切 ${TimeText.format(it)}" },
-                        wp.radiusM?.let { "半径 %.0f m".format(it) },
+                        wp.eleM?.let { stringResource(R.string.wp_detail_elevation, "%.0f".format(Locale.US, it)) },
+                        wp.targetTime?.let { stringResource(R.string.wp_detail_target, TimeText.format(it)) },
+                        wp.deadlineTime?.let { stringResource(R.string.wp_detail_deadline, TimeText.format(it)) },
+                        wp.radiusM?.let { stringResource(R.string.wp_detail_radius, "%.0f".format(Locale.US, it)) },
                     )
                     if (details.isNotEmpty()) Text(details.joinToString("  "), style = Small, maxLines = 1)
                     // 到達済みなら、到達の理由・時刻・最接近（§5.4）
                     wp.reach?.takeIf { wp.reached }?.let {
-                        Text(HudFormat.reach(it, ZoneId.systemDefault()), style = Small.copy(color = HudColors.Caution), maxLines = 1)
+                        Text(reachText(HudFormat.reach(it, ZoneId.systemDefault())), style = Small.copy(color = HudColors.Caution), maxLines = 1)
                     }
                 }
                 Switch(
@@ -316,19 +324,19 @@ private fun WaypointEditDialog(
     var target by remember { mutableStateOf(initial.targetTime?.let(TimeText::format).orEmpty()) }
     var deadline by remember { mutableStateOf(initial.deadlineTime?.let(TimeText::format).orEmpty()) }
     var radius by remember { mutableStateOf(initial.radiusM?.let { java.math.BigDecimal.valueOf(it).stripTrailingZeros().toPlainString() }.orEmpty()) }
-    var error by remember { mutableStateOf<String?>(null) }
+    var error by remember { mutableStateOf<Int?>(null) }
 
     fun save() {
         val ll = CoordinateText.parse(coord)
-            ?: return run { error = "座標は「34.69370, 135.50230」の形で入力してください" }
+            ?: return run { error = R.string.wp_err_coord }
         val eleM = if (ele.isBlank()) null else ele.trim().toDoubleOrNull()
-            ?: return run { error = "標高は数値で入力してください（空欄可）" }
+            ?: return run { error = R.string.wp_err_elevation }
         val t = if (target.isBlank()) null else TimeText.parse(target)
-            ?: return run { error = "目標時刻は 9:30 や 09:30:00 の形で入力してください（空欄可）" }
+            ?: return run { error = R.string.wp_err_target }
         val d = if (deadline.isBlank()) null else TimeText.parse(deadline)
-            ?: return run { error = "締切時刻は 9:30 や 09:30:00 の形で入力してください（空欄可）" }
+            ?: return run { error = R.string.wp_err_deadline }
         val r = if (radius.isBlank()) null else radius.trim().toDoubleOrNull()?.takeIf { it > 0 }
-            ?: return run { error = "到達半径は 0 より大きい数値で入力してください（空欄で全体の設定）" }
+            ?: return run { error = R.string.wp_err_radius }
         onSave(
             initial.copy(
                 name = name.trim().ifEmpty { initial.name },
@@ -344,10 +352,10 @@ private fun WaypointEditDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (isNew) "WP を追加" else "WP を編集") },
+        title = { Text(stringResource(if (isNew) R.string.wp_add_title else R.string.wp_edit_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                OutlinedTextField(name, { name = it }, label = { Text("名前") }, singleLine = true)
+                OutlinedTextField(name, { name = it }, label = { Text(stringResource(R.string.wp_name)) }, singleLine = true)
                 OutlinedTextField(
                     coord, { coord = it },
                     label = { Text("lat, lon") },
@@ -356,26 +364,26 @@ private fun WaypointEditDialog(
                 )
                 OutlinedTextField(
                     ele, { ele = it },
-                    label = { Text("標高 m（空欄可）") },
+                    label = { Text(stringResource(R.string.wp_elevation_hint)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 )
-                OutlinedTextField(target, { target = it }, label = { Text("目標時刻 H:mm（空欄可）") }, singleLine = true)
-                OutlinedTextField(deadline, { deadline = it }, label = { Text("締切時刻 H:mm（空欄可）") }, singleLine = true)
+                OutlinedTextField(target, { target = it }, label = { Text(stringResource(R.string.wp_target_hint)) }, singleLine = true)
+                OutlinedTextField(deadline, { deadline = it }, label = { Text(stringResource(R.string.wp_deadline_hint)) }, singleLine = true)
                 OutlinedTextField(
                     radius, { radius = it },
-                    label = { Text("到達半径 m（空欄で全体の設定）") },
+                    label = { Text(stringResource(R.string.wp_radius_hint)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 )
-                error?.let { Text(it, color = HudColors.Warning, fontSize = 13.sp) }
+                error?.let { Text(stringResource(it), color = HudColors.Warning, fontSize = 13.sp) }
             }
         },
-        confirmButton = { TextButton(onClick = ::save) { Text("保存") } },
+        confirmButton = { TextButton(onClick = ::save) { Text(stringResource(R.string.save)) } },
         dismissButton = {
             Row {
-                if (!isNew) TextButton(onClick = onDelete) { Text("削除", color = HudColors.Warning) }
-                TextButton(onClick = onDismiss) { Text("キャンセル") }
+                if (!isNew) TextButton(onClick = onDelete) { Text(stringResource(R.string.delete), color = HudColors.Warning) }
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
             }
         },
     )
@@ -394,14 +402,14 @@ private fun TimeAdjustDialog(
     val timed = wps.indices.filter { wps[it].targetTime != null }
     var base by remember { mutableIntStateOf(WaypointTimes.defaultBaseIndex(wps) ?: timed.first()) }
     var time by remember { mutableStateOf(wps[base].targetTime?.let(TimeText::format).orEmpty()) }
-    var error by remember { mutableStateOf<String?>(null) }
+    var error by remember { mutableStateOf<Int?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("時刻を一括調整") },
+        title = { Text(stringResource(R.string.wp_adjust_times)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("基準の WP", fontSize = 13.sp)
+                Text(stringResource(R.string.wp_base), fontSize = 13.sp)
                 Column(
                     Modifier.heightIn(max = 220.dp).verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(2.dp),
@@ -420,23 +428,40 @@ private fun TimeAdjustDialog(
                         ) {
                             RadioButton(selected = base == i, onClick = null)
                             Text(
-                                "${i + 1}. ${wp.name}  ${TimeText.format(wp.targetTime!!)}" + if (!wp.enabled) "（無効）" else "",
+                                "${i + 1}. ${wp.name}  ${TimeText.format(wp.targetTime!!)}" + if (!wp.enabled) stringResource(R.string.wp_disabled_suffix) else "",
                                 fontSize = 14.sp,
                             )
                         }
                     }
                 }
-                OutlinedTextField(time, { time = it }, label = { Text("基準の WP の目標時刻 H:mm") }, singleLine = true)
-                Text("時刻の入った WP（無効も含む）について、元の隣どうしの時間差を保って並び順に決め直します。締切は目標との差を保ちます。", fontSize = 12.sp)
-                error?.let { Text(it, color = HudColors.Warning, fontSize = 13.sp) }
+                OutlinedTextField(time, { time = it }, label = { Text(stringResource(R.string.wp_base_target_hint)) }, singleLine = true)
+                Text(stringResource(R.string.wp_adjust_note), fontSize = 12.sp)
+                error?.let { Text(stringResource(it), color = HudColors.Warning, fontSize = 13.sp) }
             }
         },
         confirmButton = {
             TextButton(onClick = {
-                val t = TimeText.parse(time) ?: return@TextButton run { error = "9:30 や 09:30:00 の形で入力してください" }
+                val t = TimeText.parse(time) ?: return@TextButton run { error = R.string.wp_err_time }
                 onApply(base, t)
-            }) { Text("調整する") }
+            }) { Text(stringResource(R.string.wp_adjust)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("キャンセル") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
     )
+}
+
+/** 到達の理由の 1 行（§5.4）: 「真横 08:12:34 最接近 42 m」。シークで飛ばした区間なら「シーク・真横 …」。 */
+@Composable
+private fun reachText(r: HudFormat.ReachLine): String {
+    val reason = stringResource(
+        when (r.reason) {
+            ReachReason.RADIUS -> R.string.reach_radius
+            ReachReason.ARRIVAL -> R.string.reach_arrival
+            ReachReason.SIDE -> R.string.reach_side
+            ReachReason.PASS -> R.string.reach_pass
+            ReachReason.MANUAL -> R.string.reach_manual
+        },
+    )
+    val head = if (r.viaSeek) stringResource(R.string.reach_seek, reason) else reason
+    val closest = r.closestM?.let { stringResource(R.string.reach_closest, it) }
+    return listOfNotNull(head, r.time, closest).joinToString(" ")
 }

@@ -5,6 +5,7 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.core.content.edit
+import io.github.eightbrows.navhud.R
 import io.github.eightbrows.navhud.core.io.WaypointCsv
 import io.github.eightbrows.navhud.core.io.WaypointGpx
 import io.github.eightbrows.navhud.core.io.WaypointParseResult
@@ -48,7 +49,7 @@ class WaypointDocumentStore(context: Context) {
     /** CSV か GPX を読む。中身で見分ける。ブロッキングなので IO スレッドで呼ぶ。 */
     fun load(uri: Uri, zone: ZoneId): LoadedWaypoints {
         val bytes = appContext.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-            ?: error("ファイルを開けません")
+            ?: error(appContext.getString(R.string.err_file_open))
         val gpx = WaypointGpx.looksLikeGpx(bytes)
         val result = if (gpx) WaypointGpx.parse(bytes, zone) else WaypointCsv.parse(bytes)
         return LoadedWaypoints(uri, displayName(uri), result, gpx)
@@ -57,7 +58,7 @@ class WaypointDocumentStore(context: Context) {
     /** CSV で書き出す（UTF-8 BOM 付き、CRLF）。ブロッキングなので IO スレッドで呼ぶ。 */
     fun save(uri: Uri, wps: List<Waypoint>): String {
         appContext.contentResolver.openOutputStream(uri, "wt")?.use { it.write(WaypointCsv.encode(wps)) }
-            ?: error("ファイルに書き込めません")
+            ?: error(appContext.getString(R.string.err_file_write))
         return displayName(uri)
     }
 

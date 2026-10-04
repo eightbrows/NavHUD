@@ -14,7 +14,7 @@ class ReplayPlayer(private val track: List<Fix>) {
     private var next = 0
 
     init {
-        require(track.zipWithNext().all { (a, b) -> a.timeMs <= b.timeMs }) { "Fix が時刻順ではありません" }
+        require(track.zipWithNext().all { (a, b) -> a.timeMs <= b.timeMs }) { "Fixes are not in time order" }
     }
 
     /** 最初の Fix の時刻。トラックが空なら null。 */
