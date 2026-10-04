@@ -73,6 +73,7 @@ import io.github.eightbrows.navhud.core.view.HudRect
 import io.github.eightbrows.navhud.core.view.HudViewport
 import io.github.eightbrows.navhud.core.view.NumberField
 import io.github.eightbrows.navhud.core.view.NumberRows
+import io.github.eightbrows.navhud.core.view.RangeButtonFace
 import io.github.eightbrows.navhud.core.view.WpStripLayout
 import java.time.ZoneId
 import kotlin.math.roundToInt
@@ -188,10 +189,10 @@ fun MainScreen(
             state, onZoomIn, onZoomOut, onToggleAutoRange, onEndPan,
             Modifier.align(Alignment.TopEnd).offset { IntOffset(0, sideTop.roundToInt()) },
         )
-        // 案内の枠: 回避枠の中央に置き、その幅で折り返す
+        // 案内の枠: 位置情報の権限は回避枠の中央に置き、その幅で折り返す。NO FIX は数値の欄のすぐ下に左寄せ（地図の中央を空ける）
         val permissionMissing = state.sourceKind == SourceKind.LIVE &&
             (live.permission == LocationPermission.DENIED || live.permission == LocationPermission.APPROXIMATE_ONLY)
-        if (permissionMissing || state.noFix) {
+        if (permissionMissing) {
             Box(
                 Modifier
                     .fillMaxSize()
@@ -199,11 +200,21 @@ fun MainScreen(
                     .padding(horizontal = 12.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                if (permissionMissing) {
-                    PermissionBox(live.permission, onRequestPermission, onOpenAppSettings, onToggleSourceKind)
-                } else {
-                    NoFixBox(noFixHint(state, replay, live))
-                }
+                PermissionBox(live.permission, onRequestPermission, onOpenAppSettings, onToggleSourceKind)
+            }
+        } else if (state.noFix) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .padding(
+                        top = topDp + Tuning.NO_FIX_MARGIN_TOP_DP.dp,
+                        start = Tuning.NO_FIX_MARGIN_START_DP.dp,
+                        end = SideColumnWidth,
+                        bottom = bottomDp,
+                    ),
+                contentAlignment = Alignment.TopStart,
+            ) {
+                NoFixBox(noFixHint(state, replay, live))
             }
         }
     }
@@ -318,20 +329,48 @@ private fun SideColumn(
     ) {
         val a = state.settings.buttonOpacityPct / 100f
         SideButton("−", onZoomOut, fontSize = 22.sp, alpha = a)
-        val top = when {
-            state.pan != null -> "PAN"
-            state.rangeAuto -> "AUTO"
-            else -> "RNG"
-        }
-        SideButton(
-            "$top\n${HudFormat.rangeLabel(state.rangeM)}",
-            onToggleAutoRange,
-            inverted = state.rangeAuto && state.pan == null,
-            color = if (state.pan != null) HudColors.Caution else HudColors.Scale,
-            alpha = a,
-        )
+        RangeButton(state, onToggleAutoRange, alpha = a)
         SideButton("＋", onZoomIn, fontSize = 22.sp, alpha = a)
         if (state.pan != null) SideButton("現在地", onEndPan, color = HudColors.Caution, inverted = true, alpha = a)
+    }
+}
+
+/**
+ * 縮尺のボタン（操作列の真ん中、§6.1）: 運転席からセンターコンソールの画面で読めるよう、中は R1 の距離（例「500m」）だけを
+ * 太く大きく出す（ボタンの幅に収まる大きさ。上限 Tuning.RANGE_BUTTON_MAX_SP）。タップで AUTO の ON / OFF。
+ * AUTO は塗りつぶし（ボタンの不透明度そのまま）に黒の文字とボタンの色の縁取り、手動は枠だけ（文字に黒の縁取り）。
+ * PAN 中は今までどおり黄色で「PAN」と距離（§6.10）。
+ */
+@Composable
+private fun RangeButton(state: NavState, onClick: () -> Unit, alpha: Float) {
+    val face = RangeButtonFace.of(state.rangeM, state.rangeAuto, state.pan != null)
+    if (face.pan) {
+        SideButton(face.text, onClick, color = HudColors.Caution, alpha = alpha)
+        return
+    }
+    val label = face.text
+    val auto = face.filled
+    val c = HudColors.Scale
+    val tm = rememberTextMeasurer()
+    val density = LocalDensity.current
+    val base = ButtonText.copy(fontWeight = FontWeight.Bold, fontSize = Tuning.RANGE_BUTTON_MAX_SP.sp)
+    // ボタンの幅（左右の余白を除く）に収まる大きさ
+    val fontSize = with(density) {
+        val avail = (SideButtonSize - Tuning.RANGE_BUTTON_TEXT_PAD_DP.dp * 2).toPx()
+        val w = tm.measure(label, base).size.width.coerceAtLeast(1)
+        (Tuning.RANGE_BUTTON_MAX_SP * minOf(1f, avail / w)).sp
+    }
+    val shape = RoundedCornerShape(6.dp)
+    Box(
+        Modifier
+            .width(SideButtonSize)
+            .height(SideButtonSize)
+            .border(1.dp, c.copy(alpha = c.alpha * alpha), shape)
+            .then(if (auto) Modifier.background(c.copy(alpha = c.alpha * alpha), shape) else Modifier)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        OverlayButtonText(label, c, inverted = auto, alpha = alpha, style = base.copy(fontSize = fontSize, lineHeight = fontSize * 1.1f))
     }
 }
 
@@ -711,7 +750,7 @@ private fun NoFixBox(hint: String?, modifier: Modifier = Modifier) {
         modifier
             .background(HudColors.Background)
             .border(2.dp, HudColors.Warning)
-            .padding(horizontal = 18.dp, vertical = 10.dp),
+            .padding(horizontal = Tuning.NO_FIX_PADDING_H_DP.dp, vertical = Tuning.NO_FIX_PADDING_V_DP.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text("NO FIX", style = Value.copy(color = HudColors.Warning, fontWeight = FontWeight.Bold, fontSize = 18.sp))

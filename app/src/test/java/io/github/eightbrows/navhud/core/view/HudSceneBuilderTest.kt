@@ -446,13 +446,34 @@ class HudSceneBuilderTest {
     }
 
     @Test
-    fun ringLabelsGiveWayToCompassLabels() {
-        // PAN で自機を表示枠の上の縁の近くに置く: 距離環の文字が方位目盛りの文字に重なるなら、距離環の文字を出さない
-        val center = io.github.eightbrows.navhud.core.nav.PanView(TestGeo.lat(-2_400.0), TestGeo.lon(2_400.0), 0.0)
-        val scene = build(state(headingDeg = 0f, mode = DisplayMode.NORTH_UP).copy(pan = center))
-        val compass = scene.labels.filter { !it.small }.map { HudSceneBuilder.Box(it.at, HudSceneBuilder.textHalfWidth(it.text, m) * 13f / 11f + 2f, m.compassLabelHalf) }
-        val rings = scene.labels.filter { it.small }.map { HudSceneBuilder.Box(it.at, HudSceneBuilder.textHalfWidth(it.text, m) + 2f, m.compassLabelHalf) }
-        assertTrue(rings.none { r -> compass.any { it.overlaps(r) } })
+    fun ringLabelsSitOnTheR1VerticalLines() {
+        // 距離環の数字（§6.1）: 一番小さい距離環（r1）の左右の点を通る縦の線 x = cx ∓ r1 と、各距離環の上側の交点
+        // y = cy − √(rn² − r1²)。画面に入るものはすべて付け、方位の文字などと重なっても消さない。ARC・North Up・PAN で同じ
+        val pan = io.github.eightbrows.navhud.core.nav.PanView(TestGeo.lat(-2_400.0), TestGeo.lon(2_400.0), 0.0)
+        for (s in listOf(
+            state(headingDeg = 30f),
+            state(mode = DisplayMode.NORTH_UP),
+            state(headingDeg = 0f, mode = DisplayMode.NORTH_UP).copy(pan = pan),
+        )) {
+            val scene = build(s)
+            val c = scene.arcs.first().center
+            val radii = scene.arcs.map { it.radius }.sorted()
+            val r1 = radii.first()
+            val expected = radii.flatMap { rn ->
+                val dy = kotlin.math.sqrt(rn * rn - r1 * r1)
+                listOf(P(c.x - r1, c.y - dy), P(c.x + r1, c.y - dy))
+            }.filter { rect.contains(it) }
+            val actual = scene.labels.filter { it.small }.map { it.at }
+            assertEquals(expected.size, actual.size)
+            for ((e, a) in expected.zip(actual)) assertP(e, a, 1e-2f)
+            // 一番小さい距離環は (cx ∓ r1, cy)
+            assertTrue(actual.any { abs(it.x - (c.x - r1)) < 1e-2f && abs(it.y - c.y) < 1e-2f } || !rect.contains(P(c.x - r1, c.y)))
+            // 下側の交点は使わない（どれも中心より下ではない）
+            assertTrue(actual.all { it.y <= c.y + 1e-2f })
+        }
+        // 位置の計算そのもの（r1 = 30・rn = 50 なら、縦の線との上側の交点は中心から 40 上）
+        assertEquals(listOf(P(70f, 100f), P(130f, 100f)), HudSceneBuilder.ringLabelPoints(P(100f, 100f), 30f, 30f))
+        assertEquals(listOf(P(70f, 60f), P(130f, 60f)), HudSceneBuilder.ringLabelPoints(P(100f, 100f), 30f, 50f))
     }
 
     @Test
@@ -589,7 +610,8 @@ class HudSceneBuilderTest {
         val scene = build(state(headingDeg = 0f).copy(rangeM = 1_000.0))
         assertEquals(5, scene.arcs.size)
         assertTrue(scene.arcs.all { it.sweepDeg == 360f })
-        assertEquals(listOf("500", "1k", "1.5k", "2k", "2.5k"), scene.labels.filter { it.small }.map { it.text })
+        // 数字は左右に1つずつ。2.5 km（半径 900 px）の上側の交点は y = 876 − √(900² − 180²) < 0 で画面の外なので付けない
+        assertEquals(listOf("500", "500", "1k", "1k", "1.5k", "1.5k", "2k", "2k"), scene.labels.filter { it.small }.map { it.text })
         // North Up・縮尺 1km（最外周 312 px、間隔 156 px）: 角（576 px）まで 3 本 → 500 m / 1k / 1.5k
         val nu = build(state(mode = DisplayMode.NORTH_UP).copy(rangeM = 1_000.0))
         assertEquals(3, nu.arcs.size)
@@ -597,17 +619,18 @@ class HudSceneBuilderTest {
     }
 
     @Test
-    fun nextWaypointLabelHasNameAndBearing() {
-        // 次の WP（画面内、東 1km）: 名前・方位の2行。方位は自機から WP への方位（真北基準の3桁）。ほかの WP は名前だけ
-        val s = build(state(headingDeg = 0f, wps = listOf(wp("東", 0.0, 1_000.0), wp("北", 1_500.0)), next = 0))
+    fun nextWaypointLabelHasThreeLines() {
+        // 次の WP（画面内、東 800m）: 距離・名前・方位の3行（矢印と同じ）。方位は自機から WP への方位（真北基準の3桁）。
+        // ほかの WP は名前だけ
+        val s = build(state(headingDeg = 0f, wps = listOf(wp("東", 0.0, 800.0), wp("北", 1_500.0)), next = 0))
         val east = s.wpMarks.single { it.name == "東" }
         val north = s.wpMarks.single { it.name == "北" }
-        assertEquals(listOf("東", "090°"), east.lines)
+        assertEquals(listOf("800 m", "東", "090°"), east.lines)
         assertEquals(listOf("北"), north.lines)
         // 1行の高さは WP の文字（Tuning.WP_LABEL_SP）の大きさ
         assertEquals(HudSceneBuilder.lineHeight(Tuning.WP_LABEL_SP, m), east.linePx, 1e-3f)
-        // 2行の塊は印の上: いちばん下の行（方位）の中心が印から wpNameOffset
-        assertEquals(east.at.y - m.wpNameOffset - east.linePx / 2, east.nameAt!!.y, 1e-3f)
+        // 3行の塊は印の上: いちばん下の行（方位）の中心が印から wpNameOffset
+        assertEquals(east.at.y - m.wpNameOffset - east.linePx, east.nameAt!!.y, 1e-3f)
         assertEquals(north.at.y - m.wpNameOffset, north.nameAt!!.y, 1e-3f)
         // 文字の大きさは前より +2 sp（名前 13 → 15、矢印 11 → 13）
         assertEquals(Tuning.LABEL_SP + 2, Tuning.WP_LABEL_SP, 0f)
@@ -627,8 +650,8 @@ class HudSceneBuilderTest {
 
     @Test
     fun overlapCheckCoversTheBearingLine() {
-        // 次の WP（北 1km）の2行の塊（名前・方位）と、その少し北の WP の名前: 1行目の高さ 1.5 行分だけ北にあると、
-        // 名前だけなら重ならないが、2行の塊とは重なる → 次の WP の文字を残し、北の WP の名前は出さない
+        // 次の WP（北 1km）の3行の塊（距離・名前・方位）と、その少し北の WP の名前: 2 行分だけ北にあると、
+        // 名前だけなら重ならないが、3行の塊とは重なる → 次の WP の文字を残し、北の WP の名前は出さない
         val line = HudSceneBuilder.lineHeight(Tuning.WP_LABEL_SP, m)
         val pxPerM = 360.0 / 2_000.0
         fun names(gapLines: Double): Map<String, P?> {
@@ -636,14 +659,14 @@ class HudSceneBuilderTest {
             val s = build(state(headingDeg = 0f, wps = listOf(wp("A", 1_000.0), wp("B", 1_000.0 + gapM)), next = 0))
             return s.wpMarks.associate { it.name to it.nameAt }
         }
-        val close = names(1.5)
+        val close = names(2.0)
         assertTrue(close["A"] != null)
         assertNull(close["B"])
-        // 2.5 行分離れていれば、どちらも出す
-        val apart = names(2.5)
+        // 3.5 行分離れていれば、どちらも出す
+        val apart = names(3.5)
         assertTrue(apart["A"] != null && apart["B"] != null)
         // 箱の高さは行数分
-        assertEquals(line, HudSceneBuilder.wpTextBox(listOf("A", "000°"), P(0f, 0f), m).hh, 1e-3f)
+        assertEquals(line * 1.5f, HudSceneBuilder.wpTextBox(listOf("1.00 km", "A", "000°"), P(0f, 0f), m).hh, 1e-3f)
         assertEquals(line / 2, HudSceneBuilder.wpTextBox(listOf("B"), P(0f, 0f), m).hh, 1e-3f)
     }
 

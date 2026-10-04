@@ -63,7 +63,7 @@ object Tuning {
     /** AUTO: 1段狭めるのは、次の WP を自機から 1 / これ 倍遠くに置いても1段狭い段の枠に収まるとき（狭めた直後に広げ直さないための余裕） */
     const val AUTO_ZOOM_IN_FIT_RATIO = 0.8
 
-    /** AUTO: WP 通過後（次の WP が変わってから）段を動かさない時間 [秒] の既定と範囲 */
+    /** AUTO: 到達した WP を通り過ぎてから段を動かさない時間 [秒] の既定と範囲（通り過ぎるまでも動かさない） */
     const val AUTO_HOLD_AFTER_WP_SEC = 10
     const val AUTO_HOLD_AFTER_WP_MAX_SEC = 60
 
@@ -227,6 +227,18 @@ object Tuning {
     /** 数値の表示の文字の黒の縁取りの太さ [dp] */
     const val TEXT_OUTLINE_DP = 2.5f
 
+    /** 縮尺のボタン（操作列の真ん中）: 距離の文字の大きさの上限 [sp]（ボタンの幅に収まるよう縮める）と、文字の左右の余白 [dp] */
+    const val RANGE_BUTTON_MAX_SP = 22f
+    const val RANGE_BUTTON_TEXT_PAD_DP = 4f
+
+    /**
+     * NO FIX の枠: 数値の欄の下端から下げる量・画面の左端から離す量 [dp]（左寄せで置く）と、枠の内側の余白（左右・上下）[dp]
+     */
+    const val NO_FIX_MARGIN_TOP_DP = 12f
+    const val NO_FIX_MARGIN_START_DP = 12f
+    const val NO_FIX_PADDING_H_DP = 18f
+    const val NO_FIX_PADDING_V_DP = 10f
+
     /** 数値の表示: 欄の間のすき間 [dp]、見出しと値の間 [dp] */
     const val NUMBERS_CELL_GAP_DP = 10f
     const val NUMBERS_CAPTION_PAD_DP = 4f
@@ -253,9 +265,6 @@ object Tuning {
     const val EDGE_ARROW_DP = 12f
     const val OWN_SHIP_DP = 11f
     const val OWN_SHIP_CIRCLE_DP = 7f
-
-    /** 距離環の文字: 距離環から外側へ [dp] */
-    const val RING_LABEL_OFFSET_DP = 6f
 
     /** 標高プロファイル: 線の太さ [dp]、点の半径 [dp]、文字 [sp] */
     const val PROFILE_LINE_DP = 1.8f

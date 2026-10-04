@@ -120,8 +120,6 @@ data class HudMetrics(
     val wpNameOffset: Float = Tuning.HUD_WP_NAME_OFFSET_DP,
     /** 方位目盛りの文字の大きさの目安（矢印の文字を避けるときに使う）: 半幅・半高 */
     val compassLabelHalf: Float = Tuning.HUD_COMPASS_LABEL_HALF_DP,
-    /** 距離環の文字の位置（距離環から外側へ） */
-    val ringLabelOffset: Float = Tuning.RING_LABEL_OFFSET_DP,
     /** AUTO: 見えている隣り合う目標どうしの、画面上の最小の間隔 */
     val wpMinSep: Float = Tuning.AUTO_WP_MIN_SEP_DP,
 ) {
@@ -129,7 +127,7 @@ data class HudMetrics(
         tickMinor * k, tickMajor * k, labelGap * k, edgeInset * k, arrowTextGap * k,
         arcOriginFromBottom * k, arcOriginFromBottomHigh * k, northUpEdgeMargin * k, pointerSize * k,
         arrowLabelLine * k, labelCharWidth * k, fitMargin * k, ownShipClear * k, wpNameOffset * k, compassLabelHalf * k,
-        ringLabelOffset * k, wpMinSep * k,
+        wpMinSep * k,
     )
 }
 

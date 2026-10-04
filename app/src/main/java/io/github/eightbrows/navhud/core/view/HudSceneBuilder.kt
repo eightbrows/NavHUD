@@ -80,9 +80,7 @@ object HudSceneBuilder {
             labels.removeAll { l -> !l.small && keepOut.any { it.overlaps(labelBox(l, m)) } }
         }
 
-        // 距離環の文字が方位目盛りの文字に重なるなら、距離環の文字を出さない（目盛りを優先）
-        val compassBoxes = labels.filter { !it.small }.map { labelBox(it, m) }
-        labels.removeAll { l -> l.small && compassBoxes.any { it.overlaps(labelBox(l, m)) } }
+        // 距離環の数字は、数値・ボタン・WP の文字・方位の文字と重なっても消さない（§6.1）
 
         // 上部の三角（機首方位の印）も文字を置かない所にする
         val pointerBoxes = pointers.map { Box(P(it.tip.x, it.tip.y + it.sizePx / 2), it.sizePx * 0.7f, it.sizePx * 0.7f) }
@@ -201,7 +199,7 @@ object HudSceneBuilder {
         if (ownAt != null) {
             val corners = listOf(P(rect.left, rect.top), P(rect.right, rect.top), P(rect.left, rect.bottom), P(rect.right, rect.bottom))
             val maxPx = corners.maxOf { HudGeometry.dist(ownAt, it) }
-            addRings(proj.copy(origin = ownAt), ringIntervalM, maxPx.toDouble(), 0f, 360f, -45.0, m.ringLabelOffset, arcs, labels)
+            addRings(proj.copy(origin = ownAt), ringIntervalM, maxPx.toDouble(), rect, arcs, labels)
         }
         val c = proj.origin
         for (b in 0 until 360 step 10) {
@@ -235,7 +233,7 @@ object HudSceneBuilder {
         // 描画の枠の四隅に届くまで距離環を描く（はみ出す分は切れる）
         val maxPx = farthestCornerPx(o, rect)
         // 全周（後ろ側も。下に重ねた表示の下も地図として見えるため）
-        addRings(proj, ringIntervalM, maxPx.toDouble(), 0f, 360f, -45.0, m.ringLabelOffset, arcs, labels)
+        addRings(proj, ringIntervalM, maxPx.toDouble(), rect, arcs, labels)
 
         for (b in 0 until 360 step 10) {
             val a = proj.screenAngle(b.toDouble())
@@ -280,7 +278,7 @@ object HudSceneBuilder {
         // 方位サークル: 縮尺の距離環の1つ外側の距離環（AUTO の判定は縮尺の距離環のまま）
         val card = ((rangeM + ringIntervalM) * proj.pxPerM).toFloat()
         // 縮尺の距離環より外も、描画の枠の四隅に届くまで同じ間隔で描き足す
-        addRings(proj, ringIntervalM, maxOf(outer + 0.5f, farthestCornerPx(o, rect)).toDouble(), 0f, 360f, -45.0, m.ringLabelOffset, arcs, labels)
+        addRings(proj, ringIntervalM, maxOf(outer + 0.5f, farthestCornerPx(o, rect)).toDouble(), rect, arcs, labels)
 
         for (b in 0 until 360 step 10) {
             val a = b.toDouble()
@@ -301,29 +299,40 @@ object HudSceneBuilder {
         }
     }
 
-    /** interval ごとの距離環を maxPx まで。文字は labelAngle の位置。 */
+    /**
+     * interval ごとの全周の距離環を maxPx まで（中心は proj.origin）。距離環の数字は ringLabelPoints の位置（rect に入るものだけ）。
+     */
     private fun addRings(
         proj: HudProjection,
         intervalM: Double,
         maxPx: Double,
-        startDeg: Float,
-        sweepDeg: Float,
-        labelAngle: Double,
-        labelOffset: Float,
+        rect: HudRect,
         arcs: MutableList<Arc>,
         labels: MutableList<Label>,
     ) {
         if (intervalM <= 0) return
+        val r1 = (intervalM * proj.pxPerM).toFloat()
         var k = 1
         while (true) {
             val rM = intervalM * k
             val rPx = rM * proj.pxPerM
             if (rPx > maxPx || k > MAX_RINGS) break
-            arcs += Arc(proj.origin, rPx.toFloat(), startDeg, sweepDeg, Ink.SCALE)
+            arcs += Arc(proj.origin, rPx.toFloat(), 0f, 360f, Ink.SCALE)
             // 25 / 250 / 1k / 2.5k。方位目盛りより小さく薄い色（small / SCALE_DIM）
-            labels += Label(HudFormat.ringLabel(rM), HudGeometry.pointAt(proj.origin, labelAngle, rPx.toFloat() + labelOffset), Ink.SCALE_DIM, small = true)
+            for (p in ringLabelPoints(proj.origin, r1, rPx.toFloat()).filter { rect.contains(it) }) {
+                labels += Label(HudFormat.ringLabel(rM), p, Ink.SCALE_DIM, small = true)
+            }
             k++
         }
+    }
+
+    /**
+     * 距離環の数字の位置（§6.1）: 一番小さい距離環（半径 r1）の左右の点（画面の 270° と 90°）を通る縦の線 x = cx ∓ r1 と、
+     * 半径 rn の距離環の上側の交点 y = cy − √(rn² − r1²)。一番小さい距離環は (cx ∓ r1, cy)。左・右の順。下側の交点は使わない。
+     */
+    internal fun ringLabelPoints(center: P, r1: Float, rn: Float): List<P> {
+        val dy = kotlin.math.sqrt(maxOf(0f, rn * rn - r1 * r1))
+        return listOf(P(center.x - r1, center.y - dy), P(center.x + r1, center.y - dy))
     }
 
     /**
@@ -385,15 +394,17 @@ object HudSceneBuilder {
         }
         // 自機から次の WP への方位線（マゼンタの長い破線。ラバーラインと重なっても、すき間から自機の線が見える）
         if (next != null && ownAt != null) segments += Segment(ownAt, pts[next], Ink.ACTIVE, bold = true, longDash = true)
-        // 次の WP の方位（自機から。HDG と同じ真北基準の3桁）
+        // 次の WP の距離と方位（自機から。方位は HDG と同じ真北基準の3桁）
         val nextBearing = next?.let { HudFormat.bearing(Geo.bearingDeg(fix.lat, fix.lon, wps[it].lat, wps[it].lon)) }
+        val nextDistance = next?.let { HudFormat.distance(Geo.distanceM(fix.lat, fix.lon, wps[it].lat, wps[it].lon)) }
 
         // inner: 矢印を置く枠（TargetFrame の縁から edgeInset 内側）
         // 文字を置かない所: 自機の記号、方位目盛り・距離環の文字、画面内の WP の印と名前、数値の表示、操作列
         // （先に置いた矢印の文字も加えていく）。自機が見えていなければ（PAN）、自機の記号は避けなくてよい
         val ownShipBox = Box(ownAt ?: P(-1e6f, -1e6f), m.ownShipClear, m.ownShipClear)
         val obstacles = mutableListOf(ownShipBox)
-        val labelBoxes = labels.map { labelBox(it, m) } + pointerBoxes
+        // 距離環の数字（small）は縦の線の上に並ぶので避けない（重なってよい）。方位目盛りの文字と上部の三角は避ける
+        val labelBoxes = labels.filter { !it.small }.map { labelBox(it, m) } + pointerBoxes
         obstacles += labelBoxes
         obstacles += numberBoxes
         inner.notch?.let { n ->
@@ -403,10 +414,10 @@ object HudSceneBuilder {
         val marks = mutableListOf<WpMark>()
         // 印は描画の枠の中なら描く（重ねた表示の下でも）
         val inFrame = shown.filter { drawFrame.contains(pts[it]) }
-        // 文字: 次の WP は 名前・方位 の2行、ほかは名前だけ。重ねた数値の表示・ボタン類と重なるなら出さない。
+        // 文字: 次の WP は 距離・名前・方位 の3行（画面内でも矢印でも同じ）、ほかは名前だけ。重ねた数値の表示・ボタン類と重なるなら出さない。
         // 文字どうしが重なるなら、次の WP の文字を残し、ほかはルートの順に先に置いた文字を残す（もう一方は印と線だけ）。
         // 重なりは行数分の高さの箱で判定する
-        fun linesOf(i: Int) = if (i == next) listOfNotNull(wps[i].name, nextBearing) else listOf(wps[i].name)
+        fun linesOf(i: Int) = if (i == next) listOfNotNull(nextDistance, wps[i].name, nextBearing) else listOf(wps[i].name)
         val names = HashMap<Int, P?>()
         val nameBoxes = mutableListOf<Box>()
         for (i in inFrame.sortedBy { if (it == next) -1 else inFrame.indexOf(it) }) {
@@ -440,9 +451,8 @@ object HudSceneBuilder {
                 // 三角が方位目盛りの文字や、ARC の方位マーカー・ラバーラインの周り、自機の記号（後ろの矢印は自機のすぐ下の
                 // 縁に来る）に来るなら、縁に沿ってずらす
                 val at = slideArrow(inner.rayHit(proj.origin, a), inner, labelBoxes + arrowKeepOut + ownShipBox, m)
-                val dist = Geo.distanceM(fix.lat, fix.lon, wp.lat, wp.lon)
-                // 3行: 距離・名前・方位
-                val lines = listOfNotNull(HudFormat.distance(dist), wp.name, nextBearing)
+                // 3行: 距離・名前・方位（画面内の次の WP と同じ）
+                val lines = linesOf(i)
                 val box0 = arrowTextBox(lines, P(0f, 0f), m)
                 // 自機への線（マゼンタ）と重ならないよう、線と直角に、文字の塊が線にかからない所までずらす
                 val r = Math.toRadians(a)

@@ -174,32 +174,37 @@ class HudViewportTest {
         assertEquals(500.0, autoRange(0), 0.0)
     }
 
-    /** 10 m/s で北へ走り、400m 北の A を通過（到達半径 100m なので 30 秒目）して、次は 5km 北の B。各秒の段を返す。 */
+    /**
+     * 10 m/s で北へ走り、405m 北の A に到達（到達半径 100m なので 31 秒目）して、そのまま走り続ける。次は 5km 北の B。各秒の段を返す。
+     * A を通り過ぎるのは 42 秒目（40〜41 秒目の間に A の横を通り、42 秒目に 15m 離れた）
+     */
     private fun passRun(holdSec: Int): List<Double> {
         val lat0 = TestGeo.LAT0
         val lon0 = TestGeo.LON0
         val e = NavEngine(NavSettings(autoHoldAfterWpSec = holdSec, reachRadiusM = 100.0), sourceKind = SourceKind.LIVE)
         e.setViewport(viewport)
-        e.setWaypoints(listOf(Waypoint("A", TestGeo.lat(400.0), lon0), Waypoint("B", TestGeo.lat(5_000.0), lon0)))
+        e.setWaypoints(listOf(Waypoint("A", TestGeo.lat(405.0), lon0), Waypoint("B", TestGeo.lat(5_000.0), lon0)))
         return (0..60L).map { t ->
-            val s = e.onFix(Fix(timeMs = t * 1_000, lat = TestGeo.lat(minOf(t * 10.0, 400.0)), lon = lon0), t * 1_000)
-            if (t == 30L) assertEquals(1, s.nextWpIndex)
-            if (t == 29L) assertEquals(0, s.nextWpIndex)
+            val s = e.onFix(Fix(timeMs = t * 1_000, lat = TestGeo.lat(t * 10.0), lon = lon0, speedMps = 10f, bearingDeg = 0f), t * 1_000)
+            if (t == 31L) assertEquals(1, s.nextWpIndex)
+            if (t == 30L) assertEquals(0, s.nextWpIndex)
             s.rangeM
         }
     }
 
     @Test
     fun autoHoldsAfterPassingAWaypoint() {
-        // 既定（10 秒）: A を通過した 30 秒目から 39 秒目までは段を動かさず、40 秒目から B へ向けて1段ずつ広げる
+        // 既定（10 秒）: A に到達した 31 秒目から、通り過ぎる 42 秒目と、そこから 10 秒（51 秒目）までは段を動かさず、
+        // 52 秒目から B へ向けて1段ずつ広げる
         val r = passRun(10)
-        val atPass = r[30]
-        assertTrue(atPass < 1_000.0)
-        for (t in 30..39) assertEquals("t=$t", atPass, r[t], 0.0)
-        assertTrue(r[40] > atPass)
-        // 0 秒: 今までどおり、通過したその刻みから広げる
+        val atReach = r[31]
+        assertTrue(atReach < 1_000.0)
+        for (t in 31..51) assertEquals("t=$t", atReach, r[t], 0.0)
+        assertTrue(r[52] > atReach)
+        // 0 秒: 通り過ぎたその刻み（42 秒目）から広げる。通り過ぎるまでは変えない
         val z = passRun(0)
-        assertTrue(z[30] > z[29])
+        for (t in 31..41) assertEquals("t=$t", z[31], z[t], 0.0)
+        assertTrue(z[42] > z[41])
     }
 
     @Test

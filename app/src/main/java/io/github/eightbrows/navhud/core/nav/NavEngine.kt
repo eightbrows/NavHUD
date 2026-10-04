@@ -35,6 +35,15 @@ class NavEngine(
     private val passDetector = PassDetector()
     private val sidePassDetector = SidePassDetector()
 
+    /** AUTO の待機（§6.1）: 到達した WP を通り過ぎたか。真横通過と同じ判定（SidePassDetector.updatePassed） */
+    private val passedDetector = SidePassDetector()
+
+    /** 通り過ぎるのを待っている、最後に到達した WP の番号（null なら待っていない） */
+    private var waitingPassIndex: Int? = null
+
+    /** この Fix の判定で到達にした WP と理由（次の WP が変わったときの待ち方を決める） */
+    private var reachedNow: Pair<Int, ReachReason>? = null
+
     /** 到達の理由に書く「いちばん近づいた距離」: 次の WP ごとに、隣り合う Fix を結んだ線分との最短距離を追う */
     private var closestKey: Any? = null
     private var closestM = Double.POSITIVE_INFINITY
@@ -59,7 +68,10 @@ class NavEngine(
     private var replayTrack: List<TrackPoint> = emptyList()
     /** PAN の表示（null なら通常の表示） */
     private var pan: PanView? = null
-    /** 次の WP が変わった（到達・通過・手動のトグル）。次の recompute で AUTO の通過後の待機を始める */
+    /**
+     * AUTO の待機を始める（次の recompute で、そこから設定の秒数のあいだ段を動かさない）。到達した WP を通り過ぎたとき、
+     * 真横通過・手動で到達にしたとき、手動で未到達に戻したとき
+     */
     private var wpChanged = false
 
     var state: NavState = NavState()
@@ -95,10 +107,12 @@ class NavEngine(
         headingSelector.update(fix)
         rateTracker.add(fix)
         val nextBefore = WaypointNav.nextIndex(waypoints)
+        reachedNow = null
         checkRadius(fix)
         checkSidePass(fix)
         checkPass(fix)
-        if (WaypointNav.nextIndex(waypoints) != nextBefore) wpChanged = true
+        if (WaypointNav.nextIndex(waypoints) != nextBefore) onNextChanged(reachedNow)
+        checkPassedReached(fix)
         // LIVE の軌跡（起動してからの分。保存しない）
         if (sourceKind == SourceKind.LIVE) liveTrail.add(fix)
     }
@@ -198,6 +212,15 @@ class NavEngine(
     fun setSourceMode(mode: SourceMode): NavState = updateSettings(settings.copy(sourceMode = mode))
 
     fun setWaypoints(wps: List<Waypoint>): NavState {
+        // 通り過ぎるのを待っていた WP が、同じ番号・同じ位置で残っていなければ（別のリストなど）待つのをやめる
+        waitingPassIndex?.let { i ->
+            val old = waypoints.getOrNull(i)
+            val new = wps.getOrNull(i)
+            if (old == null || new == null || old.lat != new.lat || old.lon != new.lon) {
+                waitingPassIndex = null
+                rangeSelector.stopWaitingForPass()
+            }
+        }
         waypoints = wps
         return recompute()
     }
@@ -209,7 +232,8 @@ class NavEngine(
         waypoints.getOrNull(index)?.takeIf { it.reached }?.let { wp ->
             waypoints = waypoints.toMutableList().also { it[index] = wp.copy(reach = ReachInfo(ReachReason.MANUAL, nowMs ?: lastFix?.timeMs)) }
         }
-        if (WaypointNav.nextIndex(waypoints) != nextBefore) wpChanged = true
+        // 手動のときは通り過ぎるのを待たず、すぐ秒数を数え始める
+        if (WaypointNav.nextIndex(waypoints) != nextBefore) onNextChanged(null)
         return recompute()
     }
 
@@ -252,7 +276,9 @@ class NavEngine(
         passed.forEach(::ingest)
         seeking = false
         clearHistory()
-        // 地図が跳ぶので、AUTO は待たずに縮尺を決め直す（一時停止中はトラックの時計が進まず、狭める方向の待ちが終わらないため）
+        // 地図が跳ぶので、AUTO は待たずに縮尺を決め直す（一時停止中はトラックの時計が進まず、狭める方向の待ちが終わらないため）。
+        // 飛ばした区間で到達した WP を通り過ぎるのも待たない
+        wpChanged = false
         rangeSelector.decideNow()
         nowMs = null
         if (toStart) waypoints = waypoints.map { it.copy(reached = false, reach = null) }
@@ -292,6 +318,7 @@ class NavEngine(
 
     /** 次の WP（i）を到達にして、理由・Fix の時刻・いちばん近づいた距離を記録する。 */
     private fun markReached(i: Int, reason: ReachReason, fix: Fix) {
+        reachedNow = i to reason
         val closest = closestTo(i, fix)
         waypoints = waypoints.toMutableList().also {
             it[i] = it[i].copy(reached = true, reach = ReachInfo(reason, fix.timeMs, closest, viaSeek = seeking))
@@ -320,8 +347,39 @@ class NavEngine(
         if (passDetector.update(fix, wp, Triple(i, wp.lat, wp.lon), settings)) markReached(i, ReachReason.PASS, fix)
     }
 
+    /**
+     * 次の WP が変わったときの AUTO の待ち方（§6.1）。reached はこの Fix で到達にした WP と理由（手動のトグルは null）。
+     * - 真横通過で到達・手動: もう通り過ぎている（手動は待たない）ので、すぐ秒数を数え始める
+     * - WP ごとの半径・到着半径・通過判定で到達: その WP を通り過ぎるまで段を動かさない（待っている WP は最後に到達したもの）
+     */
+    private fun onNextChanged(reached: Pair<Int, ReachReason>?) {
+        if (reached == null || reached.second == ReachReason.SIDE) {
+            waitingPassIndex = null
+            rangeSelector.stopWaitingForPass()
+            wpChanged = true
+        } else {
+            waitingPassIndex = reached.first
+            passedDetector.reset()
+            wpChanged = false
+            rangeSelector.waitForPass()
+        }
+    }
+
+    /** 最後に到達した WP を通り過ぎたら、そこから秒数を数え始める（真横通過と同じ条件。距離の上限なし）。 */
+    private fun checkPassedReached(fix: Fix) {
+        val i = waitingPassIndex ?: return
+        val wp = waypoints.getOrNull(i) ?: return
+        if (passedDetector.updatePassed(fix, wp, Triple(i, wp.lat, wp.lon), settings)) {
+            waitingPassIndex = null
+            wpChanged = true
+        }
+    }
+
     private fun clearHistory() {
         lastFix = null
+        waitingPassIndex = null
+        passedDetector.reset()
+        rangeSelector.stopWaitingForPass()
         lastFixAtMs = null
         pan = null
         rateTracker.clear()
@@ -349,7 +407,7 @@ class NavEngine(
         val bearing = if (fix != null && wp != null) Geo.bearingDeg(fix.lat, fix.lon, wp.lat, wp.lon) else null
         // ETA: RATE の窓の平均速度。履歴が窓に足りなければ、ある分（最低 10 秒）の平均速度
         val eta = if (now != null && dist != null) WaypointNav.etaMs(now, dist, rateTracker.etaSpeed(settings.rateWindowSec)) else null
-        // 次の WP が変わったら、そこから設定の秒数のあいだ AUTO の段を動かさない（時刻はトラックの時刻）
+        // 到達した WP を通り過ぎたら（真横通過・手動は到達したら）、そこから設定の秒数のあいだ AUTO の段を動かさない（時刻はトラックの時刻）
         if (wpChanged && now != null) {
             rangeSelector.holdForWpChange(now)
             wpChanged = false

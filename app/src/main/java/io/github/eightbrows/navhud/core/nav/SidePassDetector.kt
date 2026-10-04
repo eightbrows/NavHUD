@@ -30,7 +30,17 @@ class SidePassDetector {
      * Fix を1つ入れて、真横を通過したら true を返す。
      * @param key 次の WP を見分けるキー（番号と座標など）。変わったら記録をリセットする
      */
-    fun update(fix: Fix, wp: Waypoint, key: Any, s: NavSettings): Boolean {
+    fun update(fix: Fix, wp: Waypoint, key: Any, s: NavSettings): Boolean =
+        track(fix, wp, key, s) { now -> s.sidePass && now <= s.sidePassMaxM }
+
+    /**
+     * 到達した WP を「通り過ぎた」か（§6.1 の AUTO の待機）。真横通過と同じ条件（速度・方位・WP が真横か後ろ・
+     * いちばん近づいた距離から sidePassDepartM 以上離れた）で、真横通過のオン / オフと距離の上限（sidePassMaxM）は使わない。
+     */
+    fun updatePassed(fix: Fix, wp: Waypoint, key: Any, s: NavSettings): Boolean = track(fix, wp, key, s) { true }
+
+    /** いちばん近づいた距離を追い、enabled（今の WP までの距離を受け取る）と共通の条件を満たしたら true。 */
+    private inline fun track(fix: Fix, wp: Waypoint, key: Any, s: NavSettings, enabled: (nowM: Double) -> Boolean): Boolean {
         if (key != targetKey) {
             reset()
             targetKey = key
@@ -40,13 +50,12 @@ class SidePassDetector {
         val now = Geo.distanceM(fix.lat, fix.lon, wp.lat, wp.lon)
         val seg = if (p == null) now else PassDetector.segmentDistanceM(p, fix, wp)
         if (seg < minDistM) minDistM = seg
-        if (!s.sidePass) return false
+        if (!enabled(now)) return false
         // 走行中で、GPS 方位が使えるとき（HLD を解く速度以上）
         val speed = fix.speedMps ?: return false
         val course = fix.bearingDeg ?: return false
         if (speed < s.holdExitSpeedMps) return false
         fix.bearingAccDeg?.let { if (it > s.maxGpsBearingAccDeg) return false }
-        if (now > s.sidePassMaxM) return false
         // WP が真横か後ろ
         val toWp = Geo.bearingDeg(fix.lat, fix.lon, wp.lat, wp.lon)
         if (abs(Geo.angleDiff(course.toDouble(), toWp)) < 90.0) return false

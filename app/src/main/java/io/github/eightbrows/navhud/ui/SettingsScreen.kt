@@ -181,8 +181,8 @@ fun SettingsScreen(
                 onChange { it.copy(autoRangeZoomInDelaySec = (it.autoRangeZoomInDelaySec + d).coerceIn(NavSettings.AUTO_RANGE_ZOOM_IN_DELAY_SEC_RANGE)) }
             }
             Stepper(
-                "WP 通過後に AUTO が動くまで", "${s.autoHoldAfterWpSec} 秒",
-                note = "次の WP が変わってから、この時間は縮尺を動かさない（矢印は出す）",
+                "WP を通り過ぎてから縮尺を変えるまで", "${s.autoHoldAfterWpSec} 秒",
+                note = "到達した WP を通り過ぎるまでと、通り過ぎてからこの秒数は縮尺を変えない（真横通過・手動は到達してから数える。矢印は出す）",
             ) { d ->
                 onChange {
                     val r = NavSettings.AUTO_HOLD_AFTER_WP_SEC_RANGE

@@ -71,7 +71,8 @@ interface RangeProbe {
  * 4. 次の WP が今の段で収まらない: 1段広い段が上限以内で 3 を満たすなら、すぐ1段広げる（広げられなければ矢印で示す）。
  * 5. 次の WP が「zoomInDistRatio × 今の段の R1（1つ目の距離環 = 段の 1/2）」以内で、1段狭い段に 1 / AUTO_ZOOM_IN_FIT_RATIO 倍遠くに置いても収まり、
  *    3 を満たす: これが zoomInDelayMs 続いたら1段狭める。
- * 次の WP が変わってから holdAfterWpMs のあいだは、1〜5 のどれも行わない（シーク・PAN から戻ったときは待たない）。
+ * 次の WP が変わったら、到達した WP を通り過ぎるまで（waitForPass。上限なし）と、通り過ぎてから holdAfterWpMs のあいだは、
+ * 1〜5 のどれも行わない（真横通過で到達・手動で到達にしたときは通り過ぎるのを待たない。シーク・PAN から戻ったときは待たない）。
  * ＋ / − を押したら AUTO は OFF になる。
  */
 class RangeSelector(
@@ -100,7 +101,11 @@ class RangeSelector(
     /** 次の WP が変わった時刻（この時刻から holdAfterWpMs のあいだは AUTO の段を動かさない）。 */
     private var holdSince: Long? = null
 
-    /** WP 通過後に AUTO が動くまで [ms]（設定 autoHoldAfterWpSec） */
+    /** 到達した WP を通り過ぎるのを待っている（その間は AUTO の段を動かさない。上限なし） */
+    var waitingForPass: Boolean = false
+        private set
+
+    /** WP を通り過ぎてから AUTO が動くまで [ms]（設定 autoHoldAfterWpSec） */
     var holdAfterWpMs: Long = NavSettings().autoHoldAfterWpSec * 1000L
 
     /** 狭め始める距離: 次の WP が「これ × 今の段の R1」以内のときだけ狭める（設定 autoZoomInDistRatio） */
@@ -147,10 +152,26 @@ class RangeSelector(
         decideNow = true
     }
 
-    /** 次の WP が変わった（到達・通過・手動のトグル）: nowMs から holdAfterWpMs のあいだ AUTO の段を動かさない。 */
+    /**
+     * 到達した WP を通り過ぎた（真横通過で到達・手動で到達にしたときは、到達したとき）: nowMs から holdAfterWpMs のあいだ
+     * AUTO の段を動かさない。通り過ぎるのを待っていたら、待つのをやめる。
+     */
     fun holdForWpChange(nowMs: Long) {
+        waitingForPass = false
         holdSince = if (holdAfterWpMs > 0) nowMs else null
         zoomInSince = null
+    }
+
+    /** 到達した WP を通り過ぎるまで、AUTO の段を動かさない（上限なし。通り過ぎたら holdForWpChange）。 */
+    fun waitForPass() {
+        waitingForPass = true
+        holdSince = null
+        zoomInSince = null
+    }
+
+    /** 通り過ぎるのを待つのをやめる（シーク・入力の切替など。待たずに AUTO の規則で決める）。 */
+    fun stopWaitingForPass() {
+        waitingForPass = false
     }
 
     /** AUTO の狭める方向の待ちをやり直す（PAN 中など、判定を止めている間）。 */
@@ -177,7 +198,13 @@ class RangeSelector(
         if (decideNow && probe != null) {
             decideNow = false
             holdSince = null
+            waitingForPass = false
             return set(target(w, probe))
+        }
+        // 到達した WP を通り過ぎるまでは動かさない（広げる・狭める、どちらも）
+        if (waitingForPass) {
+            zoomInSince = null
+            return rangeM
         }
         // 次の WP が変わってから holdAfterWpMs のあいだは動かさない（時刻が戻ったら待機をやめる）
         holdSince?.let { since ->

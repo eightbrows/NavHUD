@@ -103,7 +103,10 @@ data class NavSettings(
     /** AUTO の下限・上限 [km]（段。使う段から選ぶ。画面と設定画面では R1 = 1つ目の距離環の距離で出す） */
     val autoMinRangeKm: Double = Tuning.AUTO_MIN_RANGE_KM,
     val autoMaxRangeKm: Double = Tuning.AUTO_MAX_RANGE_KM,
-    /** WP 通過後（次の WP が変わってから）AUTO の段を動かさない時間 [秒]。0〜60 */
+    /**
+     * 到達した WP を通り過ぎてから AUTO の段を動かさない時間 [秒]。0〜60。通り過ぎるまでも動かさない
+     * （真横通過・手動で到達にしたときは、到達してから数える）
+     */
     val autoHoldAfterWpSec: Int = Tuning.AUTO_HOLD_AFTER_WP_SEC,
     /** AUTO で狭め始める距離: 次の WP が「これ × 今の段の R1（1つ目の距離環）」以内のときだけ狭める。1.0〜3.0、0.1 刻み */
     val autoZoomInDistRatio: Double = Tuning.AUTO_ZOOM_IN_DIST_RATIO,
