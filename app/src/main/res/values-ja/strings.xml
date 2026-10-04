@@ -85,7 +85,7 @@
     <string name="track_brightness">読み込んだ軌跡の明るさ</string>
     <string name="track_brightness_note">REPLAY のトラック全体の線（グレー）。走った跡の線は変わらない</string>
     <string name="ring_label_size">距離環の数字の大きさ</string>
-    <string name="ring_label_size_note" formatted="false">距離環の左右に付ける数字（250・1k など）。100% が D12 までの大きさ</string>
+    <string name="ring_label_size_note" formatted="false">距離環の左右に付ける数字（250・1k など）。100% が元の大きさ</string>
     <string name="ownship_position">ARC の自機の位置</string>
     <string name="position_standard">標準</string>
     <string name="position_high">高め</string>

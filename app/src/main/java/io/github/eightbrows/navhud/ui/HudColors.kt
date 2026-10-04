@@ -1,6 +1,7 @@
 package io.github.eightbrows.navhud.ui
 
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
@@ -54,7 +55,7 @@ object HudColors {
     val BearingLine = Color(0xFF333333)
 
     /** 読み込んだ軌跡の明るさ [%]（設定 trackBrightnessPct）。Compose の状態 */
-    var trackBrightnessPct: Int by mutableStateOf(Tuning.TRACK_BRIGHTNESS_DEFAULT_PCT)
+    var trackBrightnessPct: Int by mutableIntStateOf(Tuning.TRACK_BRIGHTNESS_DEFAULT_PCT)
 
     /** REPLAY のトラック全体（テーマによらずグレー。明るさは設定。100% = 白） */
     val Track: Color get() = gray(0xFF * trackBrightnessPct.coerceIn(0, 100) / 100)

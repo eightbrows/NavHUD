@@ -87,7 +87,7 @@
     <string name="track_brightness">Loaded track brightness</string>
     <string name="track_brightness_note">The whole REPLAY track line (gray). The driven trail does not change.</string>
     <string name="ring_label_size">Range ring label size</string>
-    <string name="ring_label_size_note" formatted="false">Numbers on both sides of the range rings (250, 1k, …). 100% is the size up to D12.</string>
+    <string name="ring_label_size_note" formatted="false">Numbers on both sides of the range rings (250, 1k, …). 100% is the original size.</string>
     <string name="ownship_position">ARC ownship position</string>
     <string name="position_standard">Standard</string>
     <string name="position_high">High</string>
