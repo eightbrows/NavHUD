@@ -132,6 +132,8 @@ data class NavSettings(
     val buttonOpacityPct: Int = Tuning.BUTTON_OPACITY_DEFAULT_PCT,
     /** 数値（4行）の不透明度 [%]。20〜100、10 刻み。警告の表示は常に 100% */
     val numbersOpacityPct: Int = Tuning.NUMBERS_OPACITY_DEFAULT_PCT,
+    /** 読み込んだ軌跡（REPLAY のトラック全体の線。グレー）の明るさ [%]。25 / 50 / 75 / 100（100 がいちばん明るい） */
+    val trackBrightnessPct: Int = Tuning.TRACK_BRIGHTNESS_DEFAULT_PCT,
 ) {
     companion object {
         val WP_BUTTONS_MAX_RANGE = 3..6
@@ -160,6 +162,9 @@ data class NavSettings(
 
         /** 不透明度 [%] の選べる値（20, 30, … 100） */
         val OPACITY_CHOICES_PCT = (Tuning.OPACITY_MIN_PCT..Tuning.OPACITY_MAX_PCT step Tuning.OPACITY_STEP_PCT).toList()
+
+        /** 読み込んだ軌跡の明るさ [%] の選べる値 */
+        val TRACK_BRIGHTNESS_CHOICES_PCT = Tuning.TRACK_BRIGHTNESS_CHOICES_PCT
 
         val AUTO_HOLD_AFTER_WP_SEC_RANGE = 0..Tuning.AUTO_HOLD_AFTER_WP_MAX_SEC
 

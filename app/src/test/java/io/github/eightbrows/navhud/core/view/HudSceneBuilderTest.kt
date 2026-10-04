@@ -325,7 +325,7 @@ class HudSceneBuilderTest {
         // 2km 縮尺: 1km ごとの距離環。文字は 1k / 2k で、方位目盛りより小さく薄い
         val rings = build(state()).labels.filter { it.small }
         assertTrue(rings.map { it.text }.containsAll(listOf("1k", "2k")))
-        assertTrue(rings.all { it.ink == Ink.SCALE_DIM })
+        assertTrue(rings.all { it.ink == Ink.RING_LABEL })
         assertTrue(build(state()).labels.filter { !it.small }.all { it.ink == Ink.SCALE })
     }
 

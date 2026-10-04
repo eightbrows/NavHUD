@@ -201,6 +201,19 @@ object Tuning {
     const val OPACITY_MAX_PCT = 100
     const val OPACITY_STEP_PCT = 10
 
+    /**
+     * 読み込んだ軌跡（REPLAY のトラック全体の線。グレー）の明るさ [%] の既定と選べる値。100% = 白（0xFF）、
+     * 明るさ p% のグレーは 0xFF × p / 100（25% = 0x40、50% = 0x80）。D11 までの 0x3A は約 23%
+     */
+    const val TRACK_BRIGHTNESS_DEFAULT_PCT = 50
+    val TRACK_BRIGHTNESS_CHOICES_PCT = listOf(25, 50, 75, 100)
+
+    /**
+     * 地図上の到達済みの WP（印・名前・そこへの線）のグレーの明るさ（0〜255）。D11 までは 0x4A。
+     * 次の WP（マゼンタ）・まだ到達していない WP（テーマの色）・無効の WP（0x7A の破線）より目立たないように
+     */
+    const val WP_REACHED_MAP_GRAY = 0x68
+
     /** ON（反転）のボタンの塗りの不透明度 = ボタンの不透明度 × これ（裏の地図の線が透けて見える） */
     const val BUTTON_ON_FILL_ALPHA = 0.5f
 

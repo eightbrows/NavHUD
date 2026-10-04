@@ -104,9 +104,11 @@ class MainActivity : ComponentActivity() {
                 // 色（UI の色と地図の色。基本色だけ切り替える）
                 val uiTheme = state.settings.uiTheme
                 val mapTheme = state.settings.mapTheme
-                LaunchedEffect(uiTheme, mapTheme) {
+                val trackBrightness = state.settings.trackBrightnessPct
+                LaunchedEffect(uiTheme, mapTheme, trackBrightness) {
                     HudColors.uiPalette = HudPalette.of(uiTheme)
                     HudColors.mapPalette = HudPalette.of(mapTheme)
+                    HudColors.trackBrightnessPct = trackBrightness
                 }
                 // 画面常時点灯（§6.8）
                 val keepScreenOn = state.settings.keepScreenOn

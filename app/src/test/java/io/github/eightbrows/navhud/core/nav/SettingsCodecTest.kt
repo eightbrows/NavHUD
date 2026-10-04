@@ -38,6 +38,7 @@ class SettingsCodecTest {
             keepScreenOn = false,
             buttonOpacityPct = 40,
             numbersOpacityPct = 60,
+            trackBrightnessPct = 75,
             autoMinRangeKm = 0.2,
             autoMaxRangeKm = 5.0,
             autoHoldAfterWpSec = 20,
@@ -108,6 +109,27 @@ class SettingsCodecTest {
             assertEquals(100, s.numbersOpacityPct)
             assertEquals(30, s.rateWindowSec)
         }
+    }
+
+    @Test
+    fun trackBrightnessIsSavedAndInvalidValuesAreDefault() {
+        // 読み込んだ軌跡の明るさ: 既定 50%、25 / 50 / 75 / 100 から選ぶ
+        assertEquals(50, NavSettings().trackBrightnessPct)
+        assertEquals(listOf(25, 50, 75, 100), NavSettings.TRACK_BRIGHTNESS_CHOICES_PCT)
+        // 保存して読み直すと同じ値
+        for (v in NavSettings.TRACK_BRIGHTNESS_CHOICES_PCT) {
+            val s = NavSettings(trackBrightnessPct = v)
+            assertEquals(v.toString(), SettingsCodec.encode(s)["trackBrightnessPct"])
+            assertEquals(s, SettingsCodec.decode(SettingsCodec.encode(s)))
+        }
+        // 範囲外・選べない値・読めない値は、その項目だけ既定値（ほかの項目はそのまま）
+        for (bad in listOf("0", "10", "60", "125", "x", "")) {
+            val s = SettingsCodec.decode(mapOf("trackBrightnessPct" to bad, "buttonOpacityPct" to "40"))
+            assertEquals(50, s.trackBrightnessPct)
+            assertEquals(40, s.buttonOpacityPct)
+        }
+        // 保存がない（前の版）なら既定値
+        assertEquals(50, SettingsCodec.decode(mapOf("travelMode" to "CAR")).trackBrightnessPct)
     }
 
     @Test

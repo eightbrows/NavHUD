@@ -4,6 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
+import io.github.eightbrows.navhud.core.Tuning
 import io.github.eightbrows.navhud.core.nav.ColorTheme
 import io.github.eightbrows.navhud.core.view.Ink
 
@@ -52,8 +53,11 @@ object HudColors {
     /** 30° ごとの薄い方位線 */
     val BearingLine = Color(0xFF333333)
 
-    /** REPLAY のトラック全体（テーマによらず暗いグレー） */
-    val Track = Color(0xFF3A3A3A)
+    /** 読み込んだ軌跡の明るさ [%]（設定 trackBrightnessPct）。Compose の状態 */
+    var trackBrightnessPct: Int by mutableStateOf(Tuning.TRACK_BRIGHTNESS_DEFAULT_PCT)
+
+    /** REPLAY のトラック全体（テーマによらずグレー。明るさは設定。100% = 白） */
+    val Track: Color get() = gray(0xFF * trackBrightnessPct.coerceIn(0, 100) / 100)
 
     /** 次の WP とそこへの線 */
     val Active = Color(0xFFFF4FD8)
@@ -64,8 +68,11 @@ object HudColors {
     /** 無効な WP（破線） */
     val WpDisabled = Color(0xFF7A7A7A)
 
-    /** 到達済みの WP */
+    /** 到達済みの WP（WP ボタン列・押せないボタンなど UI のグレー） */
     val WpReached = Color(0xFF4A4A4A)
+
+    /** 地図上の到達済みの WP（印・名前・線）。UI の WpReached より少し明るい（Tuning.WP_REACHED_MAP_GRAY） */
+    val WpReachedMap = gray(Tuning.WP_REACHED_MAP_GRAY)
 
     /** 自機（テーマ） */
     val OwnShip: Color get() = palette.ownShip
@@ -84,19 +91,23 @@ object HudColors {
     val Frame = Color(0xFF2A2A2A)
 
     /** 描く要素の色（UI の色。標高プロファイルなど） */
-    fun of(ink: Ink): Color = of(ink, uiPalette)
+    fun of(ink: Ink): Color = of(ink, uiPalette, map = false)
 
     /** 描く要素の色（地図の色。地図の Canvas） */
-    fun ofMap(ink: Ink): Color = of(ink, mapPalette)
+    fun ofMap(ink: Ink): Color = of(ink, mapPalette, map = true)
 
-    private fun of(ink: Ink, p: HudPalette): Color = when (ink) {
+    private fun gray(v: Int): Color = Color(red = v, green = v, blue = v)
+
+    private fun of(ink: Ink, p: HudPalette, map: Boolean): Color = when (ink) {
         Ink.SCALE -> p.scale
         Ink.SCALE_DIM -> p.scaleDim
+        // 距離環の数字は地図の上でも UI の色（ボタンと同じ）
+        Ink.RING_LABEL -> uiPalette.scale
         Ink.BEARING_LINE -> BearingLine
         Ink.ACTIVE -> Active
         Ink.WP -> p.wp
         Ink.WP_DISABLED -> WpDisabled
-        Ink.WP_REACHED -> WpReached
+        Ink.WP_REACHED -> if (map) WpReachedMap else WpReached
         Ink.OWNSHIP -> p.ownShip
         Ink.STALE -> Stale
         Ink.TRACK -> Track

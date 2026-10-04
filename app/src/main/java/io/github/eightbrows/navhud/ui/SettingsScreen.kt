@@ -95,6 +95,11 @@ fun SettingsScreen(
                 "数値の不透明度（お試し）", s.numbersOpacityPct,
                 note = "上の4行の数値。警告の表示（締切超過・CAL / MAG）は常に 100%",
             ) { v -> onChange { it.copy(numbersOpacityPct = v) } }
+            PercentSlider(
+                "読み込んだ軌跡の明るさ", s.trackBrightnessPct,
+                note = "REPLAY のトラック全体の線（グレー）。走った跡の線は変わらない",
+                choices = NavSettings.TRACK_BRIGHTNESS_CHOICES_PCT,
+            ) { v -> onChange { it.copy(trackBrightnessPct = v) } }
             Choice(
                 "ARC の自機の位置",
                 listOf("標準" to OwnshipPosition.STANDARD, "高め" to OwnshipPosition.HIGH),
@@ -358,8 +363,13 @@ private fun Stepper(label: String, value: String, note: String? = null, enabled:
 
 /** 不透明度などの % を、スライダーで 20〜100% の 10% 刻みに選ぶ。 */
 @Composable
-private fun PercentSlider(label: String, pct: Int, note: String? = null, onChange: (Int) -> Unit) {
-    val choices = NavSettings.OPACITY_CHOICES_PCT
+private fun PercentSlider(
+    label: String,
+    pct: Int,
+    note: String? = null,
+    choices: List<Int> = NavSettings.OPACITY_CHOICES_PCT,
+    onChange: (Int) -> Unit,
+) {
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.weight(1f)) { Label(label, note) }

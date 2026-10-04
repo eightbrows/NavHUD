@@ -38,6 +38,7 @@ import io.github.eightbrows.navhud.core.view.HudRect
 import io.github.eightbrows.navhud.core.view.HudScene
 import io.github.eightbrows.navhud.core.view.HudSceneBuilder
 import io.github.eightbrows.navhud.core.view.HudViewport
+import io.github.eightbrows.navhud.core.view.Ink
 import io.github.eightbrows.navhud.core.view.P
 
 /** HUD の図。座標は core（HudSceneBuilder）で計算済みのものを描くだけ。 */
@@ -80,7 +81,7 @@ fun HudCanvas(
                 }
             },
     ) {
-        scene?.let { drawScene(it, textMeasurer, density) }
+        scene?.let { drawScene(it, textMeasurer, density, state.settings.buttonOpacityPct / 100f) }
     }
 }
 
@@ -95,7 +96,7 @@ private val RingLabelStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSi
 
 private fun P.o() = Offset(x, y)
 
-private fun DrawScope.drawScene(scene: HudScene, tm: TextMeasurer, density: Float) {
+private fun DrawScope.drawScene(scene: HudScene, tm: TextMeasurer, density: Float, buttonAlpha: Float) {
     val thin = Tuning.LINE_THIN_DP * density
     val bold = Tuning.LINE_BOLD_DP * density
     val dash = PathEffect.dashPathEffect(floatArrayOf(Tuning.DASH_ON_DP * density, Tuning.DASH_OFF_DP * density))
@@ -136,7 +137,11 @@ private fun DrawScope.drawScene(scene: HudScene, tm: TextMeasurer, density: Floa
             },
         )
     }
-    for (l in scene.labels) drawLabel(tm, l.text, l.at, HudColors.ofMap(l.ink), if (l.small) RingLabelStyle else LabelStyle)
+    for (l in scene.labels) {
+        // 距離環の数字は UI の色で、不透明度はボタンと同じ
+        val c = HudColors.ofMap(l.ink).let { if (l.ink == Ink.RING_LABEL) it.copy(alpha = it.alpha * buttonAlpha) else it }
+        drawLabel(tm, l.text, l.at, c, if (l.small) RingLabelStyle else LabelStyle)
+    }
 
     for (w in scene.wpMarks) {
         val c = HudColors.ofMap(w.ink)

@@ -320,7 +320,7 @@ object HudSceneBuilder {
             arcs += Arc(proj.origin, rPx.toFloat(), 0f, 360f, Ink.SCALE)
             // 25 / 250 / 1k / 2.5k。方位目盛りより小さく薄い色（small / SCALE_DIM）
             for (p in ringLabelPoints(proj.origin, r1, rPx.toFloat()).filter { rect.contains(it) }) {
-                labels += Label(HudFormat.ringLabel(rM), p, Ink.SCALE_DIM, small = true)
+                labels += Label(HudFormat.ringLabel(rM), p, Ink.RING_LABEL, small = true)
             }
             k++
         }

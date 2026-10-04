@@ -47,6 +47,7 @@ object SettingsCodec {
         "keepScreenOn" to s.keepScreenOn.toString(),
         "buttonOpacityPct" to s.buttonOpacityPct.toString(),
         "numbersOpacityPct" to s.numbersOpacityPct.toString(),
+        "trackBrightnessPct" to s.trackBrightnessPct.toString(),
     ) + s.customReach.withIndex().flatMap { (i, p) -> encodeProfile("custom${i + 1}.", p).toList() }.toMap()
 
     private fun encodeProfile(prefix: String, p: ReachProfile): Map<String, String> = mapOf(
@@ -169,6 +170,9 @@ object SettingsCodec {
             // 不透明度: 20〜100 の 10 刻み以外は既定値
             buttonOpacityPct = int("buttonOpacityPct", d.buttonOpacityPct).takeIf { it in NavSettings.OPACITY_CHOICES_PCT } ?: d.buttonOpacityPct,
             numbersOpacityPct = int("numbersOpacityPct", d.numbersOpacityPct).takeIf { it in NavSettings.OPACITY_CHOICES_PCT } ?: d.numbersOpacityPct,
+            // 読み込んだ軌跡の明るさ: 25 / 50 / 75 / 100 以外は既定値
+            trackBrightnessPct = int("trackBrightnessPct", d.trackBrightnessPct).takeIf { it in NavSettings.TRACK_BRIGHTNESS_CHOICES_PCT }
+                ?: d.trackBrightnessPct,
         ).selectTravelMode(travelMode)
     }
 
