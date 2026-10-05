@@ -272,6 +272,21 @@ class NavEngineTest {
     }
 
     @Test
+    fun pinchStepsActLikeThePlusAndMinusButtons() {
+        // ピンチ（§6.12）: 段の数だけ ＋ / − と同じ。AUTO は OFF、使う段の最小・最大（100m・20km の段）より先には行かない
+        val e = engine()
+        assertEquals(1_000.0, e.state.rangeM, 0.0)
+        assertTrue(e.state.rangeAuto)
+        val inTwo = e.zoomBy(2)
+        assertEquals(200.0, inTwo.rangeM, 0.0)
+        assertFalse(inTwo.rangeAuto)
+        assertEquals(100.0, e.zoomBy(5).rangeM, 0.0)
+        assertEquals(200.0, e.zoomBy(-1).rangeM, 0.0)
+        assertEquals(20_000.0, e.zoomBy(-10).rangeM, 0.0)
+        assertEquals(20_000.0, e.zoomBy(0).rangeM, 0.0)
+    }
+
+    @Test
     fun heldGpsHeadingAfterStopping() {
         val e = engine()
         e.onFix(fix(t0, speed = 10f, bearing = 90f), t0)

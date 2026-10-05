@@ -65,10 +65,10 @@ data class WpMark(
 )
 
 /**
- * 画面外の WP を示す、表示枠の縁の矢印。angleDeg は矢印の向き（上が 0、時計回り）。lines は上から 距離・名前・方位、
- * textAt は文字の塊の中心、linePx は1行の高さ [px]。
+ * 画面外の次の WP の文字（三角は描かない）。at は自機から WP への線が矢印の枠の縁に当たる点（文字の位置の基準）。
+ * lines は上から 距離・名前・方位、textAt は文字の塊の中心、linePx は1行の高さ [px]。
  */
-data class EdgeArrow(val at: P, val angleDeg: Float, val lines: List<String>, val textAt: P, val ink: Ink, val linePx: Float = 0f) {
+data class EdgeArrow(val at: P, val lines: List<String>, val textAt: P, val ink: Ink, val linePx: Float = 0f) {
     /** 1行にまとめた文字（テスト・ログ用） */
     val text: String get() = lines.joinToString(" ")
 }
@@ -108,6 +108,8 @@ data class HudMetrics(
     val arcOriginFromBottom: Float = Tuning.HUD_ARC_ORIGIN_DP,
     /** ARC の自機の位置: 高め。後方の WP・矢印に余裕を持たせる */
     val arcOriginFromBottomHigh: Float = Tuning.HUD_ARC_ORIGIN_HIGH_DP,
+    /** ARC の自機の位置: さらに高め */
+    val arcOriginFromBottomHigher: Float = Tuning.HUD_ARC_ORIGIN_HIGHER_DP,
     /** North Up: 縮尺の距離環と画面の端・回避枠の上下の間の余白 */
     val northUpEdgeMargin: Float = Tuning.HUD_NORTH_UP_EDGE_MARGIN_DP,
     val pointerSize: Float = Tuning.HUD_POINTER_DP,
@@ -128,7 +130,7 @@ data class HudMetrics(
 ) {
     fun scaled(k: Float) = HudMetrics(
         tickMinor * k, tickMajor * k, labelGap * k, edgeInset * k, arrowTextGap * k,
-        arcOriginFromBottom * k, arcOriginFromBottomHigh * k, northUpEdgeMargin * k, pointerSize * k,
+        arcOriginFromBottom * k, arcOriginFromBottomHigh * k, arcOriginFromBottomHigher * k, northUpEdgeMargin * k, pointerSize * k,
         arrowLabelLine * k, labelCharWidth * k, fitMargin * k, ownShipClear * k, wpNameOffset * k, compassLabelHalf * k,
         wpMinSep * k,
     )

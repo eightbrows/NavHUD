@@ -203,6 +203,16 @@ class NavEngine(
         return recompute()
     }
 
+    /**
+     * ピンチ（§6.12）: steps 段だけ ＋（正）か −（負）を押したのと同じにする。AUTO の扱い・最小と最大の段で止まるのも ＋ / − と同じ。
+     */
+    fun zoomBy(steps: Int): NavState {
+        repeat(kotlin.math.abs(steps)) {
+            if (steps > 0) rangeSelector.zoomIn(keepAuto = pan != null) else rangeSelector.zoomOut(keepAuto = pan != null)
+        }
+        return recompute()
+    }
+
     /** 縮尺の AUTO の ON / OFF。 */
     fun toggleAutoRange(): NavState {
         rangeSelector.setAuto(!rangeSelector.auto)

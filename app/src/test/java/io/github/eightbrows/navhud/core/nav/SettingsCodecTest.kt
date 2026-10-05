@@ -38,6 +38,7 @@ class SettingsCodecTest {
             keepScreenOn = false,
             buttonOpacityPct = 40,
             numbersOpacityPct = 60,
+            trackColor = TrackColor.CYAN,
             trackBrightnessPct = 75,
             ringLabelScalePct = 150,
             autoMinRangeKm = 0.2,
@@ -134,24 +135,68 @@ class SettingsCodecTest {
     }
 
     @Test
-    fun ringLabelScaleIsSavedAndInvalidValuesAreDefault() {
-        // 距離環の数字の大きさ: 既定 200%（D12 までの2倍）、100 / 150 / 200 / 250 から選ぶ
+    fun ringLabelScaleIsSavedAndOtherNumbersGoToTheNearestStep() {
+        // 距離環の数字の大きさ: 既定 200%、100 / 125 / 150 / 175 / 200 から選ぶ
         assertEquals(200, NavSettings().ringLabelScalePct)
-        assertEquals(listOf(100, 150, 200, 250), NavSettings.RING_LABEL_SCALE_CHOICES_PCT)
+        assertEquals(listOf(100, 125, 150, 175, 200), NavSettings.RING_LABEL_SCALE_CHOICES_PCT)
         // 保存して読み直すと同じ値
         for (v in NavSettings.RING_LABEL_SCALE_CHOICES_PCT) {
             val s = NavSettings(ringLabelScalePct = v)
             assertEquals(v.toString(), SettingsCodec.encode(s)["ringLabelScalePct"])
             assertEquals(s, SettingsCodec.decode(SettingsCodec.encode(s)))
         }
-        // 範囲外・選べない値・読めない値は、その項目だけ既定値（ほかの項目はそのまま）
-        for (bad in listOf("0", "50", "175", "300", "x", "")) {
-            val s = SettingsCodec.decode(mapOf("ringLabelScalePct" to bad, "trackBrightnessPct" to "75"))
-            assertEquals(200, s.ringLabelScalePct)
+        // 選べる値にない数は一番近い段（前の版の 250 は 200。範囲の外は端の段）。ほかの項目はそのまま
+        val nearest = mapOf(
+            "250" to 200, "300" to 200, "1000" to 200, "190" to 200,
+            "0" to 100, "50" to 100, "-20" to 100, "112" to 100,
+            "113" to 125, "137" to 125, "138" to 150, "160" to 150, "163" to 175, " 175 " to 175,
+        )
+        for ((saved, expected) in nearest) {
+            val s = SettingsCodec.decode(mapOf("ringLabelScalePct" to saved, "trackBrightnessPct" to "75"))
+            assertEquals(saved, expected, s.ringLabelScalePct)
             assertEquals(75, s.trackBrightnessPct)
+        }
+        // 数でない値は既定値
+        for (bad in listOf("x", "", "150.5")) {
+            assertEquals(bad, 200, SettingsCodec.decode(mapOf("ringLabelScalePct" to bad)).ringLabelScalePct)
         }
         // 保存がない（前の版）なら既定値
         assertEquals(200, SettingsCodec.decode(mapOf("travelMode" to "CAR")).ringLabelScalePct)
+    }
+
+    @Test
+    fun trackColorIsSavedAndOldSettingsKeepTheirColors() {
+        // 読み込んだ軌跡の色: 既定は白（前の版のグレーと同じ見た目）。6色
+        assertEquals(TrackColor.WHITE, NavSettings().trackColor)
+        assertEquals(listOf("WHITE", "GREEN", "AMBER", "CYAN", "YELLOW", "BLUE"), TrackColor.entries.map { it.name })
+        for (c in TrackColor.entries) {
+            val s = NavSettings(trackColor = c)
+            assertEquals(c.name, SettingsCodec.encode(s)["trackColor"])
+            assertEquals(s, SettingsCodec.decode(SettingsCodec.encode(s)))
+        }
+        // 前の版の設定（軌跡の色がない）: 白。保存してある UI の色・地図の色・明るさは今まで通り読む
+        val old = SettingsCodec.decode(mapOf("travelMode" to "CAR", "uiTheme" to "AMBER", "mapTheme" to "WHITE", "trackBrightnessPct" to "25"))
+        assertEquals(TrackColor.WHITE, old.trackColor)
+        assertEquals(ColorTheme.AMBER, old.uiTheme)
+        assertEquals(ColorTheme.WHITE, old.mapTheme)
+        assertEquals(25, old.trackBrightnessPct)
+        // 読めない名前は白
+        for (bad in listOf("PURPLE", "", "cyan")) {
+            assertEquals(bad, TrackColor.WHITE, SettingsCodec.decode(mapOf("trackColor" to bad)).trackColor)
+        }
+    }
+
+    @Test
+    fun ownshipPositionKeepsTheSavedNames() {
+        // 前からの段の保存値（STANDARD / HIGH）は変えない。さらに高めは HIGHER
+        assertEquals("STANDARD", SettingsCodec.encode(NavSettings())["ownshipPosition"])
+        assertEquals(listOf("STANDARD", "HIGH", "HIGHER"), OwnshipPosition.entries.map { it.name })
+        for (p in OwnshipPosition.entries) {
+            assertEquals(p, SettingsCodec.decode(mapOf("ownshipPosition" to p.name)).ownshipPosition)
+        }
+        assertEquals(OwnshipPosition.HIGH, SettingsCodec.decode(mapOf("ownshipPosition" to "HIGH")).ownshipPosition)
+        // 読めない名前は標準
+        assertEquals(OwnshipPosition.STANDARD, SettingsCodec.decode(mapOf("ownshipPosition" to "TOP")).ownshipPosition)
     }
 
     @Test

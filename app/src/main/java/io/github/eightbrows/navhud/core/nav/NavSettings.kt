@@ -8,8 +8,17 @@ enum class DisplayMode { ARC, NORTH_UP }
 /** 基本色（UI の色・地図の色それぞれに選ぶ）。マゼンタ・警告色・グレーは固定 */
 enum class ColorTheme { WHITE, GREEN, AMBER }
 
-/** ARC の自機の位置（WP ボタン列の上端からの距離）。高めは後方の WP・矢印に余裕を持たせる */
-enum class OwnshipPosition { STANDARD, HIGH }
+/**
+ * ARC の自機の位置（WP ボタン列の上端からの距離）。高め・さらに高めは後方の WP・矢印に余裕を持たせる。
+ * 保存値は名前（STANDARD / HIGH / HIGHER）。前からの2つの名前は変えない
+ */
+enum class OwnshipPosition { STANDARD, HIGH, HIGHER }
+
+/**
+ * 読み込んだ軌跡（REPLAY のトラック全体の線）の色。実際の色は ui/HudColors で決め、明るさ（trackBrightnessPct）を掛ける。
+ * 既定の白は、前の版のグレーの線と同じ見た目
+ */
+enum class TrackColor { WHITE, GREEN, AMBER, CYAN, YELLOW, BLUE }
 
 /** 標高プロファイルの表示サイズ（§6.6） */
 enum class ProfileSize { OFF, SMALL, MEDIUM, LARGE }
@@ -132,9 +141,11 @@ data class NavSettings(
     val buttonOpacityPct: Int = Tuning.BUTTON_OPACITY_DEFAULT_PCT,
     /** 数値（4行）の不透明度 [%]。20〜100、10 刻み。警告の表示は常に 100% */
     val numbersOpacityPct: Int = Tuning.NUMBERS_OPACITY_DEFAULT_PCT,
-    /** 読み込んだ軌跡（REPLAY のトラック全体の線。グレー）の明るさ [%]。25 / 50 / 75 / 100（100 がいちばん明るい） */
+    /** 読み込んだ軌跡（REPLAY のトラック全体の線）の色。既定は白（前の版のグレーと同じ見た目） */
+    val trackColor: TrackColor = TrackColor.WHITE,
+    /** 読み込んだ軌跡の明るさ [%]。25 / 50 / 75 / 100（100 がいちばん明るい）。どの色にも掛ける */
     val trackBrightnessPct: Int = Tuning.TRACK_BRIGHTNESS_DEFAULT_PCT,
-    /** 距離環の数字の大きさ [%]。Tuning.RING_LABEL_SP（10sp）を 100% として 100 / 150 / 200 / 250 */
+    /** 距離環の数字の大きさ [%]。Tuning.RING_LABEL_SP（10sp）を 100% として 100 / 125 / 150 / 175 / 200 */
     val ringLabelScalePct: Int = Tuning.RING_LABEL_SCALE_DEFAULT_PCT,
 ) {
     companion object {
@@ -170,6 +181,9 @@ data class NavSettings(
 
         /** 距離環の数字の大きさ [%] の選べる値 */
         val RING_LABEL_SCALE_CHOICES_PCT = Tuning.RING_LABEL_SCALE_CHOICES_PCT
+
+        /** 距離環の数字の大きさ [%] を、一番近い選べる値にする（範囲の外は端の段。段の間はちょうど真ん中にならない） */
+        fun nearestRingLabelScalePct(pct: Int): Int = RING_LABEL_SCALE_CHOICES_PCT.minBy { kotlin.math.abs(it.toLong() - pct) }
 
         val AUTO_HOLD_AFTER_WP_SEC_RANGE = 0..Tuning.AUTO_HOLD_AFTER_WP_MAX_SEC
 

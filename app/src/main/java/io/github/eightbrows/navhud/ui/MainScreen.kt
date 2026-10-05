@@ -113,6 +113,7 @@ fun MainScreen(
     onZoomOut: () -> Unit,
     onToggleAutoRange: () -> Unit,
     onPan: (Float, Float) -> Unit,
+    onPinch: (Int) -> Unit,
     onSlower: () -> Unit,
     onFaster: () -> Unit,
     onSeek: (Long) -> Unit,
@@ -159,7 +160,7 @@ fun MainScreen(
     )
 
     Box(modifier.fillMaxSize().background(HudColors.Background).onSizeChanged { boxW = it.width; boxPx = it.height }) {
-        HudCanvas(state, Modifier.fillMaxSize(), reserved, onViewport, onPan, numberBands, buttonBoxes)
+        HudCanvas(state, Modifier.fillMaxSize(), reserved, onViewport, onPan, onPinch, numberBands, buttonBoxes)
         // 上: 上部バーと数値（4行）
         Column(Modifier.align(Alignment.TopStart).fillMaxWidth().onSizeChanged { topPx = it.height }) {
             Box(Modifier.onSizeChanged { topBarPx = it.height }) {

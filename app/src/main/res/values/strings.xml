@@ -78,20 +78,26 @@
     <string name="color_white">White</string>
     <string name="color_green">Green</string>
     <string name="color_amber">Amber</string>
+    <string name="color_cyan">Cyan</string>
+    <string name="color_yellow">Yellow</string>
+    <string name="color_blue">Blue</string>
     <string name="ui_color">UI color (buttons, numbers, profile)</string>
     <string name="map_color">Map color (rings, ticks, ownship, WP, track)</string>
     <string name="button_opacity">Button opacity</string>
     <string name="button_opacity_note">Buttons over the map (top bar, side column, WP strip, replay bar). ON fill is half of this.</string>
     <string name="numbers_opacity">Numbers opacity</string>
     <string name="numbers_opacity_note" formatted="false">The four rows of numbers. Warnings (deadline passed, CAL / MAG) are always 100%.</string>
+    <string name="track_color">Loaded track color</string>
+    <string name="track_color_note">The whole REPLAY track line. The driven trail does not change.</string>
     <string name="track_brightness">Loaded track brightness</string>
-    <string name="track_brightness_note">The whole REPLAY track line (gray). The driven trail does not change.</string>
+    <string name="track_brightness_note">Applies to every track color.</string>
     <string name="ring_label_size">Range ring label size</string>
     <string name="ring_label_size_note" formatted="false">Numbers on both sides of the range rings (250, 1k, …). 100% is the original size.</string>
     <string name="ownship_position">ARC ownship position</string>
     <string name="position_standard">Standard</string>
     <string name="position_high">High</string>
-    <string name="ownship_position_note">From the top of the WP strip: Standard 24dp / High 84dp (LIVE and REPLAY). High leaves more room for WPs and arrows behind.</string>
+    <string name="position_higher">Higher</string>
+    <string name="ownship_position_note">From the top of the WP strip: Standard 24dp / High 84dp / Higher 144dp (LIVE and REPLAY). Higher leaves more room for WPs and arrows behind.</string>
     <string name="profile">Elevation profile</string>
     <string name="size_small">S</string>
     <string name="size_medium">M</string>

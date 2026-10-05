@@ -1,6 +1,7 @@
 package io.github.eightbrows.navhud.ui
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -20,6 +21,7 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -40,6 +42,7 @@ import io.github.eightbrows.navhud.core.view.HudSceneBuilder
 import io.github.eightbrows.navhud.core.view.HudViewport
 import io.github.eightbrows.navhud.core.view.Ink
 import io.github.eightbrows.navhud.core.view.P
+import io.github.eightbrows.navhud.core.view.PinchSteps
 
 /** HUD の図。座標は core（HudSceneBuilder）で計算済みのものを描くだけ。 */
 @Composable
@@ -49,6 +52,8 @@ fun HudCanvas(
     reserved: HudInsets = HudInsets(),
     onViewport: (HudViewport) -> Unit = {},
     onPan: (Float, Float) -> Unit = { _, _ -> },
+    /** ピンチ: 縮尺を変える段の数（正: 拡大 = ＋、負: 縮小 = −） */
+    onPinch: (Int) -> Unit = {},
     /** 数値の表示の上下の範囲 [px]。WP の名前・矢印の文字を重ねない */
     numberBands: List<ClosedFloatingPointRange<Float>> = emptyList(),
     /** ボタン類（上部バー・操作列・WP ボタン列・再生の帯）の矩形 [px]。WP の名前・矢印の文字を重ねない */
@@ -69,20 +74,50 @@ fun HudCanvas(
     }
     val textMeasurer = rememberTextMeasurer()
     val panHandler by rememberUpdatedState(onPan)
+    val pinchHandler by rememberUpdatedState(onPinch)
+    // 今のタッチ（最初の指を置いてから全部離すまで）で指が2本以上になったか。なったら、そのタッチの間はドラッグで PAN しない
+    val touch = remember { TouchState() }
     Canvas(
         modifier
             .clipToBounds()
             .onSizeChanged { size = it }
+            // 2本指のピンチで縮尺を1段ずつ変える（§6.12。段の数は core の PinchSteps）。下のドラッグより先に（Initial で）見て、
+            // 指が2本以上の間はその動きを消費する。1本に戻っても、指を全部離すまでドラッグ（PAN）はしない。
+            // 指が1本だけのタッチでは何も消費しないので、1本指の操作は今まで通り
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    touch.pinched = false
+                    val pinch = PinchSteps()
+                    do {
+                        val event = awaitPointerEvent(PointerEventPass.Initial)
+                        val down = event.changes.filter { it.pressed }
+                        if (down.size >= 2) {
+                            touch.pinched = true
+                            // 開き具合: 指の重心から各指までの平均の距離（置いたばかりの指も、今の位置で数える）
+                            val steps = pinch.update(PinchSteps.span(down.map { P(it.position.x, it.position.y) }))
+                            if (steps != 0) pinchHandler(steps)
+                            event.changes.forEach { it.consume() }
+                        } else {
+                            pinch.reset()
+                        }
+                    } while (event.changes.any { it.pressed })
+                }
+            }
             // ドラッグで地図を平行移動（PAN）。指の動きの量 [px] をそのまま渡す
             .pointerInput(Unit) {
                 detectDragGestures { change, drag ->
                     change.consume()
-                    panHandler(drag.x, drag.y)
+                    if (!touch.pinched) panHandler(drag.x, drag.y)
                 }
             },
     ) {
         scene?.let { drawScene(it, textMeasurer, density, state.settings.buttonOpacityPct / 100f, ringLabelStyle(state.settings.ringLabelScalePct)) }
     }
+}
+
+/** 1回のタッチの間の状態（ピンチとドラッグで共有） */
+private class TouchState {
+    var pinched = false
 }
 
 private val LabelStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = Tuning.LABEL_SP.sp)
@@ -158,11 +193,8 @@ private fun DrawScope.drawScene(scene: HudScene, tm: TextMeasurer, density: Floa
         // 文字（名前、次の WP は方位も）は core が決めた位置（自機の記号と重なるなら null で描かない）
         w.nameAt?.let { drawLines(tm, w.lines, it, w.linePx, c, WpLabelStyle) }
     }
-    for (a in scene.arrows) {
-        val c = HudColors.ofMap(a.ink)
-        triangle(a.at, a.angleDeg, Tuning.EDGE_ARROW_DP * density, c)
-        drawLines(tm, a.lines, a.textAt, a.linePx, c, WpArrowLabelStyle)
-    }
+    // 画面外の次の WP: 距離・名前・方位の文字だけ（三角は描かない）
+    for (a in scene.arrows) drawLines(tm, a.lines, a.textAt, a.linePx, HudColors.ofMap(a.ink), WpArrowLabelStyle)
     for (p in scene.pointers) triangle(p.tip, p.angleDeg, p.sizePx, HudColors.ofMap(p.ink), filled = false, stroke = bold)
 
     val own = scene.ownShip ?: return

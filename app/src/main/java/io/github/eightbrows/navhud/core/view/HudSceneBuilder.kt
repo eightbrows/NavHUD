@@ -84,14 +84,8 @@ object HudSceneBuilder {
 
         // 上部の三角（機首方位の印）も文字を置かない所にする
         val pointerBoxes = pointers.map { Box(P(it.tip.x, it.tip.y + it.sizePx / 2), it.sizePx * 0.7f, it.sizePx * 0.7f) }
-        // ARC の上部中央の三角（方位マーカー）とラバーラインの周り: 画面外の矢印（三角）を置かず、横にずらす
-        val markerZone = pointers.firstOrNull()?.takeIf { pan == null && s.displayMode == DisplayMode.ARC }?.let { p ->
-            val top = p.tip.y
-            val bottom = if (headingDeg != null) proj.origin.y else p.tip.y + p.sizePx
-            Box(P(p.tip.x, (top + bottom) / 2), p.sizePx * Tuning.ARROW_MARKER_ZONE_HALF_WIDTH, (bottom - top) / 2 + p.sizePx)
-        }
         val (wpMarks, arrows) = buildWaypoints(
-            state, proj, ref, ownAt, arrowFrame, targetFrame(rect, reserved), rect, m, segments, labels, pointerBoxes, listOfNotNull(markerZone),
+            state, proj, ref, ownAt, arrowFrame, targetFrame(rect, reserved), rect, m, segments, labels, pointerBoxes,
             keepOut,
         )
 
@@ -111,7 +105,7 @@ object HudSceneBuilder {
 
     /**
      * 地図 → 画面の変換。表示モードと ARC の自機の位置（設定）で決まる。AUTO 縮尺の判定（HudViewport）も同じものを使う。
-     * ARC: 自機は描画の枠（画面）の横の中央、高さは回避枠の下端（WP ボタン列の上端）から標準 / 高め。
+     * ARC: 自機は描画の枠（画面）の横の中央、高さは arcOriginY（回避枠の下端 = WP ボタン列の上端から 標準 / 高め / さらに高め）。
      *   基準の距離環が描画の枠（画面）の左右端に接する。方位がなければ北を上にする。
      * North Up: 自機は、横は描画の枠（画面）の中央、縦は回避枠の中央。縮尺の距離環の半径は
      *   min(画面の幅の半分, 回避枠の高さの半分) − 余白。右の操作列と重なってよい（方位サークルはその1つ外側の距離環）。
@@ -129,10 +123,7 @@ object HudSceneBuilder {
         pan: PanView? = null,
     ): HudProjection {
         val base = when (s.displayMode) {
-            DisplayMode.ARC -> {
-                val up = if (s.ownshipPosition == OwnshipPosition.HIGH) m.arcOriginFromBottomHigh else m.arcOriginFromBottom
-                HudProjection(P(rect.centerX, avoid.bottom - up), rect.width / 2.0 / rangeM, headingDeg ?: 0.0)
-            }
+            DisplayMode.ARC -> HudProjection(P(rect.centerX, arcOriginY(s.ownshipPosition, avoid, m)), rect.width / 2.0 / rangeM, headingDeg ?: 0.0)
             DisplayMode.NORTH_UP -> {
                 val half = minOf(rect.width / 2, avoid.height / 2)
                 val radius = (half - m.northUpEdgeMargin).coerceAtLeast(m.northUpEdgeMargin)
@@ -141,6 +132,24 @@ object HudSceneBuilder {
         }
         return if (pan == null) base else HudProjection(P(rect.centerX, avoid.centerY), base.pxPerM, pan.upDeg)
     }
+
+    /**
+     * ARC の自機の高さ [px]: 回避枠の下端（WP ボタン列の上端）から、設定の段の分だけ上（標準 / 高め / さらに高め）。
+     * 自機の記号（半高 ownShipClear）が上部の方位マーカー（三角）にかかる高さなら、かからない一番高い位置にする
+     * （上の数値・方位目盛りの文字はマーカーより上にある）。ただし標準より下にはしない（回避枠がとても低いとき）。
+     */
+    internal fun arcOriginY(position: OwnshipPosition, avoid: HudRect, m: HudMetrics): Float {
+        val up = when (position) {
+            OwnshipPosition.STANDARD -> m.arcOriginFromBottom
+            OwnshipPosition.HIGH -> m.arcOriginFromBottomHigh
+            OwnshipPosition.HIGHER -> m.arcOriginFromBottomHigher
+        }
+        val highest = arcMarkerTipY(avoid.top, m) + m.pointerSize + m.ownShipClear
+        return maxOf(avoid.bottom - up, minOf(highest, avoid.bottom - m.arcOriginFromBottom))
+    }
+
+    /** ARC の上部の方位マーカー（三角）の先端の高さ: 回避枠の上端から、方位目盛り・文字の分だけ下。三角は先端から下へ pointerSize */
+    internal fun arcMarkerTipY(avoidTop: Float, m: HudMetrics): Float = avoidTop + m.tickMajor + m.labelGap * 2 + 4
 
     /**
      * 回避枠の上下: 描画の枠から、上の表示（上部バー・数値）と下の表示（WP ボタン列から下）を除いた部分。
@@ -251,7 +260,7 @@ object HudSceneBuilder {
             }
         }
         // ラバーライン（機首方位 = 画面の上。描画の枠の上端まで）と、回避枠の上端の三角マーカー（自機の真上）
-        val pointerTip = P(o.x, frame.top + m.tickMajor + m.labelGap * 2 + 4)
+        val pointerTip = P(o.x, arcMarkerTipY(frame.top, m))
         if (hasHeading) segments += Segment(o, P(o.x, rect.top), Ink.OWNSHIP)
         pointers += Pointer(pointerTip, 0f, m.pointerSize, Ink.OWNSHIP)
     }
@@ -368,7 +377,6 @@ object HudSceneBuilder {
         segments: MutableList<Segment>,
         labels: List<Label>,
         pointerBoxes: List<Box> = emptyList(),
-        arrowKeepOut: List<Box> = emptyList(),
         numberBoxes: List<Box> = emptyList(),
     ): Pair<List<WpMark>, List<EdgeArrow>> {
         // ref: 地図の基準の地点（通常は自機、PAN は PAN の中心）。矢印の距離は自機から
@@ -404,8 +412,7 @@ object HudSceneBuilder {
         val ownShipBox = Box(ownAt ?: P(-1e6f, -1e6f), m.ownShipClear, m.ownShipClear)
         val obstacles = mutableListOf(ownShipBox)
         // 距離環の数字（small）は縦の線の上に並ぶので避けない（重なってよい）。方位目盛りの文字と上部の三角は避ける
-        val labelBoxes = labels.filter { !it.small }.map { labelBox(it, m) } + pointerBoxes
-        obstacles += labelBoxes
+        obstacles += labels.filter { !it.small }.map { labelBox(it, m) } + pointerBoxes
         obstacles += numberBoxes
         inner.notch?.let { n ->
             obstacles += Box(P((n.left + n.right) / 2, (n.top + n.bottom) / 2), (n.right - n.left) / 2, (n.bottom - n.top) / 2)
@@ -446,11 +453,9 @@ object HudSceneBuilder {
             if (seen.contains(pts[i])) {
                 continue
             } else if (i == next) {
-                // 矢印の枠の縁に方位方向の矢印と距離。文字は矢印の内側（自機側）
+                // 矢印の枠の縁の、方位方向の点（三角は描かない）。文字はその内側（自機側）
                 val a = HudGeometry.angleOf(proj.origin, pts[i])
-                // 三角が方位目盛りの文字や、ARC の方位マーカー・ラバーラインの周り、自機の記号（後ろの矢印は自機のすぐ下の
-                // 縁に来る）に来るなら、縁に沿ってずらす
-                val at = slideArrow(inner.rayHit(proj.origin, a), inner, labelBoxes + arrowKeepOut + ownShipBox, m)
+                val at = inner.rayHit(proj.origin, a)
                 // 3行: 距離・名前・方位（画面内の次の WP と同じ）
                 val lines = linesOf(i)
                 val box0 = arrowTextBox(lines, P(0f, 0f), m)
@@ -461,43 +466,16 @@ object HudSceneBuilder {
                 val textAt = placeArrowText(
                     lines,
                     HudGeometry.pointAt(HudGeometry.pointAt(at, a + 180, m.arrowTextGap), a + 90, clear),
-                    // 矢印そのものにも重ねない
-                    a, inner.outer, obstacles + Box(at, m.pointerSize, m.pointerSize), m,
+                    a, inner.outer, obstacles, m,
                 )
                 obstacles += arrowTextBox(lines, textAt, m)
                 arrows += EdgeArrow(
-                    at = at, angleDeg = a.toFloat(), lines = lines, textAt = textAt, ink = ink,
+                    at = at, lines = lines, textAt = textAt, ink = ink,
                     linePx = lineHeight(Tuning.WP_ARROW_LABEL_SP, m),
                 )
             }
         }
         return marks to arrows
-    }
-
-    /**
-     * 画面外の矢印（三角）の位置: 方位目盛り・距離環の文字（boxes）に重なるなら、枠の縁に沿って
-     * 1段（三角の大きさ）ずつ両側へずらして、重ならない所を探す（最大4段）。見つからなければ元の位置。
-     */
-    internal fun slideArrow(at: P, target: TargetFrame, boxes: List<Box>, m: HudMetrics): P {
-        val frame = target.outer
-        val size = m.pointerSize
-        fun free(p: P) = boxes.none { it.overlaps(Box(p, size * 0.6f, size * 0.6f)) } && target.contains(p)
-        if (free(at)) return at
-        // 左右の縁（操作列の縁を含む）なら縦に、上下の縁なら横にずらす
-        val onSide = kotlin.math.abs(at.x - frame.left) < 0.5f || kotlin.math.abs(at.x - frame.right) < 0.5f ||
-            target.onNotchEdge(at)
-        for (k in 1..Tuning.ARROW_SLIDE_MAX_STEPS) {
-            for (sign in listOf(1f, -1f)) {
-                val d = sign * k * size
-                val p = if (onSide) {
-                    P(at.x, (at.y + d).coerceIn(frame.top, frame.bottom))
-                } else {
-                    P((at.x + d).coerceIn(frame.left, frame.right), at.y)
-                }
-                if (free(p)) return p
-            }
-        }
-        return at
     }
 
     /** 方位目盛り・距離環の文字の占める矩形の目安。 */

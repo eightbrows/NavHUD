@@ -47,6 +47,7 @@ object SettingsCodec {
         "keepScreenOn" to s.keepScreenOn.toString(),
         "buttonOpacityPct" to s.buttonOpacityPct.toString(),
         "numbersOpacityPct" to s.numbersOpacityPct.toString(),
+        "trackColor" to s.trackColor.name,
         "trackBrightnessPct" to s.trackBrightnessPct.toString(),
         "ringLabelScalePct" to s.ringLabelScalePct.toString(),
     ) + s.customReach.withIndex().flatMap { (i, p) -> encodeProfile("custom${i + 1}.", p).toList() }.toMap()
@@ -171,12 +172,14 @@ object SettingsCodec {
             // 不透明度: 20〜100 の 10 刻み以外は既定値
             buttonOpacityPct = int("buttonOpacityPct", d.buttonOpacityPct).takeIf { it in NavSettings.OPACITY_CHOICES_PCT } ?: d.buttonOpacityPct,
             numbersOpacityPct = int("numbersOpacityPct", d.numbersOpacityPct).takeIf { it in NavSettings.OPACITY_CHOICES_PCT } ?: d.numbersOpacityPct,
+            // 読み込んだ軌跡の色: 保存がない（前の版）・読めない名前なら既定の白（前の版と同じ見た目）
+            trackColor = enum("trackColor", TrackColor.entries.toTypedArray(), d.trackColor),
             // 読み込んだ軌跡の明るさ: 25 / 50 / 75 / 100 以外は既定値
             trackBrightnessPct = int("trackBrightnessPct", d.trackBrightnessPct).takeIf { it in NavSettings.TRACK_BRIGHTNESS_CHOICES_PCT }
                 ?: d.trackBrightnessPct,
-            // 距離環の数字の大きさ: 100 / 150 / 200 / 250 以外は既定値
-            ringLabelScalePct = int("ringLabelScalePct", d.ringLabelScalePct).takeIf { it in NavSettings.RING_LABEL_SCALE_CHOICES_PCT }
-                ?: d.ringLabelScalePct,
+            // 距離環の数字の大きさ: 選べる値（100〜200 の 25 刻み）にない数は一番近い段に読み替える（前の版の 250 は 200）。
+            // 数でなければ既定値
+            ringLabelScalePct = str("ringLabelScalePct")?.toIntOrNull()?.let(NavSettings::nearestRingLabelScalePct) ?: d.ringLabelScalePct,
         ).selectTravelMode(travelMode)
     }
 

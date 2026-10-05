@@ -17,9 +17,6 @@ data class TargetFrame(val outer: HudRect, val notch: HudRect?) {
 
     private fun inNotch(p: P): Boolean = notch?.let { p.x > it.left && p.y > it.top && p.y < it.bottom } ?: false
 
-    /** p が notch の左の縁（縦の縁）の上にあるか。 */
-    fun onNotchEdge(p: P): Boolean = notch?.let { kotlin.math.abs(p.x - it.left) < 0.5f && p.y >= it.top && p.y <= it.bottom } ?: false
-
     /**
      * origin から angleDeg 方向に伸ばした線が、この枠の縁に当たる点。origin は枠の内側にあること。
      * notch に先に当たるなら、その縁の点。

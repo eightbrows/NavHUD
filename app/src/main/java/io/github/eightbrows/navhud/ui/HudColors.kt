@@ -7,6 +7,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import io.github.eightbrows.navhud.core.Tuning
 import io.github.eightbrows.navhud.core.nav.ColorTheme
+import io.github.eightbrows.navhud.core.nav.TrackColor
 import io.github.eightbrows.navhud.core.view.Ink
 
 /** テーマで変わる基本色（目盛り・距離環・文字・自機・有効な WP・見出し）。 */
@@ -54,11 +55,33 @@ object HudColors {
     /** 30° ごとの薄い方位線 */
     val BearingLine = Color(0xFF333333)
 
+    /** 読み込んだ軌跡の色（設定 trackColor）。Compose の状態 */
+    var trackColor: TrackColor by mutableStateOf(TrackColor.WHITE)
+
     /** 読み込んだ軌跡の明るさ [%]（設定 trackBrightnessPct）。Compose の状態 */
     var trackBrightnessPct: Int by mutableIntStateOf(Tuning.TRACK_BRIGHTNESS_DEFAULT_PCT)
 
-    /** REPLAY のトラック全体（テーマによらずグレー。明るさは設定。100% = 白） */
-    val Track: Color get() = gray(0xFF * trackBrightnessPct.coerceIn(0, 100) / 100)
+    /** REPLAY のトラック全体（テーマによらない。色と明るさは設定。色の RGB に明るさ p / 100 を掛ける。白の 50% = 0x80 のグレー） */
+    val Track: Color get() = trackFull(trackColor).let { c ->
+        val k = trackBrightnessPct.coerceIn(0, 100) / 100f
+        Color(red = c.red * k, green = c.green * k, blue = c.blue * k)
+    }
+
+    /**
+     * 読み込んだ軌跡の色（明るさ 100%）。黒い地で見分けやすく、次の WP のマゼンタ・警告の赤（・黄）・地図の緑と紛れない色にする。
+     * 白・緑・琥珀は基本色（HudPalette の自機・WP の色）と同じ。シアン・黄・青は軌跡だけの色
+     */
+    fun trackFull(c: TrackColor): Color = when (c) {
+        TrackColor.WHITE -> Color(0xFFFFFFFF)
+        TrackColor.GREEN -> HudPalette.GREEN.wp
+        TrackColor.AMBER -> HudPalette.AMBER.wp
+        // シアン: 色相 190°（地図の緑 140° から 50° 離す）
+        TrackColor.CYAN -> Color(0xFF40E0FF)
+        // 黄: 色相 55°（琥珀 40°・注意の黄 45° より緑寄りで明るい）
+        TrackColor.YELLOW -> Color(0xFFFFF04A)
+        // 明るめの青: 色相 220°（シアンから 30°、マゼンタ 315° から 95° 離す）
+        TrackColor.BLUE -> Color(0xFF6E9BFF)
+    }
 
     /** 次の WP とそこへの線 */
     val Active = Color(0xFFFF4FD8)

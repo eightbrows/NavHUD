@@ -38,6 +38,7 @@ import io.github.eightbrows.navhud.core.nav.OwnshipPosition
 import io.github.eightbrows.navhud.core.nav.ProfileSize
 import io.github.eightbrows.navhud.core.nav.RangeAuto
 import io.github.eightbrows.navhud.core.nav.SourceKind
+import io.github.eightbrows.navhud.core.nav.TrackColor
 import io.github.eightbrows.navhud.core.nav.TravelMode
 import io.github.eightbrows.navhud.core.nav.ReachProfile
 import io.github.eightbrows.navhud.core.nav.editReach
@@ -101,6 +102,19 @@ fun SettingsScreen(
                 stringResource(R.string.numbers_opacity), s.numbersOpacityPct,
                 note = stringResource(R.string.numbers_opacity_note),
             ) { v -> onChange { it.copy(numbersOpacityPct = v) } }
+            Choice(
+                stringResource(R.string.track_color),
+                listOf(
+                    stringResource(R.string.color_white) to TrackColor.WHITE,
+                    stringResource(R.string.color_green) to TrackColor.GREEN,
+                    stringResource(R.string.color_amber) to TrackColor.AMBER,
+                    stringResource(R.string.color_cyan) to TrackColor.CYAN,
+                    stringResource(R.string.color_yellow) to TrackColor.YELLOW,
+                    stringResource(R.string.color_blue) to TrackColor.BLUE,
+                ),
+                s.trackColor,
+                note = stringResource(R.string.track_color_note),
+            ) { v -> onChange { it.copy(trackColor = v) } }
             PercentSlider(
                 stringResource(R.string.track_brightness), s.trackBrightnessPct,
                 note = stringResource(R.string.track_brightness_note),
@@ -113,7 +127,11 @@ fun SettingsScreen(
             ) { v -> onChange { it.copy(ringLabelScalePct = v) } }
             Choice(
                 stringResource(R.string.ownship_position),
-                listOf(stringResource(R.string.position_standard) to OwnshipPosition.STANDARD, stringResource(R.string.position_high) to OwnshipPosition.HIGH),
+                listOf(
+                    stringResource(R.string.position_standard) to OwnshipPosition.STANDARD,
+                    stringResource(R.string.position_high) to OwnshipPosition.HIGH,
+                    stringResource(R.string.position_higher) to OwnshipPosition.HIGHER,
+                ),
                 s.ownshipPosition,
                 note = stringResource(R.string.ownship_position_note),
             ) { v -> onChange { it.copy(ownshipPosition = v) } }

@@ -102,13 +102,15 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(Unit) {
                     if (state.sourceKind == SourceKind.LIVE && live.permission == LocationPermission.UNKNOWN) onRequestPermission()
                 }
-                // 色（UI の色と地図の色。基本色だけ切り替える）
+                // 色（UI の色と地図の色。基本色だけ切り替える）と、読み込んだ軌跡の色・明るさ
                 val uiTheme = state.settings.uiTheme
                 val mapTheme = state.settings.mapTheme
+                val trackColor = state.settings.trackColor
                 val trackBrightness = state.settings.trackBrightnessPct
-                LaunchedEffect(uiTheme, mapTheme, trackBrightness) {
+                LaunchedEffect(uiTheme, mapTheme, trackColor, trackBrightness) {
                     HudColors.uiPalette = HudPalette.of(uiTheme)
                     HudColors.mapPalette = HudPalette.of(mapTheme)
+                    HudColors.trackColor = trackColor
                     HudColors.trackBrightnessPct = trackBrightness
                 }
                 // 画面常時点灯（§6.8）
@@ -151,6 +153,7 @@ class MainActivity : ComponentActivity() {
                             onToggleAutoRange = vm::toggleAutoRange,
                             onViewport = vm::setViewport,
                             onPan = vm::panBy,
+                            onPinch = vm::zoomBy,
                             onEndPan = vm::endPan,
                             onSlower = vm::slowerReplay,
                             onFaster = vm::fasterReplay,

@@ -217,6 +217,13 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
         restartPanTimer()
     }
 
+    /** ピンチ（§6.12）: steps 段だけ ＋（正）か −（負）を押したのと同じ。 */
+    fun zoomBy(steps: Int) {
+        if (steps == 0) return
+        publish(engine.zoomBy(steps))
+        restartPanTimer()
+    }
+
     fun toggleAutoRange() = publish(engine.toggleAutoRange())
 
     /** HUD の描画領域が変わったとき（AUTO 縮尺は、次の WP がこの表示枠に収まる最小の段を選ぶ）。 */

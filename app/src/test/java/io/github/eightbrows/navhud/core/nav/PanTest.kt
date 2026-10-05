@@ -137,9 +137,9 @@ class PanTest {
         val e = engine()
         assertEquals(2_000.0, e.state.rangeM, 0.0)
         e.panBy(-20f, 0f)
-        // PAN 中の − は AUTO を OFF にしない（縮尺は PAN の間だけ変わる）
+        // PAN 中の − は AUTO を OFF にしない（縮尺は PAN の間だけ変わる）。ピンチ（zoomBy）も同じ
         e.zoomOut()
-        e.zoomOut()
+        e.zoomBy(-1)
         assertEquals(10_000.0, e.state.rangeM, 0.0)
         assertEquals(true, e.state.rangeAuto)
         // 現在地に戻ると、狭める方向でも待たずに AUTO が決め直す（北 1.5km → 2km）

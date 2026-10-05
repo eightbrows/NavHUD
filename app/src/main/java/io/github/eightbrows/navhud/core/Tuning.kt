@@ -73,6 +73,10 @@ object Tuning {
     const val AUTO_ZOOM_IN_DIST_RATIO_MAX = 3.0
     const val AUTO_ZOOM_IN_DIST_RATIO_STEP = 0.1
 
+    /** ピンチ（§6.12）: 2本指の開き具合が、基準のこの倍以上で1段拡大（距離のレンジを小さく）、この倍以下で1段縮小。1段変えたら基準を取り直す */
+    const val PINCH_ZOOM_IN_RATIO = 1.25f
+    const val PINCH_ZOOM_OUT_RATIO = 0.8f
+
     // ---- WP の到達判定（§5.4）。移動手段「自動車」の推奨値（自転車・徒歩はあとで足す） ----
 
     /** 到着半径 [m]（停車・目的地そのものへ行く場合）。入ったら到達 */
@@ -97,9 +101,13 @@ object Tuning {
     const val HUD_EDGE_INSET_DP = 22f
     /** 矢印から、その文字まで（自機側） */
     const val HUD_ARROW_TEXT_GAP_DP = 34f
-    /** ARC の自機の位置（回避枠の下端 = WP ボタン列の上端から。LIVE・REPLAY とも）: 標準 / 高め */
+    /**
+     * ARC の自機の位置（回避枠の下端 = WP ボタン列の上端から。LIVE・REPLAY とも）: 標準 / 高め / さらに高め（60dp ずつ）。
+     * 上部の方位マーカーに自機の記号がかかるなら、かからない一番高い位置にする（HudSceneBuilder.projection）
+     */
     const val HUD_ARC_ORIGIN_DP = 24f
     const val HUD_ARC_ORIGIN_HIGH_DP = 84f
+    const val HUD_ARC_ORIGIN_HIGHER_DP = 144f
     /** North Up: 縮尺の距離環と画面の端・回避枠の上下の間の余白（方位サークルはその1つ外側の距離環で、画面からはみ出してよい） */
     const val HUD_NORTH_UP_EDGE_MARGIN_DP = 8f
     /** 方位マーカー（三角）の大きさ */
@@ -123,12 +131,6 @@ object Tuning {
 
     /** 矢印の文字をずらして探す最大の行数 */
     const val ARROW_TEXT_MAX_SHIFT_LINES = 3
-
-    /** 矢印（三角）を縁に沿ってずらす最大の段数（1段 = 三角の大きさ） */
-    const val ARROW_SLIDE_MAX_STEPS = 4
-
-    /** ARC の方位マーカーの周り: 左右の幅（方位マーカーの大きさの何倍か） */
-    const val ARROW_MARKER_ZONE_HALF_WIDTH = 2f
 
     // ---- 標高プロファイル（§6.6） ----
 
@@ -202,8 +204,8 @@ object Tuning {
     const val OPACITY_STEP_PCT = 10
 
     /**
-     * 読み込んだ軌跡（REPLAY のトラック全体の線。グレー）の明るさ [%] の既定と選べる値。100% = 白（0xFF）、
-     * 明るさ p% のグレーは 0xFF × p / 100（25% = 0x40、50% = 0x80）。D11 までの 0x3A は約 23%
+     * 読み込んだ軌跡（REPLAY のトラック全体の線）の明るさ [%] の既定と選べる値。色（設定。既定は白）の RGB に p / 100 を掛ける
+     * （白なら 25% = 0x40、50% = 0x80 のグレー）。D11 までの 0x3A は白の約 23%
      */
     const val TRACK_BRIGHTNESS_DEFAULT_PCT = 50
     val TRACK_BRIGHTNESS_CHOICES_PCT = listOf(25, 50, 75, 100)
@@ -269,17 +271,16 @@ object Tuning {
     const val LABEL_SP = 13f
     const val RING_LABEL_SP = 10f
 
-    /** 距離環の数字の大きさ [%]（RING_LABEL_SP を 100% として）の既定と選べる値 */
+    /** 距離環の数字の大きさ [%]（RING_LABEL_SP を 100% として）の既定と選べる値（保存値が選べる値にない数なら、一番近い段に読み替える） */
     const val RING_LABEL_SCALE_DEFAULT_PCT = 200
-    val RING_LABEL_SCALE_CHOICES_PCT = listOf(100, 150, 200, 250)
+    val RING_LABEL_SCALE_CHOICES_PCT = listOf(100, 125, 150, 175, 200)
 
     /** WP の文字の大きさ [sp]: 地図上の名前・方位（前は 13）/ 画面外の矢印の距離・名前・方位（前は 11） */
     const val WP_LABEL_SP = 15f
     const val WP_ARROW_LABEL_SP = 13f
 
-    /** 図形の大きさ [dp]: WP の印（ひし形の半径）/ 画面外の矢印（三角）/ 自機（三角の基準 / 方位なしの丸の半径） */
+    /** 図形の大きさ [dp]: WP の印（ひし形の半径）/ 自機（三角の基準 / 方位なしの丸の半径） */
     const val WP_MARK_DP = 6f
-    const val EDGE_ARROW_DP = 12f
     const val OWN_SHIP_DP = 11f
     const val OWN_SHIP_CIRCLE_DP = 7f
 

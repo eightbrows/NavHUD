@@ -121,11 +121,8 @@ class HudSceneBuilderTest {
         val scene = build(state(headingDeg = 90f, wps = listOf(wp("WP1", 5_000.0)), next = 0))
         assertTrue(scene.wpMarks.isEmpty())
         val arrow = scene.arrows.single()
-        assertEquals(m.edgeInset, arrow.at.x, 1e-3f)
-        // 自機と同じ高さの左端には方位目盛りの「N」があるので、三角は縁に沿って上下にずれる
-        assertTrue(abs(arrow.at.y - 876f) >= m.pointerSize - 0.5f)
-        assertTrue(abs(arrow.at.y - 876f) <= m.pointerSize * 4 + 0.5f)
-        assertEquals(-90f, arrow.angleDeg, 0.1f)
+        // 自機（360, 876）から真左の線が縁に当たる点（三角は描かないので、方位目盛りの「N」があってもずらさない）
+        assertP(P(m.edgeInset, 876f), arrow.at)
         assertEquals(Ink.ACTIVE, arrow.ink)
         // 3行: 距離・名前・方位（自機から WP への方位。北 = 000°）
         assertEquals(listOf("5.00 km", "WP1", "000°"), arrow.lines)
@@ -182,8 +179,7 @@ class HudSceneBuilderTest {
         val arrow = scene.arrows.single()
         assertEquals("C", arrow.lines[1])
         // 真後ろ → 下端
-        assertEquals(900f - m.edgeInset, arrow.at.y, 1e-3f)
-        assertEquals(180f, kotlin.math.abs(arrow.angleDeg), 0.1f)
+        assertP(P(360f, 900f - m.edgeInset), arrow.at)
     }
 
     @Test
@@ -245,12 +241,12 @@ class HudSceneBuilderTest {
         assertEquals(84f + m.edgeInset, arrow(wp("N", 5_000.0)).at.x, 1e-3f)
         // 機首 090 で南 → 右端（下の帯は関係ない）
         assertEquals(720f - m.edgeInset, arrow(wp("S", -5_000.0)).at.x, 1e-3f)
-        // 真後ろ → 下端。矢印の枠の下端は下に重ねた表示の上端（900 − 46 = 854）。自機（854 − 24）のすぐ下なので、
-        // 自機の記号を避けて縁に沿って横へずらす
+        // 真後ろ → 下端。矢印の枠の下端は下に重ねた表示の上端（900 − 46 = 854）。自機（854 − 24）のすぐ下だが、
+        // 文字は自機の記号に重ねない
         val behind = HudSceneBuilder.build(state(headingDeg = 0f, wps = listOf(wp("B", -5_000.0)), next = 0), rect, m, reserved)
-        val at = behind.arrows.single().at
-        assertEquals(854f - m.edgeInset, at.y, 1e-3f)
-        assertTrue(abs(at.x - 360f) >= m.ownShipClear + m.pointerSize * 0.6f)
+        val b = behind.arrows.single()
+        assertP(P(360f, 854f - m.edgeInset), b.at)
+        assertFalse(HudSceneBuilder.Box(behind.ownShip!!.at, m.ownShipClear, m.ownShipClear).overlaps(HudSceneBuilder.arrowTextBox(b.lines, b.textAt, m)))
     }
 
     @Test
@@ -350,7 +346,7 @@ class HudSceneBuilderTest {
     @Test
     fun arrowTextAvoidsCompassLabelsAndOwnShip() {
         // 西・東・後方・真上に遠い WP を1つずつ次の WP にする（画面外の矢印は次の WP の分だけ）:
-        // 文字は方位目盛りの文字（W など）・自機・上部の三角・その矢印自身と重ならない
+        // 文字は方位目盛りの文字（W など）・自機・上部の三角と重ならない
         val wps = listOf(
             wp("ダム", 200.0, -9_000.0),
             wp("道の駅", -9_000.0, 300.0),
@@ -362,16 +358,15 @@ class HudSceneBuilderTest {
         for (mode in DisplayMode.entries) for (next in wps.indices) {
             val scene = build(state(wps = wps, next = next, mode = mode))
             assertEquals(1, scene.arrows.size)
-            val obstacles = scene.labels.map { l ->
-                HudSceneBuilder.Box(l.at, HudSceneBuilder.textHalfWidth(l.text, m) * (if (l.small) 1f else 13f / 11f) + 2f, m.compassLabelHalf)
+            // 距離環の数字（small）は避けなくてよい（§6.1）
+            val obstacles = scene.labels.filter { !it.small }.map { l ->
+                HudSceneBuilder.Box(l.at, HudSceneBuilder.textHalfWidth(l.text, m) * 13f / 11f + 2f, m.compassLabelHalf)
             } + HudSceneBuilder.Box(scene.ownShip!!.at, m.ownShipClear, m.ownShipClear) +
                 // 上部の三角（機首方位の印）
                 scene.pointers.map { HudSceneBuilder.Box(P(it.tip.x, it.tip.y + it.sizePx / 2), it.sizePx * 0.7f, it.sizePx * 0.7f) }
             val texts = scene.arrows.map { HudSceneBuilder.arrowTextBox(it.lines, it.textAt, m) }
             for ((i, t) in texts.withIndex()) {
                 assertTrue("$mode ${scene.arrows[i].text}", obstacles.none { it.overlaps(t) })
-                // 自分の矢印にも重ならない
-                assertFalse("$mode ${scene.arrows[i].text}", HudSceneBuilder.Box(scene.arrows[i].at, m.pointerSize, m.pointerSize).overlaps(t))
                 assertTrue("$mode ${scene.arrows[i].text}", texts.filterIndexed { j, _ -> j != i }.none { it.overlaps(t) })
             }
         }
@@ -399,6 +394,32 @@ class HudSceneBuilderTest {
         // 高め: 84
         val high = state(headingDeg = 0f).let { it.copy(settings = it.settings.copy(ownshipPosition = io.github.eightbrows.navhud.core.nav.OwnshipPosition.HIGH)) }
         assertEquals(608.4f - m.arcOriginFromBottomHigh, HudSceneBuilder.build(high, r, m, reserved).ownShip!!.at.y, 1e-3f)
+        // さらに高め: 144（60 ずつ）
+        val higher = state(headingDeg = 0f).let { it.copy(settings = it.settings.copy(ownshipPosition = io.github.eightbrows.navhud.core.nav.OwnshipPosition.HIGHER)) }
+        assertEquals(60f, m.arcOriginFromBottomHigher - m.arcOriginFromBottomHigh, 1e-3f)
+        assertEquals(608.4f - m.arcOriginFromBottomHigher, HudSceneBuilder.build(higher, r, m, reserved).ownShip!!.at.y, 1e-3f)
+    }
+
+    @Test
+    fun higherOwnshipStopsBelowTheTopMarker() {
+        // 自機の記号（半高 ownShipClear）は上部の方位マーカー（三角。先端から下へ pointerSize）にかからない
+        val higher = io.github.eightbrows.navhud.core.nav.OwnshipPosition.HIGHER
+        val tip = HudSceneBuilder.arcMarkerTipY(0f, m)
+        val highest = tip + m.pointerSize + m.ownShipClear
+        // 回避枠が十分に高ければ、段のとおり（下端から 144）
+        assertEquals(500f - 144f, HudSceneBuilder.arcOriginY(higher, HudRect(0f, 0f, 720f, 500f), m), 1e-3f)
+        // 回避枠が低くてマーカーにかかるなら、かからない一番高い位置
+        val low = HudRect(0f, 0f, 720f, highest + 100f)
+        assertEquals(highest, HudSceneBuilder.arcOriginY(higher, low, m), 1e-3f)
+        // シーン全体でも: 自機の記号の上端がマーカーの下端より下
+        val s = state(headingDeg = 0f).let { it.copy(settings = it.settings.copy(ownshipPosition = higher)) }
+        val scene = HudSceneBuilder.build(s, HudRect(0f, 0f, 720f, highest + 100f), m)
+        val marker = scene.pointers.single()
+        assertTrue(scene.ownShip!!.at.y - m.ownShipClear >= marker.tip.y + marker.sizePx - 1e-3f)
+        // とても低い回避枠でも、標準（下端から 24）より下にはしない
+        val tiny = HudRect(0f, 0f, 720f, 60f)
+        assertEquals(60f - m.arcOriginFromBottom, HudSceneBuilder.arcOriginY(higher, tiny, m), 1e-3f)
+        assertEquals(60f - m.arcOriginFromBottom, HudSceneBuilder.arcOriginY(io.github.eightbrows.navhud.core.nav.OwnshipPosition.STANDARD, tiny, m), 1e-3f)
     }
 
     @Test
@@ -477,39 +498,6 @@ class HudSceneBuilderTest {
     }
 
     @Test
-    fun arrowSlidesAlongTheEdgeAwayFromCompassLabels() {
-        val frame = TargetFrame(HudRect(0f, 0f, 720f, 900f).inset(m.edgeInset), null)
-        val label = HudSceneBuilder.Box(P(200f, m.edgeInset + 4f), 8f, m.compassLabelHalf)
-        // 上の縁: 横にずらす
-        val top = HudSceneBuilder.slideArrow(P(200f, m.edgeInset), frame, listOf(label), m)
-        assertEquals(m.edgeInset, top.y, 1e-3f)
-        assertTrue(abs(top.x - 200f) >= m.pointerSize - 1e-3f)
-        assertFalse(label.overlaps(HudSceneBuilder.Box(top, m.pointerSize * 0.6f, m.pointerSize * 0.6f)))
-        // 左の縁: 縦にずらす
-        val side = HudSceneBuilder.Box(P(m.edgeInset + 4f, 400f), 8f, m.compassLabelHalf)
-        val left = HudSceneBuilder.slideArrow(P(m.edgeInset, 400f), frame, listOf(side), m)
-        assertEquals(m.edgeInset, left.x, 1e-3f)
-        assertTrue(abs(left.y - 400f) >= m.pointerSize - 1e-3f)
-        // 重ならなければそのまま
-        assertEquals(P(500f, m.edgeInset), HudSceneBuilder.slideArrow(P(500f, m.edgeInset), frame, listOf(label), m))
-    }
-
-    @Test
-    fun arrowTrianglesDoNotCoverCompassLabels() {
-        // 西・北西・北・北東の遠い WP（ARC 機首 000 / North Up）: 三角が方位目盛りの文字に重ならない
-        val wps = listOf(wp("W", 0.0, -20_000.0), wp("NW", 20_000.0, -20_000.0), wp("N", 30_000.0), wp("NE", 20_000.0, 20_000.0))
-        for (mode in DisplayMode.entries) {
-            val scene = build(state(wps = wps, next = 0, mode = mode).let { it.copy(settings = it.settings.copy(hudWpCount = 4)) })
-            val compass = scene.labels.filter { !it.small }
-                .map { HudSceneBuilder.Box(it.at, HudSceneBuilder.textHalfWidth(it.text, m) * 13f / 11f + 2f, m.compassLabelHalf) }
-            for (a in scene.arrows) {
-                val tri = HudSceneBuilder.Box(a.at, m.pointerSize * 0.6f, m.pointerSize * 0.6f)
-                assertTrue("$mode ${a.text}", compass.none { it.overlaps(tri) })
-            }
-        }
-    }
-
-    @Test
     fun reachedWaypointNameIsHiddenInsteadOfMovedBelow() {
         val own = P(360f, 900f - m.arcOriginFromBottom)
         val ownBox = HudSceneBuilder.Box(own, m.ownShipClear, m.ownShipClear)
@@ -548,19 +536,20 @@ class HudSceneBuilderTest {
     }
 
     @Test
-    fun arrowAvoidsTheArcMarkerAndRubberLine() {
-        // 機首 000 で真北 30km の WP: 矢印は上端の中央（方位マーカーの横）に来るので、マーカーとラバーラインの周りから横へずらす
-        val scene = build(state(headingDeg = 0f, wps = listOf(wp("ダム", 30_000.0, 300.0)), next = 0))
-        val arrow = scene.arrows.single()
-        val marker = scene.pointers.single().tip
-        assertEquals(m.edgeInset, arrow.at.y, 1e-3f)
-        assertTrue("x=${arrow.at.x}", abs(arrow.at.x - marker.x) >= m.pointerSize * 2.6f - 1e-3f)
-        // 横の縁の矢印は動かさない（方位マーカーから遠い）
-        val west = build(state(headingDeg = 0f, wps = listOf(wp("W", 3_000.0, -30_000.0)), next = 0)).arrows.single()
-        assertEquals(m.edgeInset, west.at.x, 1e-3f)
-        // North Up・PAN では方位マーカーを避けない（ARC の上部中央のマーカーだけ）
-        val nu = build(state(headingDeg = 0f, mode = DisplayMode.NORTH_UP, wps = listOf(wp("ダム", 30_000.0, 300.0)), next = 0))
-        assertTrue(abs(nu.arrows.single().at.x - 360f) < m.pointerSize * 2.6f)
+    fun edgePointStaysOnTheLineToTheNextWaypoint() {
+        // 三角をやめたので、縁の点（文字の位置の基準）は方位目盛りの文字や方位マーカーがあってもずらさず、
+        // いつも自機から次の WP への線（マゼンタ）の上にある
+        val wps = listOf(wp("W", 0.0, -20_000.0), wp("NW", 20_000.0, -20_000.0), wp("N", 30_000.0, 300.0), wp("NE", 20_000.0, 20_000.0), wp("S", -20_000.0, 500.0))
+        for (mode in DisplayMode.entries) for (next in wps.indices) {
+            val scene = build(state(headingDeg = 0f, wps = wps, next = next, mode = mode))
+            val arrow = scene.arrows.single()
+            val line = scene.segments.single { it.ink == Ink.ACTIVE }
+            // 線 a→b と点の距離（外積）が 0.5 px 未満
+            val dx = line.b.x - line.a.x
+            val dy = line.b.y - line.a.y
+            val cross = abs(dx * (arrow.at.y - line.a.y) - dy * (arrow.at.x - line.a.x)) / hypot(dx, dy)
+            assertTrue("$mode ${arrow.text} $cross", cross < 0.5f)
+        }
     }
 
     @Test
