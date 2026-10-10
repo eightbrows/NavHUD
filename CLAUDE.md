@@ -47,6 +47,10 @@
 - 実装前の確認のお願い（方針・レイアウト案など）も、`docs/reports/<バージョン>-plan.html` として HTML で作り、チャットには要点とパスだけを書く。
   HTML の形式は結果レポートと同じ規定（1ファイル完結、外部リソースなし）。
 
+## チートシート（恒久ルール）
+- 画面や初期値が変わる作業のときは、同じ作業の中で `docs/cheatsheet.html` を直し、`docs/cheatsheet.pdf` も作り直す。
+  PDF は Edge のヘッドレス印刷（`--headless --no-pdf-header-footer --print-to-pdf=...`）で作り、A4 縦・1ページであることを確かめる。
+
 ## バージョン・コミット
 - `app/build.gradle.kts` の `appVersionName`（`yyyyMMdd-Xnn`）だけを変える。versionCode は自動計算。
 - `.githooks/` のフックがコミットメッセージの先頭にバージョンを入れる（`git config core.hooksPath .githooks`）。
