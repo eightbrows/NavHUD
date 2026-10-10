@@ -135,7 +135,7 @@
     <string name="zoom_in_delay_note">Going to Wide is immediate</string>
     <string name="hold_after_wp">Hold after passing a WP</string>
     <string name="hold_after_wp_note">The range is kept until the reached WP is passed, and for this many seconds after (abeam and manual count from the reach). Arrows still show.</string>
-    <string name="zoom_in_ratio">Start Detail within</string>
+    <string name="zoom_in_ratio">Go to Detail within</string>
     <string name="zoom_in_ratio_value">×%1$s</string>
     <string name="zoom_in_ratio_note">Multiple of the current first ring. %1$s</string>
     <string name="zoom_in_example">Now R1 %1$s: within %2$s of the WP</string>
