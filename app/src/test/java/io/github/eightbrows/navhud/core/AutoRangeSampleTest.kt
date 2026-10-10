@@ -76,14 +76,17 @@ class AutoRangeSampleTest {
 
     @Test
     fun countRangeChangesOverTheWholeTrack() {
-        val live = run(LIVE)
-        val replay = run(REPLAY)
+        val settings = NavSettings()
+        val live = run(LIVE, settings)
+        val replay = run(REPLAY, settings)
         write("live", live)
         write("replay", replay)
         // 記録が取れていること（段は少なくとも一度は決まる）
         assertTrue(live.isNotEmpty() && replay.isNotEmpty())
-        // どの段も、D02 までの既定の AUTO の範囲（詳細の限度 100m・広域の限度 1km の段）の中。流しているのは今の既定（広域の限度 500m の段）
-        assertTrue((live + replay).all { it.toM in 100.0..1_000.0 })
+        // どの段も、今の既定の AUTO の範囲（詳細の限度〜広域の限度）の中。
+        // 範囲は数字で書かず、流すのに使った既定の設定から取る（既定が変わってもずれない）
+        val autoRangeM = settings.autoMinRangeKm * 1000..settings.autoMaxRangeKm * 1000
+        assertTrue((live + replay).all { it.toM in autoRangeM })
     }
 
     /** WP ごとの記録: 到達した時刻と理由、通り過ぎた時刻、到達のあと最初に縮尺が変わった時刻と段。 */
