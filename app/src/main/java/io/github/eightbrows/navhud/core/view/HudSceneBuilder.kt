@@ -319,7 +319,7 @@ object HudSceneBuilder {
 
     /**
      * interval ごとの全周の距離環を maxPx まで（中心は proj.origin）。距離環の数字は RingLabelPlacement の位置
-     * （左上・右上。外なら距離環に沿って画面の中へ。文字が画面からはみ出さないよう、文字の半分だけ内側の枠で決める）。
+     * （左上・右上・左下・右下の4か所。外なら距離環に沿って画面の中へ。文字が画面からはみ出さないよう、文字の半分だけ内側の枠で決める）。
      * @param ringSp 距離環の数字の文字の大きさ [sp]（Tuning.RING_LABEL_SP × 設定の大きさ）
      */
     private fun addRings(

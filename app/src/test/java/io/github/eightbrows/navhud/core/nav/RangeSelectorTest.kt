@@ -263,6 +263,65 @@ class RangeSelectorTest {
         assertEquals(100.0, r.update(probe(20.0), 0), 0.0)
     }
 
+    /** 次の WP（key）が distM 先にあり、段 r で「needM × spread ≤ r」なら枠に収まる（横に外れた WP は needM が大きい）。 */
+    private fun keyed(distM: Double, needM: Double, key: Any? = "A") = object : RangeProbe {
+        override fun fits(rangeM: Double, spread: Double) = needM * spread <= rangeM
+        override val distanceM = distM
+        override val targetKey = key
+    }
+
+    @Test
+    fun afterNarrowingItDoesNotWidenUntilTheWaypointIsReached() {
+        // 200m の段（R1 100m）で、80m 先の WP が1段狭い段に余裕をもって収まる → 5 秒で 100m の段（R1 50m）に狭める
+        val r = selector(0.2)
+        assertEquals(200.0, r.update(keyed(80.0, 80.0), 0), 0.0)
+        assertEquals(100.0, r.update(keyed(80.0, 80.0), 5_000), 0.0)
+        // カーブで WP が正面から外れ、100m の段の枠に収まらなくなった（200m の段なら収まる）: 前はすぐ広げた。
+        // 一度狭めた WP なので、到達するまで広げない（62m・140m・162m）
+        assertEquals(100.0, r.update(keyed(62.0, 150.0), 6_000), 0.0)
+        assertEquals(100.0, r.update(keyed(140.0, 150.0), 7_000), 0.0)
+        assertEquals(100.0, r.update(keyed(162.0, 150.0), 8_000), 0.0)
+        // 逃げ道: WP から離れた（1段広い段 200m で狭め始める距離 1.3 × 100m の 1.25 倍 = 162.5m より遠い）なら広げる
+        assertEquals(200.0, r.update(keyed(163.0, 150.0), 9_000), 0.0)
+        // その先も同じ決まり: 500m の段へは 1.3 × 250m × 1.25 = 406.25m より遠いとき、1km の段へは 812.5m より遠いとき
+        assertEquals(200.0, r.update(keyed(300.0, 900.0), 10_000), 0.0)
+        assertEquals(200.0, r.update(keyed(406.0, 900.0), 11_000), 0.0)
+        assertEquals(500.0, r.update(keyed(407.0, 900.0), 12_000), 0.0)
+        assertEquals(500.0, r.update(keyed(812.0, 900.0), 13_000), 0.0)
+        assertEquals(1_000.0, r.update(keyed(813.0, 900.0), 14_000), 0.0)
+    }
+
+    @Test
+    fun wideningIsOnlyHeldForTheWaypointItNarrowedFor() {
+        fun narrowedTo100(): RangeSelector = selector(0.2).also {
+            it.update(keyed(80.0, 80.0), 0)
+            assertEquals(100.0, it.update(keyed(80.0, 80.0), 5_000), 0.0)
+        }
+        // 次の WP が変わった（到達した）: 新しい WP が枠に収まらなければ、今まで通りすぐ広げる（近くても）
+        assertEquals(200.0, narrowedTo100().update(keyed(62.0, 150.0, key = "B"), 6_000), 0.0)
+        // 同じ WP でも、枠に収まっている間は何もしない
+        assertEquals(100.0, narrowedTo100().update(keyed(62.0, 60.0), 6_000), 0.0)
+        // AUTO を入れ直したら、狭めた記録は消える（今まで通り広げる）
+        narrowedTo100().let {
+            it.setAuto(false)
+            it.setAuto(true)
+            assertEquals(200.0, it.update(keyed(62.0, 150.0), 6_000), 0.0)
+        }
+        // PAN から戻った・シークのあと（decideNow）: 目標の段にすぐして、記録も消える
+        narrowedTo100().let {
+            it.decideNow()
+            assertEquals(200.0, it.update(keyed(62.0, 150.0), 6_000), 0.0)
+            assertEquals(500.0, it.update(keyed(62.0, 400.0), 7_000), 0.0)
+        }
+        // WP を見分けられない問い（キーなし）は、今まで通り広げる
+        val plain = selector(0.2)
+        plain.update(keyed(80.0, 80.0, key = null), 0)
+        assertEquals(100.0, plain.update(keyed(80.0, 80.0, key = null), 5_000), 0.0)
+        assertEquals(200.0, plain.update(keyed(62.0, 150.0, key = null), 6_000), 0.0)
+        // AUTO が狭めていない WP（はじめから 100m の段）も、今まで通り広げる
+        assertEquals(200.0, selector(0.1).update(keyed(62.0, 150.0), 0), 0.0)
+    }
+
     @Test
     fun allStepsList() {
         assertEquals(listOf(0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0), RangeAuto.ALL_STEPS_KM)

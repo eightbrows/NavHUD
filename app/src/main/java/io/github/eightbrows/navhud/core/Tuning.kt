@@ -73,6 +73,13 @@ object Tuning {
     const val AUTO_ZOOM_IN_DIST_RATIO_MAX = 3.0
     const val AUTO_ZOOM_IN_DIST_RATIO_STEP = 0.1
 
+    /**
+     * AUTO: 次の WP に向けて一度狭めたあとは、到達するまで広げない。WP から離れたら広げる:
+     * 次の WP までの距離 > 「1段広い段で狭め始める距離（狭め始める距離の倍率 × その段の R1）× これ」。
+     * 既定（倍率 1.3）なら、R1 50m → 100m は 162.5m、100m → 250m は 406m、250m → 500m は 812m より遠いとき
+     */
+    const val AUTO_ZOOM_OUT_DIST_RATIO = 1.25
+
     /** ピンチ（§6.12）: 2本指の開き具合が、基準のこの倍以上で1段拡大（距離のレンジを小さく）、この倍以下で1段縮小。1段変えたら基準を取り直す */
     const val PINCH_ZOOM_IN_RATIO = 1.25f
     const val PINCH_ZOOM_OUT_RATIO = 0.8f

@@ -477,6 +477,7 @@ class NavEngine(
             return object : RangeProbe {
                 override fun fits(rangeM: Double, spread: Double) = dist * spread <= rangeM * Tuning.RANGE_DISTANCE_FIT_RATIO
                 override val distanceM = dist
+                override val targetKey = Triple(next, wp.lat, wp.lon)
             }
         }
         val points = (next until waypoints.size)
@@ -489,6 +490,7 @@ class NavEngine(
             override fun fits(rangeM: Double, spread: Double) = vp.fits(rangeM, target, headingDeg, s, spread)
             override fun separated(rangeM: Double) = vp.separated(rangeM, points, headingDeg, s)
             override val distanceM = Geo.distanceM(fix.lat, fix.lon, wp.lat, wp.lon)
+            override val targetKey = Triple(next, wp.lat, wp.lon)
         }
     }
 

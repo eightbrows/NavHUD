@@ -264,8 +264,9 @@ private fun profileHeight(size: ProfileSize): Dp? = when (size) {
 
 /**
  * 左の再生の操作列（§6.7、REPLAY のときだけ。数値の下から WP ボタン列の上まで。拡大・縮小の操作列とは逆の左側）。
- * 上から 再生 / 一時停止（▶ / ❚❚、終わりは END）、倍速の ＋ / ×N / −（×1 / ×2 / ×5 / ×10 / ×30。端ではグレー）、
- * 縦の再生位置のスライダー（残りの高さいっぱい。下が始まり、上が終わり。指を離したときにシークする）。
+ * 上から 縦の再生位置のスライダー（残りの高さいっぱい。下が始まり、上が終わり。指を離したときにシークする）、
+ * 再生 / 一時停止（▶ / ❚❚、終わりは END）、倍速の ＋ / ×N / −（×1 / ×2 / ×5 / ×10 / ×30。端ではグレー）。
+ * よく押す倍速のボタンを、指に近い一番下に置く。
  * 不透明度はボタンの不透明度（設定。右の操作列と同じ）。
  */
 @Composable
@@ -287,17 +288,7 @@ private fun ReplayColumn(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(SideButtonGap),
     ) {
-        val play = when {
-            replay.finished -> "END"
-            state.playing -> "❚❚"
-            else -> "▶"
-        }
-        SideButton(play, onTogglePlay, enabled = replay.ready && !replay.finished, fontSize = 16.sp, alpha = a)
-        // 倍速: ＋ で1段速く、− で1段遅く。×N は表示だけ
-        val speedH = Tuning.REPLAY_SPEED_BUTTON_HEIGHT_DP.dp
-        SideButton("＋", onFaster, enabled = ReplaySpeed.faster(replay.speed) != null, height = speedH, fontSize = 20.sp, alpha = a)
-        OutlinedText(AnnotatedString("×${replay.speed}"), Value.copy(fontSize = 14.sp), Modifier.alpha(a))
-        SideButton("−", onSlower, enabled = ReplaySpeed.slower(replay.speed) != null, height = speedH, fontSize = 20.sp, alpha = a)
+        // 再生位置のスライダー: 数値のすぐ下から、再生のボタンのすぐ上まで
         if (start != null && end != null && end > start) {
             val now = (state.nowMs ?: start).coerceIn(start, end)
             val frac = dragging ?: ((now - start).toFloat() / (end - start))
@@ -314,6 +305,17 @@ private fun ReplayColumn(
         } else {
             Spacer(Modifier.weight(1f))
         }
+        val play = when {
+            replay.finished -> "END"
+            state.playing -> "❚❚"
+            else -> "▶"
+        }
+        SideButton(play, onTogglePlay, enabled = replay.ready && !replay.finished, fontSize = 16.sp, alpha = a)
+        // 倍速（一番下）: ＋ で1段速く、− で1段遅く。×N は表示だけ
+        val speedH = Tuning.REPLAY_SPEED_BUTTON_HEIGHT_DP.dp
+        SideButton("＋", onFaster, enabled = ReplaySpeed.faster(replay.speed) != null, height = speedH, fontSize = 20.sp, alpha = a)
+        OutlinedText(AnnotatedString("×${replay.speed}"), Value.copy(fontSize = 14.sp), Modifier.alpha(a))
+        SideButton("−", onSlower, enabled = ReplaySpeed.slower(replay.speed) != null, height = speedH, fontSize = 20.sp, alpha = a)
     }
 }
 

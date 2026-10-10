@@ -8,30 +8,37 @@ import kotlin.math.sin
 
 /**
  * 距離環の数字の位置（§6.1）。角度は画面が基準（上が 0、時計回り）で、ARC・North Up・PAN とも同じ決まり。
- * - 各距離環の、中心から見て左上（315°）と右上（45°）の点に置く（左右の両側）。
- * - その点が枠（frame）の外なら、距離環に沿って枠の中心に近い側へ回し、距離環が枠に入る最初の点で止める。
- * - 距離環が枠に全く入らないなら、その側は出さない。左右が同じ点に寄ったら1つにまとめる。
+ * - 各距離環の、中心から見て左上（315°）・右上（45°）・左下（225°）・右下（135°）の4か所に置く（前方と後方、左右の両側）。
+ * - その点が枠（frame）の外なら、距離環に沿って枠の中心に近い側へ回し、距離環が枠に入る最初の点で止める（4か所とも同じ決まり）。
+ * - 距離環が枠に全く入らないなら出さない。同じ点に寄ったものは1つにまとめる。
  * frame には、文字が画面からはみ出さないよう、描画の枠を文字の半分の大きさだけ内側に寄せたものを渡す。
  * 数値欄・ボタン・ほかの文字との重なりは見ない。
  */
 object RingLabelPlacement {
 
-    /** 置き始める角度: 左上・右上 */
+    /** 置き始める角度: 左上・右上（前方）、左下・右下（後方） */
     const val LEFT_DEG = 315.0
     const val RIGHT_DEG = 45.0
+    const val BACK_LEFT_DEG = 225.0
+    const val BACK_RIGHT_DEG = 135.0
 
-    /** 左右の点がこれより近ければ1つにまとめる [px] */
+    /** 置く順番（前方の左・右、後方の左・右） */
+    val START_DEGS = listOf(LEFT_DEG, RIGHT_DEG, BACK_LEFT_DEG, BACK_RIGHT_DEG)
+
+    /** 2つの点がこれより近ければ1つにまとめる [px] */
     private const val SAME_POINT_PX = 1f
 
-    /** 半径 radius の距離環の数字の位置（左・右の順。出さない側は除く）。 */
+    /**
+     * 半径 radius の距離環の数字の位置（左上・右上・左下・右下の順。出さないものは除き、同じ点に寄ったものは先の1つだけ）。
+     */
     fun anchors(center: P, radius: Float, frame: HudRect): List<P> {
         if (!(radius > 0f)) return emptyList()
-        val left = anchor(center, radius, LEFT_DEG, frame)
-        val right = anchor(center, radius, RIGHT_DEG, frame)
-        return when {
-            left != null && right != null && HudGeometry.dist(left, right) < SAME_POINT_PX -> listOf(left)
-            else -> listOfNotNull(left, right)
+        val out = mutableListOf<P>()
+        for (deg in START_DEGS) {
+            val p = anchor(center, radius, deg, frame) ?: continue
+            if (out.none { HudGeometry.dist(it, p) < SAME_POINT_PX }) out += p
         }
+        return out
     }
 
     /**

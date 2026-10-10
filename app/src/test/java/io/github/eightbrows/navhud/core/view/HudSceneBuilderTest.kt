@@ -468,8 +468,9 @@ class HudSceneBuilderTest {
     }
 
     @Test
-    fun ringLabelsSitUpperLeftAndUpperRightOfEachRing() {
-        // 距離環の数字（§6.1）: 各距離環の、中心から見て画面の左上・右上（315°・45°）。外なら距離環に沿って画面の中へ（RingLabelPlacement）。
+    fun ringLabelsSitAtFourPlacesOnEachRing() {
+        // 距離環の数字（§6.1）: 各距離環の、中心から見て画面の左上・右上・左下・右下（315°・45°・225°・135°）。
+        // 外なら距離環に沿って画面の中へ（RingLabelPlacement）。
         // 角度は画面が基準で、ARC（機首 030）・North Up・PAN で同じ。文字が画面からはみ出さない枠（文字の半分だけ内側）で決める
         val pan = io.github.eightbrows.navhud.core.nav.PanView(TestGeo.lat(-2_400.0), TestGeo.lon(2_400.0), 0.0)
         for (s in listOf(
@@ -497,10 +498,25 @@ class HudSceneBuilderTest {
         }
         // 普段の ARC（機首 000）: 一番小さい距離環（180 px）の数字は自機の左上・右上 45°
         val own = P(360f, 876f)
-        val first = build(state()).labels.filter { it.small }.take(2).map { it.at }
+        val first = build(state()).labels.filter { it.small }.take(4).map { it.at }
         val d = 180f * kotlin.math.sqrt(0.5f)
         assertP(P(own.x - d, own.y - d), first[0], 1e-2f)
         assertP(P(own.x + d, own.y - d), first[1], 1e-2f)
+        // 後方（左下・右下）は画面の下の外なので、距離環に沿って画面の中へ: 自機のほぼ真横、画面の下端の近く
+        assertEquals(180f, HudGeometry.dist(own, first[2]), 1e-2f)
+        assertEquals(180f, HudGeometry.dist(own, first[3]), 1e-2f)
+        assertTrue(first[2].x < own.x - 170f && first[2].y > own.y && first[2].y < 900f)
+        assertTrue(first[3].x > own.x + 170f && first[3].y > own.y && first[3].y < 900f)
+        // North Up（自機が画面の中ほど）: 一番小さい距離環は、前後左右の 45° の4か所にそのまま
+        val nu = build(state(mode = DisplayMode.NORTH_UP))
+        val nc = nu.arcs.first().center
+        val nr = nu.arcs.minOf { it.radius }
+        val nd = nr * kotlin.math.sqrt(0.5f)
+        val four = nu.labels.filter { it.small }.take(4).map { it.at }
+        assertP(P(nc.x - nd, nc.y - nd), four[0], 1e-2f)
+        assertP(P(nc.x + nd, nc.y - nd), four[1], 1e-2f)
+        assertP(P(nc.x - nd, nc.y + nd), four[2], 1e-2f)
+        assertP(P(nc.x + nd, nc.y + nd), four[3], 1e-2f)
     }
 
     @Test
@@ -605,8 +621,13 @@ class HudSceneBuilderTest {
         val scene = build(state(headingDeg = 0f).copy(rangeM = 1_000.0))
         assertEquals(5, scene.arcs.size)
         assertTrue(scene.arcs.all { it.sweepDeg == 360f })
-        // 数字は左右に1つずつ。2.5 km（半径 900 px）の左上・右上の点は画面の外なので、距離環に沿って画面の中に寄せて付ける
-        assertEquals(listOf("500", "500", "1k", "1k", "1.5k", "1.5k", "2k", "2k", "2.5k", "2.5k"), scene.labels.filter { it.small }.map { it.text })
+        // 数字は前方の左右と後方の左右。2.5 km（半径 900 px）の左上・右上の点は画面の外なので、距離環に沿って画面の中に寄せて付ける。
+        // 後方: 500 m・1 km は前方と別の点（下端・左右の端との交点）に出る。1.5 km より外は、後方も前方と同じ点（左右の端との交点）に
+        // 寄るので、1つにまとめる
+        assertEquals(
+            listOf("500", "500", "500", "500", "1k", "1k", "1k", "1k", "1.5k", "1.5k", "2k", "2k", "2.5k", "2.5k"),
+            scene.labels.filter { it.small }.map { it.text },
+        )
         // North Up・縮尺 1km（最外周 312 px、間隔 156 px）: 角（576 px）まで 3 本 → 500 m / 1k / 1.5k
         val nu = build(state(mode = DisplayMode.NORTH_UP).copy(rangeM = 1_000.0))
         assertEquals(3, nu.arcs.size)
