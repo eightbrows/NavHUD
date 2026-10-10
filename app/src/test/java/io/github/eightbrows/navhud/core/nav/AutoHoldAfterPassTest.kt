@@ -1,5 +1,6 @@
 package io.github.eightbrows.navhud.core.nav
 
+import io.github.eightbrows.navhud.core.TestSettings
 import io.github.eightbrows.navhud.core.MeasuredScreen
 import io.github.eightbrows.navhud.core.TestGeo
 import io.github.eightbrows.navhud.core.model.Fix
@@ -24,7 +25,7 @@ class AutoHoldAfterPassTest {
 
     private val viewport = HudViewport(MeasuredScreen.RECT, HudMetrics().scaled(MeasuredScreen.DENSITY), MeasuredScreen.LIVE)
 
-    private fun engine(kind: SourceKind = SourceKind.LIVE, s: NavSettings = NavSettings()) =
+    private fun engine(kind: SourceKind = SourceKind.LIVE, s: NavSettings = TestSettings.BEFORE_D03) =
         NavEngine(s, ZoneId.of("Asia/Tokyo"), kind).apply { setViewport(viewport) }
 
     private fun wps(northM: Double = 405.0, eastM: Double = 0.0) = listOf(
@@ -132,7 +133,7 @@ class AutoHoldAfterPassTest {
     fun passedUsesTheSideDepartDistanceOfTheTravelMode() {
         // 通り過ぎた判定の「離れる距離」は今の移動手段の値（カスタム1 で +50m）: 46 秒目（460m、WP から 55m）に通り過ぎ、56 秒目から広げる。
         // 真横通過をオフにしていても、通り過ぎた判定は同じ条件で行う
-        val s = NavSettings().selectTravelMode(TravelMode.CUSTOM1).editReach { it.copy(sidePass = false, sidePassDepartM = 50.0) }
+        val s = TestSettings.BEFORE_D03.selectTravelMode(TravelMode.CUSTOM1).editReach { it.copy(sidePass = false, sidePassDepartM = 50.0) }
         val e = engine(s = s).apply { setWaypoints(wps()) }
         val r = drive(e, 70)
         assertEquals(38L, r.reachedAt)

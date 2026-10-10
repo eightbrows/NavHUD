@@ -29,7 +29,7 @@
     <string name="hint_waiting_permission">Waiting for location permission</string>
     <string name="hint_gps_off">Device location (GPS) is off. Turn it on in Settings.</string>
     <string name="hint_acquiring_gps">Acquiring GPS…</string>
-    <string name="hint_choose_track">Choose track.csv with FILE</string>
+    <string name="hint_choose_track">Choose track.csv or a GpsLogger zip with FILE</string>
     <string name="perm_title">Location unavailable</string>
     <string name="perm_approximate">Only approximate location is allowed. Precise location is needed to show your position by GPS.</string>
     <string name="perm_denied">Location permission is needed to show your position in LIVE. REPLAY (track.csv playback) works without it.</string>
@@ -63,6 +63,11 @@
     <string name="msg_read_failed">Could not read %1$s (%2$s)</string>
     <string name="msg_read_failed_retry">Could not read %1$s. Please choose it again (%2$s)</string>
     <string name="msg_track_empty">No readable lines in %1$s (skipped %2$s)</string>
+    <string name="msg_zip_broken">Could not read %1$s as a zip (damaged or incomplete). Please choose it again</string>
+    <string name="msg_zip_no_track">No track.csv in %1$s. Please choose a zip exported by GpsLogger</string>
+    <string name="zip_sessions_title">Choose a session</string>
+    <string name="zip_session_detail">Length %1$s · %2$s pts</string>
+    <string name="zip_session_empty">No readable lines</string>
     <string name="what_last_list">the last list</string>
     <string name="what_last_file">the last file</string>
     <string name="what_chosen_file">the chosen file</string>
@@ -73,6 +78,9 @@
     <!-- 設定画面 -->
     <string name="settings_title">Settings</string>
     <string name="settings_note">Changes apply and are saved immediately.</string>
+    <string name="default_value">Default: %1$s</string>
+    <string name="note_with_default">%1$s. %2$s</string>
+    <string name="default_all">all</string>
     <string name="sec_display">Display</string>
     <string name="display_mode">Display mode</string>
     <string name="color_white">White</string>
@@ -92,7 +100,7 @@
     <string name="track_brightness">Loaded track brightness</string>
     <string name="track_brightness_note">Applies to every track color.</string>
     <string name="ring_label_size">Range ring label size</string>
-    <string name="ring_label_size_note" formatted="false">Numbers on both sides of the range rings (250, 1k, …). 100% is the original size.</string>
+    <string name="ring_label_size_note" formatted="false">Numbers on the range rings (250, 1k, …). 100% is the original size.</string>
     <string name="ownship_position">ARC ownship position</string>
     <string name="position_standard">Standard</string>
     <string name="position_high">High</string>

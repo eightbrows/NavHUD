@@ -1,5 +1,6 @@
 package io.github.eightbrows.navhud.core.view
 
+import io.github.eightbrows.navhud.core.TestSettings
 import io.github.eightbrows.navhud.core.MeasuredScreen
 import io.github.eightbrows.navhud.core.TestGeo
 import io.github.eightbrows.navhud.core.geo.EN
@@ -143,7 +144,7 @@ class HudViewportTest {
     private fun autoRange(seconds: Int, vararg wps: EN, initialKm: Double = 1.0): Double {
         val lat0 = TestGeo.LAT0
         val lon0 = TestGeo.LON0
-        val e = NavEngine(NavSettings(initialRangeKm = initialKm), sourceKind = SourceKind.LIVE)
+        val e = NavEngine(TestSettings.BEFORE_D03.copy(initialRangeKm = initialKm), sourceKind = SourceKind.LIVE)
         e.setViewport(viewport)
         e.setWaypoints(wps.mapIndexed { i, p -> Waypoint("W$i", TestGeo.lat(p.n), TestGeo.lon(p.e)) })
         var r = e.onFix(Fix(timeMs = 0, lat = lat0, lon = lon0), 0).rangeM
@@ -182,7 +183,7 @@ class HudViewportTest {
     private fun passRun(holdSec: Int): List<Double> {
         val lat0 = TestGeo.LAT0
         val lon0 = TestGeo.LON0
-        val e = NavEngine(NavSettings(autoHoldAfterWpSec = holdSec, reachRadiusM = 100.0), sourceKind = SourceKind.LIVE)
+        val e = NavEngine(TestSettings.BEFORE_D03.copy(autoHoldAfterWpSec = holdSec, reachRadiusM = 100.0), sourceKind = SourceKind.LIVE)
         e.setViewport(viewport)
         e.setWaypoints(listOf(Waypoint("A", TestGeo.lat(405.0), lon0), Waypoint("B", TestGeo.lat(5_000.0), lon0)))
         return (0..60L).map { t ->

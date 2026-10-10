@@ -55,7 +55,7 @@ object Tuning {
 
     /** AUTO の下限・上限の既定 [km]（段。R1 = 1つ目の距離環はこの半分: 50m / 500m） */
     const val AUTO_MIN_RANGE_KM = 0.1
-    const val AUTO_MAX_RANGE_KM = 1.0
+    const val AUTO_MAX_RANGE_KM = 0.5
 
     /** AUTO: 描画の枠の中に見えている隣り合う目標どうしの、画面上の最小の間隔 [dp]。これより近くなる段は使わない */
     const val AUTO_WP_MIN_SEP_DP = 40f
@@ -218,7 +218,7 @@ object Tuning {
      * 読み込んだ軌跡（REPLAY のトラック全体の線）の明るさ [%] の既定と選べる値。色（設定。既定は白）の RGB に p / 100 を掛ける
      * （白なら 25% = 0x40、50% = 0x80 のグレー）。D11 までの 0x3A は白の約 23%
      */
-    const val TRACK_BRIGHTNESS_DEFAULT_PCT = 50
+    const val TRACK_BRIGHTNESS_DEFAULT_PCT = 75
     val TRACK_BRIGHTNESS_CHOICES_PCT = listOf(25, 50, 75, 100)
 
     /**
@@ -283,7 +283,7 @@ object Tuning {
     const val RING_LABEL_SP = 10f
 
     /** 距離環の数字の大きさ [%]（RING_LABEL_SP を 100% として）の既定と選べる値（保存値が選べる値にない数なら、一番近い段に読み替える） */
-    const val RING_LABEL_SCALE_DEFAULT_PCT = 150
+    const val RING_LABEL_SCALE_DEFAULT_PCT = 125
     val RING_LABEL_SCALE_CHOICES_PCT = listOf(100, 125, 150, 175, 200)
 
     /** WP の文字の大きさ [sp]: 地図上の名前・方位（前は 13）/ 画面外の矢印の距離・名前・方位（前は 11） */

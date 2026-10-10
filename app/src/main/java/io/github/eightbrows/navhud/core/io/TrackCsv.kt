@@ -73,4 +73,46 @@ object TrackCsv {
         }
         return TrackParseResult(fixes, skipped)
     }
+
+    /**
+     * 概要だけを数える（zip のセッション一覧用）。Fix は作らない。
+     * 読める行の決まりは parse と同じ（緯度・経度・時刻が読める行だけを数える）。
+     */
+    fun summarize(lines: Sequence<String>): TrackSummary {
+        val iter = lines.iterator()
+        if (!iter.hasNext()) return TrackSummary(0, 0, null, null)
+
+        val header = iter.next().removePrefix("\uFEFF").split(',').map { it.trim() }
+        val col = header.withIndex().associate { (i, name) -> name to i }
+        val iLat = col["latitude"]
+        val iLon = col["longitude"]
+        val iEpoch = col["epoch_ms"]
+        val iIso = col["utc_iso8601"]
+
+        var points = 0
+        var skipped = 0
+        var start: Long? = null
+        var end: Long? = null
+        while (iter.hasNext()) {
+            val line = iter.next()
+            if (line.isBlank()) continue
+            val f = line.split(',')
+            fun str(i: Int?): String? = i?.let { f.getOrNull(it) }?.trim()?.takeIf { it.isNotEmpty() }
+            fun dbl(i: Int?): Double? = str(i)?.toDoubleOrNull()?.takeIf { it.isFinite() }
+
+            val time = str(iEpoch)?.toLongOrNull()
+                ?: str(iIso)?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() }
+            if (dbl(iLat) == null || dbl(iLon) == null || time == null) {
+                skipped++
+                continue
+            }
+            points++
+            start = start?.let { minOf(it, time) } ?: time
+            end = end?.let { maxOf(it, time) } ?: time
+        }
+        return TrackSummary(points, skipped, start, end)
+    }
 }
+
+/** track.csv の概要: 読めた点の数、スキップした行の数、最初と最後の時刻（点がなければ null）。 */
+data class TrackSummary(val points: Int, val skippedLines: Int, val startMs: Long?, val endMs: Long?)

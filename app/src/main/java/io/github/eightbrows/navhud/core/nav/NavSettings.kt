@@ -91,7 +91,7 @@ data class NavSettings(
     /** 通過判定: 離れた状態がこれだけ続いたら到達 [秒] */
     val passHoldSec: Int = Tuning.CAR_PASS_HOLD_SEC,
     /** RATE の窓 [秒]。10 / 30 / 60 から選ぶ（§5.3） */
-    val rateWindowSec: Int = 60,
+    val rateWindowSec: Int = 10,
     /** NO FIX とみなす秒数（§5.5） */
     val noFixTimeoutSec: Int = 10,
     /** 標高オフセット [m]。標高 = 楕円体高 − これ（§6.8） */
@@ -102,9 +102,9 @@ data class NavSettings(
      * 使う縮尺の段 [km]（RangeAuto.ALL_STEPS_KM の中から）。縮尺は ARC では基準の距離環が左右端に接する距離、
      * North Up では縮尺の距離環（方位サークルはその1つ外側）。距離環の間隔は縮尺の 1/2
      */
-    val rangeStepsKm: List<Double> = listOf(0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0),
+    val rangeStepsKm: List<Double> = Tuning.RANGE_ALL_STEPS_KM,
     /** 起動時の縮尺 [km] */
-    val initialRangeKm: Double = 1.0,
+    val initialRangeKm: Double = 0.5,
     /** 縮尺の AUTO（次の WP が収まる最小の段）を起動時に ON にする */
     val autoRange: Boolean = true,
     /** AUTO: 狭める（拡大する）方向は、条件がこれだけ続いてから切り替える [秒] */
@@ -120,29 +120,29 @@ data class NavSettings(
     /** AUTO で狭め始める距離: 次の WP が「これ × 今の段の R1（1つ目の距離環）」以内のときだけ狭める。1.0〜3.0、0.1 刻み */
     val autoZoomInDistRatio: Double = Tuning.AUTO_ZOOM_IN_DIST_RATIO,
     /** 横並びの WP ボタン列に一度に見せる数（ボタンの幅はこれで決まる。超える分は左右にスクロール） */
-    val wpButtonsMax: Int = 4,
+    val wpButtonsMax: Int = 5,
     /** HUD に描く WP の数（次の WP から先） */
-    val hudWpCount: Int = 15,
+    val hudWpCount: Int = 10,
     /** UI の色（上部バー・数値・操作列・WP ボタン列・標高プロファイル・再生の操作列） */
     val uiTheme: ColorTheme = ColorTheme.WHITE,
     /** 地図の色（地図の Canvas に描くもの） */
     val mapTheme: ColorTheme = ColorTheme.GREEN,
-    /** ARC の自機の位置。既定は高め（保存がない・読めない値も高め） */
-    val ownshipPosition: OwnshipPosition = OwnshipPosition.HIGH,
+    /** ARC の自機の位置。既定はさらに高め（保存がない・読めない値もさらに高め） */
+    val ownshipPosition: OwnshipPosition = OwnshipPosition.HIGHER,
     /** 起動時に前回の WP リストを自動で開く（起動時の選択を出さない） */
-    val autoOpenLastList: Boolean = false,
+    val autoOpenLastList: Boolean = true,
     /** 標高プロファイルの表示サイズ（§6.6） */
-    val profileSize: ProfileSize = ProfileSize.SMALL,
+    val profileSize: ProfileSize = ProfileSize.OFF,
     /** PAN（ドラッグで地図を動かす）のあと、操作がないまま現在地へ戻るまで [秒] */
-    val panReturnSec: Int = 15,
+    val panReturnSec: Int = 30,
     /** 画面常時点灯（§6.8） */
     val keepScreenOn: Boolean = true,
     /** 地図に重ねるボタン（上部バー・操作列・WP ボタン列・再生の操作列）の不透明度 [%]。20〜100、10 刻み */
     val buttonOpacityPct: Int = Tuning.BUTTON_OPACITY_DEFAULT_PCT,
     /** 数値（4行）の不透明度 [%]。20〜100、10 刻み。警告の表示は常に 100% */
     val numbersOpacityPct: Int = Tuning.NUMBERS_OPACITY_DEFAULT_PCT,
-    /** 読み込んだ軌跡（REPLAY のトラック全体の線）の色。既定は白（前の版のグレーと同じ見た目） */
-    val trackColor: TrackColor = TrackColor.WHITE,
+    /** 読み込んだ軌跡（REPLAY のトラック全体の線）の色。既定は黄 */
+    val trackColor: TrackColor = TrackColor.YELLOW,
     /** 読み込んだ軌跡の明るさ [%]。25 / 50 / 75 / 100（100 がいちばん明るい）。どの色にも掛ける */
     val trackBrightnessPct: Int = Tuning.TRACK_BRIGHTNESS_DEFAULT_PCT,
     /** 距離環の数字の大きさ [%]。Tuning.RING_LABEL_SP（10sp）を 100% として 100 / 125 / 150 / 175 / 200 */

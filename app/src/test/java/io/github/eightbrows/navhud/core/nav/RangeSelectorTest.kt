@@ -22,7 +22,8 @@ class RangeSelectorTest {
         override val distanceM = distM
     }
 
-    private fun selector(initialKm: Double) = RangeSelector(stepsKm, initialKm, auto = true)
+    // AUTO の上限は 1km の段（R1 500m）で確かめる（初期値は D03 から 500m の段）
+    private fun selector(initialKm: Double) = RangeSelector(stepsKm, initialKm, auto = true, autoMaxKm = 1.0)
 
     @Test
     fun desiredIsSmallestStepThatFits() {
@@ -37,9 +38,9 @@ class RangeSelectorTest {
 
     @Test
     fun initialStepAndSnapping() {
-        assertEquals(1_000.0, RangeSelector(listOf(0.5, 1.0, 2.0), 1.0, auto = true).rangeM, 0.0)
+        assertEquals(1_000.0, RangeSelector(listOf(0.5, 1.0, 2.0), 1.0, auto = true, autoMaxKm = 1.0).rangeM, 0.0)
         // 有効リストにない起動時の縮尺は近い段へ
-        assertEquals(2_000.0, RangeSelector(listOf(0.5, 2.0, 5.0), 1.5, auto = true).rangeM, 0.0)
+        assertEquals(2_000.0, RangeSelector(listOf(0.5, 2.0, 5.0), 1.5, auto = true, autoMaxKm = 1.0).rangeM, 0.0)
     }
 
     @Test

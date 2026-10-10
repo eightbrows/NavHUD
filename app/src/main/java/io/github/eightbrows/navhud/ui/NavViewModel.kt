@@ -33,6 +33,10 @@ import io.github.eightbrows.navhud.source.NavLocationService
 import io.github.eightbrows.navhud.source.ReplayPositionSource
 import io.github.eightbrows.navhud.source.SettingsStore
 import io.github.eightbrows.navhud.source.TrackDocumentStore
+import io.github.eightbrows.navhud.source.OpenedTrack
+import io.github.eightbrows.navhud.source.ZipSessions
+import io.github.eightbrows.navhud.core.io.SessionZipError
+import io.github.eightbrows.navhud.core.io.SessionZipException
 import io.github.eightbrows.navhud.source.WaypointDocumentStore
 import java.time.LocalTime
 import java.time.ZoneId
@@ -59,6 +63,8 @@ data class ReplayUiState(
     /** トラックの最初と最後の時刻（シークバーの範囲） */
     val startMs: Long? = null,
     val endMs: Long? = null,
+    /** zip を開いて、セッションを選んでもらっているところ（一覧を出す）。選ぶか閉じるまで */
+    val sessions: ZipSessions? = null,
 ) {
     val ready: Boolean get() = fileName != null && !loading
 }
@@ -116,7 +122,8 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
     private var foreground = false
 
     init {
-        store.savedUri?.let { load(it, isSaved = true) }
+        // 前回のファイル。zip なら前回選んだセッションを開く（見つからなければ一覧を出す）
+        store.savedUri?.let { load(it, isSaved = true, entryName = store.savedEntry) }
         // 設定「前回のリストを自動で開く」: 起動時の選択を出さずに読み込む
         if (engine.settings.autoOpenLastList && wpStore.savedUri != null) openPreviousList()
         // 時計の tick。Fix が来ない欠損区間でも NO FIX とカウントダウンを進める
@@ -140,6 +147,18 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
         if (uri == null) return
         store.remember(uri)
         load(uri, isSaved = false)
+    }
+
+    /** zip のセッションの一覧で1つ選んだ（§6.7）。選んだセッションを覚えて、その track.csv を読む。 */
+    fun onZipSessionPicked(entryName: String) {
+        val zip = _replay.value.sessions ?: return
+        store.rememberEntry(entryName)
+        load(zip.uri, isSaved = false, entryName = entryName)
+    }
+
+    /** zip のセッションの一覧を、選ばずに閉じた。何も読み込んでいない状態にする（次の起動でも一覧を出す）。 */
+    fun onZipSessionDismissed() {
+        if (_replay.value.sessions != null) _replay.value = ReplayUiState()
     }
 
     fun togglePlay() {
@@ -410,19 +429,33 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
         _wp.value = _wp.value.copy(listName = getApplication<Application>().getString(R.string.temp_wp_list), dirty = false, message = null)
     }
 
-    private fun load(uri: Uri, isSaved: Boolean) {
+    /** ファイルを開く。zip で entryName のセッションがない（選んでいない・見つからない）ときは、セッションの一覧を出す。 */
+    private fun load(uri: Uri, isSaved: Boolean, entryName: String? = null) {
         pauseReplay()
         fixJob?.cancel()
         source = null
         _replay.value = ReplayUiState(loading = true)
         viewModelScope.launch {
-            runCatching { withContext(Dispatchers.IO) { store.load(uri) } }
-                .onSuccess { start(it) }
+            runCatching { withContext(Dispatchers.IO) { store.open(uri, entryName) } }
+                .onSuccess { opened ->
+                    when (opened) {
+                        is OpenedTrack.Track -> start(opened.track)
+                        is OpenedTrack.Sessions -> {
+                            if (kind == SourceKind.REPLAY) publish(engine.resetPosition())
+                            _replay.value = ReplayUiState(sessions = opened.zip)
+                        }
+                    }
+                }
                 .onFailure { e ->
                     store.forget()
                     if (kind == SourceKind.REPLAY) publish(engine.resetPosition())
                     val what = uiText(if (isSaved) R.string.what_last_file else R.string.what_chosen_file)
-                    _replay.value = ReplayUiState(message = uiText(R.string.msg_read_failed_retry, what, e.reason()))
+                    val message = when ((e as? SessionZipException)?.error) {
+                        SessionZipError.BROKEN -> uiText(R.string.msg_zip_broken, what)
+                        SessionZipError.NO_TRACK -> uiText(R.string.msg_zip_no_track, what)
+                        null -> uiText(R.string.msg_read_failed_retry, what, e.reason())
+                    }
+                    _replay.value = ReplayUiState(message = message)
                 }
         }
     }

@@ -27,7 +27,7 @@
     <string name="hint_waiting_permission">位置情報の許可を待っています</string>
     <string name="hint_gps_off">端末の位置情報（GPS）がオフです。設定でオンにしてください</string>
     <string name="hint_acquiring_gps">GPS を受信しています…</string>
-    <string name="hint_choose_track">FILE で track.csv を選んでください</string>
+    <string name="hint_choose_track">FILE で track.csv か GpsLogger の zip を選んでください</string>
     <string name="perm_title">位置情報を使えません</string>
     <string name="perm_approximate">「おおよその位置」だけが許可されています。GPS で走行位置を出すには「正確な位置」の許可が必要です。</string>
     <string name="perm_denied">LIVE で現在地を表示するには、位置情報の許可が必要です。許可しなくても REPLAY（track.csv の再生）は使えます。</string>
@@ -61,6 +61,11 @@
     <string name="msg_read_failed">%1$sを読めませんでした（%2$s）</string>
     <string name="msg_read_failed_retry">%1$sを読めませんでした。もう一度選んでください（%2$s）</string>
     <string name="msg_track_empty">%1$s に読める行がありません（スキップ %2$s 行）</string>
+    <string name="msg_zip_broken">%1$sは zip として読めませんでした（壊れているか、途中で切れています）。もう一度選んでください</string>
+    <string name="msg_zip_no_track">%1$sの zip に track.csv がありません。GpsLogger で書き出した zip を選んでください</string>
+    <string name="zip_sessions_title">セッションを選ぶ</string>
+    <string name="zip_session_detail">長さ %1$s ・ %2$s 点</string>
+    <string name="zip_session_empty">読める行がありません</string>
     <string name="what_last_list">前回のリスト</string>
     <string name="what_last_file">前回のファイル</string>
     <string name="what_chosen_file">選んだファイル</string>
@@ -71,6 +76,9 @@
     <!-- 設定画面 -->
     <string name="settings_title">設定</string>
     <string name="settings_note">変更はすぐ画面に反映され、保存されます。</string>
+    <string name="default_value">初期値 %1$s</string>
+    <string name="note_with_default">%1$s。%2$s</string>
+    <string name="default_all">すべて</string>
     <string name="sec_display">表示</string>
     <string name="display_mode">表示モード</string>
     <string name="color_white">白</string>
@@ -90,7 +98,7 @@
     <string name="track_brightness">読み込んだ軌跡の明るさ</string>
     <string name="track_brightness_note">どの色にも効く</string>
     <string name="ring_label_size">距離環の数字の大きさ</string>
-    <string name="ring_label_size_note" formatted="false">距離環の左右に付ける数字（250・1k など）。100% が元の大きさ</string>
+    <string name="ring_label_size_note" formatted="false">距離環に付ける数字（250・1k など）。100% が元の大きさ</string>
     <string name="ownship_position">ARC の自機の位置</string>
     <string name="position_standard">標準</string>
     <string name="position_high">高め</string>

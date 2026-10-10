@@ -42,6 +42,7 @@
 - **WP リスト（CSV）** — 読み込みと書き出し。1行目は見出しで、必須は `lat` と `lon` です。名前・標高・目標時刻・締切時刻なども書けます。Excel で編集できます。
 - **WP リスト（GPX）** — 読み込みのみ。`<wpt>` の位置と名前などを読みます。
 - **再生用の記録（track.csv）** — 読み込みのみ。見出しに `latitude`・`longitude` と、時刻（`epoch_ms` か `utc_iso8601`）が必要です。[GpsLogger](https://github.com/eightbrows/GpsLogger) が記録する track.csv の形式です。
+- **GpsLogger の zip** — GpsLogger で書き出した zip をそのまま読めます。中のセッションの一覧から1つ選んで再生します。
 
 ご注意：WP リストはアプリの中に保存しません。編集したら CSV に書き出してください。
 

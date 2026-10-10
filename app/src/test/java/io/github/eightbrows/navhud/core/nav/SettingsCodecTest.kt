@@ -33,13 +33,13 @@ class SettingsCodecTest {
             mapTheme = ColorTheme.WHITE,
             ownshipPosition = OwnshipPosition.STANDARD,
             profileSize = ProfileSize.LARGE,
-            panReturnSec = 30,
-            autoOpenLastList = true,
+            panReturnSec = 45,
+            autoOpenLastList = false,
             keepScreenOn = false,
             buttonOpacityPct = 40,
             numbersOpacityPct = 60,
             trackColor = TrackColor.CYAN,
-            trackBrightnessPct = 75,
+            trackBrightnessPct = 25,
             ringLabelScalePct = 175,
             autoMinRangeKm = 0.2,
             autoMaxRangeKm = 5.0,
@@ -59,13 +59,13 @@ class SettingsCodecTest {
 
     @Test
     fun autoLimitsDefaultsAndInvalidValues() {
-        // 既定: 下限 100m の段（R1 50m）、上限 1km の段（R1 500m）
+        // 既定: 下限 100m の段（R1 50m）、上限 500m の段（R1 250m。D03 から。前は 1km の段）
         assertEquals(0.1, NavSettings().autoMinRangeKm, 0.0)
-        assertEquals(1.0, NavSettings().autoMaxRangeKm, 0.0)
+        assertEquals(0.5, NavSettings().autoMaxRangeKm, 0.0)
         // 段の一覧にない値・読めない値は既定値
         val s = SettingsCodec.decode(mapOf("autoMinRangeKm" to "0.3", "autoMaxRangeKm" to "x"))
         assertEquals(0.1, s.autoMinRangeKm, 0.0)
-        assertEquals(1.0, s.autoMaxRangeKm, 0.0)
+        assertEquals(0.5, s.autoMaxRangeKm, 0.0)
         assertEquals(0.05, SettingsCodec.decode(mapOf("autoMinRangeKm" to "0.05")).autoMinRangeKm, 0.0)
         // WP 通過後の待機（既定 10 秒、0〜60）と、狭め始める距離（既定 1.3、1.0〜3.0 の 0.1 刻み。今の段の R1 が基準）
         assertEquals(10, NavSettings().autoHoldAfterWpSec)
@@ -115,8 +115,8 @@ class SettingsCodecTest {
 
     @Test
     fun trackBrightnessIsSavedAndInvalidValuesAreDefault() {
-        // 読み込んだ軌跡の明るさ: 既定 50%、25 / 50 / 75 / 100 から選ぶ
-        assertEquals(50, NavSettings().trackBrightnessPct)
+        // 読み込んだ軌跡の明るさ: 既定 75%（D03 から。前は 50%）、25 / 50 / 75 / 100 から選ぶ
+        assertEquals(75, NavSettings().trackBrightnessPct)
         assertEquals(listOf(25, 50, 75, 100), NavSettings.TRACK_BRIGHTNESS_CHOICES_PCT)
         // 保存して読み直すと同じ値
         for (v in NavSettings.TRACK_BRIGHTNESS_CHOICES_PCT) {
@@ -127,17 +127,17 @@ class SettingsCodecTest {
         // 範囲外・選べない値・読めない値は、その項目だけ既定値（ほかの項目はそのまま）
         for (bad in listOf("0", "10", "60", "125", "x", "")) {
             val s = SettingsCodec.decode(mapOf("trackBrightnessPct" to bad, "buttonOpacityPct" to "40"))
-            assertEquals(50, s.trackBrightnessPct)
+            assertEquals(75, s.trackBrightnessPct)
             assertEquals(40, s.buttonOpacityPct)
         }
         // 保存がない（前の版）なら既定値
-        assertEquals(50, SettingsCodec.decode(mapOf("travelMode" to "CAR")).trackBrightnessPct)
+        assertEquals(75, SettingsCodec.decode(mapOf("travelMode" to "CAR")).trackBrightnessPct)
     }
 
     @Test
     fun ringLabelScaleIsSavedAndOtherNumbersGoToTheNearestStep() {
-        // 距離環の数字の大きさ: 既定 150%（D01 から。前は 200%）、100 / 125 / 150 / 175 / 200 から選ぶ
-        assertEquals(150, NavSettings().ringLabelScalePct)
+        // 距離環の数字の大きさ: 既定 125%（D03 から。前は 150%）、100 / 125 / 150 / 175 / 200 から選ぶ
+        assertEquals(125, NavSettings().ringLabelScalePct)
         assertEquals(listOf(100, 125, 150, 175, 200), NavSettings.RING_LABEL_SCALE_CHOICES_PCT)
         // 保存して読み直すと同じ値
         for (v in NavSettings.RING_LABEL_SCALE_CHOICES_PCT) {
@@ -156,50 +156,50 @@ class SettingsCodecTest {
             assertEquals(saved, expected, s.ringLabelScalePct)
             assertEquals(75, s.trackBrightnessPct)
         }
-        // 数でない値は既定値（150）
+        // 数でない値は既定値（125）
         for (bad in listOf("x", "", "150.5", "200.0")) {
-            assertEquals(bad, 150, SettingsCodec.decode(mapOf("ringLabelScalePct" to bad)).ringLabelScalePct)
+            assertEquals(bad, 125, SettingsCodec.decode(mapOf("ringLabelScalePct" to bad)).ringLabelScalePct)
         }
-        // 保存がない（前の版）なら既定値（150）。保存してある値（前の既定の 200 など）はそのまま
-        assertEquals(150, SettingsCodec.decode(mapOf("travelMode" to "CAR")).ringLabelScalePct)
+        // 保存がない（前の版）なら既定値（125）。保存してある値（前の既定の 200 など）はそのまま
+        assertEquals(125, SettingsCodec.decode(mapOf("travelMode" to "CAR")).ringLabelScalePct)
         assertEquals(200, SettingsCodec.decode(mapOf("travelMode" to "CAR", "ringLabelScalePct" to "200")).ringLabelScalePct)
     }
 
     @Test
     fun trackColorIsSavedAndOldSettingsKeepTheirColors() {
-        // 読み込んだ軌跡の色: 既定は白（前の版のグレーと同じ見た目）。6色
-        assertEquals(TrackColor.WHITE, NavSettings().trackColor)
+        // 読み込んだ軌跡の色: 既定は黄（D03 から。前は白）。6色
+        assertEquals(TrackColor.YELLOW, NavSettings().trackColor)
         assertEquals(listOf("WHITE", "GREEN", "AMBER", "CYAN", "YELLOW", "BLUE"), TrackColor.entries.map { it.name })
         for (c in TrackColor.entries) {
             val s = NavSettings(trackColor = c)
             assertEquals(c.name, SettingsCodec.encode(s)["trackColor"])
             assertEquals(s, SettingsCodec.decode(SettingsCodec.encode(s)))
         }
-        // 前の版の設定（軌跡の色がない）: 白。保存してある UI の色・地図の色・明るさは今まで通り読む
+        // 軌跡の色を保存していない設定: 既定の黄。保存してある UI の色・地図の色・明るさは今まで通り読む
         val old = SettingsCodec.decode(mapOf("travelMode" to "CAR", "uiTheme" to "AMBER", "mapTheme" to "WHITE", "trackBrightnessPct" to "25"))
-        assertEquals(TrackColor.WHITE, old.trackColor)
+        assertEquals(TrackColor.YELLOW, old.trackColor)
         assertEquals(ColorTheme.AMBER, old.uiTheme)
         assertEquals(ColorTheme.WHITE, old.mapTheme)
         assertEquals(25, old.trackBrightnessPct)
-        // 読めない名前は白
+        // 読めない名前は既定の黄
         for (bad in listOf("PURPLE", "", "cyan")) {
-            assertEquals(bad, TrackColor.WHITE, SettingsCodec.decode(mapOf("trackColor" to bad)).trackColor)
+            assertEquals(bad, TrackColor.YELLOW, SettingsCodec.decode(mapOf("trackColor" to bad)).trackColor)
         }
     }
 
     @Test
     fun ownshipPositionKeepsTheSavedNames() {
-        // 前からの段の保存値（STANDARD / HIGH）は変えない。さらに高めは HIGHER。既定は D01 から高め
-        assertEquals(OwnshipPosition.HIGH, NavSettings().ownshipPosition)
-        assertEquals("HIGH", SettingsCodec.encode(NavSettings())["ownshipPosition"])
+        // 前からの段の保存値（STANDARD / HIGH）は変えない。さらに高めは HIGHER。既定は D03 からさらに高め（前は高め）
+        assertEquals(OwnshipPosition.HIGHER, NavSettings().ownshipPosition)
+        assertEquals("HIGHER", SettingsCodec.encode(NavSettings())["ownshipPosition"])
         assertEquals(listOf("STANDARD", "HIGH", "HIGHER"), OwnshipPosition.entries.map { it.name })
         for (p in OwnshipPosition.entries) {
             assertEquals(p, SettingsCodec.decode(mapOf("ownshipPosition" to p.name)).ownshipPosition)
         }
         assertEquals(OwnshipPosition.HIGH, SettingsCodec.decode(mapOf("ownshipPosition" to "HIGH")).ownshipPosition)
-        // 読めない名前・保存がないときは既定の高め。保存してある標準はそのまま
-        assertEquals(OwnshipPosition.HIGH, SettingsCodec.decode(mapOf("ownshipPosition" to "TOP")).ownshipPosition)
-        assertEquals(OwnshipPosition.HIGH, SettingsCodec.decode(mapOf("travelMode" to "CAR")).ownshipPosition)
+        // 読めない名前・保存がないときは既定のさらに高め。保存してある標準はそのまま
+        assertEquals(OwnshipPosition.HIGHER, SettingsCodec.decode(mapOf("ownshipPosition" to "TOP")).ownshipPosition)
+        assertEquals(OwnshipPosition.HIGHER, SettingsCodec.decode(mapOf("travelMode" to "CAR")).ownshipPosition)
         assertEquals(OwnshipPosition.STANDARD, SettingsCodec.decode(mapOf("travelMode" to "CAR", "ownshipPosition" to "STANDARD")).ownshipPosition)
     }
 
@@ -231,10 +231,10 @@ class SettingsCodecTest {
         val both = SettingsCodec.decode(mapOf("colorTheme" to "AMBER", "uiTheme" to "WHITE", "mapTheme" to "GREEN"))
         assertEquals(ColorTheme.WHITE, both.uiTheme)
         assertEquals(ColorTheme.GREEN, both.mapTheme)
-        // 既定は UI 白・地図 緑。HUD に描く WP の数は 15（1〜20）
+        // 既定は UI 白・地図 緑。HUD に描く WP の数は 10（D03 から。前は 15。1〜20）
         assertEquals(ColorTheme.WHITE, NavSettings().uiTheme)
         assertEquals(ColorTheme.GREEN, NavSettings().mapTheme)
-        assertEquals(15, NavSettings().hudWpCount)
+        assertEquals(10, NavSettings().hudWpCount)
         assertEquals(20, SettingsCodec.decode(mapOf("hudWpCount" to "99")).hudWpCount)
         assertEquals(18, SettingsCodec.decode(mapOf("hudWpCount" to "18")).hudWpCount)
     }

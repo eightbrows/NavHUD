@@ -50,6 +50,7 @@ import io.github.eightbrows.navhud.ui.NavViewModel
 import io.github.eightbrows.navhud.ui.SettingsScreen
 import io.github.eightbrows.navhud.ui.WaypointSettingsScreen
 import io.github.eightbrows.navhud.ui.WaypointUiState
+import io.github.eightbrows.navhud.ui.ZipSessionDialog
 import io.github.eightbrows.navhud.ui.theme.NavHUDTheme
 
 /** 画面の切り替え（ライブラリは使わない）。 */
@@ -214,6 +215,11 @@ class MainActivity : ComponentActivity() {
                         },
                         onNone = vm::startWithoutList,
                     )
+                } else {
+                    // GpsLogger の zip を開いたとき: 中のセッションの一覧（WP リストの選択が済んでから出す）
+                    replay.sessions?.let { zip ->
+                        ZipSessionDialog(zip, java.time.ZoneId.systemDefault(), vm::onZipSessionPicked, vm::onZipSessionDismissed)
+                    }
                 }
             }
         }

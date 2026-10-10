@@ -50,7 +50,7 @@ class OmegaCurveAutoRangeTest {
         val fitsWider: Boolean?,
     )
 
-    private fun run(road: TestRoad, wps: List<Waypoint>, vp: HudViewport, settings: NavSettings = NavSettings()): List<Row> {
+    private fun run(road: TestRoad, wps: List<Waypoint>, vp: HudViewport, settings: NavSettings = TestSettings.BEFORE_D03): List<Row> {
         val e = NavEngine(settings, jst, SourceKind.LIVE)
         e.setWaypoints(wps)
         e.setViewport(vp)
@@ -150,7 +150,7 @@ class OmegaCurveAutoRangeTest {
         val road = TestRoad().straight(600.0)
         val wp = TestRoad.waypoint("寄らない", road.offset(rightM = 30.0, aheadM = 150.0))
         road.straight(110.0).left(20.0, 90.0).straight(1_500.0)
-        val noReach = NavSettings().selectTravelMode(TravelMode.CUSTOM1).editReach { it.copy(sidePass = false, passDetection = false) }
+        val noReach = TestSettings.BEFORE_D03.selectTravelMode(TravelMode.CUSTOM1).editReach { it.copy(sidePass = false, passDetection = false) }
         val rows = run(road, listOf(wp), emulator, noReach)
         write("omega_leave_route", rows)
         describe("omega_leave_route", rows)

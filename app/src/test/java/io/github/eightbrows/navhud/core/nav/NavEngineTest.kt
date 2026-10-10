@@ -1,5 +1,6 @@
 package io.github.eightbrows.navhud.core.nav
 
+import io.github.eightbrows.navhud.core.TestSettings
 import io.github.eightbrows.navhud.core.TestGeo
 import io.github.eightbrows.navhud.core.model.Fix
 import io.github.eightbrows.navhud.core.model.HeadingSrc
@@ -22,7 +23,7 @@ class NavEngineTest {
     /** 2026-08-14 10:00:00 JST */
     private val t0 = Instant.parse("2026-08-14T01:00:00Z").toEpochMilli()
 
-    private fun engine(s: NavSettings = NavSettings()) = NavEngine(s, jst, SourceKind.REPLAY)
+    private fun engine(s: NavSettings = TestSettings.BEFORE_D03) = NavEngine(s, jst, SourceKind.REPLAY)
 
     private fun fix(t: Long, lat: Double = 33.0, alt: Double? = 1000.0, speed: Float? = 10f, bearing: Float? = 0f) =
         Fix(timeMs = t, lat = lat, lon = 133.0, altRawM = alt, speedMps = speed, bearingDeg = bearing, horizAccM = 5f)
@@ -45,11 +46,18 @@ class NavEngineTest {
         assertEquals(20f, s.maxGpsBearingAccDeg)
         assertEquals(10, s.noFixTimeoutSec)
         assertEquals(36.0, s.altOffsetM, 0.0)
-        assertEquals(listOf(0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0), s.rangeStepsKm)
-        assertEquals(4, s.wpButtonsMax)
-        assertEquals(ProfileSize.SMALL, s.profileSize)
-        assertEquals(15, s.panReturnSec)
-        assertEquals(1.0, s.initialRangeKm, 0.0)
+        // D03 から: 今使っている端末の設定値を初期値にした（§6.9）
+        assertEquals(RangeAuto.ALL_STEPS_KM, s.rangeStepsKm)
+        assertEquals(5, s.wpButtonsMax)
+        assertEquals(10, s.hudWpCount)
+        assertEquals(ProfileSize.OFF, s.profileSize)
+        assertEquals(30, s.panReturnSec)
+        assertEquals(0.5, s.initialRangeKm, 0.0)
+        assertEquals(0.5, s.autoMaxRangeKm, 0.0)
+        assertEquals(10, s.rateWindowSec)
+        assertEquals(125, s.ringLabelScalePct)
+        assertEquals(75, s.trackBrightnessPct)
+        assertTrue(s.autoOpenLastList)
         assertTrue(s.autoRange)
         assertTrue(s.rangeStepsKm.all { it in RangeAuto.ALL_STEPS_KM })
         assertTrue(s.reachRadiusM in NavSettings.REACH_RADIUS_CHOICES_M)
