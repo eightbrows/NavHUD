@@ -62,6 +62,8 @@ data class WpMark(
     val nameAt: P? = null,
     val lines: List<String> = listOf(name),
     val linePx: Float = 0f,
+    /** 次の WP か（描く順番に使う。NO FIX 中は色がグレーになるので、色では見分けない） */
+    val next: Boolean = false,
 )
 
 /**
@@ -95,7 +97,23 @@ data class HudScene(
     val ownShip: OwnShip?,
     /** 軌跡（WP より下に描く） */
     val trails: List<Polyline> = emptyList(),
-)
+) {
+    // 描く順番（§6.1。下から）: 距離環 → 軌跡 → baseSegments → labels（方位目盛りの文字・距離環の数字）→ otherWpMarks
+    // → pointers（方位の三角）→ nextWpSegments → nextWpMarks → arrows（画面外の次の WP の文字）→ 自機。
+    // 次の WP の情報（線・印・文字）は、方位の三角・方位目盛りの文字・距離環の数字より上に描く
+
+    /** 自機から次の WP への線（長い破線） */
+    val nextWpSegments: List<Segment> get() = segments.filter { it.longDash }
+
+    /** 次の WP への線を除いた線（方位目盛り・方位線・ラバーライン・WP を結ぶ線） */
+    val baseSegments: List<Segment> get() = segments.filter { !it.longDash }
+
+    /** 次の WP の印と文字 */
+    val nextWpMarks: List<WpMark> get() = wpMarks.filter { it.next }
+
+    /** 次の WP を除いた WP の印と名前 */
+    val otherWpMarks: List<WpMark> get() = wpMarks.filter { !it.next }
+}
 
 /** 描画の寸法 [px]。画面密度に合わせて ui 側で作る。 */
 data class HudMetrics(

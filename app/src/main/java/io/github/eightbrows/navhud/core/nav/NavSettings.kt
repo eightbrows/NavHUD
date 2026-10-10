@@ -13,7 +13,7 @@ enum class ColorTheme { WHITE, GREEN, AMBER }
  * 保存値は名前（STANDARD / HIGH / HIGHER）。前からの2つの名前は変えない
  */
 /**
- * ARC の自機の位置（§6.2）。下から5段。画面では 1 / 2 / 3 / 4 / 中央 と出す。
+ * ARC の自機の位置（§6.2）。下から5段。画面では 後4 / 後3 / 後2 / 後1 / 中央 と出す（「後」の数字が大きいほど下）。
  * STANDARD・HIGH・HIGHER は前からの段（保存値の名前は変えない）。CENTER は North Up の自機と同じ高さ、
  * NEAR_CENTER は HIGHER と CENTER のちょうど中間。
  */

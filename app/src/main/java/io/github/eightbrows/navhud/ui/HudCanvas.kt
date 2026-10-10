@@ -43,6 +43,8 @@ import io.github.eightbrows.navhud.core.view.HudViewport
 import io.github.eightbrows.navhud.core.view.Ink
 import io.github.eightbrows.navhud.core.view.P
 import io.github.eightbrows.navhud.core.view.PinchSteps
+import io.github.eightbrows.navhud.core.view.Segment
+import io.github.eightbrows.navhud.core.view.WpMark
 
 /** HUD の図。座標は core（HudSceneBuilder）で計算済みのものを描くだけ。 */
 @Composable
@@ -159,29 +161,21 @@ private fun DrawScope.drawScene(scene: HudScene, tm: TextMeasurer, density: Floa
         }
         drawPath(path, HudColors.ofMap(t.ink), style = Stroke(t.widthDp * density, join = StrokeJoin.Round))
     }
-    for (s in scene.segments) {
-        drawLine(
-            color = HudColors.ofMap(s.ink),
-            start = s.a.o(),
-            end = s.b.o(),
-            strokeWidth = if (s.bold) bold else thin,
-            pathEffect = when {
-                s.longDash -> longDash
-                s.dashed -> dash
-                else -> null
-            },
-        )
-    }
-    for (l in scene.labels) {
-        // 距離環の数字は UI の色で、不透明度はボタンと同じ
-        val c = HudColors.ofMap(l.ink).let { if (l.ink == Ink.RING_LABEL) it.copy(alpha = it.alpha * buttonAlpha) else it }
-        drawLabel(tm, l.text, l.at, c, if (l.small) ringStyle else LabelStyle)
-    }
-
-    for (w in scene.wpMarks) {
+    fun segment(s: Segment) = drawLine(
+        color = HudColors.ofMap(s.ink),
+        start = s.a.o(),
+        end = s.b.o(),
+        strokeWidth = if (s.bold) bold else thin,
+        pathEffect = when {
+            s.longDash -> longDash
+            s.dashed -> dash
+            else -> null
+        },
+    )
+    // WP の印（ひし形）と文字（名前。次の WP は 距離・名前・方位）。文字は core が決めた位置（null なら描かない）
+    fun wpMark(w: WpMark) {
         val c = HudColors.ofMap(w.ink)
         val r = Tuning.WP_MARK_DP * density
-        // WP はひし形
         val path = Path().apply {
             moveTo(w.at.x, w.at.y - r)
             lineTo(w.at.x + r, w.at.y)
@@ -190,12 +184,26 @@ private fun DrawScope.drawScene(scene: HudScene, tm: TextMeasurer, density: Floa
             close()
         }
         drawPath(path, c, style = Stroke(bold, pathEffect = if (w.dashed) dash else null))
-        // 文字（名前、次の WP は方位も）は core が決めた位置（自機の記号と重なるなら null で描かない）
         w.nameAt?.let { drawLines(tm, w.lines, it, w.linePx, c, WpLabelStyle) }
     }
-    // 画面外の次の WP: 距離・名前・方位の文字だけ（三角は描かない）
-    for (a in scene.arrows) drawLines(tm, a.lines, a.textAt, a.linePx, HudColors.ofMap(a.ink), WpArrowLabelStyle)
+
+    // 線: 方位目盛り・方位線・ラバーライン・WP を結ぶ線（次の WP への線は、あとで上に描く）
+    for (s in scene.baseSegments) segment(s)
+    for (l in scene.labels) {
+        // 距離環の数字は UI の色で、不透明度はボタンと同じ
+        val c = HudColors.ofMap(l.ink).let { if (l.ink == Ink.RING_LABEL) it.copy(alpha = it.alpha * buttonAlpha) else it }
+        drawLabel(tm, l.text, l.at, c, if (l.small) ringStyle else LabelStyle)
+    }
+
+    // 次の WP 以外の WP の印と名前
+    for (w in scene.otherWpMarks) wpMark(w)
+    // 方位の三角（ARC の上部の方位マーカー、North Up の機首方位の三角）
     for (p in scene.pointers) triangle(p.tip, p.angleDeg, p.sizePx, HudColors.ofMap(p.ink), filled = false, stroke = bold)
+    // 次の WP の情報は、方位の三角・方位目盛りの文字・距離環の数字より上に描く（§6.1）:
+    // 自機からの線 → 印と文字（距離・名前・方位）→ 画面外のときの文字（三角は描かない）
+    for (s in scene.nextWpSegments) segment(s)
+    for (w in scene.nextWpMarks) wpMark(w)
+    for (a in scene.arrows) drawLines(tm, a.lines, a.textAt, a.linePx, HudColors.ofMap(a.ink), WpArrowLabelStyle)
 
     val own = scene.ownShip ?: return
     val oc = HudColors.ofMap(own.ink)

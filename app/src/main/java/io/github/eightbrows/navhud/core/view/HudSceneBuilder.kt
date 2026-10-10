@@ -464,7 +464,7 @@ object HudSceneBuilder {
             val wp = wps[i]
             val nameAt = names[i]
             val lines = linesOf(i)
-            marks += WpMark(pts[i], wp.name, wpInk(wp, i == next), dashed = !wp.enabled, nameAt = nameAt, lines = lines, linePx = wpLinePx)
+            marks += WpMark(pts[i], wp.name, wpInk(wp, i == next), dashed = !wp.enabled, nameAt = nameAt, lines = lines, linePx = wpLinePx, next = i == next)
             obstacles += Box(pts[i], m.pointerSize * 0.6f, m.pointerSize * 0.6f)
             if (nameAt != null) obstacles += wpTextBox(lines, nameAt, m)
         }

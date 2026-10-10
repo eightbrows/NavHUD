@@ -131,11 +131,12 @@ fun SettingsScreen(
             Choice(
                 stringResource(R.string.ownship_position),
                 listOf(
-                    // 下から 1 / 2 / 3 / 4 / 中央（5段）
-                    "1" to OwnshipPosition.STANDARD,
-                    "2" to OwnshipPosition.HIGH,
-                    "3" to OwnshipPosition.HIGHER,
-                    "4" to OwnshipPosition.NEAR_CENTER,
+                    // 左が一番下の段、右が中央: 後4 / 後3 / 後2 / 後1 / 中央（英語は Aft 4 … Aft 1 / Center）。
+                    // 「後」の数字が大きいほど、自機を後ろ（下）に置く。保存値の名前は変えない
+                    stringResource(R.string.position_aft, "4") to OwnshipPosition.STANDARD,
+                    stringResource(R.string.position_aft, "3") to OwnshipPosition.HIGH,
+                    stringResource(R.string.position_aft, "2") to OwnshipPosition.HIGHER,
+                    stringResource(R.string.position_aft, "1") to OwnshipPosition.NEAR_CENTER,
                     stringResource(R.string.position_center) to OwnshipPosition.CENTER,
                 ),
                 s.ownshipPosition,
