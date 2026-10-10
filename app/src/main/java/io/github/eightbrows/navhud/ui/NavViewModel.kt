@@ -26,6 +26,7 @@ import io.github.eightbrows.navhud.core.replay.ReplaySpeed
 import io.github.eightbrows.navhud.core.view.HudViewport
 import io.github.eightbrows.navhud.source.CompassSource
 import io.github.eightbrows.navhud.source.GeoPoint
+import io.github.eightbrows.navhud.source.AppLanguage
 import io.github.eightbrows.navhud.source.LiveGpsSource
 import io.github.eightbrows.navhud.source.LiveLocationBus
 import io.github.eightbrows.navhud.source.LoadedTrack
@@ -426,7 +427,7 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
     fun loadTemporaryWaypoints() {
         if (!canLoadTemporaryWaypoints) return
         publish(engine.setWaypoints(TemporaryWaypoints.fromTrack(trackFixes, zone)))
-        _wp.value = _wp.value.copy(listName = getApplication<Application>().getString(R.string.temp_wp_list), dirty = false, message = null)
+        _wp.value = _wp.value.copy(listName = AppLanguage.localized(getApplication()).getString(R.string.temp_wp_list), dirty = false, message = null)
     }
 
     /** ファイルを開く。zip で entryName のセッションがない（選んでいない・見つからない）ときは、セッションの一覧を出す。 */

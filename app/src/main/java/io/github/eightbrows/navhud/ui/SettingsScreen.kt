@@ -24,16 +24,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.eightbrows.navhud.R
 import io.github.eightbrows.navhud.core.model.SourceMode
 import io.github.eightbrows.navhud.core.nav.ColorTheme
 import io.github.eightbrows.navhud.core.nav.DisplayMode
+import io.github.eightbrows.navhud.core.nav.LanguageMode
 import io.github.eightbrows.navhud.core.nav.NavSettings
 import io.github.eightbrows.navhud.core.nav.OwnshipPosition
 import io.github.eightbrows.navhud.core.nav.ProfileSize
@@ -45,6 +48,8 @@ import io.github.eightbrows.navhud.core.nav.ReachProfile
 import io.github.eightbrows.navhud.core.nav.editReach
 import io.github.eightbrows.navhud.core.nav.selectTravelMode
 import io.github.eightbrows.navhud.core.view.HudFormat
+import io.github.eightbrows.navhud.source.AppPermission
+import io.github.eightbrows.navhud.source.PermissionStatus
 import java.util.Locale
 
 private val SectionTitle get() = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 15.sp, color = HudColors.Scale)
@@ -54,7 +59,8 @@ private val ValueText get() = TextStyle(fontFamily = FontFamily.Monospace, fontS
 
 /**
  * 設定画面。NavSettings のすべての値と INPUT を変えられる。変えたらすぐ画面に反映し、保存する。
- * セクション: 表示 / 方位 / 縮尺 / WP / 測位・入力 / その他。
+ * セクション: 表示 / 方位 / 縮尺 / WP / 測位・入力 / その他 / 言語 / 権限 / 情報。
+ * 下の3つ（言語・権限・情報）は NavSettings の外（§6.9）: 言語は端末かアプリが別に保存し、権限と情報は見るだけ。
  */
 @Composable
 fun SettingsScreen(
@@ -62,9 +68,18 @@ fun SettingsScreen(
     input: SourceKind,
     /** 今の縮尺の段 [m]（「詳細へ切り替える距離」の例に使う） */
     rangeM: Double,
+    /** 今の表示言語の選択 */
+    language: LanguageMode,
+    /** 権限の今の状態（画面に戻ってきたときに読み直したもの） */
+    permissions: List<PermissionStatus>,
+    /** バージョン（appVersionName） */
+    versionName: String,
     onChange: ((NavSettings) -> NavSettings) -> Unit,
     onInput: (SourceKind) -> Unit,
     onReset: () -> Unit,
+    onLanguage: (LanguageMode) -> Unit,
+    /** 端末の、このアプリの設定画面を開く */
+    onOpenAppSettings: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -351,8 +366,52 @@ fun SettingsScreen(
             }
             Row(Modifier.padding(top = 6.dp)) { HudButton(stringResource(R.string.reset_settings), onReset) }
         }
+
+        Section(stringResource(R.string.sec_language)) {
+            // 選ぶと画面が作り直されて、すぐに切り替わる。「設定を初期値に戻す」では変えない（NavSettings の外）
+            Choice(
+                stringResource(R.string.app_language),
+                listOf(
+                    stringResource(R.string.language_system) to LanguageMode.SYSTEM,
+                    stringResource(R.string.language_japanese) to LanguageMode.JAPANESE,
+                    stringResource(R.string.language_english) to LanguageMode.ENGLISH,
+                ),
+                language,
+                note = stringResource(R.string.app_language_note),
+                default = LanguageMode.SYSTEM,
+                onSelect = onLanguage,
+            )
+        }
+
+        Section(stringResource(R.string.sec_permissions)) {
+            Text(stringResource(R.string.permissions_note), style = RowNote)
+            for (p in permissions) {
+                val (label, note) = when (p.permission) {
+                    AppPermission.FINE_LOCATION -> R.string.perm_fine to R.string.perm_fine_note
+                    AppPermission.COARSE_LOCATION -> R.string.perm_coarse to R.string.perm_coarse_note
+                    AppPermission.NOTIFICATIONS -> R.string.perm_notifications to R.string.perm_notifications_note
+                }
+                PermissionRow(stringResource(label), stringResource(note), p.granted, onOpenAppSettings)
+            }
+        }
+
+        Section(stringResource(R.string.sec_about)) {
+            InfoRow(stringResource(R.string.about_app), stringResource(R.string.about_app_value))
+            InfoRow(stringResource(R.string.about_version), versionName)
+            InfoRow(stringResource(R.string.about_license), "Apache License 2.0", "$REPO_URL/blob/main/LICENSE")
+            InfoRow(stringResource(R.string.about_website), "eightbrows.github.io", WEBSITE_URL)
+            InfoRow(stringResource(R.string.about_cheatsheet), "docs/cheatsheet.pdf", "$REPO_URL/blob/main/docs/cheatsheet.pdf")
+            InfoRow(stringResource(R.string.about_formats), "docs/formats.pdf", "$REPO_URL/blob/main/docs/formats.pdf")
+            Text(stringResource(R.string.about_links_note), style = RowNote)
+        }
     }
 }
+
+/** GitHub のリポジトリ（「情報」の欄のライセンス・チートシート・ファイル形式の説明のリンク先）。ファイルは main ブランチのものを開く */
+private const val REPO_URL = "https://github.com/eightbrows/NavHUD"
+
+/** 公式サイト（GpsLogger の「情報」の欄と同じ） */
+private const val WEBSITE_URL = "https://eightbrows.github.io/"
 
 /**
  * 決まった値から選ぶ項目の ＋ / −: 今の値（選べる値にないときは、それ以上で最初の値）から、d つ隣の値にする（端では止まる）。
@@ -407,6 +466,45 @@ private fun Label(text: String, note: String? = null, enabled: Boolean = true) {
     Column {
         Text(text, style = if (enabled) RowLabel else RowLabel.copy(color = HudColors.WpReached))
         note?.let { Text(it, style = RowNote) }
+    }
+}
+
+/** 権限の1行: 名前と補足文、右に今の状態（未許可は警告の色）。押すと、端末のこのアプリの設定画面が開く。 */
+@Composable
+private fun PermissionRow(label: String, note: String, granted: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onClick),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Box(Modifier.weight(1f)) { Label(label, note) }
+        Text(
+            stringResource(if (granted) R.string.perm_status_granted else R.string.perm_status_denied),
+            style = ValueText.copy(color = if (granted) HudColors.Scale else HudColors.Warning),
+            textAlign = TextAlign.End,
+        )
+    }
+}
+
+/** 情報の1行: 左に項目名、右に値。url があればリンク（下線と ↗ を付け、押すとブラウザで開く）。 */
+@Composable
+private fun InfoRow(label: String, value: String, url: String? = null) {
+    val uriHandler = LocalUriHandler.current
+    Row(
+        Modifier
+            .fillMaxWidth()
+            // 開けるアプリ（ブラウザ）がない端末では何もしない
+            .then(if (url == null) Modifier else Modifier.clickable { runCatching { uriHandler.openUri(url) } }),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Box(Modifier.weight(1f)) { Label(label) }
+        if (url == null) {
+            Text(value, style = ValueText, textAlign = TextAlign.End)
+        } else {
+            Text(value, style = ValueText.copy(textDecoration = TextDecoration.Underline), textAlign = TextAlign.End)
+            Text("↗", style = ValueText)
+        }
     }
 }
 

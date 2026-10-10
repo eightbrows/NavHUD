@@ -49,7 +49,7 @@ class WaypointDocumentStore(context: Context) {
     /** CSV か GPX を読む。中身で見分ける。ブロッキングなので IO スレッドで呼ぶ。 */
     fun load(uri: Uri, zone: ZoneId): LoadedWaypoints {
         val bytes = appContext.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-            ?: error(appContext.getString(R.string.err_file_open))
+            ?: error(AppLanguage.localized(appContext).getString(R.string.err_file_open))
         val gpx = WaypointGpx.looksLikeGpx(bytes)
         val result = if (gpx) WaypointGpx.parse(bytes, zone) else WaypointCsv.parse(bytes)
         return LoadedWaypoints(uri, displayName(uri), result, gpx)
@@ -58,7 +58,7 @@ class WaypointDocumentStore(context: Context) {
     /** CSV で書き出す（UTF-8 BOM 付き、CRLF）。ブロッキングなので IO スレッドで呼ぶ。 */
     fun save(uri: Uri, wps: List<Waypoint>): String {
         appContext.contentResolver.openOutputStream(uri, "wt")?.use { it.write(WaypointCsv.encode(wps)) }
-            ?: error(appContext.getString(R.string.err_file_write))
+            ?: error(AppLanguage.localized(appContext).getString(R.string.err_file_write))
         return displayName(uri)
     }
 

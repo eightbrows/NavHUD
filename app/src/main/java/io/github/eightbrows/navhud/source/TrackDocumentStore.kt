@@ -93,7 +93,7 @@ class TrackDocumentStore(context: Context) {
     }
 
     private fun stream(uri: Uri) =
-        appContext.contentResolver.openInputStream(uri) ?: error(appContext.getString(R.string.err_file_open))
+        appContext.contentResolver.openInputStream(uri) ?: error(AppLanguage.localized(appContext).getString(R.string.err_file_open))
 
     private fun displayName(uri: Uri): String =
         appContext.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->

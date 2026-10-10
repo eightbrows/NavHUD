@@ -22,9 +22,9 @@ class SettingsStore(context: Context) {
         get() = SourceKind.entries.firstOrNull { it.name == prefs.getString(KEY_INPUT, null) } ?: SourceKind.LIVE
         set(v) = prefs.edit { putString(KEY_INPUT, v.name) }
 
-
-    private companion object {
+    internal companion object {
+        /** 設定のファイル名。表示言語の選択（AppLanguage。Android 12 以前）もここに置く */
         const val PREFS = "settings"
-        const val KEY_INPUT = "input"
+        private const val KEY_INPUT = "input"
     }
 }

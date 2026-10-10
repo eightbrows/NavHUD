@@ -7,7 +7,7 @@ plugins {
 
 // バージョン名: yyyyMMdd-Xnn（X = D:開発版 / R:リリース版, nn = その日の通し番号 01..99）
 // ここだけ変更すれば versionCode は自動で追従する。コミットメッセージの先頭にも使われる（.githooks）。
-val appVersionName = "20261010-D11"
+val appVersionName = "20261010-D14"
 
 // versionCode = yyyyMMdd * 100 + nn
 // 最大は 20991231 * 100 + 99 = 2,099,123,199（Int 上限 2,147,483,647、Google Play 上限 2,100,000,000 未満）
@@ -109,6 +109,13 @@ android {
         localeFilters += listOf("ja", "en")
         // アプリごとの言語の設定（Android 13 以降）に出す言語の一覧を、values-* から作る（初期値の言語は res/resources.properties）
         generateLocaleConfig = true
+    }
+    bundle {
+        // アプリの中で言語を切り替えるので（§6.11）、App Bundle にするときも言語ごとに分けない（選んだ言語の文字が端末に入らなくなるのを防ぐ）。
+        // 今の配布は APK なので、動きは変わらない
+        language {
+            enableSplit = false
+        }
     }
 }
 

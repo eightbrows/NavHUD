@@ -29,7 +29,9 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -39,6 +41,8 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
 import io.github.eightbrows.navhud.core.nav.SourceKind
+import io.github.eightbrows.navhud.source.AppLanguage
+import io.github.eightbrows.navhud.source.AppPermissions
 import io.github.eightbrows.navhud.source.TrackDocumentStore
 import io.github.eightbrows.navhud.source.WaypointDocumentStore
 import io.github.eightbrows.navhud.ui.DebugScreen
@@ -60,8 +64,17 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var vm: NavViewModel
 
+    /** 画面が前に来た回数（設定画面の言語・権限の表示を読み直す合図） */
+    private var resumeCount by mutableIntStateOf(0)
+
+    /** 選んだ表示言語にする（§6.11。Android 12 以前。13 以降は端末がする） */
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(AppLanguage.wrap(newBase))
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        AppLanguage.migrate(this)
         enableEdgeToEdge()
         vm = ViewModelProvider(this)[NavViewModel::class.java]
         setContent {
@@ -184,9 +197,15 @@ class MainActivity : ComponentActivity() {
                             settings = state.settings,
                             input = state.sourceKind,
                             rangeM = state.rangeM,
+                            // 言語と権限は、画面に戻ってきたとき（端末の設定で変えたあとなど）に読み直す
+                            language = remember(resumeCount) { AppLanguage.current(context) },
+                            permissions = remember(resumeCount) { AppPermissions.statuses(context) },
+                            versionName = remember { packageManager.getPackageInfo(packageName, 0).versionName.orEmpty() },
                             onChange = vm::updateSettings,
                             onInput = vm::setSourceKind,
                             onReset = vm::resetSettings,
+                            onLanguage = { AppLanguage.set(this@MainActivity, it) },
+                            onOpenAppSettings = ::openAppSettings,
                             onBack = { screen = Screen.MAIN },
                             modifier = modifier,
                         )
@@ -236,9 +255,15 @@ class MainActivity : ComponentActivity() {
         vm.onForeground()
     }
 
+    override fun onResume() {
+        super.onResume()
+        resumeCount++
+    }
+
     override fun onStop() {
         super.onStop()
-        vm.onBackground()
+        // 言語の切り替えなどで画面を作り直すだけのときは、止めない（すぐ onStart に戻る。再生も続ける）
+        if (!isChangingConfigurations) vm.onBackground()
     }
 
     private fun granted(permission: String): Boolean =

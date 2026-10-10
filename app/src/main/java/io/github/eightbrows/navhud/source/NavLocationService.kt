@@ -86,9 +86,11 @@ class NavLocationService : Service() {
     }
 
     private fun notification(): Notification {
+        // 文字は選んだ言語で（§6.11）。言語を変えたあとは、画面が onStart でもう一度 start() を呼ぶので、ここで作り直される
+        val text = AppLanguage.localized(this)
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         nm.createNotificationChannel(
-            NotificationChannel(CHANNEL_ID, getString(R.string.notif_channel), NotificationManager.IMPORTANCE_LOW).apply {
+            NotificationChannel(CHANNEL_ID, text.getString(R.string.notif_channel), NotificationManager.IMPORTANCE_LOW).apply {
                 setShowBadge(false)
             },
         )
@@ -99,7 +101,7 @@ class NavLocationService : Service() {
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_navhud)
-            .setContentTitle(getString(R.string.notif_running))
+            .setContentTitle(text.getString(R.string.notif_running))
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setShowWhen(false)

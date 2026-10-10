@@ -16,11 +16,11 @@
 - `core/geo` 地理計算（距離、方位、角度の差、緯度・経度と東m・北m の変換）
 - `core/io` ファイルの読み書き（WP リストの CSV・GPX、座標の貼り付け、track.csv、GpsLogger の zip）
 - `core/model` データ型（Fix, Waypoint, 到達の理由, 方位ソースの enum, PositionSource）
-- `core/nav` ナビ計算（NavEngine、NavState、設定と保存用の変換、RATE、方位選択、縮尺と AUTO、WP、ETA、カウントダウン、到達判定、PAN、軌跡、NO FIX）
+- `core/nav` ナビ計算（NavEngine、NavState、設定と保存用の変換、表示言語の選択、RATE、方位選択、縮尺と AUTO、WP、ETA、カウントダウン、到達判定、PAN、軌跡、NO FIX）
 - `core/replay` 再生の時間の進め方（LIVE / REPLAY の時計、Fix の送出、シーク、倍速）
 - `core/sensor` センサーの値の下ごしらえ（コンパスの計算、端末の位置から Fix を作る）
 - `core/view` 画面に描くものの位置と文字の計算（HudScene、ARC / North Up、距離環の数字、標高プロファイル、文字の整形）
-- `source` 端末の機能とつなぐ所（GPS、位置のサービス、コンパス、リプレイの送出、ファイルの選択と記憶、設定の保存）
+- `source` 端末の機能とつなぐ所（GPS、位置のサービス、コンパス、リプレイの送出、ファイルの選択と記憶、設定の保存、表示言語の切り替え、権限の状態）
 - `ui` 画面（NavViewModel、メイン画面、HUD の Canvas、色、設定、WP設定、開発用の画面）。`ui/theme` は配色
 - 画面は Jetpack Compose の Canvas で描く。画面は `NavState`（計算済みの値）だけを見る。
 

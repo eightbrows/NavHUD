@@ -177,6 +177,31 @@
     <string name="auto_open_last">前回の WP リストを自動で開く</string>
     <string name="auto_open_last_note">起動時の選択を出さずに、最後に読み込んだか書き出したリストを開く</string>
     <string name="reset_settings">設定を初期値に戻す</string>
+    <string name="sec_language">言語</string>
+    <string name="app_language">アプリの言語</string>
+    <string name="app_language_note">選ぶとすぐに切り替わる。「設定を初期値に戻す」では変わらない</string>
+    <string name="language_system">端末に合わせる</string>
+    <string name="language_japanese">日本語</string>
+    <string name="language_english">English</string>
+    <string name="sec_permissions">権限</string>
+    <string name="permissions_note">押すと、端末のこのアプリの設定画面が開きます。</string>
+    <string name="perm_fine">位置情報（正確な位置）</string>
+    <string name="perm_fine_note">GPS で現在地を測る。許可しなくても、記録の再生（REPLAY）は使える</string>
+    <string name="perm_coarse">位置情報（おおよその位置）</string>
+    <string name="perm_coarse_note">正確な位置といっしょに求める。これだけでは GPS を使えない</string>
+    <string name="perm_notifications">通知</string>
+    <string name="perm_notifications_note">動作中であることを通知に出す。許可しなくても動く</string>
+    <string name="perm_status_granted">許可</string>
+    <string name="perm_status_denied">未許可</string>
+    <string name="sec_about">情報</string>
+    <string name="about_app">アプリ名</string>
+    <string name="about_app_value">NavHUD（移動目標案内アプリ）</string>
+    <string name="about_version">バージョン</string>
+    <string name="about_license">ライセンス</string>
+    <string name="about_website">公式サイト</string>
+    <string name="about_cheatsheet">チートシート（PDF）</string>
+    <string name="about_formats">ファイル形式の説明（PDF）</string>
+    <string name="about_links_note">下線の項目は、押すとブラウザで開きます（このアプリ自身は通信しません）。</string>
 
     <!-- WP 設定 -->
     <string name="wp_settings_title">WP設定</string>
