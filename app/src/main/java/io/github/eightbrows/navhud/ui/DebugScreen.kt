@@ -35,7 +35,7 @@ private val Stale = Mono.copy(color = Color(0xFF808080))
 private val Warn = Mono.copy(color = Color(0xFFFFB300))
 private val TimeFmt: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss")
 
-/** 開発用画面（ステップ3の確認用画面）。NavState の値を文字で並べる。メイン画面の上部バーの長押しで開く。 */
+/** 開発用の画面。NavState の値を文字で並べる。メイン画面の上部の ⚙ の長押しで開く（リリース版にも入っている）。 */
 @Composable
 fun DebugScreen(
     state: NavState,

@@ -7,7 +7,7 @@ plugins {
 
 // バージョン名: yyyyMMdd-Xnn（X = D:開発版 / R:リリース版, nn = その日の通し番号 01..99）
 // ここだけ変更すれば versionCode は自動で追従する。コミットメッセージの先頭にも使われる（.githooks）。
-val appVersionName = "20261010-D10"
+val appVersionName = "20261010-D11"
 
 // versionCode = yyyyMMdd * 100 + nn
 // 最大は 20991231 * 100 + 99 = 2,099,123,199（Int 上限 2,147,483,647、Google Play 上限 2,100,000,000 未満）
@@ -68,8 +68,6 @@ android {
         targetSdk = 37
         versionCode = versionCodeFrom(appVersionName)
         versionName = appVersionName
-
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     signingConfigs {
@@ -120,15 +118,8 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
-    implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.kotlinx.coroutines.android)
     testImplementation(libs.junit)
-    androidTestImplementation(platform(libs.androidx.compose.bom))
-    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
-    androidTestImplementation(libs.androidx.espresso.core)
-    androidTestImplementation(libs.androidx.junit)
-    debugImplementation(libs.androidx.compose.ui.test.manifest)
-    debugImplementation(libs.androidx.compose.ui.tooling)
 }
