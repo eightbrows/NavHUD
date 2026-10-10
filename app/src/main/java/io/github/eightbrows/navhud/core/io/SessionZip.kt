@@ -40,7 +40,7 @@ object SessionZip {
             ((head[2].toInt() == 3 && head[3].toInt() == 4) || (head[2].toInt() == 5 && head[3].toInt() == 6))
 
     /**
-     * 中のセッションの一覧（開始時刻の順。時刻がないものは最後。同じなら名前の順）。
+     * 中のセッションの一覧（開始時刻の新しい順。時刻がないものは最後。同じなら名前の順）。
      * 各 track.csv は1回だけ流し読みして、点の数と最初・最後の時刻を数える。
      * @throws SessionZipException 壊れた zip（BROKEN）、track.csv がない（NO_TRACK）
      */
@@ -51,7 +51,7 @@ object SessionZip {
             false
         }
         if (out.isEmpty()) throw SessionZipException(SessionZipError.NO_TRACK)
-        return out.sortedWith(compareBy<ZipSession>({ it.summary.startMs == null }, { it.summary.startMs }, { it.name }))
+        return out.sortedWith(compareBy<ZipSession>({ it.summary.startMs == null }, { -(it.summary.startMs ?: 0L) }, { it.name }))
     }
 
     /**

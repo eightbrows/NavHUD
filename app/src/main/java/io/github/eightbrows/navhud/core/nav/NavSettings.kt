@@ -12,7 +12,12 @@ enum class ColorTheme { WHITE, GREEN, AMBER }
  * ARC の自機の位置（WP ボタン列の上端からの距離）。高め・さらに高めは後方の WP・矢印に余裕を持たせる。
  * 保存値は名前（STANDARD / HIGH / HIGHER）。前からの2つの名前は変えない
  */
-enum class OwnshipPosition { STANDARD, HIGH, HIGHER }
+/**
+ * ARC の自機の位置（§6.2）。下から5段。画面では 1 / 2 / 3 / 4 / 中央 と出す。
+ * STANDARD・HIGH・HIGHER は前からの段（保存値の名前は変えない）。CENTER は North Up の自機と同じ高さ、
+ * NEAR_CENTER は HIGHER と CENTER のちょうど中間。
+ */
+enum class OwnshipPosition { STANDARD, HIGH, HIGHER, NEAR_CENTER, CENTER }
 
 /**
  * 読み込んだ軌跡（REPLAY のトラック全体の線）の色。実際の色は ui/HudColors で決め、明るさ（trackBrightnessPct）を掛ける。
@@ -59,11 +64,11 @@ data class ReachProfile(
 data class NavSettings(
     /** 方位ソース（§5.2）。既定は GPS（車内ではコンパスが不安定なため。HYBRID と COMPASS は歩行用） */
     val sourceMode: SourceMode = SourceMode.GPS,
-    /** GPS 方位の保持に入る速度 [m/s]（これ未満で保持。≒ 7km/h） */
-    val holdEnterSpeedMps: Float = 2.0f,
-    /** GPS 方位の保持を解く速度 [m/s]（これを超えたら GPS 方位に戻る。≒ 11km/h） */
-    val holdExitSpeedMps: Float = 3.0f,
-    /** GPS 方位を使う最大の水平精度 [m]（§5.2） */
+    /** GPS 方位の保持に入る速度 [m/s]（これ未満で保持）。設定画面では km/h の整数（1〜36、既定 7 km/h）で選ぶ */
+    val holdEnterSpeedMps: Float = kmhToMps(Tuning.HOLD_ENTER_SPEED_DEFAULT_KMH),
+    /** GPS 方位の保持を解く速度 [m/s]（これを超えたら GPS 方位に戻る）。km/h の整数（既定 11 km/h。保持に入る速度より大きい） */
+    val holdExitSpeedMps: Float = kmhToMps(Tuning.HOLD_EXIT_SPEED_DEFAULT_KMH),
+    /** GPS 方位を使う最大の水平精度 [m]（§5.2）。3 / 5 / 10 / 15 / 20 / 30 / 50 / 100 から選ぶ */
     val maxGpsAccM: Float = 15f,
     /** GPS 方位を使う最大の方位の精度 [°]（値を出している端末のみ） */
     val maxGpsBearingAccDeg: Float = 20f,
@@ -92,7 +97,7 @@ data class NavSettings(
     val passHoldSec: Int = Tuning.CAR_PASS_HOLD_SEC,
     /** RATE の窓 [秒]。10 / 30 / 60 から選ぶ（§5.3） */
     val rateWindowSec: Int = 10,
-    /** NO FIX とみなす秒数（§5.5） */
+    /** NO FIX とみなす秒数（§5.5）。3 / 5 / 10 / 15 / 20 / 30 / 60 / 120 から選ぶ */
     val noFixTimeoutSec: Int = 10,
     /** 標高オフセット [m]。標高 = 楕円体高 − これ（§6.8） */
     val altOffsetM: Double = 36.0,
@@ -113,11 +118,11 @@ data class NavSettings(
     val autoMinRangeKm: Double = Tuning.AUTO_MIN_RANGE_KM,
     val autoMaxRangeKm: Double = Tuning.AUTO_MAX_RANGE_KM,
     /**
-     * 到達した WP を通り過ぎてから AUTO の段を動かさない時間 [秒]。0〜60。通り過ぎるまでも動かさない
+     * 到達した WP を通り過ぎてから AUTO の段を動かさない時間 [秒]。0 / 5 / 10 / 15 / 20 / 30 / 60 から選ぶ。通り過ぎるまでも動かさない
      * （真横通過・手動で到達にしたときは、到達してから数える）
      */
     val autoHoldAfterWpSec: Int = Tuning.AUTO_HOLD_AFTER_WP_SEC,
-    /** AUTO で狭め始める距離: 次の WP が「これ × 今の段の R1（1つ目の距離環）」以内のときだけ狭める。1.0〜3.0、0.1 刻み */
+    /** AUTO で狭め始める距離: 次の WP が「これ × 今の段の R1（1つ目の距離環）」以内のときだけ狭める。1.0〜2.0、0.1 刻み */
     val autoZoomInDistRatio: Double = Tuning.AUTO_ZOOM_IN_DIST_RATIO,
     /** 横並びの WP ボタン列に一度に見せる数（ボタンの幅はこれで決まる。超える分は左右にスクロール） */
     val wpButtonsMax: Int = 5,
@@ -127,7 +132,7 @@ data class NavSettings(
     val uiTheme: ColorTheme = ColorTheme.WHITE,
     /** 地図の色（地図の Canvas に描くもの） */
     val mapTheme: ColorTheme = ColorTheme.GREEN,
-    /** ARC の自機の位置。既定はさらに高め（保存がない・読めない値もさらに高め） */
+    /** ARC の自機の位置（5段）。既定は3段目（HIGHER。保存がない・読めない値も同じ） */
     val ownshipPosition: OwnshipPosition = OwnshipPosition.HIGHER,
     /** 起動時に前回の WP リストを自動で開く（起動時の選択を出さない） */
     val autoOpenLastList: Boolean = true,
@@ -155,20 +160,38 @@ data class NavSettings(
         val REACH_RADIUS_CHOICES_M = listOf(30.0, 50.0, 100.0, 200.0, 500.0)
 
         // 設定画面のステッパーで変えられる範囲。読み込み（SettingsCodec）でも、範囲外の値はその項目だけ初期値にする（§6.9）
-        /** 保持に入る速度 [m/s] */
-        val HOLD_ENTER_SPEED_MPS_RANGE = 0.5f..10f
-        /** 保持を解く速度の上限 [m/s]（下限は 保持に入る速度 + 刻み） */
-        const val HOLD_EXIT_SPEED_MAX_MPS = 15f
-        /** 保持に入る速度と解く速度の最小の差 [m/s]（設定画面の刻みと同じ） */
-        const val HOLD_SPEED_MIN_GAP_MPS = 0.1f
-        val MAX_GPS_ACC_M_RANGE = 3f..100f
+        /**
+         * 保持に入る / 解く速度 [km/h]: 1〜36 の整数、1 km/h 刻み。解く速度は入る速度より 1 km/h 以上大きい
+         * （入る速度は 1〜35、解く速度は 入る速度 + 1〜36）。保存は m/s のままで、読むときに一番近い km/h の整数に合わせる
+         */
+        val HOLD_SPEED_KMH_RANGE = 1..36
+
+        /** km/h の整数 → m/s */
+        fun kmhToMps(kmh: Int): Float = kmh / 3.6f
+
+        /** m/s → 一番近い km/h の整数（1〜36 の中） */
+        fun holdSpeedKmh(mps: Float): Int = Math.round(mps * 3.6f).coerceIn(HOLD_SPEED_KMH_RANGE)
+
+        /** GPS の水平精度の上限 [m] の選べる値 */
+        val MAX_GPS_ACC_CHOICES_M = listOf(3f, 5f, 10f, 15f, 20f, 30f, 50f, 100f)
+
+        /** NO FIX とみなす時間 [秒] の選べる値 */
+        val NO_FIX_TIMEOUT_CHOICES_SEC = listOf(3, 5, 10, 15, 20, 30, 60, 120)
+
+        /** WP を通り過ぎてから縮尺を変えるまで [秒] の選べる値 */
+        val AUTO_HOLD_AFTER_WP_CHOICES_SEC = listOf(0, 5, 10, 15, 20, 30, 60)
+
+        /** 選べる値の中で v に一番近いもの（ちょうど真ん中なら小さい方） */
+        fun nearestInt(choices: List<Int>, v: Int): Int = choices.minBy { kotlin.math.abs(it.toLong() - v) }
+
+        fun nearestFloat(choices: List<Float>, v: Float): Float = choices.minBy { kotlin.math.abs(it - v) }
         val MAX_GPS_BEARING_ACC_DEG_RANGE = 5f..90f
         val SIDE_PASS_MAX_M_RANGE = 30.0..500.0
         val SIDE_PASS_DEPART_M_RANGE = 5.0..100.0
         val PASS_MAX_APPROACH_M_RANGE = 50.0..2000.0
         val PASS_DEPART_M_RANGE = 10.0..500.0
         val PASS_HOLD_SEC_RANGE = 1..60
-        val NO_FIX_TIMEOUT_SEC_RANGE = 3..120
+
         val ALT_OFFSET_M_RANGE = -200.0..200.0
         val AUTO_RANGE_ZOOM_IN_DELAY_SEC_RANGE = 0..30
         val RATE_WINDOW_CHOICES_SEC = listOf(10, 30, 60)
@@ -185,13 +208,15 @@ data class NavSettings(
         /** 距離環の数字の大きさ [%] を、一番近い選べる値にする（範囲の外は端の段。段の間はちょうど真ん中にならない） */
         fun nearestRingLabelScalePct(pct: Int): Int = RING_LABEL_SCALE_CHOICES_PCT.minBy { kotlin.math.abs(it.toLong() - pct) }
 
-        val AUTO_HOLD_AFTER_WP_SEC_RANGE = 0..Tuning.AUTO_HOLD_AFTER_WP_MAX_SEC
 
-        /** 狭め始める距離の倍率の選べる値（1.0, 1.1, … 3.0）。足し算の誤差が残らないよう、刻みの数から作って丸める */
+        /** 狭め始める距離の倍率の選べる値（1.0, 1.1, … 2.0）。足し算の誤差が残らないよう、刻みの数から作って丸める */
         val AUTO_ZOOM_IN_DIST_RATIO_CHOICES: List<Double> = run {
             val n = Math.round((Tuning.AUTO_ZOOM_IN_DIST_RATIO_MAX - Tuning.AUTO_ZOOM_IN_DIST_RATIO_MIN) / Tuning.AUTO_ZOOM_IN_DIST_RATIO_STEP).toInt()
             (0..n).map { i -> Math.round((Tuning.AUTO_ZOOM_IN_DIST_RATIO_MIN + i * Tuning.AUTO_ZOOM_IN_DIST_RATIO_STEP) * 1e6) / 1e6 }
         }
+
+        /** 倍率を、一番近い選べる値にする（上限を超えていれば上限、下限より小さければ下限） */
+        fun nearestZoomInDistRatio(v: Double): Double = AUTO_ZOOM_IN_DIST_RATIO_CHOICES.minBy { kotlin.math.abs(it - v) }
     }
 }
 

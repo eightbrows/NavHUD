@@ -65,12 +65,12 @@ object Tuning {
 
     /** AUTO: 到達した WP を通り過ぎてから段を動かさない時間 [秒] の既定と範囲（通り過ぎるまでも動かさない） */
     const val AUTO_HOLD_AFTER_WP_SEC = 10
-    const val AUTO_HOLD_AFTER_WP_MAX_SEC = 60
+
 
     /** AUTO: 狭め始める距離 = これ × 今の段の R1（1つ目の距離環。次の WP がこの距離以内のときだけ狭める）。既定と範囲・刻み */
     const val AUTO_ZOOM_IN_DIST_RATIO = 1.3
     const val AUTO_ZOOM_IN_DIST_RATIO_MIN = 1.0
-    const val AUTO_ZOOM_IN_DIST_RATIO_MAX = 3.0
+    const val AUTO_ZOOM_IN_DIST_RATIO_MAX = 2.0
     const val AUTO_ZOOM_IN_DIST_RATIO_STEP = 0.1
 
     /**
@@ -115,6 +115,10 @@ object Tuning {
     const val HUD_ARC_ORIGIN_DP = 24f
     const val HUD_ARC_ORIGIN_HIGH_DP = 84f
     const val HUD_ARC_ORIGIN_HIGHER_DP = 144f
+
+    /** GPS 方位の保持に入る / 解く速度の既定 [km/h]（設定画面では km/h の整数で選ぶ。D03 までは 2.0 / 3.0 m/s = 7.2 / 10.8 km/h） */
+    const val HOLD_ENTER_SPEED_DEFAULT_KMH = 7
+    const val HOLD_EXIT_SPEED_DEFAULT_KMH = 11
     /** North Up: 縮尺の距離環と画面の端・回避枠の上下の間の余白（方位サークルはその1つ外側の距離環で、画面からはみ出してよい） */
     const val HUD_NORTH_UP_EDGE_MARGIN_DP = 8f
     /** 方位マーカー（三角）の大きさ */

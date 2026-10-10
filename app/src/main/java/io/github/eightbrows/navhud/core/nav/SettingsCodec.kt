@@ -121,16 +121,20 @@ object SettingsCodec {
         }
         val customReach = (1..3).map(::profile)
 
-        // 保持の速度: 範囲外は初期値。解く速度は入る速度より大きいこと（でなければ 初期値と 入る速度 + 刻み の大きい方）
-        val holdEnter = f("holdEnterSpeedMps", d.holdEnterSpeedMps).inOr(NavSettings.HOLD_ENTER_SPEED_MPS_RANGE, d.holdEnterSpeedMps)
-        val holdExit = f("holdExitSpeedMps", d.holdExitSpeedMps).takeIf { it > holdEnter && it <= NavSettings.HOLD_EXIT_SPEED_MAX_MPS }
-            ?: maxOf(d.holdExitSpeedMps, holdEnter + NavSettings.HOLD_SPEED_MIN_GAP_MPS)
+        // 保持の速度: 保存は m/s。一番近い km/h の整数（1〜36）に合わせる（前の版の 2.0 / 3.0 m/s は 7 / 11 km/h）。
+        // 入る速度は 1〜35、解く速度は 入る速度 + 1〜36（解く速度は入る速度より大きいこと）
+        val kmh = NavSettings.HOLD_SPEED_KMH_RANGE
+        val enterKmh = NavSettings.holdSpeedKmh(f("holdEnterSpeedMps", d.holdEnterSpeedMps)).coerceAtMost(kmh.last - 1)
+        val exitKmh = NavSettings.holdSpeedKmh(f("holdExitSpeedMps", d.holdExitSpeedMps)).coerceIn(enterKmh + 1, kmh.last)
+        val holdEnter = NavSettings.kmhToMps(enterKmh)
+        val holdExit = NavSettings.kmhToMps(exitKmh)
 
         return NavSettings(
             sourceMode = enum("sourceMode", SourceMode.entries.toTypedArray(), d.sourceMode),
             holdEnterSpeedMps = holdEnter,
             holdExitSpeedMps = holdExit,
-            maxGpsAccM = f("maxGpsAccM", d.maxGpsAccM).inOr(NavSettings.MAX_GPS_ACC_M_RANGE, d.maxGpsAccM),
+            // 選べる値にない数は、一番近い値に読み替える（数でなければ既定値）
+            maxGpsAccM = NavSettings.nearestFloat(NavSettings.MAX_GPS_ACC_CHOICES_M, f("maxGpsAccM", d.maxGpsAccM)),
             maxGpsBearingAccDeg = f("maxGpsBearingAccDeg", d.maxGpsBearingAccDeg).inOr(NavSettings.MAX_GPS_BEARING_ACC_DEG_RANGE, d.maxGpsBearingAccDeg),
             travelMode = travelMode,
             customReach = customReach,
@@ -143,7 +147,7 @@ object SettingsCodec {
             passDepartM = flat.passDepartM,
             passHoldSec = flat.passHoldSec,
             rateWindowSec = int("rateWindowSec", d.rateWindowSec).takeIf { it in NavSettings.RATE_WINDOW_CHOICES_SEC } ?: d.rateWindowSec,
-            noFixTimeoutSec = int("noFixTimeoutSec", d.noFixTimeoutSec).inOr(NavSettings.NO_FIX_TIMEOUT_SEC_RANGE, d.noFixTimeoutSec),
+            noFixTimeoutSec = NavSettings.nearestInt(NavSettings.NO_FIX_TIMEOUT_CHOICES_SEC, int("noFixTimeoutSec", d.noFixTimeoutSec)),
             altOffsetM = dbl("altOffsetM", d.altOffsetM).inOr(NavSettings.ALT_OFFSET_M_RANGE, d.altOffsetM),
             displayMode = enum("displayMode", DisplayMode.entries.toTypedArray(), d.displayMode),
             rangeStepsKm = steps,
@@ -155,10 +159,9 @@ object SettingsCodec {
             // AUTO の下限・上限: 段の一覧にない値は既定値（使う段への寄せは RangeAuto.limitsKm）
             autoMinRangeKm = dbl("autoMinRangeKm", d.autoMinRangeKm).takeIf { it in RangeAuto.ALL_STEPS_KM } ?: d.autoMinRangeKm,
             autoMaxRangeKm = dbl("autoMaxRangeKm", d.autoMaxRangeKm).takeIf { it in RangeAuto.ALL_STEPS_KM } ?: d.autoMaxRangeKm,
-            autoHoldAfterWpSec = int("autoHoldAfterWpSec", d.autoHoldAfterWpSec).takeIf { it in NavSettings.AUTO_HOLD_AFTER_WP_SEC_RANGE }
-                ?: d.autoHoldAfterWpSec,
-            autoZoomInDistRatio = dbl(KEY_ZOOM_IN_RATIO, d.autoZoomInDistRatio)
-                .takeIf { v -> NavSettings.AUTO_ZOOM_IN_DIST_RATIO_CHOICES.any { kotlin.math.abs(it - v) < 1e-9 } } ?: d.autoZoomInDistRatio,
+            autoHoldAfterWpSec = NavSettings.nearestInt(NavSettings.AUTO_HOLD_AFTER_WP_CHOICES_SEC, int("autoHoldAfterWpSec", d.autoHoldAfterWpSec)),
+            // 倍率: 1.0〜2.0 の 0.1 刻み。上限を超えていた値（前の版の 3.0 まで）は 2.0 として読む
+            autoZoomInDistRatio = NavSettings.nearestZoomInDistRatio(dbl(KEY_ZOOM_IN_RATIO, d.autoZoomInDistRatio)),
             wpButtonsMax = int("wpButtonsMax", d.wpButtonsMax).coerceIn(NavSettings.WP_BUTTONS_MAX_RANGE),
             hudWpCount = int("hudWpCount", d.hudWpCount).coerceIn(NavSettings.HUD_WP_COUNT_RANGE),
             // 色: 古い版の「色テーマ」（1つ）が保存されていれば、UI・地図の両方の初期値として引き継ぐ

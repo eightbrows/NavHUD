@@ -85,7 +85,7 @@
   @media print {
     :root { --bg: #fff; --paper: #fff; --ink: #000; --muted: #333; --rule: #999; --soft: #eee; --head: #000; --next: #a0107e; color-scheme: light; }
     html, body { background: #fff; }
-    body { padding: 0; font-size: 7.5pt; line-height: 1.34; }
+    body { padding: 0; font-size: 7.4pt; line-height: 1.33; }
     .sheet { max-width: none; padding: 0; border-radius: 0; }
     header { margin-bottom: 2mm; padding-bottom: 1mm; border-bottom-width: 1pt; }
     h1 { font-size: 14pt; }
@@ -105,7 +105,7 @@
 <main class="sheet">
   <header>
     <h1>NavHUD チートシート</h1>
-    <p class="ver">移動目標案内アプリ ・ 20261010-D03 時点 ・ 画面は REPLAY（記録の再生）の例</p>
+    <p class="ver">移動目標案内アプリ ・ 20261010-D04 時点 ・ 画面は REPLAY（記録の再生）の例</p>
   </header>
 
   <div class="cols">
@@ -225,11 +225,12 @@
           <tr><td>UI の色 / 地図の色</td><td class="v">白 / 緑</td></tr>
           <tr><td>ボタン / 数値の不透明度</td><td class="v">70% / 100%</td></tr>
           <tr><td>距離環の数字の大きさ</td><td class="v">125%</td></tr>
-          <tr><td>ARC の自機の位置</td><td class="v">さらに高め</td></tr>
+          <tr><td>ARC の自機の位置（1〜4・中央）</td><td class="v">3</td></tr>
           <tr><td>標高プロファイル</td><td class="v">OFF</td></tr>
           <tr><td>標高オフセット</td><td class="v">36 m</td></tr>
           <tr><td>読み込んだ軌跡の色 / 明るさ</td><td class="v">黄 / 75%</td></tr>
           <tr><td>方位ソース（車は GPS、歩行は HYBRID か COMPASS）</td><td class="v">GPS</td></tr>
+          <tr><td>方位を保持する速度</td><td class="v">7 / 11 km/h</td></tr>
           <tr><td>使う縮尺 / 起動時の縮尺</td><td class="v">25m〜25km / 250m</td></tr>
           <tr><td>AUTO / 下限 / 上限</td><td class="v">ON / 50m / 250m</td></tr>
           <tr><td>AUTO で狭めるまで / 狭め始める距離</td><td class="v">5 秒 / 1.3 倍</td></tr>
@@ -241,7 +242,7 @@
           <tr><td>画面常時点灯</td><td class="v">ON</td></tr>
           <tr><td>前回の WP リストを自動で開く</td><td class="v">ON</td></tr>
         </table>
-        <p class="note">変更はすぐ保存される。数値の項目は、設定画面に初期値が出る。一番下に「設定を初期値に戻す」。</p>
+        <p class="note">変更はすぐ保存される。どの項目も、設定画面に（初期値：…）と出る。一番下に「設定を初期値に戻す」。</p>
       </section>
 
       <section>
@@ -255,7 +256,7 @@
         </ul>
         <p style="margin-top:.4em"><b>軌跡（再生用）</b>: ⇄ で REPLAY にして、FILE で track.csv か GpsLogger の zip を選ぶ。次回からは自動で開く。</p>
         <ul>
-          <li><b>GpsLogger の zip</b>: 中のセッションの一覧（開始時刻・長さ・点の数）から1つ選ぶ。</li>
+          <li><b>GpsLogger の zip</b>: 中のセッションの一覧（新しい順。開始時刻・長さ・点の数）から1つ選ぶ。</li>
           <li>track.csv は、見出しに <code>latitude</code>・<code>longitude</code> と、時刻の <code>epoch_ms</code> か <code>utc_iso8601</code> が必要。</li>
           <li>あれば使う列: <code>altitude_ellipsoid_m</code>・<code>speed_mps</code>・<code>bearing_deg</code>・<code>bearing_acc_deg</code>・<code>horizontal_acc_m</code>。</li>
         </ul>

@@ -105,7 +105,7 @@ object HudSceneBuilder {
 
     /**
      * 地図 → 画面の変換。表示モードと ARC の自機の位置（設定）で決まる。AUTO 縮尺の判定（HudViewport）も同じものを使う。
-     * ARC: 自機は描画の枠（画面）の横の中央、高さは arcOriginY（回避枠の下端 = WP ボタン列の上端から 標準 / 高め / さらに高め）。
+     * ARC: 自機は描画の枠（画面）の横の中央、高さは arcOriginY（回避枠の下端 = WP ボタン列の上端から、設定の5段）。
      *   基準の距離環が描画の枠（画面）の左右端に接する。方位がなければ北を上にする。
      * North Up: 自機は、横は描画の枠（画面）の中央、縦は回避枠の中央。縮尺の距離環の半径は
      *   min(画面の幅の半分, 回避枠の高さの半分) − 余白。右の操作列と重なってよい（方位サークルはその1つ外側の距離環）。
@@ -134,15 +134,21 @@ object HudSceneBuilder {
     }
 
     /**
-     * ARC の自機の高さ [px]: 回避枠の下端（WP ボタン列の上端）から、設定の段の分だけ上（標準 / 高め / さらに高め）。
+     * ARC の自機の高さ [px]: 回避枠の下端（WP ボタン列の上端）から、設定の段の分だけ上。5段:
+     * 1〜3段目は決まった高さ（24 / 84 / 144dp）、5段目（中央）は回避枠の縦中央（North Up の自機と同じ高さ）、
+     * 4段目は 3段目と 5段目のちょうど中間。回避枠が低くて中央が 3段目より下になるときは、4・5段目も 3段目と同じ高さにする
+     * （上の段が下の段より下にならない）。
      * 自機の記号（半高 ownShipClear）が上部の方位マーカー（三角）にかかる高さなら、かからない一番高い位置にする
      * （上の数値・方位目盛りの文字はマーカーより上にある）。ただし標準より下にはしない（回避枠がとても低いとき）。
      */
     internal fun arcOriginY(position: OwnshipPosition, avoid: HudRect, m: HudMetrics): Float {
+        val center = maxOf(avoid.height / 2, m.arcOriginFromBottomHigher)
         val up = when (position) {
             OwnshipPosition.STANDARD -> m.arcOriginFromBottom
             OwnshipPosition.HIGH -> m.arcOriginFromBottomHigh
             OwnshipPosition.HIGHER -> m.arcOriginFromBottomHigher
+            OwnshipPosition.NEAR_CENTER -> (m.arcOriginFromBottomHigher + center) / 2
+            OwnshipPosition.CENTER -> center
         }
         val highest = arcMarkerTipY(avoid.top, m) + m.pointerSize + m.ownShipClear
         return maxOf(avoid.bottom - up, minOf(highest, avoid.bottom - m.arcOriginFromBottom))

@@ -40,8 +40,9 @@ class NavEngineTest {
     fun defaultSettings() {
         val s = NavSettings()
         assertEquals(SourceMode.GPS, s.sourceMode)
-        assertEquals(2.0f, s.holdEnterSpeedMps)
-        assertEquals(3.0f, s.holdExitSpeedMps)
+        // 保持に入る / 解く速度は 7 / 11 km/h（D04 から。前は 2.0 / 3.0 m/s）
+        assertEquals(7 / 3.6f, s.holdEnterSpeedMps, 1e-6f)
+        assertEquals(11 / 3.6f, s.holdExitSpeedMps, 1e-6f)
         assertEquals(15f, s.maxGpsAccM)
         assertEquals(20f, s.maxGpsBearingAccDeg)
         assertEquals(10, s.noFixTimeoutSec)

@@ -84,7 +84,7 @@ class SessionZipTest {
 
     @Test
     fun multipleSessions() {
-        // 3 セッション（zip の中の順番は時刻の順ではない）。一覧は開始時刻の順で、つながない
+        // 3 セッション（zip の中の順番は時刻の順ではない）。一覧は開始時刻の新しい順で、つながない
         val bytes = zip(
             "session_20260815_075235/track.csv" to track(t2, 30),
             "session_20260815_075235/sats.csv" to "a,b\n1,2\n",
@@ -94,13 +94,13 @@ class SessionZipTest {
         )
         val list = SessionZip.list(bytes.inputStream())
         assertEquals(
-            listOf("session_20260814_075235", "session_20260815_075235", "session_20260816_120000"),
+            listOf("session_20260816_120000", "session_20260815_075235", "session_20260814_075235"),
             list.map { it.name },
         )
-        assertEquals(listOf(10, 30, 5), list.map { it.summary.points })
-        assertEquals(listOf(t1, t2, t2 + 86_400_000L), list.map { it.summary.startMs })
+        assertEquals(listOf(5, 30, 10), list.map { it.summary.points })
+        assertEquals(listOf(t2 + 86_400_000L, t2, t1), list.map { it.summary.startMs })
         // 読めない行は数える（空行は数えない）。概要と、実際に読んだ結果は同じ数
-        assertEquals(1, list[0].summary.skippedLines)
+        assertEquals(1, list[2].summary.skippedLines)
         for (s in list) {
             val r = SessionZip.read(bytes.inputStream(), s.entryName)!!
             assertEquals(s.summary.points, r.fixes.size)
@@ -122,22 +122,23 @@ class SessionZipTest {
             "session_y/" to "",
         )
         val list = SessionZip.list(bytes.inputStream())
-        assertEquals(listOf("" to 3, "session_20260815_075235" to 4), list.map { it.name to it.summary.points })
+        assertEquals(listOf("session_20260815_075235" to 4, "" to 3), list.map { it.name to it.summary.points })
         assertEquals(3, SessionZip.read(bytes.inputStream(), "track.csv")!!.fixes.size)
     }
 
     @Test
     fun sessionWithoutReadableRowsIsListedLast() {
-        // 見出しだけの track.csv: 点 0・時刻なし。一覧には出す（最後）
+        // 見出しだけの track.csv: 点 0・時刻なし。一覧には出す（新しい順の最後）
         val bytes = zip(
             "session_b/track.csv" to "$header\n",
             "session_a/track.csv" to track(t1, 2),
+            "session_c/track.csv" to track(t2, 2),
         )
         val list = SessionZip.list(bytes.inputStream())
-        assertEquals(listOf("session_a", "session_b"), list.map { it.name })
-        assertEquals(0, list[1].summary.points)
-        assertNull(list[1].summary.startMs)
-        assertNull(list[1].summary.endMs)
+        assertEquals(listOf("session_c", "session_a", "session_b"), list.map { it.name })
+        assertEquals(0, list[2].summary.points)
+        assertNull(list[2].summary.startMs)
+        assertNull(list[2].summary.endMs)
     }
 
     @Test

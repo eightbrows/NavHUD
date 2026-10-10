@@ -15,7 +15,7 @@
     <string name="loading">Loading…</string>
     <string name="value_seconds">%1$s s</string>
     <string name="value_count">%1$s</string>
-    <string name="value_kmh_mps">%1$s km/h (%2$s m/s)</string>
+
 
     <!-- 起動時の WP リストの選択 -->
     <string name="startup_title">WP list</string>
@@ -78,8 +78,8 @@
     <!-- 設定画面 -->
     <string name="settings_title">Settings</string>
     <string name="settings_note">Changes apply and are saved immediately.</string>
-    <string name="default_value">Default: %1$s</string>
-    <string name="note_with_default">%1$s. %2$s</string>
+    <string name="default_value">(Default: %1$s)</string>
+    <string name="note_with_default">%1$s %2$s</string>
     <string name="default_all">all</string>
     <string name="sec_display">Display</string>
     <string name="display_mode">Display mode</string>
@@ -102,10 +102,8 @@
     <string name="ring_label_size">Range ring label size</string>
     <string name="ring_label_size_note" formatted="false">Numbers on the range rings (250, 1k, …). 100% is the original size.</string>
     <string name="ownship_position">ARC ownship position</string>
-    <string name="position_standard">Standard</string>
-    <string name="position_high">High</string>
-    <string name="position_higher">Higher</string>
-    <string name="ownship_position_note">From the top of the WP strip: Standard 24dp / High 84dp / Higher 144dp (LIVE and REPLAY). Higher leaves more room for WPs and arrows behind.</string>
+    <string name="position_center">Center</string>
+    <string name="ownship_position_note">1 is lowest (just above the WP strip); Center is the same height as North Up. Higher shows more behind you.</string>
     <string name="profile">Elevation profile</string>
     <string name="size_small">S</string>
     <string name="size_medium">M</string>

@@ -13,7 +13,7 @@
     <string name="loading">読み込み中…</string>
     <string name="value_seconds">%1$s 秒</string>
     <string name="value_count">%1$s 個</string>
-    <string name="value_kmh_mps">%1$s km/h（%2$s m/s）</string>
+
 
     <!-- 起動時の WP リストの選択 -->
     <string name="startup_title">WP リスト</string>
@@ -76,8 +76,8 @@
     <!-- 設定画面 -->
     <string name="settings_title">設定</string>
     <string name="settings_note">変更はすぐ画面に反映され、保存されます。</string>
-    <string name="default_value">初期値 %1$s</string>
-    <string name="note_with_default">%1$s。%2$s</string>
+    <string name="default_value">（初期値：%1$s）</string>
+    <string name="note_with_default">%1$s%2$s</string>
     <string name="default_all">すべて</string>
     <string name="sec_display">表示</string>
     <string name="display_mode">表示モード</string>
@@ -100,10 +100,8 @@
     <string name="ring_label_size">距離環の数字の大きさ</string>
     <string name="ring_label_size_note" formatted="false">距離環に付ける数字（250・1k など）。100% が元の大きさ</string>
     <string name="ownship_position">ARC の自機の位置</string>
-    <string name="position_standard">標準</string>
-    <string name="position_high">高め</string>
-    <string name="position_higher">さらに高め</string>
-    <string name="ownship_position_note">WP ボタン列の上端から 標準 24dp / 高め 84dp / さらに高め 144dp（LIVE・REPLAY とも）。高くすると後方の WP や矢印に余裕ができます</string>
+    <string name="position_center">中央</string>
+    <string name="ownship_position_note">1 がいちばん下（WP ボタン列のすぐ上）、中央は North Up と同じ高さ。上にするほど後方が広く見えます</string>
     <string name="profile">標高プロファイル</string>
     <string name="size_small">小</string>
     <string name="size_medium">中</string>

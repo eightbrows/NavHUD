@@ -15,8 +15,8 @@ class SettingsCodecTest {
         val p3 = ReachProfile(100.0, false, 300.0, 30.0, false, 500.0, 60.0, 10)
         val s = NavSettings(
             sourceMode = SourceMode.HYBRID,
-            holdEnterSpeedMps = 1.5f,
-            holdExitSpeedMps = 4.2f,
+            holdEnterSpeedMps = NavSettings.kmhToMps(5),
+            holdExitSpeedMps = NavSettings.kmhToMps(15),
             maxGpsAccM = 20f,
             maxGpsBearingAccDeg = 30f,
             rateWindowSec = 30,
@@ -44,7 +44,7 @@ class SettingsCodecTest {
             autoMinRangeKm = 0.2,
             autoMaxRangeKm = 5.0,
             autoHoldAfterWpSec = 20,
-            autoZoomInDistRatio = 3.0,
+            autoZoomInDistRatio = 2.0,
             // 移動手段: カスタム2 を選んでいて、3つの枠はどれも自動車の値と違う
             travelMode = TravelMode.CUSTOM2,
             customReach = listOf(p1, p2, p3),
@@ -67,17 +67,14 @@ class SettingsCodecTest {
         assertEquals(0.1, s.autoMinRangeKm, 0.0)
         assertEquals(0.5, s.autoMaxRangeKm, 0.0)
         assertEquals(0.05, SettingsCodec.decode(mapOf("autoMinRangeKm" to "0.05")).autoMinRangeKm, 0.0)
-        // WP 通過後の待機（既定 10 秒、0〜60）と、狭め始める距離（既定 1.3、1.0〜3.0 の 0.1 刻み。今の段の R1 が基準）
+        // WP 通過後の待機（既定 10 秒）と、狭め始める距離（既定 1.3、1.0〜2.0 の 0.1 刻み。今の段の R1 が基準）
         assertEquals(10, NavSettings().autoHoldAfterWpSec)
         assertEquals(1.3, NavSettings().autoZoomInDistRatio, 0.0)
         assertEquals(0, SettingsCodec.decode(mapOf("autoHoldAfterWpSec" to "0")).autoHoldAfterWpSec)
-        assertEquals(10, SettingsCodec.decode(mapOf("autoHoldAfterWpSec" to "61")).autoHoldAfterWpSec)
         assertEquals(1.7, SettingsCodec.decode(mapOf("autoZoomInR1Ratio" to "1.7")).autoZoomInDistRatio, 0.0)
-        assertEquals(1.3, SettingsCodec.decode(mapOf("autoZoomInR1Ratio" to "1.25")).autoZoomInDistRatio, 0.0)
-        assertEquals(1.3, SettingsCodec.decode(mapOf("autoZoomInR1Ratio" to "3.5")).autoZoomInDistRatio, 0.0)
         val choices = NavSettings.AUTO_ZOOM_IN_DIST_RATIO_CHOICES
-        assertEquals(21, choices.size)
-        assertEquals((10..30).map { it / 10.0 }, choices)
+        assertEquals(11, choices.size)
+        assertEquals((10..20).map { it / 10.0 }, choices)
         // 保存は新しいキー
         assertEquals("1.3", SettingsCodec.encode(NavSettings())["autoZoomInR1Ratio"])
         assertEquals(null, SettingsCodec.encode(NavSettings())["autoZoomInDistRatio"])
@@ -189,15 +186,18 @@ class SettingsCodecTest {
 
     @Test
     fun ownshipPositionKeepsTheSavedNames() {
-        // 前からの段の保存値（STANDARD / HIGH）は変えない。さらに高めは HIGHER。既定は D03 からさらに高め（前は高め）
+        // 5段（D04 から）。前からの3段の保存値（STANDARD / HIGH / HIGHER）は、同じ段のまま読む。足した2段は NEAR_CENTER / CENTER。
+        // 既定は今のまま 3段目（HIGHER）
         assertEquals(OwnshipPosition.HIGHER, NavSettings().ownshipPosition)
         assertEquals("HIGHER", SettingsCodec.encode(NavSettings())["ownshipPosition"])
-        assertEquals(listOf("STANDARD", "HIGH", "HIGHER"), OwnshipPosition.entries.map { it.name })
+        assertEquals(listOf("STANDARD", "HIGH", "HIGHER", "NEAR_CENTER", "CENTER"), OwnshipPosition.entries.map { it.name })
+        assertEquals(OwnshipPosition.NEAR_CENTER, SettingsCodec.decode(mapOf("ownshipPosition" to "NEAR_CENTER")).ownshipPosition)
+        assertEquals(OwnshipPosition.CENTER, SettingsCodec.decode(mapOf("ownshipPosition" to "CENTER")).ownshipPosition)
         for (p in OwnshipPosition.entries) {
             assertEquals(p, SettingsCodec.decode(mapOf("ownshipPosition" to p.name)).ownshipPosition)
         }
         assertEquals(OwnshipPosition.HIGH, SettingsCodec.decode(mapOf("ownshipPosition" to "HIGH")).ownshipPosition)
-        // 読めない名前・保存がないときは既定のさらに高め。保存してある標準はそのまま
+        // 読めない名前・保存がないときは既定の3段目。保存してある1段目（標準）はそのまま
         assertEquals(OwnshipPosition.HIGHER, SettingsCodec.decode(mapOf("ownshipPosition" to "TOP")).ownshipPosition)
         assertEquals(OwnshipPosition.HIGHER, SettingsCodec.decode(mapOf("travelMode" to "CAR")).ownshipPosition)
         assertEquals(OwnshipPosition.STANDARD, SettingsCodec.decode(mapOf("travelMode" to "CAR", "ownshipPosition" to "STANDARD")).ownshipPosition)
@@ -240,6 +240,57 @@ class SettingsCodecTest {
     }
 
     @Test
+    fun zoomInRatioAboveTheUpperLimitIsReadAsTwo() {
+        // 狭め始める距離の上限は 2.0 倍（D04 から。前は 3.0）。保存されていた値が 2.0 を超えていたら 2.0 として読む
+        for (saved in listOf("2.1", "2.5", "3.0", "3.5", "99")) {
+            assertEquals(saved, 2.0, SettingsCodec.decode(mapOf("autoZoomInR1Ratio" to saved)).autoZoomInDistRatio, 0.0)
+        }
+        // 2.0 以下はそのまま。下限より小さければ下限。0.1 刻みに乗っていない値は一番近い値
+        assertEquals(2.0, SettingsCodec.decode(mapOf("autoZoomInR1Ratio" to "2.0")).autoZoomInDistRatio, 0.0)
+        assertEquals(1.0, SettingsCodec.decode(mapOf("autoZoomInR1Ratio" to "1.0")).autoZoomInDistRatio, 0.0)
+        assertEquals(1.0, SettingsCodec.decode(mapOf("autoZoomInR1Ratio" to "0.4")).autoZoomInDistRatio, 0.0)
+        assertEquals(1.3, SettingsCodec.decode(mapOf("autoZoomInR1Ratio" to "1.26")).autoZoomInDistRatio, 0.0)
+        assertEquals(1.2, SettingsCodec.decode(mapOf("autoZoomInR1Ratio" to "1.24")).autoZoomInDistRatio, 0.0)
+        // 数でない値・保存がないときは既定値
+        assertEquals(1.3, SettingsCodec.decode(mapOf("autoZoomInR1Ratio" to "x")).autoZoomInDistRatio, 0.0)
+        assertEquals(1.3, SettingsCodec.decode(mapOf("travelMode" to "CAR")).autoZoomInDistRatio, 0.0)
+        // 読み替えた値は、保存して読み直しても同じ
+        val s = SettingsCodec.decode(mapOf("autoZoomInR1Ratio" to "3.0"))
+        assertEquals(s, SettingsCodec.decode(SettingsCodec.encode(s)))
+    }
+
+    @Test
+    fun valuesNotInTheChoicesGoToTheNearestChoice() {
+        // 決まった値から選ぶ3項目（D04 から）: 保存されていた値が選べる値にないときは、一番近い値に読み替える
+        assertEquals(listOf(3, 5, 10, 15, 20, 30, 60, 120), NavSettings.NO_FIX_TIMEOUT_CHOICES_SEC)
+        assertEquals(listOf(3f, 5f, 10f, 15f, 20f, 30f, 50f, 100f), NavSettings.MAX_GPS_ACC_CHOICES_M)
+        assertEquals(listOf(0, 5, 10, 15, 20, 30, 60), NavSettings.AUTO_HOLD_AFTER_WP_CHOICES_SEC)
+        // 初期値は今のまま（10 秒 / 15 m / 10 秒）で、どれも選べる値
+        val d = NavSettings()
+        assertEquals(10, d.noFixTimeoutSec)
+        assertEquals(15f, d.maxGpsAccM, 0f)
+        assertEquals(10, d.autoHoldAfterWpSec)
+        // NO FIX とみなす時間（前は 3〜120 秒の 1 秒刻み）
+        val noFix = mapOf("3" to 3, "4" to 3, "7" to 5, "8" to 10, "12" to 10, "13" to 15, "25" to 20, "26" to 30, "45" to 30, "46" to 60, "90" to 60, "91" to 120, "120" to 120, "0" to 3, "999" to 120)
+        for ((saved, expected) in noFix) assertEquals(saved, expected, SettingsCodec.decode(mapOf("noFixTimeoutSec" to saved)).noFixTimeoutSec)
+        // GPS の水平精度の上限（前は 3〜100 m の 1 m 刻み）
+        val acc = mapOf("3" to 3f, "4" to 3f, "8" to 10f, "12" to 10f, "13" to 15f, "17" to 15f, "18" to 20f, "42" to 50f, "75" to 50f, "76" to 100f, "500" to 100f, "0.5" to 3f, "15.0" to 15f)
+        for ((saved, expected) in acc) assertEquals(saved, expected, SettingsCodec.decode(mapOf("maxGpsAccM" to saved)).maxGpsAccM, 0f)
+        // WP を通り過ぎてから縮尺を変えるまで（前は 0〜60 秒の 1 秒刻み）
+        val hold = mapOf("0" to 0, "2" to 0, "3" to 5, "7" to 5, "8" to 10, "17" to 15, "18" to 20, "26" to 30, "45" to 30, "46" to 60, "61" to 60, "-5" to 0)
+        for ((saved, expected) in hold) assertEquals(saved, expected, SettingsCodec.decode(mapOf("autoHoldAfterWpSec" to saved)).autoHoldAfterWpSec)
+        // 数でない値・保存がないときは既定値。ほかの項目はそのまま
+        val bad = SettingsCodec.decode(mapOf("noFixTimeoutSec" to "x", "maxGpsAccM" to "", "autoHoldAfterWpSec" to "1.5", "buttonOpacityPct" to "40"))
+        assertEquals(10, bad.noFixTimeoutSec)
+        assertEquals(15f, bad.maxGpsAccM, 0f)
+        assertEquals(10, bad.autoHoldAfterWpSec)
+        assertEquals(40, bad.buttonOpacityPct)
+        // 読み替えた値は、保存して読み直しても同じ
+        val s = SettingsCodec.decode(mapOf("noFixTimeoutSec" to "45", "maxGpsAccM" to "42", "autoHoldAfterWpSec" to "7"))
+        assertEquals(s, SettingsCodec.decode(SettingsCodec.encode(s)))
+    }
+
+    @Test
     fun brokenValuesAreDefaults() {
         val s = SettingsCodec.decode(
             mapOf(
@@ -273,9 +324,12 @@ class SettingsCodecTest {
     @Test
     fun defaultsAreWithinTheRanges() {
         val d = NavSettings()
-        assertTrue(d.holdEnterSpeedMps in NavSettings.HOLD_ENTER_SPEED_MPS_RANGE)
-        assertTrue(d.holdExitSpeedMps > d.holdEnterSpeedMps && d.holdExitSpeedMps <= NavSettings.HOLD_EXIT_SPEED_MAX_MPS)
-        assertTrue(d.maxGpsAccM in NavSettings.MAX_GPS_ACC_M_RANGE)
+        assertTrue(NavSettings.holdSpeedKmh(d.holdEnterSpeedMps) in NavSettings.HOLD_SPEED_KMH_RANGE)
+        assertTrue(NavSettings.holdSpeedKmh(d.holdExitSpeedMps) in NavSettings.HOLD_SPEED_KMH_RANGE)
+        assertTrue(d.holdExitSpeedMps > d.holdEnterSpeedMps)
+        assertTrue(d.maxGpsAccM in NavSettings.MAX_GPS_ACC_CHOICES_M)
+        assertTrue(d.autoHoldAfterWpSec in NavSettings.AUTO_HOLD_AFTER_WP_CHOICES_SEC)
+        assertTrue(d.autoZoomInDistRatio in NavSettings.AUTO_ZOOM_IN_DIST_RATIO_CHOICES)
         assertTrue(d.maxGpsBearingAccDeg in NavSettings.MAX_GPS_BEARING_ACC_DEG_RANGE)
         assertTrue(d.reachRadiusM in NavSettings.REACH_RADIUS_CHOICES_M)
         assertTrue(d.sidePassMaxM in NavSettings.SIDE_PASS_MAX_M_RANGE)
@@ -283,7 +337,7 @@ class SettingsCodecTest {
         assertTrue(d.passMaxApproachM in NavSettings.PASS_MAX_APPROACH_M_RANGE)
         assertTrue(d.passDepartM in NavSettings.PASS_DEPART_M_RANGE)
         assertTrue(d.passHoldSec in NavSettings.PASS_HOLD_SEC_RANGE)
-        assertTrue(d.noFixTimeoutSec in NavSettings.NO_FIX_TIMEOUT_SEC_RANGE)
+        assertTrue(d.noFixTimeoutSec in NavSettings.NO_FIX_TIMEOUT_CHOICES_SEC)
         assertTrue(d.altOffsetM in NavSettings.ALT_OFFSET_M_RANGE)
         assertTrue(d.autoRangeZoomInDelaySec in NavSettings.AUTO_RANGE_ZOOM_IN_DELAY_SEC_RANGE)
         assertTrue(d.initialRangeKm in RangeAuto.ALL_STEPS_KM)
@@ -296,36 +350,57 @@ class SettingsCodecTest {
         val s = SettingsCodec.decode(
             mapOf(
                 "travelMode" to "CAR",
-                "maxGpsAccM" to "500",
                 "maxGpsBearingAccDeg" to "1",
-                "noFixTimeoutSec" to "0",
                 "altOffsetM" to "-999",
                 "autoRangeZoomInDelaySec" to "-1",
                 "initialRangeKm" to "3.0",
             ),
         )
         assertEquals(d, s)
-        // 範囲内なら使う（刻みに乗っていなくてもよい）
-        val ok = SettingsCodec.decode(mapOf("maxGpsAccM" to "42", "noFixTimeoutSec" to "120", "altOffsetM" to "-200", "initialRangeKm" to "50.0"))
-        assertEquals(42f, ok.maxGpsAccM, 0f)
-        assertEquals(120, ok.noFixTimeoutSec)
+        // 範囲内なら使う（決まった値から選ぶ項目は valuesNotInTheChoicesGoToTheNearestChoice）
+        val ok = SettingsCodec.decode(mapOf("maxGpsBearingAccDeg" to "42", "altOffsetM" to "-200", "initialRangeKm" to "50.0"))
+        assertEquals(42f, ok.maxGpsBearingAccDeg, 0f)
         assertEquals(-200.0, ok.altOffsetM, 0.0)
         assertEquals(50.0, ok.initialRangeKm, 0.0)
     }
 
     @Test
-    fun holdSpeedsMustBeInOrder() {
+    fun holdSpeedsAreWholeKmhAndInOrder() {
+        // 保持に入る / 解く速度（D04 から）: 1〜36 km/h の整数、1 km/h 刻み。初期値は 7 km/h と 11 km/h。保存は m/s のまま
+        fun kmh(s: NavSettings) = NavSettings.holdSpeedKmh(s.holdEnterSpeedMps) to NavSettings.holdSpeedKmh(s.holdExitSpeedMps)
+        fun decode(enter: String?, exit: String?) =
+            SettingsCodec.decode(listOfNotNull(enter?.let { "holdEnterSpeedMps" to it }, exit?.let { "holdExitSpeedMps" to it }, "travelMode" to "CAR").toMap())
         val d = NavSettings()
-        // 範囲外の入る速度は初期値
-        assertEquals(d.holdEnterSpeedMps, SettingsCodec.decode(mapOf("holdEnterSpeedMps" to "0.1")).holdEnterSpeedMps)
-        // 解く速度が入る速度以下・上限超えなら、初期値（入る速度 + 0.1 の方が大きければそちら）
-        val a = SettingsCodec.decode(mapOf("holdEnterSpeedMps" to "2.5", "holdExitSpeedMps" to "2.5"))
-        assertEquals(2.5f, a.holdEnterSpeedMps, 0f)
-        assertEquals(d.holdExitSpeedMps, a.holdExitSpeedMps, 0f)
-        val b = SettingsCodec.decode(mapOf("holdEnterSpeedMps" to "8.0", "holdExitSpeedMps" to "20"))
-        assertEquals(8.1f, b.holdExitSpeedMps, 1e-5f)
-        val c = SettingsCodec.decode(mapOf("holdEnterSpeedMps" to "4.0", "holdExitSpeedMps" to "6.0"))
-        assertEquals(6f, c.holdExitSpeedMps, 0f)
+        assertEquals(7 to 11, kmh(d))
+        assertEquals(7 / 3.6f, d.holdEnterSpeedMps, 1e-6f)
+        assertEquals(11 / 3.6f, d.holdExitSpeedMps, 1e-6f)
+        assertEquals(1..36, NavSettings.HOLD_SPEED_KMH_RANGE)
+        // 前の版の保存値（m/s、0.1 刻み）は、一番近い km/h の整数に合わせる: 前の初期値 2.0 / 3.0 m/s（7.2 / 10.8 km/h）→ 7 / 11 km/h
+        assertEquals(7 to 11, kmh(decode("2.0", "3.0")))
+        assertEquals(d, decode("2.0", "3.0"))
+        // 1.5 m/s = 5.4 → 5、4.2 m/s = 15.12 → 15、2.5 m/s = 9.0 → 9、4.0 m/s = 14.4 → 14、6.0 m/s = 21.6 → 22
+        assertEquals(5 to 15, kmh(decode("1.5", "4.2")))
+        assertEquals(14 to 22, kmh(decode("4.0", "6.0")))
+        // 読んだ値は、ちょうど km/h の整数（m/s にしたもの）
+        assertEquals(5 / 3.6f, decode("1.5", "4.2").holdEnterSpeedMps, 1e-6f)
+        assertEquals(15 / 3.6f, decode("1.5", "4.2").holdExitSpeedMps, 1e-6f)
+        // 範囲の外は端に寄せる（前の版の下限 0.5 m/s = 1.8 km/h → 2、上限 10 / 15 m/s = 36 / 54 km/h → 35 / 36）
+        assertEquals(2 to 11, kmh(decode("0.5", null)))
+        assertEquals(1 to 11, kmh(decode("0.1", null)))
+        assertEquals(35 to 36, kmh(decode("10.0", "15.0")))
+        // 解く速度は入る速度より 1 km/h 以上大きい: 同じ・小さいなら 入る速度 + 1
+        assertEquals(9 to 10, kmh(decode("2.5", "2.5")))
+        assertEquals(29 to 30, kmh(decode("8.0", "3.0")))
+        // 数でない値・保存がないときは初期値
+        assertEquals(7 to 11, kmh(decode("abc", "")))
+        assertEquals(7 to 11, kmh(decode(null, null)))
+        // 保存して読み直しても同じ（1〜36 km/h のどの組でも）
+        for (enter in 1..35) for (exit in listOf(enter + 1, 36)) {
+            val s = NavSettings(holdEnterSpeedMps = NavSettings.kmhToMps(enter), holdExitSpeedMps = NavSettings.kmhToMps(exit))
+            val back = SettingsCodec.decode(SettingsCodec.encode(s))
+            assertEquals(enter to exit, kmh(back))
+            assertEquals(s, back)
+        }
     }
 
     @Test

@@ -46,7 +46,6 @@ import io.github.eightbrows.navhud.core.nav.editReach
 import io.github.eightbrows.navhud.core.nav.selectTravelMode
 import io.github.eightbrows.navhud.core.view.HudFormat
 import java.util.Locale
-import kotlin.math.roundToInt
 
 private val SectionTitle get() = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 15.sp, color = HudColors.Scale)
 private val RowLabel get() = TextStyle(fontSize = 14.sp, color = HudColors.Scale)
@@ -87,7 +86,7 @@ fun SettingsScreen(
         Text(stringResource(R.string.settings_note), style = RowNote)
 
         Section(stringResource(R.string.sec_display)) {
-            Choice(stringResource(R.string.display_mode), listOf("ARC" to DisplayMode.ARC, "North Up" to DisplayMode.NORTH_UP), s.displayMode) { v ->
+            Choice(stringResource(R.string.display_mode), listOf("ARC" to DisplayMode.ARC, "North Up" to DisplayMode.NORTH_UP), s.displayMode, default = def.displayMode) { v ->
                 onChange { it.copy(displayMode = v) }
             }
             val colors = listOf(
@@ -95,8 +94,8 @@ fun SettingsScreen(
                 stringResource(R.string.color_green) to ColorTheme.GREEN,
                 stringResource(R.string.color_amber) to ColorTheme.AMBER,
             )
-            Choice(stringResource(R.string.ui_color), colors, s.uiTheme) { v -> onChange { it.copy(uiTheme = v) } }
-            Choice(stringResource(R.string.map_color), colors, s.mapTheme) { v -> onChange { it.copy(mapTheme = v) } }
+            Choice(stringResource(R.string.ui_color), colors, s.uiTheme, default = def.uiTheme) { v -> onChange { it.copy(uiTheme = v) } }
+            Choice(stringResource(R.string.map_color), colors, s.mapTheme, default = def.mapTheme) { v -> onChange { it.copy(mapTheme = v) } }
             PercentSlider(
                 stringResource(R.string.button_opacity), s.buttonOpacityPct,
                 note = withDefault(stringResource(R.string.button_opacity_note), pct(def.buttonOpacityPct)),
@@ -117,6 +116,7 @@ fun SettingsScreen(
                 ),
                 s.trackColor,
                 note = stringResource(R.string.track_color_note),
+                default = def.trackColor,
             ) { v -> onChange { it.copy(trackColor = v) } }
             PercentSlider(
                 stringResource(R.string.track_brightness), s.trackBrightnessPct,
@@ -131,12 +131,16 @@ fun SettingsScreen(
             Choice(
                 stringResource(R.string.ownship_position),
                 listOf(
-                    stringResource(R.string.position_standard) to OwnshipPosition.STANDARD,
-                    stringResource(R.string.position_high) to OwnshipPosition.HIGH,
-                    stringResource(R.string.position_higher) to OwnshipPosition.HIGHER,
+                    // 下から 1 / 2 / 3 / 4 / 中央（5段）
+                    "1" to OwnshipPosition.STANDARD,
+                    "2" to OwnshipPosition.HIGH,
+                    "3" to OwnshipPosition.HIGHER,
+                    "4" to OwnshipPosition.NEAR_CENTER,
+                    stringResource(R.string.position_center) to OwnshipPosition.CENTER,
                 ),
                 s.ownshipPosition,
                 note = stringResource(R.string.ownship_position_note),
+                default = def.ownshipPosition,
             ) { v -> onChange { it.copy(ownshipPosition = v) } }
             Choice(
                 stringResource(R.string.profile),
@@ -148,6 +152,7 @@ fun SettingsScreen(
                 ),
                 s.profileSize,
                 note = stringResource(R.string.profile_note),
+                default = def.profileSize,
             ) { v -> onChange { it.copy(profileSize = v) } }
             Stepper(stringResource(R.string.alt_offset), "%.0f m".format(Locale.US, s.altOffsetM), note = withDefault(stringResource(R.string.alt_offset_note), meters(def.altOffsetM))) { d ->
                 onChange { it.copy(altOffsetM = (it.altOffsetM + d).coerceIn(NavSettings.ALT_OFFSET_M_RANGE)) }
@@ -160,24 +165,33 @@ fun SettingsScreen(
                 listOf("GPS" to SourceMode.GPS, "HYBRID" to SourceMode.HYBRID, "COMPASS" to SourceMode.COMPASS),
                 s.sourceMode,
                 note = stringResource(R.string.heading_source_note),
+                default = def.sourceMode,
             ) { v -> onChange { it.copy(sourceMode = v) } }
+            // 保持の速度: km/h の整数（1〜36）、1 km/h 刻み。解く速度は入る速度より 1 km/h 以上大きい。保存は m/s
+            val kmhRange = NavSettings.HOLD_SPEED_KMH_RANGE
             Stepper(
-                stringResource(R.string.hold_enter), kmh(s.holdEnterSpeedMps),
-                note = withDefault(stringResource(R.string.hold_enter_note), kmhShort(def.holdEnterSpeedMps)),
+                stringResource(R.string.hold_enter), kmh(NavSettings.holdSpeedKmh(s.holdEnterSpeedMps)),
+                note = withDefault(stringResource(R.string.hold_enter_note), kmh(NavSettings.holdSpeedKmh(def.holdEnterSpeedMps))),
             ) { d ->
                 onChange {
-                    val v = (it.holdEnterSpeedMps + d * STEP_MPS).round1().coerceIn(NavSettings.HOLD_ENTER_SPEED_MPS_RANGE)
-                    it.copy(holdEnterSpeedMps = v, holdExitSpeedMps = maxOf(it.holdExitSpeedMps, (v + STEP_MPS).round1()))
+                    val enter = (NavSettings.holdSpeedKmh(it.holdEnterSpeedMps) + d).coerceIn(kmhRange.first, kmhRange.last - 1)
+                    val exit = maxOf(NavSettings.holdSpeedKmh(it.holdExitSpeedMps), enter + 1)
+                    it.copy(holdEnterSpeedMps = NavSettings.kmhToMps(enter), holdExitSpeedMps = NavSettings.kmhToMps(exit))
                 }
             }
-            Stepper(stringResource(R.string.hold_exit), kmh(s.holdExitSpeedMps), note = withDefault(stringResource(R.string.hold_exit_note), kmhShort(def.holdExitSpeedMps))) { d ->
+            Stepper(
+                stringResource(R.string.hold_exit), kmh(NavSettings.holdSpeedKmh(s.holdExitSpeedMps)),
+                note = withDefault(stringResource(R.string.hold_exit_note), kmh(NavSettings.holdSpeedKmh(def.holdExitSpeedMps))),
+            ) { d ->
                 onChange {
-                    val v = (it.holdExitSpeedMps + d * STEP_MPS).round1().coerceIn((it.holdEnterSpeedMps + STEP_MPS).round1(), NavSettings.HOLD_EXIT_SPEED_MAX_MPS)
-                    it.copy(holdExitSpeedMps = v)
+                    val enter = NavSettings.holdSpeedKmh(it.holdEnterSpeedMps)
+                    val exit = (NavSettings.holdSpeedKmh(it.holdExitSpeedMps) + d).coerceIn(enter + 1, kmhRange.last)
+                    it.copy(holdExitSpeedMps = NavSettings.kmhToMps(exit))
                 }
             }
-            Stepper(stringResource(R.string.max_gps_acc), "%.0f m".format(Locale.US, s.maxGpsAccM), note = withDefault(null, meters(def.maxGpsAccM))) { d ->
-                onChange { it.copy(maxGpsAccM = (it.maxGpsAccM + d).coerceIn(NavSettings.MAX_GPS_ACC_M_RANGE)) }
+            // 決まった値から選ぶ（＋ / − で次の値へ）: 3 / 5 / 10 / 15 / 20 / 30 / 50 / 100 m
+            Stepper(stringResource(R.string.max_gps_acc), meters(s.maxGpsAccM), note = withDefault(null, meters(def.maxGpsAccM))) { d ->
+                onChange { it.copy(maxGpsAccM = stepChoice(NavSettings.MAX_GPS_ACC_CHOICES_M, it.maxGpsAccM, d)) }
             }
             Stepper(stringResource(R.string.max_gps_bearing_acc), "%.0f°".format(Locale.US, s.maxGpsBearingAccDeg), note = withDefault(stringResource(R.string.max_gps_bearing_acc_note), "%.0f°".format(Locale.US, def.maxGpsBearingAccDeg))) { d ->
                 onChange { it.copy(maxGpsBearingAccDeg = (it.maxGpsBearingAccDeg + d * 5).coerceIn(NavSettings.MAX_GPS_BEARING_ACC_DEG_RANGE)) }
@@ -223,7 +237,7 @@ fun SettingsScreen(
                 hi,
                 note = withDefault(stringResource(R.string.auto_max_note), HudFormat.rangeLabel(def.autoMaxRangeKm * 1000)),
             ) { v -> onChange { it.copy(autoMaxRangeKm = v) } }
-            Toggle(stringResource(R.string.auto_on_start), s.autoRange, note = stringResource(R.string.auto_on_start_note)) { v ->
+            Toggle(stringResource(R.string.auto_on_start), s.autoRange, note = stringResource(R.string.auto_on_start_note), default = def.autoRange) { v ->
                 onChange { it.copy(autoRange = v) }
             }
             Stepper(stringResource(R.string.zoom_in_delay), seconds(s.autoRangeZoomInDelaySec), note = withDefault(stringResource(R.string.zoom_in_delay_note), seconds(def.autoRangeZoomInDelaySec))) { d ->
@@ -233,10 +247,8 @@ fun SettingsScreen(
                 stringResource(R.string.hold_after_wp), seconds(s.autoHoldAfterWpSec),
                 note = withDefault(stringResource(R.string.hold_after_wp_note), seconds(def.autoHoldAfterWpSec)),
             ) { d ->
-                onChange {
-                    val r = NavSettings.AUTO_HOLD_AFTER_WP_SEC_RANGE
-                    it.copy(autoHoldAfterWpSec = (it.autoHoldAfterWpSec + d).coerceIn(r.first, r.last))
-                }
+                // 決まった値から選ぶ: 0 / 5 / 10 / 15 / 20 / 30 / 60 秒
+                onChange { it.copy(autoHoldAfterWpSec = stepChoice(NavSettings.AUTO_HOLD_AFTER_WP_CHOICES_SEC, it.autoHoldAfterWpSec, d)) }
             }
             // 今の段での例: 「今の段 R1 500m: WP まで 650m 以内」（R1 = 1つ目の距離環 = 段の 1/2）
             val hasNarrower = s.rangeStepsKm.any { it >= lo && it < rangeM / 1000 - 1e-9 }
@@ -274,6 +286,7 @@ fun SettingsScreen(
                 ),
                 s.travelMode,
                 note = stringResource(if (custom) R.string.travel_custom_note else R.string.travel_car_note),
+                default = def.travelMode,
             ) { v -> onChange { it.selectTravelMode(v) } }
             if (custom) HudButton(stringResource(R.string.reset_to_car), { onChange { it.editReach { ReachProfile.CAR } } })
             Choice(
@@ -283,7 +296,7 @@ fun SettingsScreen(
                 note = withDefault(stringResource(R.string.arrival_radius_note), meters(def.reachRadiusM)),
                 enabled = custom,
             ) { v -> judge { it.copy(reachRadiusM = v) } }
-            Toggle(stringResource(R.string.side_pass), s.sidePass, note = stringResource(R.string.side_pass_note), enabled = custom) { v ->
+            Toggle(stringResource(R.string.side_pass), s.sidePass, note = stringResource(R.string.side_pass_note), enabled = custom, default = def.sidePass) { v ->
                 judge { it.copy(sidePass = v) }
             }
             Stepper(
@@ -297,7 +310,7 @@ fun SettingsScreen(
             Stepper(stringResource(R.string.side_pass_depart), "+%.0f m".format(Locale.US, s.sidePassDepartM), note = withDefault(stringResource(R.string.side_pass_depart_note), "+%.0f m".format(Locale.US, def.sidePassDepartM)), enabled = custom) { d ->
                 judge { it.copy(sidePassDepartM = (it.sidePassDepartM + d * 5).coerceIn(NavSettings.SIDE_PASS_DEPART_M_RANGE)) }
             }
-            Toggle(stringResource(R.string.pass_detection), s.passDetection, note = stringResource(R.string.pass_detection_note), enabled = custom) { v ->
+            Toggle(stringResource(R.string.pass_detection), s.passDetection, note = stringResource(R.string.pass_detection_note), enabled = custom, default = def.passDetection) { v ->
                 judge { it.copy(passDetection = v) }
             }
             Stepper(stringResource(R.string.pass_max), "%.0f m".format(Locale.US, s.passMaxApproachM), note = withDefault(stringResource(R.string.pass_max_note), meters(def.passMaxApproachM)), enabled = custom) { d ->
@@ -318,11 +331,12 @@ fun SettingsScreen(
         }
 
         Section(stringResource(R.string.sec_input)) {
-            Choice("INPUT", listOf(stringResource(R.string.input_live) to SourceKind.LIVE, stringResource(R.string.input_replay) to SourceKind.REPLAY), input) { v ->
+            Choice("INPUT", listOf(stringResource(R.string.input_live) to SourceKind.LIVE, stringResource(R.string.input_replay) to SourceKind.REPLAY), input, note = withDefault(null, "LIVE")) { v ->
                 onInput(v)
             }
+            // 決まった値から選ぶ: 3 / 5 / 10 / 15 / 20 / 30 / 60 / 120 秒
             Stepper(stringResource(R.string.no_fix_timeout), seconds(s.noFixTimeoutSec), note = withDefault(null, seconds(def.noFixTimeoutSec))) { d ->
-                onChange { it.copy(noFixTimeoutSec = (it.noFixTimeoutSec + d).coerceIn(NavSettings.NO_FIX_TIMEOUT_SEC_RANGE)) }
+                onChange { it.copy(noFixTimeoutSec = stepChoice(NavSettings.NO_FIX_TIMEOUT_CHOICES_SEC, it.noFixTimeoutSec, d)) }
             }
             Choice(stringResource(R.string.rate_window), NavSettings.RATE_WINDOW_CHOICES_SEC.map { seconds(it) to it }, s.rateWindowSec, note = withDefault(null, seconds(def.rateWindowSec))) { v ->
                 onChange { it.copy(rateWindowSec = v) }
@@ -330,8 +344,8 @@ fun SettingsScreen(
         }
 
         Section(stringResource(R.string.sec_other)) {
-            Toggle(stringResource(R.string.keep_screen_on), s.keepScreenOn) { v -> onChange { it.copy(keepScreenOn = v) } }
-            Toggle(stringResource(R.string.auto_open_last), s.autoOpenLastList, note = stringResource(R.string.auto_open_last_note)) { v ->
+            Toggle(stringResource(R.string.keep_screen_on), s.keepScreenOn, default = def.keepScreenOn) { v -> onChange { it.copy(keepScreenOn = v) } }
+            Toggle(stringResource(R.string.auto_open_last), s.autoOpenLastList, note = stringResource(R.string.auto_open_last_note), default = def.autoOpenLastList) { v ->
                 onChange { it.copy(autoOpenLastList = v) }
             }
             Row(Modifier.padding(top = 6.dp)) { HudButton(stringResource(R.string.reset_settings), onReset) }
@@ -339,32 +353,34 @@ fun SettingsScreen(
     }
 }
 
-/** 速度の刻み（0.1 m/s ≒ 0.36 km/h） */
-private const val STEP_MPS = 0.1f
+/**
+ * 決まった値から選ぶ項目の ＋ / −: 今の値（選べる値にないときは、それ以上で最初の値）から、d つ隣の値にする（端では止まる）。
+ */
+private fun <T : Comparable<T>> stepChoice(choices: List<T>, current: T, d: Int): T {
+    val i = choices.indexOfFirst { it >= current }.let { if (it < 0) choices.lastIndex else it }
+    return choices[(i + d).coerceIn(0, choices.lastIndex)]
+}
 
 // 数値は端末の言語によらず同じ書き方（Locale.US）で文字にしてから、言語ごとの単位の書き方に入れる
-@Composable
-private fun kmh(mps: Float) =
-    stringResource(R.string.value_kmh_mps, "%.1f".format(Locale.US, mps * 3.6f), "%.1f".format(Locale.US, mps))
+private fun kmh(kmh: Int) = "$kmh km/h"
 
 @Composable
 private fun seconds(sec: Int) = stringResource(R.string.value_seconds, sec.toString())
 
 private fun pct(p: Int) = "$p%"
 
-/** 初期値の表示用: km/h だけ（補足文が長くならないように、m/s は付けない） */
-private fun kmhShort(mps: Float) = "%.1f km/h".format(Locale.US, mps * 3.6f)
 
 private fun meters(m: Number) = "%.0f m".format(Locale.US, m.toDouble())
 
 /**
- * 補足文の最後に初期値を書き足す（例「…。初期値 150%」）。補足文がない項目は、初期値だけの補足文にする。
- * 行は増やさず、補足文の文の続きに入れる。
+ * 補足文の最後に初期値を書き足す（日本語「…（初期値：150%）」、英語「… (Default: 150%)」）。
+ * 補足文がない項目は、初期値だけの補足文にする。行は増やさず、補足文の文の続きに入れる。
  */
 @Composable
 private fun withDefault(note: String?, default: String): String {
     val d = stringResource(R.string.default_value, default)
-    val n = note?.trim()?.trimEnd('。', '.')
+    // 日本語の補足文の最後の「。」は取って、かっこを続ける（英語は文の終わりの「.」のあとに空白を入れて続ける）
+    val n = note?.trim()?.trimEnd('。')
     return if (n.isNullOrEmpty()) d else stringResource(R.string.note_with_default, n, d)
 }
 
@@ -400,10 +416,13 @@ private fun <T> Choice(
     selected: T?,
     note: String? = null,
     enabled: Boolean = true,
+    /** 初期値（選ぶ項目）。補足文の最後に「（初期値：その選択肢の名前）」と書く。null なら書かない */
+    default: T? = null,
     onSelect: (T) -> Unit,
 ) {
+    val n = if (default == null) note else withDefault(note, options.firstOrNull { it.second == default }?.first ?: default.toString())
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Label(label, note, enabled)
+        Label(label, n, enabled)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             for ((text, value) in options) Chip(text, value == selected, enabled) { onSelect(value) }
         }
@@ -472,9 +491,18 @@ private fun PercentSlider(
 }
 
 @Composable
-private fun Toggle(label: String, on: Boolean, note: String? = null, enabled: Boolean = true, onChange: (Boolean) -> Unit) {
+private fun Toggle(
+    label: String,
+    on: Boolean,
+    note: String? = null,
+    enabled: Boolean = true,
+    /** 初期値（ON / OFF）。補足文の最後に「（初期値：ON）」と書く。null なら書かない */
+    default: Boolean? = null,
+    onChange: (Boolean) -> Unit,
+) {
+    val n = if (default == null) note else withDefault(note, if (default) "ON" else "OFF")
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.weight(1f)) { Label(label, note, enabled) }
+        Box(Modifier.weight(1f)) { Label(label, n, enabled) }
         Switch(
             checked = on,
             onCheckedChange = onChange,
@@ -491,5 +519,3 @@ private fun Toggle(label: String, on: Boolean, note: String? = null, enabled: Bo
     }
 }
 
-/** 0.1 刻みに丸める（足し算の誤差をためない） */
-private fun Float.round1() = (this * 10).roundToInt() / 10f
