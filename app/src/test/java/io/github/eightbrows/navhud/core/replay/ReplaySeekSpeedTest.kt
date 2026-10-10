@@ -135,11 +135,11 @@ class ReplaySeekSpeedTest {
     @Test
     fun autoRangeDecidesRightAfterSeek() {
         // 画面の大きさが分からないので距離で判定: 次の WP A（500m 先）は、先頭では 1km の段（500 ≤ 900）
-        // AUTO の上限は 10km の段（起動時の 10km が範囲の中）
+        // AUTO の広域の限度は 10km の段（起動時の 10km が範囲の中）
         val e = NavEngine(NavSettings(initialRangeKm = 10.0, autoMaxRangeKm = 10.0), sourceKind = SourceKind.REPLAY)
         e.setWaypoints(wps)
         e.onFix(track[0], track[0].timeMs)
-        assertEquals(10_000.0, e.state.rangeM, 0.0) // 狭める方向は 5 秒待つ
+        assertEquals(10_000.0, e.state.rangeM, 0.0) // 詳細にする方向は 5 秒待つ
         // シークしたら、時計が進まなくても（一時停止中）すぐ決め直す
         e.seekReset(toStart = true)
         assertEquals(1_000.0, e.onFix(track[0], track[0].timeMs).rangeM, 0.0)

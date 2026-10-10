@@ -363,6 +363,8 @@ interface PositionSource { val fixes: Flow<Fix> }        // Live GPS / Replay
 - 2本指のドラッグでの移動・回転・ダブルタップで詳細にする操作はない。
 
 ## 7. WP ファイル形式
+利用者向けの説明は `docs/formats.html`（PDF は `docs/formats.pdf`。20261010-D08 から）。読み書きを変えたら、そちらも直す。
+
 ### 7.1 CSV（メイン。インポート/エクスポート）
 ```
 lat,lon,ele,name,target_time,deadline_time,enabled,radius

@@ -60,7 +60,7 @@ private val ValueText get() = TextStyle(fontFamily = FontFamily.Monospace, fontS
 fun SettingsScreen(
     settings: NavSettings,
     input: SourceKind,
-    /** 今の縮尺の段 [m]（「狭め始める距離」の例に使う） */
+    /** 今の縮尺の段 [m]（「詳細へ切り替える距離」の例に使う） */
     rangeM: Double,
     onChange: ((NavSettings) -> NavSettings) -> Unit,
     onInput: (SourceKind) -> Unit,
@@ -200,7 +200,7 @@ fun SettingsScreen(
         }
 
         Section(stringResource(R.string.sec_range)) {
-            // 初期値: すべての段なら「すべて」、そうでなければ いちばん狭い段〜いちばん広い段
+            // 初期値: すべての段なら「すべて」、そうでなければ いちばん詳細な段〜いちばん広域の段
             val defSteps = if (def.rangeStepsKm.size == RangeAuto.ALL_STEPS_KM.size) {
                 stringResource(R.string.default_all)
             } else {
@@ -224,7 +224,7 @@ fun SettingsScreen(
                 s.rangeStepsKm.minByOrNull { kotlin.math.abs(it - s.initialRangeKm) },
                 note = withDefault(null, HudFormat.rangeLabel(def.initialRangeKm * 1000)),
             ) { v -> onChange { it.copy(initialRangeKm = v) } }
-            // AUTO の下限・上限: 使う段から選ぶ（下限 ≤ 上限）。表示は1つ目の距離環の距離
+            // AUTO の詳細の限度・広域の限度: 使う段から選ぶ（詳細の限度は広域の限度と同じか、それより詳細）。表示は1つ目の距離環の距離
             val (lo, hi) = RangeAuto.limitsKm(s.rangeStepsKm, s.autoMinRangeKm, s.autoMaxRangeKm)
             Choice(
                 stringResource(R.string.auto_min),

@@ -45,7 +45,7 @@ class OmegaCurveAutoRangeTest {
         val distM: Double?,
         /** 次の WP の、進行方向から見た角度 [°]（右が +） */
         val relDeg: Double?,
-        /** 今の段・1段広い段に次の WP が収まるか（規則 4 の判定そのもの） */
+        /** 今の段・1つ広域側の段に次の WP が収まるか（規則 4 の判定そのもの） */
         val fitsNow: Boolean?,
         val fitsWider: Boolean?,
     )
@@ -83,7 +83,7 @@ class OmegaCurveAutoRangeTest {
         )
     }
 
-    /** 最初の WP が次の WP の間に、縮尺を広げた（縮小した）記録（前の行・後の行） */
+    /** 最初の WP が次の WP の間に、縮尺を広域にした記録（前の行・後の行） */
     private fun widenedBeforeReach(rows: List<Row>): List<Pair<Row, Row>> =
         rows.zipWithNext().filter { (a, b) -> a.nextIndex == 0 && b.nextIndex == 0 && b.rangeM > a.rangeM }
 
@@ -99,7 +99,7 @@ class OmegaCurveAutoRangeTest {
         println("  widened before reach: " + widenedBeforeReach(rows).map { (a, b) -> "t=${b.sec}s ${(a.rangeM / 2).toInt()}→${(b.rangeM / 2).toInt()} dist=${b.distM?.toInt()} rel=${b.relDeg?.toInt()}" })
     }
 
-    /** Ω 形の場面: エミュレータの画面（幅 423dp）では半径 60m、幅 360dp の端末では半径 50m で、直す前は到達前に広げていた */
+    /** Ω 形の場面: エミュレータの画面（幅 423dp）では半径 60m、幅 360dp の端末では半径 50m で、直す前は到達前へ広域にしていた */
     private val cases = listOf(
         Triple("omega_r50_emulator", { OmegaCurve() }, emulator),
         Triple("omega_r60_emulator", { OmegaCurve(radiusM = 60.0) }, emulator),
@@ -115,12 +115,12 @@ class OmegaCurveAutoRangeTest {
             val rows = run(curve.road, wps, vp)
             write(name, rows)
             describe(name, rows)
-            // 近づくにつれて R1 250m → 100m → 50m と狭める
+            // 近づくにつれて R1 250m → 100m → 50m と詳細にする
             val toFirst = rows.filter { it.nextIndex == 0 }
             assertEquals(name, listOf(1_000.0, 500.0, 200.0, 100.0), toFirst.map { it.rangeM }.distinct())
-            // カーブの中心の WP に到達するまで、一度も広げない（直す前は、WP が正面から外れた所で 50m → 100m に広げた）
+            // カーブの中心の WP に到達するまで、一度も広域にしない（直す前は、WP が正面から外れた所で 50m → 100m へ広域にした）
             assertTrue("$name ${widenedBeforeReach(rows)}", widenedBeforeReach(rows).isEmpty())
-            // 到達したあと、次の WP（遠い）に向けては今まで通り広げる（上限の 1km の段 = R1 500m まで）
+            // 到達したあと、次の WP（遠い）に向けては今まで通り広域にする（広域の限度の 1km の段 = R1 500m まで）
             val toSecond = rows.filter { it.nextIndex == 1 }
             assertTrue(name, toSecond.isNotEmpty())
             assertEquals(name, 1_000.0, toSecond.last().rangeM, 0.0)
@@ -130,8 +130,8 @@ class OmegaCurveAutoRangeTest {
 
     @Test
     fun theWaypointLeavesTheFrameInTheCurveButTheRangeStays() {
-        // 原因の確認（規則 4）: カーブの途中で、WP は R1 50m の段の枠に収まらなくなる（1段広い段なら収まる）。
-        // 直す前はこの瞬間に広げていた。今は縮尺をそのままにする（画面外の次の WP の文字で示す）
+        // 原因の確認（規則 4）: カーブの途中で、WP は R1 50m の段の枠に収まらなくなる（1つ広域側の段なら収まる）。
+        // 直す前はこの瞬間へ広域にしていた。今は縮尺をそのままにする（画面外の次の WP の文字で示す）
         for ((name, make, vp) in cases.filter { it.first != "omega_r50_emulator" }) {
             val curve = make()
             val rows = run(curve.road, listOf(curve.waypoint(), curve.waypointAhead("先", 1_500.0)), vp)
@@ -144,8 +144,8 @@ class OmegaCurveAutoRangeTest {
 
     @Test
     fun leavingTheRouteLetsTheRangeWidenAgain() {
-        // 逃げ道: WP に近づいて R1 50m まで狭めたあと、WP に行かずに左へ曲がって離れていく（到達の判定は切っておく）。
-        // WP から離れたら、今まで通り1段ずつ広げる: R1 100m へは 162.5m、250m へは 406m、500m へは 812m より遠くなってから
+        // 逃げ道: WP に近づいて R1 50m まで詳細にしたあと、WP に行かずに左へ曲がって離れていく（到達の判定は切っておく）。
+        // WP から離れたら、今まで通り1段ずつ広域にする: R1 100m へは 162.5m、250m へは 406m、500m へは 812m より遠くなってから
         // WP は道の右 30m。その 40m 手前（WP まで 50m。到着半径 30m の外）で左へ曲がる
         val road = TestRoad().straight(600.0)
         val wp = TestRoad.waypoint("寄らない", road.offset(rightM = 30.0, aheadM = 150.0))
@@ -155,11 +155,11 @@ class OmegaCurveAutoRangeTest {
         write("omega_leave_route", rows)
         describe("omega_leave_route", rows)
         assertTrue(rows.all { it.nextIndex == 0 })
-        // 近づく間に R1 50m まで狭める
+        // 近づく間に R1 50m まで詳細にする
         val narrowest = rows.indexOfFirst { it.rangeM == 100.0 }
         assertTrue(narrowest >= 0)
         val after = rows.drop(narrowest)
-        // 離れていく間、広げるのは決まった距離を超えてから
+        // 離れていく間、広域にするのは決まった距離を超えてから
         for ((a, b) in after.zipWithNext()) {
             if (b.rangeM > a.rangeM) {
                 val limit = when (b.rangeM) {
@@ -172,7 +172,7 @@ class OmegaCurveAutoRangeTest {
         }
         // 枠の外に出ても、162.5m までは R1 50m のまま
         assertTrue(after.any { it.fitsNow == false && it.distM!! < 162.5 && it.rangeM == 100.0 })
-        // 最後は上限（R1 500m）まで広がる（ずっと狭いままにならない）
+        // 最後は広域の限度（R1 500m）まで広域になる（ずっと詳細のままにならない）
         assertEquals(1_000.0, rows.last().rangeM, 0.0)
     }
 }

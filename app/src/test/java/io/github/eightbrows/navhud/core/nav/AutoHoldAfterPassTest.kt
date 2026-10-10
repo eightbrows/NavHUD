@@ -15,10 +15,10 @@ import org.junit.Test
 import java.time.ZoneId
 
 /**
- * 到達後の縮小のタイミング（§6.1 の AUTO）: 到達した WP を通り過ぎるまで縮尺を変えず、通り過ぎてから待つ秒数（既定 10 秒）たって
+ * 到達後に広域へ戻すタイミング（§6.1 の AUTO）: 到達した WP を通り過ぎるまで縮尺を変えず、通り過ぎてから待つ秒数（既定 10 秒）たって
  * AUTO の規則で決める。真横通過・手動は到達したときから数え、シークは待たない。
  * 道は南北の直線で、北へ 10 m/s。A は北 405m（Fix の位置と重ならず、境目の計算にならない所）、次の B は北 5km
- * （AUTO の上限 1km の段より遠い = 待ちが終われば広げたい）。
+ * （AUTO の広域の限度 1km の段より遠い = 待ちが終われば広域にしたい）。
  * 画面はエミュレータで測った寸法（LIVE）。
  */
 class AutoHoldAfterPassTest {
@@ -64,7 +64,7 @@ class AutoHoldAfterPassTest {
     fun arrivalWaitsUntilPassedThenTenSeconds() {
         // 到着半径（30m）で 38 秒目（380m、WP まで 25m）に到達。40〜41 秒目の間に WP の横を通り、42 秒目（WP から 15m）に
         // いちばん近づいた距離（0m）から 10m 以上離れて「通り過ぎた」。通り過ぎるまで（38〜41 秒）と、そこから 10 秒（42〜51 秒）は
-        // 縮尺を変えず、52 秒目から B へ向けて広げる
+        // 縮尺を変えず、52 秒目から B へ向けて広域にする
         val e = engine().apply { setWaypoints(wps()) }
         val r = drive(e, 70)
         assertEquals(38L, r.reachedAt)
@@ -80,7 +80,7 @@ class AutoHoldAfterPassTest {
     @Test
     fun sidePassCountsFromTheReach() {
         // 道から 50m 東の A: 真横通過で 44 秒目に到達（真横の 400m を過ぎ、いちばん近づいた 50m から +10m）。
-        // 真横通過は到達したときに通り過ぎているので、そこから 10 秒（44〜53 秒）は変えず、54 秒目から広げる
+        // 真横通過は到達したときに通り過ぎているので、そこから 10 秒（44〜53 秒）は変えず、54 秒目から広域にする
         val e = engine().apply { setWaypoints(wps(northM = 400.0, eastM = 50.0)) }
         val r = drive(e, 70)
         assertEquals(44L, r.reachedAt)
@@ -103,7 +103,7 @@ class AutoHoldAfterPassTest {
     @Test
     fun manualReachStartsCountingAtOnce() {
         // 停車したまま（原点）、A（北 405m）を見ている。60 秒目の Fix のあと WP ボタンで A を到達にする:
-        // 通り過ぎるのを待たず、そこから 10 秒（60〜69 秒）は変えず、70 秒目から B へ向けて広げる
+        // 通り過ぎるのを待たず、そこから 10 秒（60〜69 秒）は変えず、70 秒目から B へ向けて広域にする
         val e = engine().apply { setWaypoints(wps()) }
         val stopped = { t: Long -> Fix(timeMs = t * 1_000, lat = TestGeo.LAT0, lon = TestGeo.LON0, speedMps = 0f) }
         val range = (0..90L).map { t ->
@@ -131,7 +131,7 @@ class AutoHoldAfterPassTest {
 
     @Test
     fun passedUsesTheSideDepartDistanceOfTheTravelMode() {
-        // 通り過ぎた判定の「離れる距離」は今の移動手段の値（カスタム1 で +50m）: 46 秒目（460m、WP から 55m）に通り過ぎ、56 秒目から広げる。
+        // 通り過ぎた判定の「離れる距離」は今の移動手段の値（カスタム1 で +50m）: 46 秒目（460m、WP から 55m）に通り過ぎ、56 秒目から広域にする。
         // 真横通過をオフにしていても、通り過ぎた判定は同じ条件で行う
         val s = TestSettings.BEFORE_D03.selectTravelMode(TravelMode.CUSTOM1).editReach { it.copy(sidePass = false, sidePassDepartM = 50.0) }
         val e = engine(s = s).apply { setWaypoints(wps()) }

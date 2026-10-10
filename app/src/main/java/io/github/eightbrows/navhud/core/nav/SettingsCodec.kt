@@ -34,7 +34,7 @@ object SettingsCodec {
         "autoMinRangeKm" to s.autoMinRangeKm.toString(),
         "autoMaxRangeKm" to s.autoMaxRangeKm.toString(),
         "autoHoldAfterWpSec" to s.autoHoldAfterWpSec.toString(),
-        // D10 で意味が変わった（1段狭い段の R1 → 今の段の R1）ので、前の版のキー autoZoomInDistRatio とは別のキーにする
+        // D10 で意味が変わった（1つ詳細側の段の R1 → 今の段の R1）ので、前の版のキー autoZoomInDistRatio とは別のキーにする
         KEY_ZOOM_IN_RATIO to s.autoZoomInDistRatio.toString(),
         "wpButtonsMax" to s.wpButtonsMax.toString(),
         "hudWpCount" to s.hudWpCount.toString(),
@@ -66,10 +66,10 @@ object SettingsCodec {
     /** 設定の項目のキー（今の版と、前の版の colorTheme）。移行の判定に使う */
     private val SETTINGS_KEYS: Set<String> by lazy { encode(NavSettings()).keys + "colorTheme" + OLD_KEY_ZOOM_IN_RATIO }
 
-    /** AUTO で狭め始める距離の倍率（今の段の R1 が基準。D10 から） */
+    /** AUTO で詳細へ切り替える距離の倍率（今の段の R1 が基準。D10 から） */
     private const val KEY_ZOOM_IN_RATIO = "autoZoomInR1Ratio"
 
-    /** 前の版の倍率（1段狭い段の R1 が基準）。意味が違うので読まない（初期値にする） */
+    /** 前の版の倍率（1つ詳細側の段の R1 が基準）。意味が違うので読まない（初期値にする） */
     private const val OLD_KEY_ZOOM_IN_RATIO = "autoZoomInDistRatio"
 
     fun decode(m: Map<String, String?>): NavSettings {
@@ -156,7 +156,7 @@ object SettingsCodec {
             autoRange = bool("autoRange", d.autoRange),
             autoRangeZoomInDelaySec = int("autoRangeZoomInDelaySec", d.autoRangeZoomInDelaySec)
                 .inOr(NavSettings.AUTO_RANGE_ZOOM_IN_DELAY_SEC_RANGE, d.autoRangeZoomInDelaySec),
-            // AUTO の下限・上限: 段の一覧にない値は既定値（使う段への寄せは RangeAuto.limitsKm）
+            // AUTO の詳細の限度・広域の限度: 段の一覧にない値は既定値（使う段への寄せは RangeAuto.limitsKm）
             autoMinRangeKm = dbl("autoMinRangeKm", d.autoMinRangeKm).takeIf { it in RangeAuto.ALL_STEPS_KM } ?: d.autoMinRangeKm,
             autoMaxRangeKm = dbl("autoMaxRangeKm", d.autoMaxRangeKm).takeIf { it in RangeAuto.ALL_STEPS_KM } ?: d.autoMaxRangeKm,
             autoHoldAfterWpSec = NavSettings.nearestInt(NavSettings.AUTO_HOLD_AFTER_WP_CHOICES_SEC, int("autoHoldAfterWpSec", d.autoHoldAfterWpSec)),

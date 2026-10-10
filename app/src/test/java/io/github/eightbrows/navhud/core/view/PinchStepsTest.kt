@@ -4,7 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Test
 
-/** ピンチの開き具合 → 変える段の数（§6.12。1.25 倍で拡大、0.8 倍で縮小、1段ごとに基準を取り直す）。 */
+/** ピンチの開き具合 → 変える段の数（§6.12。1.25 倍で詳細へ、0.8 倍で広域へ、1段ごとに基準を取り直す）。 */
 class PinchStepsTest {
 
     @Test
@@ -21,7 +21,7 @@ class PinchStepsTest {
     fun spreadingZoomsInOneStepEachTimeAndRebases() {
         val p = PinchSteps()
         p.update(200f)
-        // 1.25 倍（250）で1段拡大。基準は 250 になる
+        // 1.25 倍（250）で1段詳細へ。基準は 250 になる
         assertEquals(1, p.update(250f))
         assertEquals(0, p.update(300f))
         // 250 × 1.25 = 312.5 で、もう1段
@@ -33,7 +33,7 @@ class PinchStepsTest {
     fun pinchingZoomsOutOneStepEachTime() {
         val p = PinchSteps()
         p.update(400f)
-        // 0.8 倍（320）で1段縮小。基準は 320 → 次は 256
+        // 0.8 倍（320）で1段広域へ。基準は 320 → 次は 256
         assertEquals(-1, p.update(320f))
         assertEquals(0, p.update(270f))
         assertEquals(-1, p.update(255f))
@@ -54,7 +54,7 @@ class PinchStepsTest {
         val p = PinchSteps()
         p.update(200f)
         assertEquals(1, p.update(260f))
-        // 基準 250 の 0.8 倍 = 200（はじめの開き具合）まで戻すと1段縮小
+        // 基準 250 の 0.8 倍 = 200（はじめの開き具合）まで戻すと1段広域へ
         assertEquals(0, p.update(210f))
         assertEquals(-1, p.update(199f))
     }

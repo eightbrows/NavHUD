@@ -191,13 +191,13 @@ class NavEngine(
     private fun panUpDeg(): Double =
         if (settings.displayMode == DisplayMode.ARC) state.heading.deg?.toDouble() ?: 0.0 else 0.0
 
-    /** 縮尺の ＋（1段狭く）。AUTO は OFF（PAN 中は AUTO をそのままにし、現在地に戻ったら AUTO が決め直す）。 */
+    /** 縮尺の ＋（1段詳細へ）。AUTO は OFF（PAN 中は AUTO をそのままにし、現在地に戻ったら AUTO が決め直す）。 */
     fun zoomIn(): NavState {
         rangeSelector.zoomIn(keepAuto = pan != null)
         return recompute()
     }
 
-    /** 縮尺の −（1段広く）。AUTO は OFF（PAN 中は ＋ と同じ）。 */
+    /** 縮尺の −（1段広域へ）。AUTO は OFF（PAN 中は ＋ と同じ）。 */
     fun zoomOut(): NavState {
         rangeSelector.zoomOut(keepAuto = pan != null)
         return recompute()
@@ -286,7 +286,7 @@ class NavEngine(
         passed.forEach(::ingest)
         seeking = false
         clearHistory()
-        // 地図が跳ぶので、AUTO は待たずに縮尺を決め直す（一時停止中はトラックの時計が進まず、狭める方向の待ちが終わらないため）。
+        // 地図が跳ぶので、AUTO は待たずに縮尺を決め直す（一時停止中はトラックの時計が進まず、詳細にする方向の待ちが終わらないため）。
         // 飛ばした区間で到達した WP を通り過ぎるのも待たない
         wpChanged = false
         rangeSelector.decideNow()
@@ -422,12 +422,12 @@ class NavEngine(
             rangeSelector.holdForWpChange(now)
             wpChanged = false
         }
-        // 縮尺の AUTO（§6.1）: 次の WP を収める段を基本に、[下限, 上限] の中で1段ずつ。WP を区別できる幅を優先する
+        // 縮尺の AUTO（§6.1）: 次の WP を収める段を基本に、[詳細の限度, 広域の限度] の中で1段ずつ。WP を区別できる幅を優先する
         val rangeM = when {
             // PAN 中は AUTO を止める（＋ / − は効く）
             pan != null -> rangeSelector.also { it.restartWait() }.rangeM
             now == null -> rangeSelector.rangeM
-            // 次の WP がない: 下限〜上限の中央の段
+            // 次の WP がない: 詳細の限度〜広域の限度の中央の段
             next == null -> rangeSelector.update(null, now)
             // 位置がまだ分からない: 今の段のまま
             fix == null -> rangeSelector.rangeM

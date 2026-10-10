@@ -140,7 +140,7 @@ class HudViewportTest {
         assertTrue(viewport.separated(1_000.0, listOf(EN(0.0, 2_740.0), EN(0.0, 2_800.0)), 0.0, arc))
     }
 
-    /** 既定の AUTO（下限 100m・上限 1km の段）で、自機から見た東 m・北 m の WP（順に）を置いて t 秒まで1秒ごとに進める。 */
+    /** D02 までの既定の AUTO（詳細の限度 100m・広域の限度 1km の段）で、自機から見た東 m・北 m の WP（順に）を置いて t 秒まで1秒ごとに進める。 */
     private fun autoRange(seconds: Int, vararg wps: EN, initialKm: Double = 1.0): Double {
         val lat0 = TestGeo.LAT0
         val lon0 = TestGeo.LON0
@@ -154,13 +154,13 @@ class HudViewportTest {
 
     @Test
     fun autoRulesWithTheMeasuredScreen() {
-        // 遠い次の WP（ほぼ真後ろ 4.19km）: 上限の 1km の段（R1 500m）で止まり、矢印で示す
+        // 遠い次の WP（ほぼ真後ろ 4.19km）: 広域の限度の 1km の段（R1 500m）で止まり、矢印で示す
         assertEquals(1_000.0, autoRange(30, at(166.0, 4_190.0)), 0.0)
         assertEquals(1_000.0, autoRange(30, at(166.0, 4_190.0), initialKm = 0.1), 0.0)
         // 前方 1.9km: 1km の段に収まる。500m の段には 1.25 倍で収まらないので 1km の段のまま
         assertEquals(1_000.0, autoRange(30, EN(0.0, 1_900.0)), 0.0)
-        // 前方 140m: 1段ずつ、それぞれ 5 秒待って狭める（5 秒で 500m、11 秒で 200m の段）。100m の段へは、
-        // 次の WP が 1.3 × 200m の段の R1（100m）= 130m 以内になるまで狭めない
+        // 前方 140m: 1段ずつ、それぞれ 5 秒待って詳細にする（5 秒で 500m、11 秒で 200m の段）。100m の段へは、
+        // 次の WP が 1.3 × 200m の段の R1（100m）= 130m 以内になるまで詳細にしない
         assertEquals(500.0, autoRange(5, EN(0.0, 140.0)), 0.0)
         assertEquals(200.0, autoRange(16, EN(0.0, 140.0)), 0.0)
         assertEquals(200.0, autoRange(60, EN(0.0, 140.0)), 0.0)
@@ -169,10 +169,10 @@ class HudViewportTest {
         assertEquals(100.0, autoRange(60, EN(0.0, 120.0)), 0.0)
         // 近い2つ（前方 300m と、その 100m 先）: 1km の段では 36 px で近すぎるので、すぐ 500m の段（72 px）
         assertEquals(500.0, autoRange(0, EN(0.0, 300.0), EN(0.0, 400.0)), 0.0)
-        // 近い2つが遠くにある（前方 800m と、その 50m 先）: 1km の段（18 px）では近すぎるので 500m の段へ狭める。
+        // 近い2つが遠くにある（前方 800m と、その 50m 先）: 1km の段（18 px）では近すぎるので 500m の段へ詳細にする。
         // 500m の段（36 px）でもまだ近いが、200m の段では次の WP が枠に収まらないので、500m の段で止める
         assertEquals(500.0, autoRange(30, EN(0.0, 800.0), EN(0.0, 850.0)), 0.0)
-        // 次の WP がない: 中央の段（100m / 200m / 500m / 1km のうち広い方の 500m の段、R1 250m）
+        // 次の WP がない: 中央の段（100m / 200m / 500m / 1km のうち広域の方の 500m の段、R1 250m）
         assertEquals(500.0, autoRange(0), 0.0)
     }
 
@@ -197,13 +197,13 @@ class HudViewportTest {
     @Test
     fun autoHoldsAfterPassingAWaypoint() {
         // 既定（10 秒）: A に到達した 31 秒目から、通り過ぎる 42 秒目と、そこから 10 秒（51 秒目）までは段を動かさず、
-        // 52 秒目から B へ向けて1段ずつ広げる
+        // 52 秒目から B へ向けて1段ずつ広域にする
         val r = passRun(10)
         val atReach = r[31]
         assertTrue(atReach < 1_000.0)
         for (t in 31..51) assertEquals("t=$t", atReach, r[t], 0.0)
         assertTrue(r[52] > atReach)
-        // 0 秒: 通り過ぎたその刻み（42 秒目）から広げる。通り過ぎるまでは変えない
+        // 0 秒: 通り過ぎたその刻み（42 秒目）から広域にする。通り過ぎるまでは変えない
         val z = passRun(0)
         for (t in 31..41) assertEquals("t=$t", z[31], z[t], 0.0)
         assertTrue(z[42] > z[41])
@@ -243,14 +243,14 @@ class HudViewportTest {
     fun engineUsesTheViewportWhenKnown() {
         val lat0 = TestGeo.LAT0
         val lon0 = TestGeo.LON0
-        // AUTO の上限は 20km の段（距離の判定と画面の判定の違いを見るため）
+        // AUTO の広域の限度は 20km の段（距離の判定と画面の判定の違いを見るため）
         val e = NavEngine(NavSettings(initialRangeKm = 1.0, autoMaxRangeKm = 20.0), sourceKind = SourceKind.LIVE)
         // 北へ 1.9km の WP。方位がないので北が上
         e.setWaypoints(listOf(Waypoint("A", TestGeo.lat(1_900.0), lon0)))
-        // 画面が分からないうちは距離で判定（1.9km は 2km の段の 0.9 倍を超える）: 1段ずつ広げて 5km
+        // 画面が分からないうちは距離で判定（1.9km は 2km の段の 0.9 倍を超える）: 1段ずつ広域にして 5km
         assertEquals(2_000.0, e.onFix(Fix(timeMs = 0, lat = lat0, lon = lon0), 0).rangeM, 0.0)
         assertEquals(5_000.0, e.onTick(1_000).rangeM, 0.0)
-        // 画面が分かれば、2km の段に 1.25 倍遠く（2375m、上へ 427.5 px）でも収まるので、5 秒待って1段狭める
+        // 画面が分かれば、2km の段に 1.25 倍遠く（2375m、上へ 427.5 px）でも収まるので、5 秒待って1段詳細にする
         e.setViewport(viewport)
         assertEquals(5_000.0, e.onTick(5_999).rangeM, 0.0)
         assertEquals(2_000.0, e.onTick(6_000).rangeM, 0.0)

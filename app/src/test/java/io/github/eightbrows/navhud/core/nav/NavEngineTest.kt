@@ -266,16 +266,16 @@ class NavEngineTest {
         val e = engine()
         assertEquals(1_000.0, e.state.rangeM, 0.0)
         assertTrue(e.state.rangeAuto)
-        // 次の WP が 3.9km 先 → AUTO の上限（1km の段）で止まる（画面が分からないので距離で判定）
+        // 次の WP が 3.9km 先 → AUTO の広域の限度（1km の段）で止まる（画面が分からないので距離で判定）
         e.setWaypoints(listOf(Waypoint("A", TestGeo.lat(3_900.0, 33.0), 133.0)))
         assertEquals(1_000.0, e.onFix(fix(t0), t0).rangeM, 0.0)
         // ＋ で 500m の段、AUTO は OFF
         val z = e.zoomIn()
         assertEquals(500.0, z.rangeM, 0.0)
         assertFalse(z.rangeAuto)
-        // AUTO を戻すと、すぐ1段広げて 1km の段
+        // AUTO を戻すと、すぐ1段広域にして 1km の段
         assertEquals(1_000.0, e.toggleAutoRange().rangeM, 0.0)
-        // 上限を 5km の段にすると、1段ずつ広げる（2km → 5km）
+        // 広域の限度を 5km の段にすると、1段ずつ広域にする（2km → 5km）
         assertEquals(2_000.0, e.updateSettings(e.settings.copy(autoMaxRangeKm = 5.0)).rangeM, 0.0)
         assertEquals(5_000.0, e.onTick(t0 + 1_000).rangeM, 0.0)
     }

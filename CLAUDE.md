@@ -54,6 +54,10 @@
 - 画面や初期値が変わる作業のときは、同じ作業の中で `docs/cheatsheet.html` を直し、`docs/cheatsheet.pdf` も作り直す。
   PDF は Edge のヘッドレス印刷（`--headless --no-pdf-header-footer --print-to-pdf=...`）で作り、A4 縦・1ページであることを確かめる。
 
+## ファイル形式の資料（恒久ルール）
+- ファイルの読み書き（WP リストの CSV・GPX、軌跡の track.csv・zip）を変えたときは、同じ作業の中で `docs/formats.html` を直し、`docs/formats.pdf` も作り直す。
+  中身は今のコードで実際に読み書きしている内容に合わせる（推測で書かない）。PDF の作り方はチートシートと同じ（A4 縦。1ページに収まらなくてよい）。
+
 ## バージョン・コミット
 - `app/build.gradle.kts` の `appVersionName`（`yyyyMMdd-Xnn`）だけを変える。versionCode は自動計算。
 - `.githooks/` のフックがコミットメッセージの先頭にバージョンを入れる（`git config core.hooksPath .githooks`）。

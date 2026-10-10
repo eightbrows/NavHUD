@@ -112,9 +112,9 @@ data class NavSettings(
     val initialRangeKm: Double = 0.5,
     /** 縮尺の AUTO（次の WP が収まる最小の段）を起動時に ON にする */
     val autoRange: Boolean = true,
-    /** AUTO: 狭める（拡大する）方向は、条件がこれだけ続いてから切り替える [秒] */
+    /** AUTO: 詳細にする方向は、条件がこれだけ続いてから切り替える [秒] */
     val autoRangeZoomInDelaySec: Int = 5,
-    /** AUTO の下限・上限 [km]（段。使う段から選ぶ。画面と設定画面では R1 = 1つ目の距離環の距離で出す） */
+    /** AUTO の詳細の限度・広域の限度 [km]（段。使う段から選ぶ。画面と設定画面では R1 = 1つ目の距離環の距離で出す） */
     val autoMinRangeKm: Double = Tuning.AUTO_MIN_RANGE_KM,
     val autoMaxRangeKm: Double = Tuning.AUTO_MAX_RANGE_KM,
     /**
@@ -122,7 +122,7 @@ data class NavSettings(
      * （真横通過・手動で到達にしたときは、到達してから数える）
      */
     val autoHoldAfterWpSec: Int = Tuning.AUTO_HOLD_AFTER_WP_SEC,
-    /** AUTO で狭め始める距離: 次の WP が「これ × 今の段の R1（1つ目の距離環）」以内のときだけ狭める。1.0〜2.0、0.1 刻み */
+    /** AUTO で詳細へ切り替える距離: 次の WP が「これ × 今の段の R1（1つ目の距離環）」以内のときだけ詳細にする。1.0〜2.0、0.1 刻み */
     val autoZoomInDistRatio: Double = Tuning.AUTO_ZOOM_IN_DIST_RATIO,
     /** 横並びの WP ボタン列に一度に見せる数（ボタンの幅はこれで決まる。超える分は左右にスクロール） */
     val wpButtonsMax: Int = 5,
@@ -209,7 +209,7 @@ data class NavSettings(
         fun nearestRingLabelScalePct(pct: Int): Int = RING_LABEL_SCALE_CHOICES_PCT.minBy { kotlin.math.abs(it.toLong() - pct) }
 
 
-        /** 狭め始める距離の倍率の選べる値（1.0, 1.1, … 2.0）。足し算の誤差が残らないよう、刻みの数から作って丸める */
+        /** 詳細へ切り替える距離の倍率の選べる値（1.0, 1.1, … 2.0）。足し算の誤差が残らないよう、刻みの数から作って丸める */
         val AUTO_ZOOM_IN_DIST_RATIO_CHOICES: List<Double> = run {
             val n = Math.round((Tuning.AUTO_ZOOM_IN_DIST_RATIO_MAX - Tuning.AUTO_ZOOM_IN_DIST_RATIO_MIN) / Tuning.AUTO_ZOOM_IN_DIST_RATIO_STEP).toInt()
             (0..n).map { i -> Math.round((Tuning.AUTO_ZOOM_IN_DIST_RATIO_MIN + i * Tuning.AUTO_ZOOM_IN_DIST_RATIO_STEP) * 1e6) / 1e6 }

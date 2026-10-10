@@ -65,7 +65,7 @@ class PanTest {
 
     private fun engine(): NavEngine {
         val e = NavEngine(
-            // AUTO の上限は 20km の段（PAN の前後で AUTO が動くことを見るため）
+            // AUTO の広域の限度は 20km の段（PAN の前後で AUTO が動くことを見るため）
             NavSettings(displayMode = DisplayMode.NORTH_UP, initialRangeKm = 2.0, autoMaxRangeKm = 20.0),
             sourceKind = SourceKind.LIVE,
         )
@@ -92,7 +92,7 @@ class PanTest {
         e.onFix(Fix(timeMs = 1_000, lat = lat0, lon = lon0), 1_000)
         assertEquals(before, e.state.rangeM, 0.0)
         assertEquals(true, e.state.rangeAuto)
-        // 現在地に戻ると AUTO が動き出す（広げる方向はすぐ）
+        // 現在地に戻ると AUTO が動き出す（広域にする方向はすぐ）
         e.endPan()
         assertNull(e.state.pan)
         e.onTick(2_000)
@@ -142,7 +142,7 @@ class PanTest {
         e.zoomBy(-1)
         assertEquals(10_000.0, e.state.rangeM, 0.0)
         assertEquals(true, e.state.rangeAuto)
-        // 現在地に戻ると、狭める方向でも待たずに AUTO が決め直す（北 1.5km → 2km）
+        // 現在地に戻ると、詳細にする方向でも待たずに AUTO が決め直す（北 1.5km → 2km）
         e.endPan()
         assertEquals(2_000.0, e.state.rangeM, 0.0)
         // PAN の外の ＋ は従来どおり AUTO を OFF にする

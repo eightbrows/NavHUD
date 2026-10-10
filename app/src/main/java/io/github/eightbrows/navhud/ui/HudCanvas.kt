@@ -54,7 +54,7 @@ fun HudCanvas(
     reserved: HudInsets = HudInsets(),
     onViewport: (HudViewport) -> Unit = {},
     onPan: (Float, Float) -> Unit = { _, _ -> },
-    /** ピンチ: 縮尺を変える段の数（正: 拡大 = ＋、負: 縮小 = −） */
+    /** ピンチ: 縮尺を変える段の数（正: 詳細へ = ＋、負: 広域へ = −） */
     onPinch: (Int) -> Unit = {},
     /** 数値の表示の上下の範囲 [px]。WP の名前・矢印の文字を重ねない */
     numberBands: List<ClosedFloatingPointRange<Float>> = emptyList(),

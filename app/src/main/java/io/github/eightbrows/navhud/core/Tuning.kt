@@ -53,34 +53,34 @@ object Tuning {
     /** 画面の大きさがまだ分からないときの AUTO: 次の WP が「縮尺 × これ」以内 */
     const val RANGE_DISTANCE_FIT_RATIO = 0.9
 
-    /** AUTO の下限・上限の既定 [km]（段。R1 = 1つ目の距離環はこの半分: 50m / 500m） */
+    /** AUTO の詳細の限度・広域の限度の既定 [km]（段。R1 = 1つ目の距離環はこの半分: 50m / 250m） */
     const val AUTO_MIN_RANGE_KM = 0.1
     const val AUTO_MAX_RANGE_KM = 0.5
 
     /** AUTO: 描画の枠の中に見えている隣り合う目標どうしの、画面上の最小の間隔 [dp]。これより近くなる段は使わない */
     const val AUTO_WP_MIN_SEP_DP = 40f
 
-    /** AUTO: 1段狭めるのは、次の WP を自機から 1 / これ 倍遠くに置いても1段狭い段の枠に収まるとき（狭めた直後に広げ直さないための余裕） */
+    /** AUTO: 1段詳細にするのは、次の WP を自機から 1 / これ 倍遠くに置いても1つ詳細側の段の枠に収まるとき（詳細にした直後に広域に戻さないための余裕） */
     const val AUTO_ZOOM_IN_FIT_RATIO = 0.8
 
     /** AUTO: 到達した WP を通り過ぎてから段を動かさない時間 [秒] の既定と範囲（通り過ぎるまでも動かさない） */
     const val AUTO_HOLD_AFTER_WP_SEC = 10
 
 
-    /** AUTO: 狭め始める距離 = これ × 今の段の R1（1つ目の距離環。次の WP がこの距離以内のときだけ狭める）。既定と範囲・刻み */
+    /** AUTO: 詳細へ切り替える距離 = これ × 今の段の R1（1つ目の距離環。次の WP がこの距離以内のときだけ詳細にする）。既定と範囲・刻み */
     const val AUTO_ZOOM_IN_DIST_RATIO = 1.3
     const val AUTO_ZOOM_IN_DIST_RATIO_MIN = 1.0
     const val AUTO_ZOOM_IN_DIST_RATIO_MAX = 2.0
     const val AUTO_ZOOM_IN_DIST_RATIO_STEP = 0.1
 
     /**
-     * AUTO: 次の WP に向けて一度狭めたあとは、到達するまで広げない。WP から離れたら広げる:
-     * 次の WP までの距離 > 「1段広い段で狭め始める距離（狭め始める距離の倍率 × その段の R1）× これ」。
+     * AUTO: 次の WP に向けて一度詳細にしたあとは、到達するまで広域にしない。WP から離れたら広域にする:
+     * 次の WP までの距離 > 「1つ広域側の段で詳細へ切り替える距離（詳細へ切り替える距離の倍率 × その段の R1）× これ」。
      * 既定（倍率 1.3）なら、R1 50m → 100m は 162.5m、100m → 250m は 406m、250m → 500m は 812m より遠いとき
      */
     const val AUTO_ZOOM_OUT_DIST_RATIO = 1.25
 
-    /** ピンチ（§6.12）: 2本指の開き具合が、基準のこの倍以上で1段拡大（距離のレンジを小さく）、この倍以下で1段縮小。1段変えたら基準を取り直す */
+    /** ピンチ（§6.12）: 2本指の開き具合が、基準のこの倍以上で1段詳細へ（距離のレンジを小さく）、この倍以下で1段広域へ。1段変えたら基準を取り直す */
     const val PINCH_ZOOM_IN_RATIO = 1.25f
     const val PINCH_ZOOM_OUT_RATIO = 0.8f
 

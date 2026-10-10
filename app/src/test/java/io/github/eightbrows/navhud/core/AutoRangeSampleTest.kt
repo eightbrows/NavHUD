@@ -38,7 +38,7 @@ class AutoRangeSampleTest {
 
     /** 段が変わった記録（時刻 [ms]、前の段 [m]、後の段 [m]、そのときの次の WP までの距離 [m]）。 */
     data class Change(val timeMs: Long, val fromM: Double, val toM: Double, val wpDistM: Double?) {
-        /** 狭めたときの「次の WP までの距離 ÷ 狭める前の R1（1つ目の距離環 = 段の 1/2）」。1 より大きければ1つ目の円の外で狭めた */
+        /** 詳細にしたときの「次の WP までの距離 ÷ 詳細にする前の R1（1つ目の距離環 = 段の 1/2）」。1 より大きければ1つ目の円の外で詳細にした */
         val zoomInRatio: Double? get() = if (toM < fromM) wpDistM?.let { it / (fromM / 2) } else null
     }
 
@@ -82,7 +82,7 @@ class AutoRangeSampleTest {
         write("replay", replay)
         // 記録が取れていること（段は少なくとも一度は決まる）
         assertTrue(live.isNotEmpty() && replay.isNotEmpty())
-        // 既定の AUTO（下限 100m・上限 1km の段）: どの段も範囲の中
+        // どの段も、D02 までの既定の AUTO の範囲（詳細の限度 100m・広域の限度 1km の段）の中。流しているのは今の既定（広域の限度 500m の段）
         assertTrue((live + replay).all { it.toM in 100.0..1_000.0 })
     }
 

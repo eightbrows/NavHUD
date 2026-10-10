@@ -59,7 +59,7 @@ class SettingsCodecTest {
 
     @Test
     fun autoLimitsDefaultsAndInvalidValues() {
-        // 既定: 下限 100m の段（R1 50m）、上限 500m の段（R1 250m。D03 から。前は 1km の段）
+        // 既定: 詳細の限度 100m の段（R1 50m）、広域の限度 500m の段（R1 250m。D03 から。前は 1km の段）
         assertEquals(0.1, NavSettings().autoMinRangeKm, 0.0)
         assertEquals(0.5, NavSettings().autoMaxRangeKm, 0.0)
         // 段の一覧にない値・読めない値は既定値
@@ -67,7 +67,7 @@ class SettingsCodecTest {
         assertEquals(0.1, s.autoMinRangeKm, 0.0)
         assertEquals(0.5, s.autoMaxRangeKm, 0.0)
         assertEquals(0.05, SettingsCodec.decode(mapOf("autoMinRangeKm" to "0.05")).autoMinRangeKm, 0.0)
-        // WP 通過後の待機（既定 10 秒）と、狭め始める距離（既定 1.3、1.0〜2.0 の 0.1 刻み。今の段の R1 が基準）
+        // WP 通過後の待機（既定 10 秒）と、詳細へ切り替える距離（既定 1.3、1.0〜2.0 の 0.1 刻み。今の段の R1 が基準）
         assertEquals(10, NavSettings().autoHoldAfterWpSec)
         assertEquals(1.3, NavSettings().autoZoomInDistRatio, 0.0)
         assertEquals(0, SettingsCodec.decode(mapOf("autoHoldAfterWpSec" to "0")).autoHoldAfterWpSec)
@@ -82,7 +82,7 @@ class SettingsCodecTest {
 
     @Test
     fun oldZoomInRatioIsNotUsed() {
-        // 前の版の倍率（1段狭い段の R1 が基準）は意味が違うので読まず、初期値（1.3）にする。ほかの設定はそのまま読む
+        // 前の版の倍率（1つ詳細側の段の R1 が基準）は意味が違うので読まず、初期値（1.3）にする。ほかの設定はそのまま読む
         val s = SettingsCodec.decode(mapOf("travelMode" to "CAR", "autoZoomInDistRatio" to "2.5", "autoHoldAfterWpSec" to "20"))
         assertEquals(1.3, s.autoZoomInDistRatio, 0.0)
         assertEquals(20, s.autoHoldAfterWpSec)
@@ -241,7 +241,7 @@ class SettingsCodecTest {
 
     @Test
     fun zoomInRatioAboveTheUpperLimitIsReadAsTwo() {
-        // 狭め始める距離の上限は 2.0 倍（D04 から。前は 3.0）。保存されていた値が 2.0 を超えていたら 2.0 として読む
+        // 詳細へ切り替える距離の上限は 2.0 倍（D04 から。前は 3.0）。保存されていた値が 2.0 を超えていたら 2.0 として読む
         for (saved in listOf("2.1", "2.5", "3.0", "3.5", "99")) {
             assertEquals(saved, 2.0, SettingsCodec.decode(mapOf("autoZoomInR1Ratio" to saved)).autoZoomInDistRatio, 0.0)
         }

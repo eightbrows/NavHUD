@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NavHUD ファイル形式</title>
+<style>
+  :root {
+    --bg: #eef0f3;
+    --paper: #ffffff;
+    --ink: #14181f;
+    --muted: #586070;
+    --rule: #cdd2da;
+    --soft: #f1f3f6;
+    --head: #14181f;
+    --sans: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Meiryo", system-ui, sans-serif;
+    --mono: ui-monospace, "Cascadia Mono", "Consolas", "Menlo", "MS Gothic", monospace;
+    color-scheme: light;
+  }
+  @media screen and (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #07090c; --paper: #10141a; --ink: #e6e9ee; --muted: #98a0ae; --rule: #2a313c; --soft: #181d25; --head: #e6e9ee;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #07090c; --paper: #10141a; --ink: #e6e9ee; --muted: #98a0ae; --rule: #2a313c; --soft: #181d25; --head: #e6e9ee;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--sans); font-size: 14px; line-height: 1.6; padding: 16px; }
+  .sheet { background: var(--paper); max-width: 900px; margin: 0 auto; padding: 16px 20px; border-radius: 8px; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; border-bottom: 2px solid var(--head); padding-bottom: 6px; margin-bottom: 12px; }
+  h1 { margin: 0; font-size: 1.5em; line-height: 1.2; }
+  .ver { margin: 0; color: var(--muted); font-size: .86em; }
+  h2 { margin: 1.2em 0 .5em; font-size: 1.1em; line-height: 1.3; padding: .2em .55em; background: var(--head); color: var(--paper); border-radius: 3px; }
+  h3 { margin: 1em 0 .35em; font-size: 1em; line-height: 1.3; border-bottom: 1px solid var(--rule); padding-bottom: .15em; }
+  p { margin: 0 0 .5em; }
+  ul { margin: 0 0 .5em; padding-left: 1.3em; }
+  li { margin: 0 0 .2em; }
+  code { font-family: var(--mono); font-size: .92em; background: var(--soft); padding: 0 .25em; border-radius: 3px; overflow-wrap: anywhere; }
+  pre { margin: 0 0 .6em; background: var(--soft); border-radius: 4px; padding: .6em .8em; overflow-x: auto; font-family: var(--mono); font-size: .86em; line-height: 1.5; }
+  pre code { background: none; padding: 0; font-size: 1em; overflow-wrap: normal; }
+  .note { color: var(--muted); font-size: .92em; }
+  .tw { overflow-x: auto; margin: 0 0 .6em; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; vertical-align: top; padding: .25em .5em; border-bottom: 1px solid var(--rule); }
+  thead th { border-bottom: 2px solid var(--head); white-space: nowrap; font-size: .92em; }
+  tbody th { font-weight: 700; white-space: nowrap; }
+  .cols tbody th { font-family: var(--mono); font-size: .92em; }
+  td.nw { white-space: nowrap; }
+  a { color: inherit; }
+
+  /* 印刷: A4 縦 */
+  @page { size: A4 portrait; margin: 10mm; }
+  @media print {
+    :root { --bg: #fff; --paper: #fff; --ink: #000; --muted: #333; --rule: #999; --soft: #eee; --head: #000; color-scheme: light; }
+    html, body { background: #fff; }
+    body { padding: 0; font-size: 9pt; line-height: 1.42; }
+    .sheet { max-width: none; padding: 0; border-radius: 0; }
+    header { margin-bottom: 3mm; padding-bottom: 1mm; border-bottom-width: 1pt; }
+    h1 { font-size: 15pt; }
+    h2 { margin: 4mm 0 1.6mm; padding: .5mm 1.6mm; break-after: avoid; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    h3 { margin: 3mm 0 1mm; break-after: avoid; }
+    th, td { padding: .5mm 1.4mm; border-bottom-width: .4pt; }
+    thead th { border-bottom-width: 1pt; }
+    tr, pre, li { break-inside: avoid; }
+    pre, code { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+    .tw { overflow: visible; }
+  }
+</style>
+</head>
+<body>
+<main class="sheet">
+  <header>
+    <h1>NavHUD ファイル形式</h1>
+    <p class="ver">移動目標案内アプリ ・ 20261010-D08 時点 ・ このアプリが読み書きするファイルの説明</p>
+  </header>
+
+  <h2>1 WP リスト</h2>
+
+  <h3>読み書きできる形式</h3>
+  <div class="tw">
+    <table>
+      <thead><tr><th>形式</th><th>読み込み</th><th>書き出し</th><th>入れ方</th></tr></thead>
+      <tbody>
+        <tr><th>CSV</th><td class="nw">できる</td><td class="nw">できる</td><td>起動時の「リストを選ぶ」、または「WP設定」→ インポート / エクスポート</td></tr>
+        <tr><th>GPX</th><td class="nw">できる</td><td class="nw">できない</td><td>CSV と同じ（インポート）。読むのは <code>&lt;wpt&gt;</code> だけ</td></tr>
+        <tr><th>座標の文字</th><td class="nw">できる（1点）</td><td class="nw">—</td><td>「WP設定」→ 貼り付け（クリップボードの <code>緯度, 経度</code>）、または 追加・編集の入力欄</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <ul>
+    <li>CSV か GPX かは、ファイルの中身で見分けます。先頭が <code>&lt;?xml</code> か <code>&lt;gpx</code> なら GPX、それ以外は CSV です。ファイルの名前や拡張子は見ません。</li>
+    <li>インポートすると、今のリストと置き換わります（足し込みではありません）。</li>
+    <li>WP リストはアプリの中に保存しません。編集したら、エクスポートで CSV に書き出してください。覚えているのは「最後に読み込んだか書き出したファイルの場所」だけで、次の起動のときにそのファイルを読み直します（設定で、起動のたびに選ぶ形にもできます）。</li>
+    <li>到達済みかどうかは、ファイルに書き出さず、読み込みもしません。</li>
+  </ul>
+
+  <h3>CSV の決まり</h3>
+  <div class="tw">
+    <table>
+      <tbody>
+        <tr><th>見出し行</th><td>必要です。1行目（空の行を除いた最初の行）を見出しとして読みます。列は見出しの名前で探すので、順番は自由です。知らない名前の列は無視します。大文字・小文字は区別しません。</td></tr>
+        <tr><th>区切り</th><td>カンマ（<code>,</code>）だけです。タブやセミコロンは区切りになりません。</td></tr>
+        <tr><th>文字コード</th><td>UTF-8（BOM はあってもなくてもよい）。UTF-8 として読めないときは、Shift_JIS（Windows-31J）として読みます。</td></tr>
+        <tr><th>改行</th><td>CRLF・LF・CR のどれでも、混ざっていても読めます。空の行は無視します。</td></tr>
+        <tr><th>値の囲み</th><td>カンマ・改行・<code>"</code> を含む値は <code>"..."</code> で囲みます。中の <code>"</code> は <code>""</code> と書きます。囲んでいない値は、前後の空白を取って読みます。</td></tr>
+        <tr><th>小数点</th><td>ピリオド（<code>.</code>）です。カンマは区切りになるので使えません。</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>CSV の列</h3>
+  <div class="tw">
+    <table class="cols">
+      <thead><tr><th>列の名前</th><th>意味</th><th>必須</th><th>書かなかったとき</th><th>書き方の例</th></tr></thead>
+      <tbody>
+        <tr><th>lat</th><td>緯度。10進の度で、−90〜90。南緯はマイナス</td><td class="nw">必須</td><td>その行は読めない行</td><td><code>33.46679346</code></td></tr>
+        <tr><th>lon</th><td>経度。10進の度で、−180〜180。西経はマイナス</td><td class="nw">必須</td><td>その行は読めない行</td><td><code>132.96174603</code></td></tr>
+        <tr><th>ele</th><td>標高 [m]。標高プロファイルに使います</td><td class="nw">省略可</td><td>標高なし（標高プロファイルに点を描かない）</td><td><code>1300</code></td></tr>
+        <tr><th>name</th><td>名前。画面の文字と WP ボタンに出ます</td><td class="nw">省略可</td><td><code>WP1</code>・<code>WP2</code>…（読めた順の番号）</td><td><code>展望台</code></td></tr>
+        <tr><th>target_time</th><td>目標時刻（端末の時刻）。TGT の計算に使います</td><td class="nw">省略可</td><td>目標時刻なし（TGT は <code>---</code>）</td><td><code>08:30</code> <code>8:30</code> <code>8:30:00</code></td></tr>
+        <tr><th>deadline_time</th><td>締切時刻（端末の時刻）。DDL の計算に使います</td><td class="nw">省略可</td><td>締切時刻なし（DDL は <code>---</code>）</td><td><code>08:45</code></td></tr>
+        <tr><th>enabled</th><td>有効か無効か。無効の WP は目標にせず、グレーの破線で描きます</td><td class="nw">省略可</td><td>有効</td><td><code>1</code>（有効）<code>0</code>（無効）。<code>true</code> / <code>false</code> も可</td></tr>
+        <tr><th>radius</th><td><b>この WP だけの到達半径</b> [m]。0 より大きい数。この半径に入ったら到達にします</td><td class="nw">省略可</td><td>全体の設定（到着半径。初期値 30 m）を使う</td><td><code>100</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <ul>
+    <li><code>enabled</code> と <code>radius</code> は、このアプリ独自の列です。ほかの 6 列だけの CSV も、そのまま読めます。</li>
+    <li>時刻は <code>時:分</code> か <code>時:分:秒</code> です（時は 0〜23、1桁でもよい）。日付は持ちません。全角の数字・コロンで書いても読めます。<code>0830</code> や <code>8時30分</code> は読めません。</li>
+    <li><code>radius</code> がある WP では、通過の予備判定の「近づいた距離の上限」も、半径 × 3 の方が大きければそちらを使います。</li>
+  </ul>
+
+  <h3>緯度・経度の書き方</h3>
+  <div class="tw">
+    <table>
+      <thead><tr><th>場所</th><th>読める書き方</th><th>読めない書き方</th></tr></thead>
+      <tbody>
+        <tr><td>CSV の <code>lat</code>・<code>lon</code> の列</td><td>10進の度を、列を分けて書く。<code>33.46679346</code>、<code>-33.4</code>、<code>+33.4</code>。前後の空白は可</td><td>度分秒（<code>33°28'00"</code>）、<code>N33.4</code> のような文字つき、範囲の外の数</td></tr>
+        <tr><td>貼り付け、追加・編集の入力欄</td><td><code>緯度, 経度</code> を1行で。<code>34.69370, 135.50230</code>（Google マップでコピーした座標の形）。カンマの前後の空白はあってもなくてもよい。符号も可</td><td>かっこつき、空白だけで区切ったもの、URL、度分秒、2行以上</td></tr>
+        <tr><td>GPX の <code>&lt;wpt&gt;</code></td><td><code>lat</code>・<code>lon</code> の属性に、10進の度</td><td>範囲の外の数、数でない値</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>読めない行があったとき</h3>
+  <ul>
+    <li>その行だけを飛ばし、読めた行でリストを作ります。読み込みは止まりません。</li>
+    <li>読み込みのあと、「WP設定」の画面に「○○ から N 件を読み込みました（読めない行 M 件をスキップ）」と出ます。</li>
+    <li>読めない行になるのは、次のどれかのときです。
+      <ul>
+        <li><code>lat</code>・<code>lon</code> が空、数でない、範囲の外。</li>
+        <li><code>ele</code> が数でない（空はよい）。</li>
+        <li><code>target_time</code>・<code>deadline_time</code> の形が違う（空はよい）。</li>
+        <li><code>enabled</code> が <code>1</code>・<code>0</code>・<code>true</code>・<code>false</code>・空 のどれでもない。</li>
+        <li><code>radius</code> が 0 以下、または数でない（空はよい）。</li>
+      </ul></li>
+    <li>見出し行に <code>lat</code> と <code>lon</code> がないと、すべての行が読めない行になります（見出しのない CSV も同じです）。</li>
+  </ul>
+
+  <h3>サンプル（CSV）</h3>
+  <p>このまま <code>waypoints.csv</code> として保存すれば読み込めます。</p>
+<pre><code>lat,lon,ele,name,target_time,deadline_time,enabled,radius
+33.47649101,133.00275172,1300,峠の入口,,,1,
+33.46679346,132.96174603,,展望台,08:30,08:45,1,
+33.48377796,132.87220649,,旧道（通行止め）,,,0,
+33.48750794,132.90060923,,道の駅,09:10,09:20,1,100
+33.55944388,133.00766313,,ダム,,,1,
+33.667743,132.8949383,,終点,11:00,,1,</code></pre>
+  <p class="note">3行目は無効の WP（<code>enabled</code> が 0）、4行目は到達半径 100 m の WP です。空の欄は「なし」になります。</p>
+
+  <h3>書き出し（エクスポート）</h3>
+  <ul>
+    <li>CSV だけです。列は上の 8 列を、この順番で書きます。はじめのファイル名は <code>waypoints.csv</code> です。</li>
+    <li>文字コードは UTF-8（BOM つき）、改行は CRLF です。Excel でそのまま開けます。</li>
+    <li>緯度・経度は桁を落とさずに書きます。時刻は <code>08:30</code>（秒があれば <code>08:30:15</code>）、<code>enabled</code> は <code>1</code> か <code>0</code> です。値のない欄は空にします。</li>
+    <li>カンマ・改行・<code>"</code> を含む名前や、前後に空白のある名前は、<code>"..."</code> で囲んで書きます。</li>
+    <li>書き出した CSV は、そのまま読み込めます（上のサンプルは、書き出したときの形と同じです）。</li>
+  </ul>
+
+  <h3>GPX</h3>
+  <p>読むのは、ファイルの中の <code>&lt;wpt&gt;</code>（ウェイポイント）だけです。<code>&lt;rtept&gt;</code>（ルートの点）と <code>&lt;trkpt&gt;</code>（軌跡の点）は読みません。</p>
+  <div class="tw">
+    <table class="cols">
+      <thead><tr><th>GPX の中身</th><th>WP の項目</th><th>書かなかったとき・読めないとき</th></tr></thead>
+      <tbody>
+        <tr><th>wpt の lat・lon</th><td>緯度・経度（必須）</td><td>その <code>&lt;wpt&gt;</code> を飛ばして、件数に数える</td></tr>
+        <tr><th>&lt;name&gt;</th><td>名前</td><td><code>WP1</code>・<code>WP2</code>…</td></tr>
+        <tr><th>&lt;ele&gt;</th><td>標高 [m]</td><td>標高なし</td></tr>
+        <tr><th>&lt;time&gt;</th><td>目標時刻</td><td>目標時刻なし</td></tr>
+        <tr><th>&lt;extensions&gt; の &lt;deadline&gt;</th><td>締切時刻</td><td>締切時刻なし</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <ul>
+    <li><code>&lt;time&gt;</code> と <code>&lt;deadline&gt;</code> は、日付つきの時刻（<code>2026-08-13T23:30:00Z</code> の形）なら、端末の時刻帯の時刻に直して使います（日本なら 08:30）。<code>08:45</code> のように時刻だけを書いてもかまいません。</li>
+    <li>有効 / 無効と、WP ごとの到達半径は GPX では指定できません。すべて「有効」「全体の設定の半径」になります。</li>
+    <li>XML として読めないファイルは、0 件になります。</li>
+  </ul>
+<pre><code>&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;gpx version="1.1" creator="example" xmlns="http://www.topografix.com/GPX/1/1"&gt;
+  &lt;wpt lat="33.46679346" lon="132.96174603"&gt;
+    &lt;ele&gt;1280&lt;/ele&gt;
+    &lt;time&gt;2026-08-13T23:30:00Z&lt;/time&gt;
+    &lt;name&gt;展望台&lt;/name&gt;
+    &lt;extensions&gt;&lt;deadline&gt;08:45&lt;/deadline&gt;&lt;/extensions&gt;
+  &lt;/wpt&gt;
+  &lt;wpt lat="33.48750794" lon="132.90060923"&gt;
+    &lt;name&gt;道の駅&lt;/name&gt;
+  &lt;/wpt&gt;
+&lt;/gpx&gt;</code></pre>
+
+  <h2>2 軌跡（再生用の記録）</h2>
+  <p>REPLAY で再生する記録です。上部の ⇄ で REPLAY にして、FILE で選びます。読めるのは、GpsLogger が記録する <code>track.csv</code> と、GpsLogger で書き出した zip です。書き出しはありません。</p>
+  <p>GpsLogger の形式そのものの説明は、GpsLogger の説明を見てください: <a href="https://github.com/eightbrows/GpsLogger">https://github.com/eightbrows/GpsLogger</a></p>
+
+  <h3>track.csv でこのアプリが使う列</h3>
+  <div class="tw">
+    <table class="cols">
+      <thead><tr><th>列の名前</th><th>意味</th><th>このアプリでの使い道</th></tr></thead>
+      <tbody>
+        <tr><th>latitude</th><td>緯度 [度]</td><td>位置（必須）</td></tr>
+        <tr><th>longitude</th><td>経度 [度]</td><td>位置（必須）</td></tr>
+        <tr><th>epoch_ms</th><td>時刻（1970 年からのミリ秒）</td><td>時刻（必須。再生の進み方、TIME、TGT・DDL・ETA の計算）</td></tr>
+        <tr><th>utc_iso8601</th><td>時刻（<code>2026-08-13T22:52:35.000Z</code> の形）</td><td><code>epoch_ms</code> が読めない行で、代わりに使う</td></tr>
+        <tr><th>altitude_ellipsoid_m</th><td>高さ（楕円体高）[m]</td><td>ALT（ここから標高オフセットを引く）、RATE の高度差、標高プロファイルの現在地</td></tr>
+        <tr><th>speed_mps</th><td>速度 [m/s]</td><td>GS、RATE の移動距離、ETA、方位の保持、真横通過の判定</td></tr>
+        <tr><th>bearing_deg</th><td>進行方位 [度]</td><td>HDG（GPS の方位）、真横通過の判定</td></tr>
+        <tr><th>bearing_acc_deg</th><td>方位の精度 [度]</td><td>GPS の方位を使うかどうか。0 か空の行は「方位なし」（停止中）として扱う</td></tr>
+        <tr><th>horizontal_acc_m</th><td>位置の精度 [m]</td><td>GPS の方位を使うかどうか（設定の上限と比べる）</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <ul>
+    <li>これ以外の列（<code>provider</code>・<code>gdop</code> など）は読みません。GpsLogger のほかのファイル（<code>sats.csv</code>・<code>meta.json</code>・<code>track.gpx</code>・<code>track.kmz</code>）も読みません。</li>
+    <li>1行目は見出しです。列は見出しの名前で探すので、順番が違っても、列が増えていても読めます（名前の大文字・小文字は区別します）。区切りはカンマ、文字コードは UTF-8 です。</li>
+    <li>緯度・経度・時刻のどれかが読めない行は飛ばします。読める行が1つもないと、「○○ に読める行がありません」と出ます。</li>
+    <li><code>bearing_acc_deg</code> の列がない記録では、速度が 0 の行を「方位なし」として扱います。</li>
+    <li>記録の途中の抜け（時刻の間があいた所）は、そのまま再生します。抜けが長いと NO FIX になります。</li>
+  </ul>
+
+  <h3>zip から読むとき</h3>
+  <ul>
+    <li>GpsLogger で書き出した zip を、そのまま FILE で選べます。zip かどうかは、名前ではなくファイルの中身で見分けます。</li>
+    <li>zip の中の <code>session_yyyyMMdd_HHmmss/track.csv</code> を探します。名前が <code>track.csv</code> のファイルなら、フォルダの深さは問いません。ほかのファイルは読み飛ばします。</li>
+    <li>zip を開くと、中のセッションの一覧が出ます。<b>セッションが1つだけでも一覧を出します</b>。1つ選ぶと、その記録を再生します。セッションをつないで1本にはしません。</li>
+    <li>一覧は、<b>開始時刻の新しい順</b>です。1行に、開始時刻（端末の時刻帯）、長さ、点の数、フォルダの名前が出ます。読める行のないセッションは、一覧には出ますが選べません。</li>
+    <li>選んだ zip とセッションを覚えていて、次の起動では同じセッションを開きます。そのセッションが zip の中に見つからないときは、一覧を出します。</li>
+    <li>zip の中身は、端末に展開しません。必要な <code>track.csv</code> だけを読みます。</li>
+    <li>壊れた zip や途中で切れた zip は「zip として読めませんでした」、<code>track.csv</code> の入っていない zip は「zip に track.csv がありません」と出ます。</li>
+  </ul>
+</main>
+</body>
+</html>
