@@ -172,11 +172,15 @@ object Tuning {
     const val SIDE_BUTTON_GAP_DP = 6f
     const val SIDE_COLUMN_PADDING_V_DP = 6f
 
-    /** 再生の帯（REPLAY のときだけ、画面の一番下）: 高さ、ボタンの高さ、▶ / ❚❚ と − / ＋ の幅 */
-    const val REPLAY_BAND_HEIGHT_DP = 36f
-    const val REPLAY_BAND_BUTTON_HEIGHT_DP = 30f
-    const val REPLAY_PLAY_BUTTON_WIDTH_DP = 44f
-    const val REPLAY_SPEED_BUTTON_WIDTH_DP = 34f
+    /**
+     * 左の再生の操作列（REPLAY のときだけ。数値の下から WP ボタン列の上まで）: 幅は右の操作列と同じ（SIDE_COLUMN_WIDTH_DP）。
+     * 左端の「戻る」ジェスチャーの範囲（システムの値）からさらにこれだけ内側に置く、倍速の ＋ / − の高さ、
+     * 縦のスライダーの線の太さ・つまみの直径
+     */
+    const val REPLAY_COLUMN_EDGE_MARGIN_DP = 8f
+    const val REPLAY_SPEED_BUTTON_HEIGHT_DP = 44f
+    const val REPLAY_SEEK_TRACK_DP = 8f
+    const val REPLAY_SEEK_THUMB_DP = 26f
 
     /** 横並びの WP ボタン列: 高さ、左端の「WP設定」の幅、ボタンの間隔 */
     const val WP_STRIP_HEIGHT_DP = 40f
@@ -194,7 +198,7 @@ object Tuning {
     const val OVERLAY_ALPHA = 0.6f
 
     /**
-     * 地図に重ねるボタン（上部バー・操作列・WP ボタン列・再生の帯）と数値の不透明度 [%]（設定で変える。既定値と範囲・刻み）。
+     * 地図に重ねるボタン（上部バー・操作列・WP ボタン列・再生の操作列）と数値の不透明度 [%]（設定で変える。既定値と範囲・刻み）。
      * 設定画面・WP 設定画面・案内の枠のボタンには使わない
      */
     const val BUTTON_OPACITY_DEFAULT_PCT = 70
@@ -272,7 +276,7 @@ object Tuning {
     const val RING_LABEL_SP = 10f
 
     /** 距離環の数字の大きさ [%]（RING_LABEL_SP を 100% として）の既定と選べる値（保存値が選べる値にない数なら、一番近い段に読み替える） */
-    const val RING_LABEL_SCALE_DEFAULT_PCT = 200
+    const val RING_LABEL_SCALE_DEFAULT_PCT = 150
     val RING_LABEL_SCALE_CHOICES_PCT = listOf(100, 125, 150, 175, 200)
 
     /** WP の文字の大きさ [sp]: 地図上の名前・方位（前は 13）/ 画面外の矢印の距離・名前・方位（前は 11） */

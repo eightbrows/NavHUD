@@ -31,7 +31,7 @@ class SettingsCodecTest {
             hudWpCount = 4,
             uiTheme = ColorTheme.AMBER,
             mapTheme = ColorTheme.WHITE,
-            ownshipPosition = OwnshipPosition.HIGH,
+            ownshipPosition = OwnshipPosition.STANDARD,
             profileSize = ProfileSize.LARGE,
             panReturnSec = 30,
             autoOpenLastList = true,
@@ -40,7 +40,7 @@ class SettingsCodecTest {
             numbersOpacityPct = 60,
             trackColor = TrackColor.CYAN,
             trackBrightnessPct = 75,
-            ringLabelScalePct = 150,
+            ringLabelScalePct = 175,
             autoMinRangeKm = 0.2,
             autoMaxRangeKm = 5.0,
             autoHoldAfterWpSec = 20,
@@ -136,8 +136,8 @@ class SettingsCodecTest {
 
     @Test
     fun ringLabelScaleIsSavedAndOtherNumbersGoToTheNearestStep() {
-        // 距離環の数字の大きさ: 既定 200%、100 / 125 / 150 / 175 / 200 から選ぶ
-        assertEquals(200, NavSettings().ringLabelScalePct)
+        // 距離環の数字の大きさ: 既定 150%（D01 から。前は 200%）、100 / 125 / 150 / 175 / 200 から選ぶ
+        assertEquals(150, NavSettings().ringLabelScalePct)
         assertEquals(listOf(100, 125, 150, 175, 200), NavSettings.RING_LABEL_SCALE_CHOICES_PCT)
         // 保存して読み直すと同じ値
         for (v in NavSettings.RING_LABEL_SCALE_CHOICES_PCT) {
@@ -156,12 +156,13 @@ class SettingsCodecTest {
             assertEquals(saved, expected, s.ringLabelScalePct)
             assertEquals(75, s.trackBrightnessPct)
         }
-        // 数でない値は既定値
-        for (bad in listOf("x", "", "150.5")) {
-            assertEquals(bad, 200, SettingsCodec.decode(mapOf("ringLabelScalePct" to bad)).ringLabelScalePct)
+        // 数でない値は既定値（150）
+        for (bad in listOf("x", "", "150.5", "200.0")) {
+            assertEquals(bad, 150, SettingsCodec.decode(mapOf("ringLabelScalePct" to bad)).ringLabelScalePct)
         }
-        // 保存がない（前の版）なら既定値
-        assertEquals(200, SettingsCodec.decode(mapOf("travelMode" to "CAR")).ringLabelScalePct)
+        // 保存がない（前の版）なら既定値（150）。保存してある値（前の既定の 200 など）はそのまま
+        assertEquals(150, SettingsCodec.decode(mapOf("travelMode" to "CAR")).ringLabelScalePct)
+        assertEquals(200, SettingsCodec.decode(mapOf("travelMode" to "CAR", "ringLabelScalePct" to "200")).ringLabelScalePct)
     }
 
     @Test
@@ -188,15 +189,18 @@ class SettingsCodecTest {
 
     @Test
     fun ownshipPositionKeepsTheSavedNames() {
-        // 前からの段の保存値（STANDARD / HIGH）は変えない。さらに高めは HIGHER
-        assertEquals("STANDARD", SettingsCodec.encode(NavSettings())["ownshipPosition"])
+        // 前からの段の保存値（STANDARD / HIGH）は変えない。さらに高めは HIGHER。既定は D01 から高め
+        assertEquals(OwnshipPosition.HIGH, NavSettings().ownshipPosition)
+        assertEquals("HIGH", SettingsCodec.encode(NavSettings())["ownshipPosition"])
         assertEquals(listOf("STANDARD", "HIGH", "HIGHER"), OwnshipPosition.entries.map { it.name })
         for (p in OwnshipPosition.entries) {
             assertEquals(p, SettingsCodec.decode(mapOf("ownshipPosition" to p.name)).ownshipPosition)
         }
         assertEquals(OwnshipPosition.HIGH, SettingsCodec.decode(mapOf("ownshipPosition" to "HIGH")).ownshipPosition)
-        // 読めない名前は標準
-        assertEquals(OwnshipPosition.STANDARD, SettingsCodec.decode(mapOf("ownshipPosition" to "TOP")).ownshipPosition)
+        // 読めない名前・保存がないときは既定の高め。保存してある標準はそのまま
+        assertEquals(OwnshipPosition.HIGH, SettingsCodec.decode(mapOf("ownshipPosition" to "TOP")).ownshipPosition)
+        assertEquals(OwnshipPosition.HIGH, SettingsCodec.decode(mapOf("travelMode" to "CAR")).ownshipPosition)
+        assertEquals(OwnshipPosition.STANDARD, SettingsCodec.decode(mapOf("travelMode" to "CAR", "ownshipPosition" to "STANDARD")).ownshipPosition)
     }
 
     @Test

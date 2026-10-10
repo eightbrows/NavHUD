@@ -123,12 +123,12 @@ data class NavSettings(
     val wpButtonsMax: Int = 4,
     /** HUD に描く WP の数（次の WP から先） */
     val hudWpCount: Int = 15,
-    /** UI の色（上部バー・数値・操作列・WP ボタン列・標高プロファイル・再生の帯） */
+    /** UI の色（上部バー・数値・操作列・WP ボタン列・標高プロファイル・再生の操作列） */
     val uiTheme: ColorTheme = ColorTheme.WHITE,
     /** 地図の色（地図の Canvas に描くもの） */
     val mapTheme: ColorTheme = ColorTheme.GREEN,
-    /** ARC の自機の位置 */
-    val ownshipPosition: OwnshipPosition = OwnshipPosition.STANDARD,
+    /** ARC の自機の位置。既定は高め（保存がない・読めない値も高め） */
+    val ownshipPosition: OwnshipPosition = OwnshipPosition.HIGH,
     /** 起動時に前回の WP リストを自動で開く（起動時の選択を出さない） */
     val autoOpenLastList: Boolean = false,
     /** 標高プロファイルの表示サイズ（§6.6） */
@@ -137,7 +137,7 @@ data class NavSettings(
     val panReturnSec: Int = 15,
     /** 画面常時点灯（§6.8） */
     val keepScreenOn: Boolean = true,
-    /** 地図に重ねるボタン（上部バー・操作列・WP ボタン列・再生の帯）の不透明度 [%]。20〜100、10 刻み */
+    /** 地図に重ねるボタン（上部バー・操作列・WP ボタン列・再生の操作列）の不透明度 [%]。20〜100、10 刻み */
     val buttonOpacityPct: Int = Tuning.BUTTON_OPACITY_DEFAULT_PCT,
     /** 数値（4行）の不透明度 [%]。20〜100、10 刻み。警告の表示は常に 100% */
     val numbersOpacityPct: Int = Tuning.NUMBERS_OPACITY_DEFAULT_PCT,

@@ -33,9 +33,10 @@ class HudViewportTest {
     private val viewport = HudViewport(rect, m, MeasuredScreen.LIVE)
     private val replayViewport = HudViewport(rect, m, MeasuredScreen.REPLAY)
     private val stepsM = RangeAuto.ALL_STEPS_KM.map { it * 1000 }
-    private val arc = NavSettings(displayMode = DisplayMode.ARC)
+    // 寸法は自機の位置「標準」（24dp）で測った値（既定は D01 から「高め」。§9）
+    private val arc = NavSettings(displayMode = DisplayMode.ARC, ownshipPosition = OwnshipPosition.STANDARD)
     private val arcHigh = arc.copy(ownshipPosition = OwnshipPosition.HIGH)
-    private val northUp = NavSettings(displayMode = DisplayMode.NORTH_UP)
+    private val northUp = NavSettings(displayMode = DisplayMode.NORTH_UP, ownshipPosition = OwnshipPosition.STANDARD)
 
     // 余白は 22 + 16 dp = 64.6 px。収まる範囲: x 64.6..655.4、y 275.6..1174.4。ただし操作列の高さの範囲
     // （LIVE y 405.4..840.6、REPLAY y 374.9..810.1）では x 553.4 まで

@@ -159,7 +159,7 @@ class MainActivity : ComponentActivity() {
                             onFaster = vm::fasterReplay,
                             onSeek = vm::seekReplay,
                             onOpenSettings = { screen = Screen.SETTINGS },
-                            // 地図はステータスバーの下から画面の下端まで（再生の帯・WP ボタン列などはナビゲーションバーの上に置く）
+                            // 地図はステータスバーの下から画面の下端まで（WP ボタン列・標高プロファイルはナビゲーションバーの上に置く）
                             modifier = Modifier.statusBarsPadding(),
                         )
                         Screen.WAYPOINTS -> WaypointSettingsScreen(

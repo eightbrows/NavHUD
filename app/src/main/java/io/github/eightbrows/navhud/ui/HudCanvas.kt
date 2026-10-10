@@ -56,7 +56,7 @@ fun HudCanvas(
     onPinch: (Int) -> Unit = {},
     /** 数値の表示の上下の範囲 [px]。WP の名前・矢印の文字を重ねない */
     numberBands: List<ClosedFloatingPointRange<Float>> = emptyList(),
-    /** ボタン類（上部バー・操作列・WP ボタン列・再生の帯）の矩形 [px]。WP の名前・矢印の文字を重ねない */
+    /** ボタン類（上部バー・操作列・WP ボタン列・再生の操作列）の矩形 [px]。WP の名前・矢印の文字を重ねない */
     buttonBoxes: List<HudRect> = emptyList(),
 ) {
     val density = LocalDensity.current.density

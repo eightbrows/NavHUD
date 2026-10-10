@@ -86,7 +86,7 @@ object HudFormat {
         closestM = r.closestM?.takeIf { r.reason != ReachReason.MANUAL && it.isFinite() }?.let { "%.0f".format(Locale.US, it) },
     )
 
-    /** 経過時間 "h:mm"（再生の帯）。 */
+    /** 経過時間 "h:mm"。 */
     fun elapsed(ms: Long): String {
         val min = (ms.coerceAtLeast(0) / 60_000)
         return "%d:%02d".format(Locale.US, min / 60, min % 60)

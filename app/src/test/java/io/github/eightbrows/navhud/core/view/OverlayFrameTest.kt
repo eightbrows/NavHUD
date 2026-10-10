@@ -49,7 +49,8 @@ class OverlayFrameTest {
         heading = Heading(0f, HeadingSrc.GPS),
         waypoints = wps,
         nextWpIndex = next,
-        settings = NavSettings(displayMode = mode),
+        // 寸法は自機の位置「標準」（24dp）で測った値（既定は D01 から「高め」）
+        settings = NavSettings(displayMode = mode, ownshipPosition = io.github.eightbrows.navhud.core.nav.OwnshipPosition.STANDARD),
         rangeM = rangeM,
     )
 
@@ -117,11 +118,14 @@ class OverlayFrameTest {
 
     @Test
     fun nextWaypointUnderTheBottomOverlaysIsOnlyAMark() {
-        // 南 60m（y = 1119、プロファイルの下。矢印の枠の中）→ 下に重ねた表示の下も見えている扱いで、印だけ（D02 の確認 1-A）。
-        // 名前（印の上 y = 1101）は WP 列に重なるので出さない（D02 の確認 2-A）
+        // 南 60m（y = 1119、プロファイルの下。矢印の枠の中）→ 下に重ねた表示の下も見えている扱いで、矢印は出さない（D02 の確認 1-A）。
+        // 次の WP の文字（印の上 y = 1101）は WP 列に重なるが、消さずに WP 列の上（見える範囲）に寄せて出す（D01 の 1。
+        // ほかの WP の名前は今まで通り出さない: D02 の確認 2-A）
         val s = build(state(listOf(wp("S", -60.0)), 0, 200.0))
         assertTrue(s.arrows.isEmpty())
-        assertNull(s.wpMarks.single().nameAt)
+        val mark = s.wpMarks.single()
+        val box = HudSceneBuilder.wpTextBox(mark.lines, mark.nameAt!!, m)
+        assertEquals(rect.bottom - reserved.bottom, box.c.y + box.hh, 1e-2f)
         // ボタン類を渡さなければ名前を出す
         val plain = HudSceneBuilder.build(state(listOf(wp("S", -60.0)), 0, 200.0), rect, m, reserved, bands)
         assertNotNull(plain.wpMarks.single().nameAt)

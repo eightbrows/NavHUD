@@ -1,9 +1,12 @@
 package io.github.eightbrows.navhud.ui
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -21,12 +24,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.systemGestures
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -34,18 +36,22 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
@@ -87,7 +93,8 @@ private val ButtonText get() = TextStyle(fontFamily = FontFamily.Monospace, font
 /**
  * メイン画面（§6.1〜6.4）。NavState だけを見て描く。
  * 地図はステータスバーの下から画面の下端まで、左右いっぱいに描き、ほかの表示はすべて地図の上に重ねる:
- * 上から 上部バー・数値（4行）、右に操作列（回避枠の縦中央）、下は WP ボタン列・標高プロファイル・再生の帯（REPLAY のみ）。
+ * 上から 上部バー・数値（4行）、右に操作列（回避枠の縦中央）、左に再生の操作列（REPLAY のみ。数値の下から WP ボタン列の上まで）、
+ * 下は WP ボタン列・標高プロファイル。
  * ボタン類と標高プロファイルは半透明の地、数値は箱なしで文字に黒の縁取り。
  */
 @Composable
@@ -127,15 +134,13 @@ fun MainScreen(
     val valueColor = if (state.noFix) HudColors.Stale else HudColors.Scale
     val showReplay = state.sourceKind == SourceKind.REPLAY
 
-    // 重ねた表示の大きさ [px]（上: 上部バー・数値、下: WP ボタン列から下 = WP ボタン列・標高プロファイル・再生の帯・
-    // ナビゲーションバー）
+    // 重ねた表示の大きさ [px]（上: 上部バー・数値、下: WP ボタン列から下 = WP ボタン列・標高プロファイル・ナビゲーションバー）
     var boxW by remember { mutableIntStateOf(0) }
     var boxPx by remember { mutableIntStateOf(0) }
     var topPx by remember { mutableIntStateOf(0) }
     var topBarPx by remember { mutableIntStateOf(0) }
     var bottomPx by remember { mutableIntStateOf(0) }
     var stripPx by remember { mutableIntStateOf(0) }
-    var bandPx by remember { mutableIntStateOf(0) }
     var navPx by remember { mutableIntStateOf(0) }
     val density = LocalDensity.current
     val topDp = with(density) { topPx.toDp() }
@@ -145,10 +150,15 @@ fun MainScreen(
     val groupPx = with(density) { SideGroupHeight.toPx() }
     val sideTop = topPx + ((boxPx - bottomPx - topPx) - groupPx) / 2
     val sideBottom = sideTop + groupPx + if (state.pan != null) with(density) { SidePanExtra.toPx() } else 0f
+    // 左の再生の操作列（REPLAY のみ）: 左端の「戻る」ジェスチャーの範囲（システムの値。3ボタンのナビゲーションなら 0）より
+    // さらに内側。幅は右の操作列と同じ。地図は左の操作列の右から（矢印の文字・AUTO の判定の枠の左端）
+    val gestureLeftPx = WindowInsets.systemGestures.getLeft(density, LocalLayoutDirection.current)
+    val replayLeftPx = gestureLeftPx + with(density) { Tuning.REPLAY_COLUMN_EDGE_MARGIN_DP.dp.toPx() }
+    val replayRightPx = if (showReplay) replayLeftPx + sidePx else 0f
     // 地図は描画の枠（この画面の全体）に描く。回避枠 = 上（上部バー・数値）と下（WP ボタン列から下）を除き、
     // 右は操作列のある高さの範囲だけ欠いた部分
-    val reserved = HudInsets(top = topPx.toFloat(), right = sidePx, bottom = bottomPx.toFloat(), rightSpan = sideTop..sideBottom)
-    // WP の名前・矢印の文字を重ねない所: 数値の表示（上下の範囲）と、ボタン類（上部バー・操作列・WP ボタン列・再生の帯）
+    val reserved = HudInsets(left = replayRightPx, top = topPx.toFloat(), right = sidePx, bottom = bottomPx.toFloat(), rightSpan = sideTop..sideBottom)
+    // WP の名前・矢印の文字を重ねない所: 数値の表示（上下の範囲）と、ボタン類（上部バー・右の操作列・WP ボタン列・左の再生の操作列）
     val numberBands = listOf(topBarPx.toFloat()..topPx.toFloat())
     val w = boxW.toFloat()
     val stripTop = (boxPx - bottomPx).toFloat()
@@ -156,7 +166,7 @@ fun MainScreen(
         HudRect(0f, 0f, w, topBarPx.toFloat()),
         HudRect(w - sidePx, sideTop, w, sideBottom),
         HudRect(0f, stripTop, w, stripTop + stripPx).takeIf { wpUi.showButtons },
-        HudRect(0f, (boxPx - navPx - bandPx).toFloat(), w, (boxPx - navPx).toFloat()).takeIf { showReplay },
+        HudRect(replayLeftPx, topPx.toFloat(), replayRightPx, stripTop).takeIf { showReplay },
     )
 
     Box(modifier.fillMaxSize().background(HudColors.Background).onSizeChanged { boxW = it.width; boxPx = it.height }) {
@@ -171,19 +181,13 @@ fun MainScreen(
             }
             NumbersPanel(state, zone, valueColor, onCycleRate)
         }
-        // 下: WP ボタン列・標高プロファイル・再生の帯（REPLAY のみ、画面の一番下）・ナビゲーションバー
+        // 下: WP ボタン列・標高プロファイル・ナビゲーションバー
         Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().onSizeChanged { bottomPx = it.height }) {
             if (wpUi.showButtons) {
                 Box(Modifier.onSizeChanged { stripPx = it.height }) { WpStrip(state, onOpenWpSettings, onToggleReached, onPanToWaypoint) }
             }
             profileHeight(state.settings.profileSize)?.let { h ->
                 ProfileView(state, Modifier.fillMaxWidth().height(h))
-            }
-            if (showReplay) {
-                ReplayBand(
-                    state, replay, onTogglePlay, onSlower, onFaster, onSeek,
-                    Modifier.fillMaxWidth().height(ReplayBandHeight).onSizeChanged { bandPx = it.height },
-                )
             }
             Spacer(Modifier.fillMaxWidth().windowInsetsBottomHeight(WindowInsets.navigationBars).onSizeChanged { navPx = it.height })
         }
@@ -192,6 +196,17 @@ fun MainScreen(
             state, onZoomIn, onZoomOut, onToggleAutoRange, onEndPan,
             Modifier.align(Alignment.TopEnd).offset { IntOffset(0, sideTop.roundToInt()) },
         )
+        // 左の再生の操作列（REPLAY のみ）: 数値の下から WP ボタン列の上まで
+        if (showReplay) {
+            ReplayColumn(
+                state, replay, onTogglePlay, onSlower, onFaster, onSeek,
+                Modifier
+                    .align(Alignment.TopStart)
+                    .offset { IntOffset(replayLeftPx.roundToInt(), topPx) }
+                    .width(SideColumnWidth)
+                    .height(with(density) { (boxPx - bottomPx - topPx).coerceAtLeast(0).toDp() }),
+            )
+        }
         // 案内の枠: 位置情報の権限は回避枠の中央に置き、その幅で折り返す。NO FIX は数値の欄のすぐ下に左寄せ（地図の中央を空ける）
         val permissionMissing = state.sourceKind == SourceKind.LIVE &&
             (live.permission == LocationPermission.DENIED || live.permission == LocationPermission.APPROXIMATE_ONLY)
@@ -211,7 +226,8 @@ fun MainScreen(
                     .fillMaxSize()
                     .padding(
                         top = topDp + Tuning.NO_FIX_MARGIN_TOP_DP.dp,
-                        start = Tuning.NO_FIX_MARGIN_START_DP.dp,
+                        // 左の再生の操作列があれば、その右
+                        start = with(density) { replayRightPx.toDp() } + Tuning.NO_FIX_MARGIN_START_DP.dp,
                         end = SideColumnWidth,
                         bottom = bottomDp,
                     ),
@@ -233,9 +249,6 @@ private val SidePaddingV = Tuning.SIDE_COLUMN_PADDING_V_DP.dp
 private val SideGroupHeight = SideButtonSize * 3 + SideButtonGap * 2 + SidePaddingV * 2
 private val SidePanExtra = SideButtonGap + SideButtonSize
 
-/** 再生の帯（再生 / 一時停止・倍速・シーク）の高さ */
-private val ReplayBandHeight = Tuning.REPLAY_BAND_HEIGHT_DP.dp
-
 /** 横並びの WP ボタン列の高さ */
 private val WpStripHeight = Tuning.WP_STRIP_HEIGHT_DP.dp
 private val WpSettingsWidth = Tuning.WP_SETTINGS_WIDTH_DP.dp
@@ -250,12 +263,13 @@ private fun profileHeight(size: ProfileSize): Dp? = when (size) {
 }
 
 /**
- * 再生の帯（§6.7、REPLAY のときだけ画面の一番下・ナビゲーションバーの上）。左から 再生 / 一時停止（▶ / ❚❚、終わりは END）、
- * 倍速の [−] ×N [＋]（×1 / ×2 / ×5 / ×10 / ×30。端ではグレー）、再生位置のスライダー（残りの幅いっぱい）。
- * 時刻は数値の TIME で見るので、帯には出さない。スライダーは指を離したときにシークする。
+ * 左の再生の操作列（§6.7、REPLAY のときだけ。数値の下から WP ボタン列の上まで。拡大・縮小の操作列とは逆の左側）。
+ * 上から 再生 / 一時停止（▶ / ❚❚、終わりは END）、倍速の ＋ / ×N / −（×1 / ×2 / ×5 / ×10 / ×30。端ではグレー）、
+ * 縦の再生位置のスライダー（残りの高さいっぱい。下が始まり、上が終わり。指を離したときにシークする）。
+ * 不透明度はボタンの不透明度（設定。右の操作列と同じ）。
  */
 @Composable
-private fun ReplayBand(
+private fun ReplayColumn(
     state: NavState,
     replay: ReplayUiState,
     onTogglePlay: () -> Unit,
@@ -267,48 +281,91 @@ private fun ReplayBand(
     val start = replay.startMs
     val end = replay.endMs
     var dragging by remember { mutableStateOf<Float?>(null) }
-    val buttonH = Tuning.REPLAY_BAND_BUTTON_HEIGHT_DP.dp
-    // ボタンの不透明度（設定）。帯の文字とスライダーも同じ
     val a = state.settings.buttonOpacityPct / 100f
-    Row(
-        modifier.padding(horizontal = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    Column(
+        modifier.padding(vertical = SidePaddingV),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(SideButtonGap),
     ) {
         val play = when {
             replay.finished -> "END"
             state.playing -> "❚❚"
             else -> "▶"
         }
-        SideButton(
-            play, onTogglePlay, enabled = replay.ready && !replay.finished,
-            height = buttonH, width = Tuning.REPLAY_PLAY_BUTTON_WIDTH_DP.dp, fontSize = 14.sp, alpha = a,
-        )
-        // 倍速: − で1段遅く、＋ で1段速く。×N は表示だけ
-        val speedW = Tuning.REPLAY_SPEED_BUTTON_WIDTH_DP.dp
-        SideButton("−", onSlower, enabled = ReplaySpeed.slower(replay.speed) != null, height = buttonH, width = speedW, fontSize = 16.sp, alpha = a)
+        SideButton(play, onTogglePlay, enabled = replay.ready && !replay.finished, fontSize = 16.sp, alpha = a)
+        // 倍速: ＋ で1段速く、− で1段遅く。×N は表示だけ
+        val speedH = Tuning.REPLAY_SPEED_BUTTON_HEIGHT_DP.dp
+        SideButton("＋", onFaster, enabled = ReplaySpeed.faster(replay.speed) != null, height = speedH, fontSize = 20.sp, alpha = a)
         OutlinedText(AnnotatedString("×${replay.speed}"), Value.copy(fontSize = 14.sp), Modifier.alpha(a))
-        SideButton("＋", onFaster, enabled = ReplaySpeed.faster(replay.speed) != null, height = buttonH, width = speedW, fontSize = 16.sp, alpha = a)
+        SideButton("−", onSlower, enabled = ReplaySpeed.slower(replay.speed) != null, height = speedH, fontSize = 20.sp, alpha = a)
         if (start != null && end != null && end > start) {
             val now = (state.nowMs ?: start).coerceIn(start, end)
             val frac = dragging ?: ((now - start).toFloat() / (end - start))
-            Slider(
-                value = frac,
-                onValueChange = { dragging = it },
-                onValueChangeFinished = {
+            VerticalSeekBar(
+                fraction = frac,
+                onDrag = { dragging = it },
+                onRelease = {
                     dragging?.let { onSeek(start + ((end - start) * it).toLong()) }
                     dragging = null
                 },
-                modifier = Modifier.weight(1f).alpha(a),
-                colors = SliderDefaults.colors(
-                    thumbColor = HudColors.Scale,
-                    activeTrackColor = HudColors.Scale,
-                    inactiveTrackColor = HudColors.WpReached,
-                ),
+                alpha = a,
+                modifier = Modifier.weight(1f).width(SideButtonSize),
             )
         } else {
             Spacer(Modifier.weight(1f))
         }
+    }
+}
+
+/**
+ * 縦の再生位置のスライダー: 下が始まり（0）、上が終わり（1）。つまみを上へ動かすと先へ進む。触った所へすぐ動き、
+ * 動かしている間は onDrag、指を離したら onRelease（そこでシークする）。幅いっぱいが触れる範囲（線は細く、つまみは大きめ）。
+ */
+@Composable
+private fun VerticalSeekBar(
+    fraction: Float,
+    onDrag: (Float) -> Unit,
+    onRelease: () -> Unit,
+    alpha: Float,
+    modifier: Modifier = Modifier,
+) {
+    val drag by rememberUpdatedState(onDrag)
+    val release by rememberUpdatedState(onRelease)
+    val density = LocalDensity.current
+    val thumbR = with(density) { (Tuning.REPLAY_SEEK_THUMB_DP / 2).dp.toPx() }
+    val track = with(density) { Tuning.REPLAY_SEEK_TRACK_DP.dp.toPx() }
+    val on = HudColors.Scale
+    val off = HudColors.WpReached
+    Canvas(
+        modifier.pointerInput(Unit) {
+            // つまみの中心が動く範囲（上下につまみの半径の余白）で、y → 0〜1（下が 0）
+            fun fracAt(y: Float): Float {
+                val span = (size.height - thumbR * 2).coerceAtLeast(1f)
+                return (1f - (y - thumbR) / span).coerceIn(0f, 1f)
+            }
+            awaitEachGesture {
+                val down = awaitFirstDown()
+                down.consume()
+                drag(fracAt(down.position.y))
+                while (true) {
+                    val e = awaitPointerEvent()
+                    val c = e.changes.firstOrNull { it.id == down.id } ?: break
+                    if (!c.pressed) break
+                    c.consume()
+                    drag(fracAt(c.position.y))
+                }
+                release()
+            }
+        },
+    ) {
+        val x = size.width / 2
+        val top = thumbR
+        val bottom = size.height - thumbR
+        val y = bottom - (bottom - top) * fraction.coerceIn(0f, 1f)
+        // 線: 終わりまでの残りは暗いグレー、始まりから今までは UI の色。つまみは UI の色の丸
+        drawLine(off.copy(alpha = off.alpha * alpha), Offset(x, top), Offset(x, bottom), strokeWidth = track, cap = StrokeCap.Round)
+        drawLine(on.copy(alpha = on.alpha * alpha), Offset(x, y), Offset(x, bottom), strokeWidth = track, cap = StrokeCap.Round)
+        drawCircle(on.copy(alpha = on.alpha * alpha), radius = thumbR, center = Offset(x, y))
     }
 }
 

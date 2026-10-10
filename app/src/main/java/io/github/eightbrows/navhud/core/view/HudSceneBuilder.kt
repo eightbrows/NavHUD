@@ -21,10 +21,10 @@ object HudSceneBuilder {
 
     /**
      * @param rect 描画の枠（地図の Canvas 全体）。距離環・方位線・トラック・WP の線と印はこの枠に描く
-     * @param reserved 地図の上に重ねた表示（上: 上部バー・数値、右: 操作列、下: WP ボタン列・プロファイル・再生の帯）[px]。
+     * @param reserved 地図の上に重ねた表示（上: 上部バー・数値、右: 操作列、下: WP ボタン列・プロファイル、左: 再生の操作列）[px]。
      *   回避枠・矢印と AUTO の枠（TargetFrame）はここから作る
      * @param numberBands 数値の表示の上下の範囲 [px]（左右は画面いっぱい）。WP の名前・矢印の文字はここに重ねない
-     * @param buttonBoxes ボタン類（上部バー・操作列・WP ボタン列・再生の帯）の矩形 [px]。WP の名前・矢印の文字はここに重ねない
+     * @param buttonBoxes ボタン類（上部バー・操作列・WP ボタン列・再生の操作列）の矩形 [px]。WP の名前・矢印の文字はここに重ねない
      */
     fun build(
         state: NavState,
@@ -66,10 +66,10 @@ object HudSceneBuilder {
         }
         when {
             // 方位目盛りは上端は回避枠、左右は画面の縁に沿わせる。距離環は描画の枠の四隅まで
-            pan != null -> buildPanScale(proj, tickFrame(rect, avoid), rect, ringInterval, ownAt, m, arcs, segments, labels)
+            pan != null -> buildPanScale(proj, tickFrame(rect, avoid), rect, ringInterval, ownAt, m, ringSp(s), arcs, segments, labels)
             s.displayMode == DisplayMode.ARC ->
-                buildArcScale(proj, tickFrame(rect, avoid), rect, ringInterval, m, arcs, segments, labels, pointers, headingDeg != null)
-            else -> buildCompassCard(proj, rect, range, ringInterval, headingDeg, m, arcs, segments, labels, pointers)
+                buildArcScale(proj, tickFrame(rect, avoid), rect, ringInterval, m, ringSp(s), arcs, segments, labels, pointers, headingDeg != null)
+            else -> buildCompassCard(proj, rect, range, ringInterval, headingDeg, m, ringSp(s), arcs, segments, labels, pointers)
         }
 
         // 数値の表示・ボタン類の範囲（WP の名前・矢印の文字も重ねない）
@@ -86,7 +86,7 @@ object HudSceneBuilder {
         val pointerBoxes = pointers.map { Box(P(it.tip.x, it.tip.y + it.sizePx / 2), it.sizePx * 0.7f, it.sizePx * 0.7f) }
         val (wpMarks, arrows) = buildWaypoints(
             state, proj, ref, ownAt, arrowFrame, targetFrame(rect, reserved), rect, m, segments, labels, pointerBoxes,
-            keepOut,
+            keepOut, textFrame(rect, reserved),
         )
 
         val scene = HudScene(
@@ -180,11 +180,17 @@ object HudSceneBuilder {
 
     /**
      * 画面外の矢印を置く枠: targetFrame の下端だけを WP ボタン列の上端（下に重ねた表示の上端）にして、edgeInset だけ内側。
-     * 矢印と文字を WP ボタン列・標高プロファイル・再生の帯の下に置かない。AUTO の判定の枠は targetFrame のまま。
+     * 矢印と文字を WP ボタン列・標高プロファイル・再生の操作列の下に置かない。AUTO の判定の枠は targetFrame のまま。
      */
-    fun arrowFrame(rect: HudRect, reserved: HudInsets, m: HudMetrics): TargetFrame {
+    fun arrowFrame(rect: HudRect, reserved: HudInsets, m: HudMetrics): TargetFrame = textFrame(rect, reserved).inset(m.edgeInset)
+
+    /**
+     * 文字が見える範囲: targetFrame の下端だけを WP ボタン列の上端（下に重ねた表示の上端）にしたもの。上は数値の下端、
+     * 左右は描画の枠（左に重ねた操作があればその右）、操作列のある高さの範囲は操作列の左。次の WP の文字はここに必ず入れる（§6.1）。
+     */
+    fun textFrame(rect: HudRect, reserved: HudInsets): TargetFrame {
         val t = targetFrame(rect, reserved)
-        return TargetFrame(t.outer.copy(bottom = rect.bottom - reserved.bottom), t.notch).inset(m.edgeInset)
+        return TargetFrame(t.outer.copy(bottom = rect.bottom - reserved.bottom), t.notch)
     }
 
     /** 方位目盛りを沿わせる枠: 上は回避枠の上端（数値の下端）、左右は描画の枠（画面）の縁。操作列の下に入ってよい。 */
@@ -201,6 +207,7 @@ object HudSceneBuilder {
         ringIntervalM: Double,
         ownAt: P?,
         m: HudMetrics,
+        ringSp: Float,
         arcs: MutableList<Arc>,
         segments: MutableList<Segment>,
         labels: MutableList<Label>,
@@ -208,7 +215,7 @@ object HudSceneBuilder {
         if (ownAt != null) {
             val corners = listOf(P(rect.left, rect.top), P(rect.right, rect.top), P(rect.left, rect.bottom), P(rect.right, rect.bottom))
             val maxPx = corners.maxOf { HudGeometry.dist(ownAt, it) }
-            addRings(proj.copy(origin = ownAt), ringIntervalM, maxPx.toDouble(), rect, arcs, labels)
+            addRings(proj.copy(origin = ownAt), ringIntervalM, maxPx.toDouble(), rect, m, ringSp, arcs, labels)
         }
         val c = proj.origin
         for (b in 0 until 360 step 10) {
@@ -224,7 +231,7 @@ object HudSceneBuilder {
 
     /**
      * ARC: 全周の距離環、描画の枠（画面）の縁に置く方位目盛り（1周分。自機の後ろ側も）、30° ごとの方位線、ラバーライン、
-     * 上部中央の三角。距離環と後ろ側の目盛り・文字は、重ねた部品（WP 列・プロファイル・再生の帯）の下にかかってよい。
+     * 上部中央の三角。距離環と後ろ側の目盛り・文字は、重ねた部品（WP 列・プロファイル・再生の操作列）の下にかかってよい。
      */
     private fun buildArcScale(
         proj: HudProjection,
@@ -232,6 +239,7 @@ object HudSceneBuilder {
         rect: HudRect,
         ringIntervalM: Double,
         m: HudMetrics,
+        ringSp: Float,
         arcs: MutableList<Arc>,
         segments: MutableList<Segment>,
         labels: MutableList<Label>,
@@ -242,7 +250,7 @@ object HudSceneBuilder {
         // 描画の枠の四隅に届くまで距離環を描く（はみ出す分は切れる）
         val maxPx = farthestCornerPx(o, rect)
         // 全周（後ろ側も。下に重ねた表示の下も地図として見えるため）
-        addRings(proj, ringIntervalM, maxPx.toDouble(), rect, arcs, labels)
+        addRings(proj, ringIntervalM, maxPx.toDouble(), rect, m, ringSp, arcs, labels)
 
         for (b in 0 until 360 step 10) {
             val a = proj.screenAngle(b.toDouble())
@@ -277,6 +285,7 @@ object HudSceneBuilder {
         ringIntervalM: Double,
         headingDeg: Double?,
         m: HudMetrics,
+        ringSp: Float,
         arcs: MutableList<Arc>,
         segments: MutableList<Segment>,
         labels: MutableList<Label>,
@@ -287,7 +296,7 @@ object HudSceneBuilder {
         // 方位サークル: 縮尺の距離環の1つ外側の距離環（AUTO の判定は縮尺の距離環のまま）
         val card = ((rangeM + ringIntervalM) * proj.pxPerM).toFloat()
         // 縮尺の距離環より外も、描画の枠の四隅に届くまで同じ間隔で描き足す
-        addRings(proj, ringIntervalM, maxOf(outer + 0.5f, farthestCornerPx(o, rect)).toDouble(), rect, arcs, labels)
+        addRings(proj, ringIntervalM, maxOf(outer + 0.5f, farthestCornerPx(o, rect)).toDouble(), rect, m, ringSp, arcs, labels)
 
         for (b in 0 until 360 step 10) {
             val a = b.toDouble()
@@ -309,18 +318,21 @@ object HudSceneBuilder {
     }
 
     /**
-     * interval ごとの全周の距離環を maxPx まで（中心は proj.origin）。距離環の数字は ringLabelPoints の位置（rect に入るものだけ）。
+     * interval ごとの全周の距離環を maxPx まで（中心は proj.origin）。距離環の数字は RingLabelPlacement の位置
+     * （左上・右上。外なら距離環に沿って画面の中へ。文字が画面からはみ出さないよう、文字の半分だけ内側の枠で決める）。
+     * @param ringSp 距離環の数字の文字の大きさ [sp]（Tuning.RING_LABEL_SP × 設定の大きさ）
      */
     private fun addRings(
         proj: HudProjection,
         intervalM: Double,
         maxPx: Double,
         rect: HudRect,
+        m: HudMetrics,
+        ringSp: Float,
         arcs: MutableList<Arc>,
         labels: MutableList<Label>,
     ) {
         if (intervalM <= 0) return
-        val r1 = (intervalM * proj.pxPerM).toFloat()
         var k = 1
         while (true) {
             val rM = intervalM * k
@@ -328,21 +340,18 @@ object HudSceneBuilder {
             if (rPx > maxPx || k > MAX_RINGS) break
             arcs += Arc(proj.origin, rPx.toFloat(), 0f, 360f, Ink.SCALE)
             // 25 / 250 / 1k / 2.5k。方位目盛りより小さく薄い色（small / SCALE_DIM）
-            for (p in ringLabelPoints(proj.origin, r1, rPx.toFloat()).filter { rect.contains(it) }) {
-                labels += Label(HudFormat.ringLabel(rM), p, Ink.RING_LABEL, small = true)
+            val text = HudFormat.ringLabel(rM)
+            val box = textBlockBox(listOf(text), P(0f, 0f), ringSp, m)
+            val frame = HudRect(rect.left + box.hw, rect.top + box.hh, rect.right - box.hw, rect.bottom - box.hh)
+            for (p in RingLabelPlacement.anchors(proj.origin, rPx.toFloat(), frame)) {
+                labels += Label(text, p, Ink.RING_LABEL, small = true)
             }
             k++
         }
     }
 
-    /**
-     * 距離環の数字の位置（§6.1）: 一番小さい距離環（半径 r1）の左右の点（画面の 270° と 90°）を通る縦の線 x = cx ∓ r1 と、
-     * 半径 rn の距離環の上側の交点 y = cy − √(rn² − r1²)。一番小さい距離環は (cx ∓ r1, cy)。左・右の順。下側の交点は使わない。
-     */
-    internal fun ringLabelPoints(center: P, r1: Float, rn: Float): List<P> {
-        val dy = kotlin.math.sqrt(maxOf(0f, rn * rn - r1 * r1))
-        return listOf(P(center.x - r1, center.y - dy), P(center.x + r1, center.y - dy))
-    }
+    /** 距離環の数字の文字の大きさ [sp]（Tuning.RING_LABEL_SP × 設定の大きさ）。 */
+    private fun ringSp(s: NavSettings): Float = Tuning.RING_LABEL_SP * s.ringLabelScalePct / 100f
 
     /**
      * 軌跡（§6.7）。REPLAY はトラック全体を暗い細線、再生済みの部分（今の Fix まで）をテーマの薄い色で重ねる。
@@ -378,6 +387,7 @@ object HudSceneBuilder {
         labels: List<Label>,
         pointerBoxes: List<Box> = emptyList(),
         numberBoxes: List<Box> = emptyList(),
+        visibleFrame: TargetFrame = TargetFrame(drawFrame, null),
     ): Pair<List<WpMark>, List<EdgeArrow>> {
         // ref: 地図の基準の地点（通常は自機、PAN は PAN の中心）。矢印の距離は自機から
         val fix = state.fix ?: return emptyList<WpMark>() to emptyList()
@@ -422,6 +432,8 @@ object HudSceneBuilder {
         // 印は描画の枠の中なら描く（重ねた表示の下でも）
         val inFrame = shown.filter { drawFrame.contains(pts[it]) }
         // 文字: 次の WP は 距離・名前・方位 の3行（画面内でも矢印でも同じ）、ほかは名前だけ。重ねた数値の表示・ボタン類と重なるなら出さない。
+        // ただし次の WP の文字は消さない: 置ける所がなければ基準の位置（印の上）に重ねて出し、見える範囲（visibleFrame）に寄せる。
+        // 矢印を出す次の WP（重ねた表示の下・描画の枠の外）は、矢印の文字で出す
         // 文字どうしが重なるなら、次の WP の文字を残し、ほかはルートの順に先に置いた文字を残す（もう一方は印と線だけ）。
         // 重なりは行数分の高さの箱で判定する
         fun linesOf(i: Int) = if (i == next) listOfNotNull(nextDistance, wps[i].name, nextBearing) else listOf(wps[i].name)
@@ -430,8 +442,14 @@ object HudSceneBuilder {
         for (i in inFrame.sortedBy { if (it == next) -1 else inFrame.indexOf(it) }) {
             val wp = wps[i]
             val lines = linesOf(i)
-            val nameAt = placeWpLines(lines, pts[i], ownShipBox, m, allowBelow = !wp.reached)
+            val placed = placeWpLines(lines, pts[i], ownShipBox, m, allowBelow = !wp.reached)
                 ?.takeIf { p -> (numberBoxes + nameBoxes).none { it.overlaps(wpTextBox(lines, p, m)) } }
+            val nameAt = when {
+                i == next && seen.contains(pts[i]) -> keepVisible(wpTextBox(lines, placed ?: wpLinesAbove(lines, pts[i], m), m), visibleFrame)
+                // 矢印を出す次の WP: 文字は矢印の文字だけ（印の文字と2つ出さない）
+                i == next -> null
+                else -> placed
+            }
             names[i] = nameAt
             if (nameAt != null) nameBoxes += wpTextBox(lines, nameAt, m)
         }
@@ -463,11 +481,13 @@ object HudSceneBuilder {
                 val r = Math.toRadians(a)
                 val clear = box0.hw * kotlin.math.abs(kotlin.math.cos(r)).toFloat() + box0.hh * kotlin.math.abs(kotlin.math.sin(r)).toFloat() +
                     m.arrowLabelLine * 0.25f
-                val textAt = placeArrowText(
+                // 置ける所がなければ、基準の位置（線の上の縁の点）に重ねて出す。どちらも見える範囲に寄せる
+                val placed = placeArrowText(
                     lines,
                     HudGeometry.pointAt(HudGeometry.pointAt(at, a + 180, m.arrowTextGap), a + 90, clear),
                     a, inner.outer, obstacles, m,
                 )
+                val textAt = keepVisible(arrowTextBox(lines, placed ?: at, m), visibleFrame)
                 obstacles += arrowTextBox(lines, textAt, m)
                 arrows += EdgeArrow(
                     at = at, lines = lines, textAt = textAt, ink = ink,
@@ -498,16 +518,37 @@ object HudSceneBuilder {
      * 到達済みの WP（allowBelow = false）は下へ逃がさず、重なるなら描かない（PAN 中も同じ）。
      */
     internal fun placeWpLines(lines: List<String>, at: P, ownShip: Box, m: HudMetrics, allowBelow: Boolean = true): P? {
-        val d = m.wpNameOffset + (lines.size - 1) * lineHeight(Tuning.WP_LABEL_SP, m) / 2
+        val d = wpLinesOffset(lines, m)
         return listOfNotNull(P(at.x, at.y - d), P(at.x, at.y + d).takeIf { allowBelow })
             .firstOrNull { !wpTextBox(lines, it, m).overlaps(ownShip) }
     }
 
+    /** WP の文字の塊の中心と印の縦の距離（いちばん下の行（上に置くとき）の中心が印から wpNameOffset） */
+    private fun wpLinesOffset(lines: List<String>, m: HudMetrics): Float = m.wpNameOffset + (lines.size - 1) * lineHeight(Tuning.WP_LABEL_SP, m) / 2
+
+    /** WP の文字の基準の位置: 印の上（placeWpLines の最初の候補） */
+    internal fun wpLinesAbove(lines: List<String>, at: P, m: HudMetrics): P = P(at.x, at.y - wpLinesOffset(lines, m))
+
+    /**
+     * 文字の塊 b を、見える範囲 frame（数値の下・WP ボタン列の上・画面の左右の中。操作列の所は除く）に入るよう寄せた中心。
+     * 次の WP の文字を消さないために使う（§6.1）。中に入っていれば動かさない。枠より大きい文字は枠の左上に合わせる。
+     */
+    internal fun keepVisible(b: Box, frame: TargetFrame): P {
+        val o = frame.outer
+        var x = b.c.x.coerceIn(o.left + b.hw, maxOf(o.left + b.hw, o.right - b.hw))
+        val y = b.c.y.coerceIn(o.top + b.hh, maxOf(o.top + b.hh, o.bottom - b.hh))
+        // 操作列（右の切り欠き）にかかるなら、その左へ
+        frame.notch?.let { n ->
+            if (x + b.hw > n.left && y + b.hh > n.top && y - b.hh < n.bottom) x = maxOf(o.left + b.hw, n.left - b.hw)
+        }
+        return P(x, y)
+    }
+
     /**
      * 矢印の文字の塊の位置。枠からはみ出さないよう詰め、文字を置かない所（自機・方位目盛り・先に置いた文字）と重なるなら、
-     * 自機側・線と直角の両側へ、塊の高さずつずらした候補を順に試す（最大3つ分）。どれも重なるなら最初の位置。
+     * 自機側・線と直角の両側へ、塊の高さずつずらした候補を順に試す（最大3つ分）。どれも重なるなら null（呼ぶ側が基準の位置に置く）。
      */
-    private fun placeArrowText(lines: List<String>, start: P, angleDeg: Double, frame: HudRect, obstacles: List<Box>, m: HudMetrics): P {
+    private fun placeArrowText(lines: List<String>, start: P, angleDeg: Double, frame: HudRect, obstacles: List<Box>, m: HudMetrics): P? {
         val b = arrowTextBox(lines, start, m)
         fun clamp(p: P) = P(
             p.x.coerceIn(frame.left + b.hw, maxOf(frame.left + b.hw, frame.right - b.hw)),
@@ -522,7 +563,7 @@ object HudSceneBuilder {
                 yield(HudGeometry.pointAt(start, angleDeg - 90, step * n))
             }
         }.map(::clamp)
-        return candidates.firstOrNull { p -> obstacles.none { it.overlaps(b.copy(c = p)) } } ?: clamp(start)
+        return candidates.firstOrNull { p -> obstacles.none { it.overlaps(b.copy(c = p)) } }
     }
 
     /** 文字の幅の半分の目安（HUD_TEXT_METRICS_SP の文字で）。全角（日本語など）は半角2文字分として数える。 */

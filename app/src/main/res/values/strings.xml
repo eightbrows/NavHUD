@@ -84,7 +84,7 @@
     <string name="ui_color">UI color (buttons, numbers, profile)</string>
     <string name="map_color">Map color (rings, ticks, ownship, WP, track)</string>
     <string name="button_opacity">Button opacity</string>
-    <string name="button_opacity_note">Buttons over the map (top bar, side column, WP strip, replay bar). ON fill is half of this.</string>
+    <string name="button_opacity_note">Buttons over the map (top bar, side columns, WP strip, replay controls). ON fill is half of this.</string>
     <string name="numbers_opacity">Numbers opacity</string>
     <string name="numbers_opacity_note" formatted="false">The four rows of numbers. Warnings (deadline passed, CAL / MAG) are always 100%.</string>
     <string name="track_color">Loaded track color</string>
