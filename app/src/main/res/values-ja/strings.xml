@@ -3,7 +3,7 @@
   日本語（日本語の端末だけ）。英語の初期値は values/strings.xml。キーと引数（%1$s など）は英語と同じにする。
 -->
 <resources>
-    <string name="app_name">移動目標案内アプリ</string>
+    <string name="app_name">目標針路案内アプリ</string>
 
     <!-- 共通 -->
     <string name="back">← 戻る</string>
@@ -195,7 +195,7 @@
     <string name="perm_status_denied">未許可</string>
     <string name="sec_about">情報</string>
     <string name="about_app">アプリ名</string>
-    <string name="about_app_value">NavHUD（移動目標案内アプリ）</string>
+    <string name="about_app_value">NavHUD（目標針路案内アプリ）</string>
     <string name="about_version">バージョン</string>
     <string name="about_license">ライセンス</string>
     <string name="about_website">公式サイト</string>
