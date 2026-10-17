@@ -39,6 +39,12 @@ enum class Ink {
 
     /** REPLAY の再生済みの部分・LIVE の軌跡（テーマの薄い色） */
     TRACK_DONE,
+
+    /** 背景地図の海岸線（暗い灰色の実線。§8） */
+    COASTLINE,
+
+    /** 背景地図の県境（海岸線よりさらに暗い点線。§8） */
+    PREF_BOUNDARY,
 }
 
 /** 線。dashed は無効 WP の破線、longDash は次の WP への方位線の長い破線（Tuning.ACTIVE_DASH_*）。 */
@@ -75,8 +81,8 @@ data class EdgeArrow(val at: P, val lines: List<String>, val textAt: P, val ink:
     val text: String get() = lines.joinToString(" ")
 }
 
-/** 折れ線（軌跡）。widthDp は線の太さ [dp]。 */
-data class Polyline(val points: List<P>, val ink: Ink, val widthDp: Float)
+/** 折れ線（軌跡・背景地図）。widthDp は線の太さ [dp]。dashed は点線（背景地図の県境）。 */
+data class Polyline(val points: List<P>, val ink: Ink, val widthDp: Float, val dashed: Boolean = false)
 
 /** 三角形の印。tip の向きが angleDeg。 */
 data class Pointer(val tip: P, val angleDeg: Float, val sizePx: Float, val ink: Ink)
@@ -97,8 +103,10 @@ data class HudScene(
     val ownShip: OwnShip?,
     /** 軌跡（WP より下に描く） */
     val trails: List<Polyline> = emptyList(),
+    /** 背景地図の線（海岸線・県境。いちばん下に描く。§8） */
+    val baseMap: List<Polyline> = emptyList(),
 ) {
-    // 描く順番（§6.1。下から）: 距離環 → 軌跡 → baseSegments → labels（方位目盛りの文字・距離環の数字）→ otherWpMarks
+    // 描く順番（§6.1。下から）: 背景地図 → 距離環 → 軌跡 → baseSegments → labels（方位目盛りの文字・距離環の数字）→ otherWpMarks
     // → pointers（方位の三角）→ nextWpSegments → nextWpMarks → arrows（画面外の次の WP の文字）→ 自機。
     // 次の WP の情報（線・印・文字）は、方位の三角・方位目盛りの文字・距離環の数字より上に描く
 

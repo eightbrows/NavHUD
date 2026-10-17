@@ -71,6 +71,7 @@ import io.github.eightbrows.navhud.R
 import io.github.eightbrows.navhud.core.Tuning
 import io.github.eightbrows.navhud.core.model.HeadingSrc
 import io.github.eightbrows.navhud.core.nav.DisplayMode
+import io.github.eightbrows.navhud.core.io.BaseMap
 import io.github.eightbrows.navhud.core.nav.NavState
 import io.github.eightbrows.navhud.core.nav.ProfileSize
 import io.github.eightbrows.navhud.core.nav.SourceKind
@@ -128,6 +129,8 @@ fun MainScreen(
     onOpenSettings: () -> Unit,
     onViewport: (HudViewport) -> Unit,
     modifier: Modifier = Modifier,
+    /** 背景地図（§8）。読み終わるまでは null */
+    baseMap: BaseMap? = null,
 ) {
     val zone = ZoneId.systemDefault()
     // NO FIX 中は最後の値をグレーで出し続ける
@@ -170,7 +173,7 @@ fun MainScreen(
     )
 
     Box(modifier.fillMaxSize().background(HudColors.Background).onSizeChanged { boxW = it.width; boxPx = it.height }) {
-        HudCanvas(state, Modifier.fillMaxSize(), reserved, onViewport, onPan, onPinch, numberBands, buttonBoxes)
+        HudCanvas(state, Modifier.fillMaxSize(), reserved, onViewport, onPan, onPinch, numberBands, buttonBoxes, baseMap)
         // 上: 上部バーと数値（4行）
         Column(Modifier.align(Alignment.TopStart).fillMaxWidth().onSizeChanged { topPx = it.height }) {
             Box(Modifier.onSizeChanged { topBarPx = it.height }) {

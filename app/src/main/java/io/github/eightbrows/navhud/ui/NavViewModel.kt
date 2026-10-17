@@ -7,6 +7,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.eightbrows.navhud.R
 import io.github.eightbrows.navhud.core.Tuning
+import io.github.eightbrows.navhud.core.io.BaseMap
 import io.github.eightbrows.navhud.core.io.CoordinateText
 import io.github.eightbrows.navhud.core.model.Fix
 import io.github.eightbrows.navhud.core.model.SourceMode
@@ -27,6 +28,7 @@ import io.github.eightbrows.navhud.core.view.HudViewport
 import io.github.eightbrows.navhud.source.CompassSource
 import io.github.eightbrows.navhud.source.GeoPoint
 import io.github.eightbrows.navhud.source.AppLanguage
+import io.github.eightbrows.navhud.source.BaseMapStore
 import io.github.eightbrows.navhud.source.LiveGpsSource
 import io.github.eightbrows.navhud.source.LiveLocationBus
 import io.github.eightbrows.navhud.source.LoadedTrack
@@ -113,6 +115,10 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
     private val _live = MutableStateFlow(LiveUiState())
     val live: StateFlow<LiveUiState> = _live.asStateFlow()
 
+    /** 背景地図（§8）。起動のあとに読み終わるまでは null（その間は描かない） */
+    private val _baseMap = MutableStateFlow<BaseMap?>(null)
+    val baseMap: StateFlow<BaseMap?> = _baseMap.asStateFlow()
+
     private var source: ReplayPositionSource? = null
     private var trackFixes: List<Fix> = emptyList()
     private var fixJob: Job? = null
@@ -140,6 +146,10 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
         }
         viewModelScope.launch {
             LiveLocationBus.gpsEnabled.collect { _live.value = _live.value.copy(gpsEnabled = it) }
+        }
+        // 背景地図のファイル（assets）を読む
+        viewModelScope.launch {
+            _baseMap.value = withContext(Dispatchers.IO) { BaseMapStore.load(getApplication()) }
         }
     }
 

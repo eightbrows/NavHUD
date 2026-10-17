@@ -112,6 +112,8 @@
     <string name="profile_note">Below the WP strip. Elevation from your position to the next target and beyond.</string>
     <string name="alt_offset">Altitude offset</string>
     <string name="alt_offset_note">Altitude = GPS ellipsoid height − this</string>
+    <string name="base_map">Base map (coastline, prefecture borders)</string>
+    <string name="base_map_note">Draws coastlines and prefecture borders as dark lines under the HUD</string>
     <string name="sec_heading">Heading</string>
     <string name="heading_source">Heading source</string>
     <string name="heading_source_note">GPS in a car; HYBRID or COMPASS on foot</string>
@@ -202,6 +204,7 @@
     <string name="about_license">License</string>
     <string name="about_website">Website</string>
     <string name="about_cheatsheet">Cheat sheet (PDF, Japanese)</string>
+    <string name="about_basemap_source">Base map: Created from “Global Map Japan” (Geospatial Information Authority of Japan) (%1$s)</string>
     <string name="about_formats">File formats (PDF, Japanese)</string>
     <string name="about_links_note">Underlined items open in your browser (this app itself does not use the network).</string>
 

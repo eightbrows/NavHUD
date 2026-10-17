@@ -14,13 +14,13 @@
 - `MainActivity`（直下） アプリの入口。画面の切り替え、ファイルを選ぶ画面、権限のお願い
 - `core/Tuning.kt` 調整値（設定画面で変えられないしきい値・時間・寸法）
 - `core/geo` 地理計算（距離、方位、角度の差、緯度・経度と東m・北m の変換）
-- `core/io` ファイルの読み書き（WP リストの CSV・GPX、座標の貼り付け、track.csv、GpsLogger の zip）
+- `core/io` ファイルの読み書き（WP リストの CSV・GPX、座標の貼り付け、track.csv、GpsLogger の zip、背景地図のファイル）
 - `core/model` データ型（Fix, Waypoint, 到達の理由, 方位ソースの enum, PositionSource）
 - `core/nav` ナビ計算（NavEngine、NavState、設定と保存用の変換、表示言語の選択、RATE、方位選択、縮尺と AUTO、WP、ETA、カウントダウン、到達判定、PAN、軌跡、NO FIX）
 - `core/replay` 再生の時間の進め方（LIVE / REPLAY の時計、Fix の送出、シーク、倍速）
 - `core/sensor` センサーの値の下ごしらえ（コンパスの計算、端末の位置から Fix を作る）
-- `core/view` 画面に描くものの位置と文字の計算（HudScene、ARC / North Up、距離環の数字、標高プロファイル、文字の整形）
-- `source` 端末の機能とつなぐ所（GPS、位置のサービス、コンパス、リプレイの送出、ファイルの選択と記憶、設定の保存、表示言語の切り替え、権限の状態）
+- `core/view` 画面に描くものの位置と文字の計算（HudScene、ARC / North Up、背景地図の線、距離環の数字、標高プロファイル、文字の整形）
+- `source` 端末の機能とつなぐ所（GPS、位置のサービス、コンパス、リプレイの送出、ファイルの選択と記憶、設定の保存、表示言語の切り替え、権限の状態、背景地図のファイルを読む）
 - `ui` 画面（NavViewModel、メイン画面、HUD の Canvas、色、設定、WP設定、開発用の画面）。`ui/theme` は配色
 - 画面は Jetpack Compose の Canvas で描く。画面は `NavState`（計算済みの値）だけを見る。
 
@@ -32,7 +32,7 @@
   URI を永続化（`takePersistableUriPermission`）して次回から再利用する。
 
 ## 保留中
-- 背景地図（SPEC §8）: **保留**（実装した機能の調整期間の後に検討）。レポートの「次の作業」には挙げない。
+- 背景地図（SPEC §8）: 海岸線と県境だけを**試しに**載せた（20261017-D01）。元のデータは `mapdata/`（git 管理外）、変換は `tools/gm2basemap.ps1`。河川・道路・鉄道などほかの線は**保留**（レポートの「次の作業」には挙げない）。
 - 調整値（設定画面で変えられないしきい値・時間・寸法）は `core/Tuning.kt` に集めてある。設定画面で変えられる値は `NavSettings` の既定値。
 
 ## 結果レポート（恒久ルール）

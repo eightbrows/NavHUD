@@ -83,6 +83,7 @@ class MainActivity : ComponentActivity() {
                 val replay by vm.replay.collectAsState()
                 val wpUi by vm.wp.collectAsState()
                 val live by vm.live.collectAsState()
+                val baseMap by vm.baseMap.collectAsState()
                 var screen by rememberSaveable { mutableStateOf(Screen.MAIN) }
                 val context = LocalContext.current
 
@@ -173,6 +174,7 @@ class MainActivity : ComponentActivity() {
                             onFaster = vm::fasterReplay,
                             onSeek = vm::seekReplay,
                             onOpenSettings = { screen = Screen.SETTINGS },
+                            baseMap = baseMap,
                             // 地図はステータスバーの下から画面の下端まで（WP ボタン列・標高プロファイルはナビゲーションバーの上に置く）
                             modifier = Modifier.statusBarsPadding(),
                         )

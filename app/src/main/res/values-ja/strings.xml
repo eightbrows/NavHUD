@@ -110,6 +110,8 @@
     <string name="profile_note">WP ボタン列の下。現在地から次の目標、その先の目標までの標高</string>
     <string name="alt_offset">標高オフセット</string>
     <string name="alt_offset_note">標高 = GPS の楕円体高 − これ</string>
+    <string name="base_map">背景地図（海岸線・県境）</string>
+    <string name="base_map_note">海岸線と都道府県境を、地図のいちばん下に暗い線で描く</string>
     <string name="sec_heading">方位</string>
     <string name="heading_source">方位ソース</string>
     <string name="heading_source_note">車は GPS、歩行は HYBRID か COMPASS</string>
@@ -200,6 +202,7 @@
     <string name="about_license">ライセンス</string>
     <string name="about_website">公式サイト</string>
     <string name="about_cheatsheet">チートシート（PDF）</string>
+    <string name="about_basemap_source">背景地図：「地球地図日本」（国土地理院）（%1$s）をもとに作成</string>
     <string name="about_formats">ファイル形式の説明（PDF）</string>
     <string name="about_links_note">下線の項目は、押すとブラウザで開きます（このアプリ自身は通信しません）。</string>
 

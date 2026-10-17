@@ -170,6 +170,20 @@ object Tuning {
     /** LIVE の軌跡: 点の上限（超えたら古い方から捨てる） */
     const val LIVE_TRAIL_MAX_POINTS = 5_000
 
+    /** 背景地図（§8）の線の太さ [dp]: 海岸線 / 県境 */
+    const val BASEMAP_COAST_LINE_DP = 1.2f
+    const val BASEMAP_PREF_LINE_DP = 1.2f
+
+    /** 背景地図の県境の点線: 線 / すき間 [dp] */
+    const val BASEMAP_PREF_DASH_ON_DP = 2f
+    const val BASEMAP_PREF_DASH_OFF_DP = 4f
+
+    /** 背景地図: 画面の上で、前に残した点からこれより近い点は飛ばす [px]（広域で点の数を減らす） */
+    const val BASEMAP_MIN_STEP_PX = 1f
+
+    /** 背景地図: 描画の枠の外もこれだけ含めて線を選ぶ [px]（枠の縁で線が途切れて見えないように） */
+    const val BASEMAP_MARGIN_PX = 8f
+
     /** 線の太さ [dp]: トラック全体 / 再生済み / LIVE の軌跡 */
     const val TRACK_LINE_DP = 1f
     const val TRACK_DONE_LINE_DP = 2f

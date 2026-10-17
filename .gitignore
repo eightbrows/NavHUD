@@ -16,6 +16,8 @@
 local.properties
 /sample
 /docs/reports
+# 背景地図の元のデータ（国土地理院「地球地図日本」の zip と展開したもの。tools/gm2basemap.ps1 の入力。リポジトリに入れない）
+/mapdata
 # リリース署名の鍵（リポジトリに入れない）
 *.jks
 *.keystore

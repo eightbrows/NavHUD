@@ -142,6 +142,8 @@ data class NavSettings(
     val panReturnSec: Int = 30,
     /** 画面常時点灯（§6.8） */
     val keepScreenOn: Boolean = true,
+    /** 背景地図（海岸線・県境。§8）を描く */
+    val baseMap: Boolean = true,
     /** 地図に重ねるボタン（上部バー・操作列・WP ボタン列・再生の操作列）の不透明度 [%]。20〜100、10 刻み */
     val buttonOpacityPct: Int = Tuning.BUTTON_OPACITY_DEFAULT_PCT,
     /** 数値（4行）の不透明度 [%]。20〜100、10 刻み。警告の表示は常に 100% */

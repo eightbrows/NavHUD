@@ -55,6 +55,10 @@ object HudColors {
     /** 30° ごとの薄い方位線 */
     val BearingLine = Color(0xFF333333)
 
+    /** 背景地図（§8）: 海岸線（暗い灰色）と県境（さらに暗い。点線で描く）。HUD を邪魔しないよう、どのテーマでも同じ灰色 */
+    val Coastline = Color(0xFF5C5C5C)
+    val PrefBoundary = Color(0xFF4A4A4A)
+
     /** 読み込んだ軌跡の色（設定 trackColor）。Compose の状態 */
     var trackColor: TrackColor by mutableStateOf(TrackColor.WHITE)
 
@@ -136,5 +140,7 @@ object HudColors {
         Ink.STALE -> Stale
         Ink.TRACK -> Track
         Ink.TRACK_DONE -> p.scaleDim
+        Ink.COASTLINE -> Coastline
+        Ink.PREF_BOUNDARY -> PrefBoundary
     }
 }

@@ -26,7 +26,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
@@ -172,6 +174,10 @@ fun SettingsScreen(
             ) { v -> onChange { it.copy(profileSize = v) } }
             Stepper(stringResource(R.string.alt_offset), "%.0f m".format(Locale.US, s.altOffsetM), note = withDefault(stringResource(R.string.alt_offset_note), meters(def.altOffsetM))) { d ->
                 onChange { it.copy(altOffsetM = (it.altOffsetM + d).coerceIn(NavSettings.ALT_OFFSET_M_RANGE)) }
+            }
+            // 背景地図（§8）: 海岸線と県境
+            Toggle(stringResource(R.string.base_map), s.baseMap, note = stringResource(R.string.base_map_note), default = def.baseMap) { v ->
+                onChange { it.copy(baseMap = v) }
             }
         }
 
@@ -402,6 +408,8 @@ fun SettingsScreen(
             InfoRow(stringResource(R.string.about_website), "eightbrows.github.io", WEBSITE_URL)
             InfoRow(stringResource(R.string.about_cheatsheet), "docs/cheatsheet.pdf", "$REPO_URL/blob/main/docs/cheatsheet.pdf")
             InfoRow(stringResource(R.string.about_formats), "docs/formats.pdf", "$REPO_URL/blob/main/docs/formats.pdf")
+            // 背景地図の出典（§8）
+            SourceNote(stringResource(R.string.about_basemap_source, BASEMAP_SOURCE_URL), BASEMAP_SOURCE_URL)
             Text(stringResource(R.string.about_links_note), style = RowNote)
         }
     }
@@ -412,6 +420,9 @@ private const val REPO_URL = "https://github.com/eightbrows/NavHUD"
 
 /** 公式サイト（GpsLogger の「情報」の欄と同じ） */
 private const val WEBSITE_URL = "https://eightbrows.github.io/"
+
+/** 背景地図の出典（国土地理院「地球地図日本」のページ） */
+private const val BASEMAP_SOURCE_URL = "https://www.gsi.go.jp/kankyochiri/gm_jpn.html"
 
 /**
  * 決まった値から選ぶ項目の ＋ / −: 今の値（選べる値にないときは、それ以上で最初の値）から、d つ隣の値にする（端では止まる）。
@@ -506,6 +517,18 @@ private fun InfoRow(label: String, value: String, url: String? = null) {
             Text("↗", style = ValueText)
         }
     }
+}
+
+/** 出典の文（§8）。文の中のアドレスに下線を付け、押すとブラウザで開く。 */
+@Composable
+private fun SourceNote(text: String, url: String) {
+    val uriHandler = LocalUriHandler.current
+    val at = text.indexOf(url)
+    val annotated = buildAnnotatedString {
+        append(text)
+        if (at >= 0) addStyle(SpanStyle(textDecoration = TextDecoration.Underline), at, at + url.length)
+    }
+    Text(annotated, style = RowLabel.copy(fontSize = 13.sp), modifier = Modifier.fillMaxWidth().clickable { runCatching { uriHandler.openUri(url) } })
 }
 
 @Composable

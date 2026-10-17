@@ -37,6 +37,7 @@ import io.github.eightbrows.navhud.core.nav.NavState
 import io.github.eightbrows.navhud.core.view.HudInsets
 import io.github.eightbrows.navhud.core.view.HudMetrics
 import io.github.eightbrows.navhud.core.view.HudRect
+import io.github.eightbrows.navhud.core.io.BaseMap
 import io.github.eightbrows.navhud.core.view.HudScene
 import io.github.eightbrows.navhud.core.view.HudSceneBuilder
 import io.github.eightbrows.navhud.core.view.HudViewport
@@ -60,6 +61,8 @@ fun HudCanvas(
     numberBands: List<ClosedFloatingPointRange<Float>> = emptyList(),
     /** ボタン類（上部バー・操作列・WP ボタン列・再生の操作列）の矩形 [px]。WP の名前・矢印の文字を重ねない */
     buttonBoxes: List<HudRect> = emptyList(),
+    /** 背景地図（§8）。null なら描かない */
+    baseMap: BaseMap? = null,
 ) {
     val density = LocalDensity.current.density
     val metrics = remember(density) { HudMetrics().scaled(density) }
@@ -70,9 +73,9 @@ fun HudCanvas(
             onViewport(HudViewport(HudRect(0f, 0f, size.width.toFloat(), size.height.toFloat()), metrics, reserved))
         }
     }
-    val scene = remember(state, size, metrics, reserved, numberBands, buttonBoxes) {
+    val scene = remember(state, size, metrics, reserved, numberBands, buttonBoxes, baseMap) {
         if (size == IntSize.Zero) null
-        else HudSceneBuilder.build(state, HudRect(0f, 0f, size.width.toFloat(), size.height.toFloat()), metrics, reserved, numberBands, buttonBoxes)
+        else HudSceneBuilder.build(state, HudRect(0f, 0f, size.width.toFloat(), size.height.toFloat()), metrics, reserved, numberBands, buttonBoxes, baseMap)
     }
     val textMeasurer = rememberTextMeasurer()
     val panHandler by rememberUpdatedState(onPan)
@@ -140,6 +143,16 @@ private fun DrawScope.drawScene(scene: HudScene, tm: TextMeasurer, density: Floa
     val longDash = PathEffect.dashPathEffect(floatArrayOf(Tuning.ACTIVE_DASH_ON_DP * density, Tuning.ACTIVE_DASH_OFF_DP * density))
 
     drawRect(HudColors.Background)
+
+    // 背景地図（いちばん下。距離環・方位の目盛り・軌跡・WP の線より下。§8）。県境は点線
+    val dot = PathEffect.dashPathEffect(floatArrayOf(Tuning.BASEMAP_PREF_DASH_ON_DP * density, Tuning.BASEMAP_PREF_DASH_OFF_DP * density))
+    for (l in scene.baseMap) {
+        val path = Path().apply {
+            moveTo(l.points[0].x, l.points[0].y)
+            for (i in 1 until l.points.size) lineTo(l.points[i].x, l.points[i].y)
+        }
+        drawPath(path, HudColors.ofMap(l.ink), style = Stroke(l.widthDp * density, join = StrokeJoin.Round, pathEffect = if (l.dashed) dot else null))
+    }
 
     for (a in scene.arcs) {
         drawArc(

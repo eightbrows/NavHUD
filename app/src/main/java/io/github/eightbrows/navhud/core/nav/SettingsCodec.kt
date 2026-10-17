@@ -45,6 +45,7 @@ object SettingsCodec {
         "panReturnSec" to s.panReturnSec.toString(),
         "autoOpenLastList" to s.autoOpenLastList.toString(),
         "keepScreenOn" to s.keepScreenOn.toString(),
+        "baseMap" to s.baseMap.toString(),
         "buttonOpacityPct" to s.buttonOpacityPct.toString(),
         "numbersOpacityPct" to s.numbersOpacityPct.toString(),
         "trackColor" to s.trackColor.name,
@@ -172,6 +173,7 @@ object SettingsCodec {
             panReturnSec = int("panReturnSec", d.panReturnSec).coerceIn(NavSettings.PAN_RETURN_SEC_RANGE),
             autoOpenLastList = bool("autoOpenLastList", d.autoOpenLastList),
             keepScreenOn = bool("keepScreenOn", d.keepScreenOn),
+            baseMap = bool("baseMap", d.baseMap),
             // 不透明度: 20〜100 の 10 刻み以外は既定値
             buttonOpacityPct = int("buttonOpacityPct", d.buttonOpacityPct).takeIf { it in NavSettings.OPACITY_CHOICES_PCT } ?: d.buttonOpacityPct,
             numbersOpacityPct = int("numbersOpacityPct", d.numbersOpacityPct).takeIf { it in NavSettings.OPACITY_CHOICES_PCT } ?: d.numbersOpacityPct,

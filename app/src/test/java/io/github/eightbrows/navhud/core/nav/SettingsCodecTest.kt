@@ -36,6 +36,7 @@ class SettingsCodecTest {
             panReturnSec = 45,
             autoOpenLastList = false,
             keepScreenOn = false,
+            baseMap = false,
             buttonOpacityPct = 40,
             numbersOpacityPct = 60,
             trackColor = TrackColor.CYAN,
