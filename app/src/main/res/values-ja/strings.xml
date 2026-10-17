@@ -110,8 +110,6 @@
     <string name="profile_note">WP ボタン列の下。現在地から次の目標、その先の目標までの標高</string>
     <string name="alt_offset">標高オフセット</string>
     <string name="alt_offset_note">標高 = GPS の楕円体高 − これ</string>
-    <string name="base_map">背景地図（海岸線・県境）</string>
-    <string name="base_map_note">海岸線と都道府県境を、地図のいちばん下に暗い線で描く</string>
     <string name="sec_heading">方位</string>
     <string name="heading_source">方位ソース</string>
     <string name="heading_source_note">車は GPS、歩行は HYBRID か COMPASS</string>
@@ -174,6 +172,25 @@
     <string name="input_replay">REPLAY（track.csv）</string>
     <string name="no_fix_timeout">NO FIX とみなす時間</string>
     <string name="rate_window">RATE の窓</string>
+    <string name="sec_map_layers">地図レイヤ</string>
+    <string name="map_layers_note">国土地理院「地球地図日本」（1/100万相当）の線と記号を、地図のいちばん下に暗く描きます。点のレイヤは小さな記号だけ（名前は出しません）。</string>
+    <string name="base_map">背景地図</string>
+    <string name="base_map_note">OFF にすると、下のレイヤをまとめて消す</string>
+    <string name="map_layer_coastline">海岸線</string>
+    <string name="map_layer_pref_boundary">県境</string>
+    <string name="map_layer_muni_boundary">市区町村境</string>
+    <string name="map_layer_road">道路</string>
+    <string name="map_layer_railway">鉄道</string>
+    <string name="map_layer_river">河川</string>
+    <string name="map_layer_ferry">フェリーの航路</string>
+    <string name="map_layer_dam_line">ダム・堰（線）</string>
+    <string name="map_layer_inland_water">湖沼など（輪郭）</string>
+    <string name="map_layer_built_up_area">市街地（輪郭）</string>
+    <string name="map_layer_airport">空港</string>
+    <string name="map_layer_port">港</string>
+    <string name="map_layer_station">駅</string>
+    <string name="map_layer_dam_point">ダム・堰（点）</string>
+    <string name="map_layer_city">都市</string>
     <string name="sec_other">その他</string>
     <string name="keep_screen_on">画面常時点灯</string>
     <string name="auto_open_last">前回の WP リストを自動で開く</string>

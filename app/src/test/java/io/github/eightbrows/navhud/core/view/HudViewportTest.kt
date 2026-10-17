@@ -218,8 +218,9 @@ class HudViewportTest {
 
     @Test
     fun farWaypointGetsTheLargestStep() {
-        assertEquals(50_000.0, auto(EN(0.0, 200_000.0), 0.0, arc), 0.0)
-        assertEquals(50_000.0, auto(EN(0.0, -200_000.0), 0.0, northUp), 0.0)
+        // いちばん広域の段（20261017-D02 から 200 km の段 = R1 100 km。前は 50 km の段）
+        assertEquals(stepsM.last(), auto(EN(0.0, 200_000.0), 0.0, arc), 0.0)
+        assertEquals(stepsM.last(), auto(EN(0.0, -200_000.0), 0.0, northUp), 0.0)
     }
 
     @Test

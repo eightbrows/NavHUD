@@ -1,5 +1,6 @@
 package io.github.eightbrows.navhud.core.nav
 
+import io.github.eightbrows.navhud.core.io.MapLayer
 import io.github.eightbrows.navhud.core.model.SourceMode
 
 /**
@@ -46,6 +47,7 @@ object SettingsCodec {
         "autoOpenLastList" to s.autoOpenLastList.toString(),
         "keepScreenOn" to s.keepScreenOn.toString(),
         "baseMap" to s.baseMap.toString(),
+        "mapLayers" to MapLayer.entries.filter { it in s.mapLayers }.joinToString(",") { it.name },
         "buttonOpacityPct" to s.buttonOpacityPct.toString(),
         "numbersOpacityPct" to s.numbersOpacityPct.toString(),
         "trackColor" to s.trackColor.name,
@@ -174,6 +176,8 @@ object SettingsCodec {
             autoOpenLastList = bool("autoOpenLastList", d.autoOpenLastList),
             keepScreenOn = bool("keepScreenOn", d.keepScreenOn),
             baseMap = bool("baseMap", d.baseMap),
+            // 描くレイヤ: 保存がなければ初期値。読めない名前は飛ばす（空 = 全部 OFF）
+            mapLayers = str("mapLayers")?.let { v -> v.split(',').mapNotNull { n -> MapLayer.entries.firstOrNull { it.name == n.trim() } }.toSet() } ?: d.mapLayers,
             // 不透明度: 20〜100 の 10 刻み以外は既定値
             buttonOpacityPct = int("buttonOpacityPct", d.buttonOpacityPct).takeIf { it in NavSettings.OPACITY_CHOICES_PCT } ?: d.buttonOpacityPct,
             numbersOpacityPct = int("numbersOpacityPct", d.numbersOpacityPct).takeIf { it in NavSettings.OPACITY_CHOICES_PCT } ?: d.numbersOpacityPct,

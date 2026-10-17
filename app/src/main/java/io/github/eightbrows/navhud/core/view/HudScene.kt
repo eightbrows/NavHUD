@@ -45,7 +45,43 @@ enum class Ink {
 
     /** 背景地図の県境（海岸線よりさらに暗い点線。§8） */
     PREF_BOUNDARY,
+
+    /** 背景地図の市区町村境（県境よりさらに暗い細かい点線） */
+    MUNI_BOUNDARY,
+
+    /** 背景地図の河川・湖沼の輪郭（暗い青） */
+    MAP_WATER,
+
+    /** 背景地図の道路（暗い茶色） */
+    MAP_ROAD,
+
+    /** 背景地図の鉄道（暗い紫がかった灰色の破線） */
+    MAP_RAIL,
+
+    /** 背景地図のフェリーの航路（暗い青緑の長い破線） */
+    MAP_FERRY,
+
+    /** 背景地図のダム・堰（線と点。暗い水色） */
+    MAP_DAM,
+
+    /** 背景地図の市街地の輪郭（暗いオリーブ色） */
+    MAP_BUILT_UP,
+
+    /** 背景地図の点: 都市・駅・港・空港（ダムは MAP_DAM） */
+    MAP_CITY,
+    MAP_STATION,
+    MAP_PORT,
+    MAP_AIRPORT,
 }
+
+/** 折れ線の線の種類（背景地図のレイヤの描き分け）。長さは Tuning.BASEMAP_*_DP */
+enum class LineDash { SOLID, DOT, FINE_DOT, DASH, LONG_DASH }
+
+/** 背景地図の点の記号の形 */
+enum class MarkShape { CIRCLE, SQUARE, DIAMOND, TRIANGLE }
+
+/** 背景地図の点（小さな記号。名前は描かない）。sizeDp は記号の半分の大きさ [dp]、filled は塗るか */
+data class MapMark(val at: P, val ink: Ink, val shape: MarkShape, val sizeDp: Float, val filled: Boolean)
 
 /** 線。dashed は無効 WP の破線、longDash は次の WP への方位線の長い破線（Tuning.ACTIVE_DASH_*）。 */
 data class Segment(val a: P, val b: P, val ink: Ink, val dashed: Boolean = false, val bold: Boolean = false, val longDash: Boolean = false)
@@ -81,8 +117,8 @@ data class EdgeArrow(val at: P, val lines: List<String>, val textAt: P, val ink:
     val text: String get() = lines.joinToString(" ")
 }
 
-/** 折れ線（軌跡・背景地図）。widthDp は線の太さ [dp]。dashed は点線（背景地図の県境）。 */
-data class Polyline(val points: List<P>, val ink: Ink, val widthDp: Float, val dashed: Boolean = false)
+/** 折れ線（軌跡・背景地図）。widthDp は線の太さ [dp]。dash は線の種類（背景地図のレイヤの描き分け）。 */
+data class Polyline(val points: List<P>, val ink: Ink, val widthDp: Float, val dash: LineDash = LineDash.SOLID)
 
 /** 三角形の印。tip の向きが angleDeg。 */
 data class Pointer(val tip: P, val angleDeg: Float, val sizePx: Float, val ink: Ink)
@@ -103,10 +139,12 @@ data class HudScene(
     val ownShip: OwnShip?,
     /** 軌跡（WP より下に描く） */
     val trails: List<Polyline> = emptyList(),
-    /** 背景地図の線（海岸線・県境。いちばん下に描く。§8） */
+    /** 背景地図の線（いちばん下に描く。レイヤの描く順に並んでいる。§8） */
     val baseMap: List<Polyline> = emptyList(),
+    /** 背景地図の点（線の上、距離環より下に描く） */
+    val baseMapMarks: List<MapMark> = emptyList(),
 ) {
-    // 描く順番（§6.1。下から）: 背景地図 → 距離環 → 軌跡 → baseSegments → labels（方位目盛りの文字・距離環の数字）→ otherWpMarks
+    // 描く順番（§6.1。下から）: 背景地図（線 → 点）→ 距離環 → 軌跡 → baseSegments → labels（方位目盛りの文字・距離環の数字）→ otherWpMarks
     // → pointers（方位の三角）→ nextWpSegments → nextWpMarks → arrows（画面外の次の WP の文字）→ 自機。
     // 次の WP の情報（線・印・文字）は、方位の三角・方位目盛りの文字・距離環の数字より上に描く
 

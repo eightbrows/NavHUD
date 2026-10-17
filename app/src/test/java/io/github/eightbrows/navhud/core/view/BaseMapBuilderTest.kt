@@ -5,7 +5,9 @@ import io.github.eightbrows.navhud.core.geo.EN
 import io.github.eightbrows.navhud.core.geo.Geo
 import io.github.eightbrows.navhud.core.io.BaseMap
 import io.github.eightbrows.navhud.core.io.MapLayer
+import io.github.eightbrows.navhud.core.io.MapLevel
 import io.github.eightbrows.navhud.core.io.MapLine
+import io.github.eightbrows.navhud.core.io.MapPoint
 import io.github.eightbrows.navhud.core.model.Fix
 import io.github.eightbrows.navhud.core.model.HeadingSrc
 import io.github.eightbrows.navhud.core.nav.DisplayMode
@@ -15,23 +17,27 @@ import io.github.eightbrows.navhud.core.nav.NavState
 import io.github.eightbrows.navhud.core.nav.PanView
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** 背景地図（§8）: 画面に入る線を選ぶ、地図から画面の位置に直す、点の数を減らす、HUD に入れる。 */
+/** 背景地図（§8）: 画面に入る線・点を選ぶ、レイヤごとの表示、間引いた段の選び方、点の数を減らす、HUD に入れる。 */
 class BaseMapBuilderTest {
 
     private val rect = HudRect(0f, 0f, 720f, 1200f)
+    private val all = MapLayer.entries.toSet()
 
     /** 自機（基準の地点）を画面の (360, 600) に置く。pxPerM = 0.1 は 1 px = 10 m */
     private fun proj(upDeg: Double = 0.0, pxPerM: Double = 0.1) = HudProjection(P(360f, 600f), pxPerM, upDeg)
 
-    /** 基準の地点から 東 e・北 n [m] の点を並べた線 */
+    /** 基準の地点から 東 e・北 n [m] の点を並べた線（試験では細かい単位で持つ） */
     private fun line(layer: MapLayer, vararg en: Pair<Double, Double>) =
-        MapLine(layer, DoubleArray(en.size) { TestGeo.lat(en[it].second) }, DoubleArray(en.size) { TestGeo.lon(en[it].first) })
+        MapLine.of(layer, DoubleArray(en.size) { TestGeo.lat(en[it].second) }, DoubleArray(en.size) { TestGeo.lon(en[it].first) }, unit = 10_000_000)
 
-    private fun build(map: BaseMap, p: HudProjection = proj(), minStepPx: Float = 1f) =
-        BaseMapBuilder.build(map, TestGeo.LAT0, TestGeo.LON0, p, rect, minStepPx, marginPx = 0f)
+    private fun point(layer: MapLayer, e: Double, n: Double) = MapPoint(layer, 0, TestGeo.lat(n), TestGeo.lon(e), "")
+
+    private fun build(map: BaseMap, layers: Set<MapLayer> = all, p: HudProjection = proj(), r1M: Double = 500.0, minStepPx: Float = 1f) =
+        BaseMapBuilder.build(map, layers, TestGeo.LAT0, TestGeo.LON0, p, rect, r1M, minStepPx, marginPx = 0f)
 
     @Test
     fun visibleBoxCoversTheWholeFrame() {
@@ -41,7 +47,7 @@ class BaseMapBuilderTest {
         assertEquals(TestGeo.lat(6000.0), b.maxLat, 1e-6)
         assertEquals(TestGeo.lon(-3600.0), b.minLon, 3e-5)
         assertEquals(TestGeo.lon(3600.0), b.maxLon, 3e-5)
-        // 画面が回っている（ARC で機首方位 45°）ときは、四隅を含む範囲なので北が上より広くなる
+        // 画面が回っている（ARC で機首方位 45°）ときは、四隅を含む範囲なので東西に広くなる
         val r = BaseMapBuilder.visibleBox(TestGeo.LAT0, TestGeo.LON0, proj(upDeg = 45.0), rect)
         assertTrue(r.maxLon - r.minLon > b.maxLon - b.minLon)
         val half = Math.hypot(3600.0, 6000.0)
@@ -54,26 +60,80 @@ class BaseMapBuilderTest {
         val crossing = line(MapLayer.COASTLINE, -10_000.0 to 1000.0, 10_000.0 to 1000.0)   // 画面を横切る（両端は外）
         val farEast = line(MapLayer.COASTLINE, 20_000.0 to 0.0, 21_000.0 to 0.0)
         val farNorth = line(MapLayer.PREF_BOUNDARY, 0.0 to 30_000.0, 500.0 to 31_000.0)
-        val out = build(BaseMap(listOf(inside, crossing, farEast, farNorth)))
+        val out = build(BaseMap(listOf(inside, crossing, farEast, farNorth))).lines
         assertEquals(2, out.size)
         // 地図から画面への直し方は、軌跡・WP と同じ（基準の地点 = 自機の画面の位置）
-        val p = proj()
-        assertEquals(p.toScreen(Geo.toEN(TestGeo.LAT0, TestGeo.LON0, inside.lats[0], inside.lons[0])), out[0].points[0])
-        assertEquals(260f, out[0].points[0].x, 0.01f)   // 西 1000 m = 左 100 px
-        assertEquals(600f, out[0].points[0].y, 0.01f)
-        assertEquals(460f, out[0].points[1].x, 0.01f)
-        assertEquals(550f, out[0].points[1].y, 0.01f)   // 北 500 m = 上 50 px
+        val first = proj().toScreen(Geo.toEN(TestGeo.LAT0, TestGeo.LON0, inside.lat(0), inside.lon(0)))
+        assertEquals(first.x, out[0].points[0].x, 0.01f)
+        assertEquals(260f, out[0].points[0].x, 0.05f)   // 西 1000 m = 左 100 px
+        assertEquals(600f, out[0].points[0].y, 0.05f)
+        assertEquals(460f, out[0].points[1].x, 0.05f)
+        assertEquals(550f, out[0].points[1].y, 0.05f)   // 北 500 m = 上 50 px
     }
 
     @Test
-    fun coastlineIsSolidAndPrefectureBorderIsDotted() {
-        val out = build(BaseMap(listOf(
-            line(MapLayer.COASTLINE, 0.0 to 0.0, 100.0 to 100.0),
-            line(MapLayer.PREF_BOUNDARY, 0.0 to 0.0, -100.0 to 100.0),
-            line(MapLayer.RIVER, 0.0 to 0.0, 100.0 to -100.0),   // 今はまだ描かない種類
-        )))
-        assertEquals(listOf(Ink.COASTLINE, Ink.PREF_BOUNDARY), out.map { it.ink })
-        assertEquals(listOf(false, true), out.map { it.dashed })
+    fun eachLayerHasItsOwnLookAndDrawOrder() {
+        // 地図の中の順番によらず、描く順（DRAW_ORDER）に並ぶ: 面の輪郭 → 水 → 境 → 交通 → ダム
+        val layers = listOf(MapLayer.FERRY, MapLayer.ROAD, MapLayer.RAILWAY, MapLayer.PREF_BOUNDARY, MapLayer.MUNI_BOUNDARY,
+            MapLayer.COASTLINE, MapLayer.RIVER, MapLayer.INLAND_WATER, MapLayer.BUILT_UP_AREA, MapLayer.DAM_LINE)
+        val out = build(BaseMap(layers.map { line(it, 0.0 to 0.0, 100.0 to 100.0) })).lines
+        assertEquals(
+            listOf(Ink.MAP_BUILT_UP, Ink.MAP_WATER, Ink.MAP_WATER, Ink.COASTLINE, Ink.MUNI_BOUNDARY, Ink.PREF_BOUNDARY, Ink.MAP_ROAD, Ink.MAP_RAIL, Ink.MAP_FERRY, Ink.MAP_DAM),
+            out.map { it.ink },
+        )
+        // 線の種類: 県境は点線、市区町村境は細かい点線、鉄道は破線、フェリーは長い破線、ほかは実線
+        assertEquals(
+            listOf(LineDash.SOLID, LineDash.SOLID, LineDash.SOLID, LineDash.SOLID, LineDash.FINE_DOT, LineDash.DOT, LineDash.SOLID, LineDash.DASH, LineDash.LONG_DASH, LineDash.SOLID),
+            out.map { it.dash },
+        )
+        // 線のレイヤどうしは、色か線の種類のどちらかで見分けられる（河川と湖沼の輪郭だけが同じ。どちらも水）
+        val looks = layers.map { BaseMapBuilder.styleOf(it).let { s -> s.ink to s.dash } }
+        assertEquals(layers.size - 1, looks.distinct().size)
+        // 点のレイヤも、色か記号の形で見分けられる
+        val marks = MapLayer.entries.filter { it.isPoint }.map { BaseMapBuilder.styleOf(it).let { s -> Triple(s.ink, s.shape, s.filled) } }
+        assertEquals(marks.size, marks.distinct().size)
+    }
+
+    @Test
+    fun onlySelectedLayersAreDrawn() {
+        val map = BaseMap(
+            listOf(MapLevel(0.0, listOf(line(MapLayer.COASTLINE, 0.0 to 0.0, 100.0 to 100.0), line(MapLayer.ROAD, 0.0 to 0.0, -100.0 to 100.0)))),
+            listOf(point(MapLayer.STATION, 200.0, 200.0), point(MapLayer.CITY, -200.0, 200.0), point(MapLayer.AIRPORT, 50_000.0, 0.0)),
+        )
+        // 初期値（海岸線と県境）: 道路と点は描かない
+        val d = build(map, NavSettings.DEFAULT_MAP_LAYERS)
+        assertEquals(listOf(Ink.COASTLINE), d.lines.map { it.ink })
+        assertTrue(d.marks.isEmpty())
+        // 道路と駅だけ
+        val r = build(map, setOf(MapLayer.ROAD, MapLayer.STATION))
+        assertEquals(listOf(Ink.MAP_ROAD), r.lines.map { it.ink })
+        assertEquals(listOf(Ink.MAP_STATION), r.marks.map { it.ink })
+        assertEquals(MarkShape.SQUARE, r.marks.single().shape)
+        // 全部: 画面の外の点（東 50 km の空港）は描かない
+        val a = build(map, all)
+        assertEquals(setOf(Ink.MAP_STATION, Ink.MAP_CITY), a.marks.map { it.ink }.toSet())
+        assertEquals(380f, a.marks.first { it.ink == Ink.MAP_STATION }.at.x, 0.05f)   // 東 200 m = 右 20 px
+        // 何も選ばなければ何も描かない
+        assertTrue(build(map, emptySet()).let { it.lines.isEmpty() && it.marks.isEmpty() })
+    }
+
+    @Test
+    fun thinnedLevelIsChosenByR1() {
+        // 段ごとに違う線を入れて、どの段が選ばれたかを見る
+        val l0 = line(MapLayer.COASTLINE, 0.0 to 0.0, 10.0 to 10.0, 20.0 to 0.0)
+        val l1 = line(MapLayer.COASTLINE, 0.0 to 0.0, 20.0 to 0.0)
+        val l2 = line(MapLayer.COASTLINE, 0.0 to 0.0, 30.0 to 0.0)
+        val map = BaseMap(listOf(MapLevel(25_000.0, listOf(l1)), MapLevel(0.0, listOf(l0)), MapLevel(100_000.0, listOf(l2))))
+        assertEquals(listOf(0.0, 25_000.0, 100_000.0), map.levels.map { it.minR1M })
+        // R1 25 km 未満は段 0（間引かない）、25 km 以上は段 1、100 km 以上は段 2
+        assertSame(l0, map.levelFor(250.0)!!.lines.single())
+        assertSame(l0, map.levelFor(10_000.0)!!.lines.single())
+        assertSame(l1, map.levelFor(25_000.0)!!.lines.single())
+        assertSame(l1, map.levelFor(50_000.0)!!.lines.single())
+        assertSame(l2, map.levelFor(100_000.0)!!.lines.single())
+        // 描くときも同じ段を使う（点の数で見分ける。1 px = 0.5 m なので、どの点も飛ばさない）
+        assertEquals(3, build(map, r1M = 2_500.0, p = proj(pxPerM = 2.0)).lines.single().points.size)
+        assertEquals(2, build(map, r1M = 25_000.0, p = proj(pxPerM = 2.0)).lines.single().points.size)
     }
 
     @Test
@@ -92,15 +152,14 @@ class BaseMapBuilderTest {
     fun wideRangeHasFewerPointsThanDetail() {
         // 10 m おきの 401 点（4 km）の線。広域（1 px = 70 m）では 1 px より近い点を飛ばすので少なくなる。詳細（1 px = 0.5 m）では全部残る
         val dense = line(MapLayer.COASTLINE, *Array(401) { (it * 10.0 - 2000.0) to 0.0 })
-        val wide = build(BaseMap(listOf(dense)), proj(pxPerM = 1.0 / 70)).single()
-        val detail = build(BaseMap(listOf(dense)), proj(pxPerM = 2.0)).single()
+        val pw = proj(pxPerM = 1.0 / 70)
+        val wide = build(BaseMap(listOf(dense)), p = pw).lines.single()
+        val detail = build(BaseMap(listOf(dense)), p = proj(pxPerM = 2.0)).lines.single()
         assertTrue("広域 ${wide.points.size} 点", wide.points.size in 50..70)
-        // 詳細では画面の外（左右 180 m より外）の点も、線の範囲が画面に入れば描く（線は分けずに渡す）
         assertEquals(401, detail.points.size)
         // 最初と最後の点は残る
-        val pw = proj(pxPerM = 1.0 / 70)
-        assertEquals(pw.toScreen(EN(-2000.0, 0.0)).x, wide.points.first().x, 0.01f)
-        assertEquals(pw.toScreen(EN(2000.0, 0.0)).x, wide.points.last().x, 0.01f)
+        assertEquals(pw.toScreen(EN(-2000.0, 0.0)).x, wide.points.first().x, 0.05f)
+        assertEquals(pw.toScreen(EN(2000.0, 0.0)).x, wide.points.last().x, 0.05f)
     }
 
     private fun state(settings: NavSettings = NavSettings(), pan: PanView? = null) = NavState(
@@ -112,14 +171,28 @@ class BaseMapBuilderTest {
         pan = pan,
     )
 
-    private val map = BaseMap(listOf(line(MapLayer.COASTLINE, -500.0 to 200.0, 500.0 to 300.0), line(MapLayer.PREF_BOUNDARY, 0.0 to -300.0, 0.0 to 300.0)))
+    private val map = BaseMap(
+        listOf(MapLevel(0.0, listOf(
+            line(MapLayer.COASTLINE, -500.0 to 200.0, 500.0 to 300.0),
+            line(MapLayer.PREF_BOUNDARY, 0.0 to -300.0, 0.0 to 300.0),
+            line(MapLayer.ROAD, -300.0 to -300.0, 300.0 to 300.0),
+        ))),
+        listOf(point(MapLayer.STATION, 100.0, 100.0)),
+    )
 
     @Test
-    fun hudSceneHasBaseMapOnlyWhenSwitchedOn() {
+    fun hudSceneDrawsTheSelectedLayersWhenSwitchedOn() {
+        // 初期値: 背景地図 ON、レイヤは海岸線と県境
         val on = HudSceneBuilder.build(state(), rect, baseMap = map)
-        assertEquals(2, on.baseMap.size)
-        // 設定で OFF・背景地図がまだ読めていない（null）なら描かない
-        assertTrue(HudSceneBuilder.build(state(NavSettings(baseMap = false)), rect, baseMap = map).baseMap.isEmpty())
+        assertEquals(listOf(Ink.COASTLINE, Ink.PREF_BOUNDARY), on.baseMap.map { it.ink })
+        assertTrue(on.baseMapMarks.isEmpty())
+        // レイヤを足すと描く（道路と駅）
+        val more = HudSceneBuilder.build(state(NavSettings(mapLayers = NavSettings.DEFAULT_MAP_LAYERS + MapLayer.ROAD + MapLayer.STATION)), rect, baseMap = map)
+        assertEquals(listOf(Ink.COASTLINE, Ink.PREF_BOUNDARY, Ink.MAP_ROAD), more.baseMap.map { it.ink })
+        assertEquals(1, more.baseMapMarks.size)
+        // 背景地図を OFF にすると、選んだレイヤによらず全部描かない。背景地図がまだ読めていない（null）ときも描かない
+        val off = HudSceneBuilder.build(state(NavSettings(baseMap = false, mapLayers = all)), rect, baseMap = map)
+        assertTrue(off.baseMap.isEmpty() && off.baseMapMarks.isEmpty())
         assertTrue(HudSceneBuilder.build(state(), rect, baseMap = null).baseMap.isEmpty())
         // North Up と PAN でも描く。PAN は PAN の中心が基準
         assertEquals(2, HudSceneBuilder.build(state(NavSettings(displayMode = DisplayMode.NORTH_UP)), rect, baseMap = map).baseMap.size)

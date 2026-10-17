@@ -59,6 +59,19 @@ object HudColors {
     val Coastline = Color(0xFF5C5C5C)
     val PrefBoundary = Color(0xFF4A4A4A)
 
+    /** 背景地図のほかのレイヤ（どれも暗い色。レイヤどうしは色と線の種類で見分ける） */
+    val MuniBoundary = Color(0xFF383838)
+    val MapWater = Color(0xFF1F4466)
+    val MapRoad = Color(0xFF5A4530)
+    val MapRail = Color(0xFF4F4A66)
+    val MapFerry = Color(0xFF22504F)
+    val MapDam = Color(0xFF2F5470)
+    val MapBuiltUp = Color(0xFF3D3A28)
+    val MapCity = Color(0xFF5A5A5A)
+    val MapStation = Color(0xFF5A5478)
+    val MapPort = Color(0xFF2A6060)
+    val MapAirport = Color(0xFF6A5A3A)
+
     /** 読み込んだ軌跡の色（設定 trackColor）。Compose の状態 */
     var trackColor: TrackColor by mutableStateOf(TrackColor.WHITE)
 
@@ -142,5 +155,16 @@ object HudColors {
         Ink.TRACK_DONE -> p.scaleDim
         Ink.COASTLINE -> Coastline
         Ink.PREF_BOUNDARY -> PrefBoundary
+        Ink.MUNI_BOUNDARY -> MuniBoundary
+        Ink.MAP_WATER -> MapWater
+        Ink.MAP_ROAD -> MapRoad
+        Ink.MAP_RAIL -> MapRail
+        Ink.MAP_FERRY -> MapFerry
+        Ink.MAP_DAM -> MapDam
+        Ink.MAP_BUILT_UP -> MapBuiltUp
+        Ink.MAP_CITY -> MapCity
+        Ink.MAP_STATION -> MapStation
+        Ink.MAP_PORT -> MapPort
+        Ink.MAP_AIRPORT -> MapAirport
     }
 }

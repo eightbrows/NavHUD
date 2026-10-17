@@ -112,8 +112,6 @@
     <string name="profile_note">Below the WP strip. Elevation from your position to the next target and beyond.</string>
     <string name="alt_offset">Altitude offset</string>
     <string name="alt_offset_note">Altitude = GPS ellipsoid height − this</string>
-    <string name="base_map">Base map (coastline, prefecture borders)</string>
-    <string name="base_map_note">Draws coastlines and prefecture borders as dark lines under the HUD</string>
     <string name="sec_heading">Heading</string>
     <string name="heading_source">Heading source</string>
     <string name="heading_source_note">GPS in a car; HYBRID or COMPASS on foot</string>
@@ -176,6 +174,25 @@
     <string name="input_replay">REPLAY (track.csv)</string>
     <string name="no_fix_timeout">NO FIX after</string>
     <string name="rate_window">RATE window</string>
+    <string name="sec_map_layers">Map layers</string>
+    <string name="map_layers_note">Lines and symbols from Global Map Japan (about 1:1,000,000), drawn dark under the HUD. Point layers are small symbols only (no names).</string>
+    <string name="base_map">Base map</string>
+    <string name="base_map_note">Turns all layers below off at once</string>
+    <string name="map_layer_coastline">Coastline</string>
+    <string name="map_layer_pref_boundary">Prefecture borders</string>
+    <string name="map_layer_muni_boundary">Municipal borders</string>
+    <string name="map_layer_road">Roads</string>
+    <string name="map_layer_railway">Railways</string>
+    <string name="map_layer_river">Rivers</string>
+    <string name="map_layer_ferry">Ferry routes</string>
+    <string name="map_layer_dam_line">Dams and weirs (lines)</string>
+    <string name="map_layer_inland_water">Lakes (outline)</string>
+    <string name="map_layer_built_up_area">Built-up areas (outline)</string>
+    <string name="map_layer_airport">Airports</string>
+    <string name="map_layer_port">Ports</string>
+    <string name="map_layer_station">Stations</string>
+    <string name="map_layer_dam_point">Dams and weirs (points)</string>
+    <string name="map_layer_city">Cities</string>
     <string name="sec_other">Other</string>
     <string name="keep_screen_on">Keep screen on</string>
     <string name="auto_open_last">Open the last WP list at start</string>

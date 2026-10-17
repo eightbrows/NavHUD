@@ -34,7 +34,7 @@ object HudSceneBuilder {
         reserved: HudInsets = HudInsets(),
         numberBands: List<ClosedFloatingPointRange<Float>> = emptyList(),
         buttonBoxes: List<HudRect> = emptyList(),
-        /** 背景地図（§8）。null なら描かない。設定（NavSettings.baseMap）が OFF でも描かない */
+        /** 背景地図（§8）。null なら描かない。設定（NavSettings.baseMap）が OFF でも描かない。描くレイヤは NavSettings.mapLayers */
         baseMap: BaseMap? = null,
     ): HudScene {
         val avoid = avoidFrame(rect, reserved)
@@ -92,6 +92,8 @@ object HudSceneBuilder {
             keepOut, textFrame(rect, reserved),
         )
 
+        // 背景地図: 今の R1（縮尺の 1/2）に合う、間引いた段を使う
+        val map = if (baseMap != null && s.baseMap && ref != null) BaseMapBuilder.build(baseMap, s.mapLayers, ref.first, ref.second, proj, rect, range / 2) else null
         val scene = HudScene(
             rect = rect,
             arcs = arcs,
@@ -102,7 +104,8 @@ object HudSceneBuilder {
             pointers = pointers,
             ownShip = ownAt?.let { OwnShip(it, ownShipAngle, Ink.OWNSHIP) },
             trails = buildTrails(state, proj, ref, ownAt),
-            baseMap = if (baseMap != null && s.baseMap && ref != null) BaseMapBuilder.build(baseMap, ref.first, ref.second, proj, rect) else emptyList(),
+            baseMap = map?.lines.orEmpty(),
+            baseMapMarks = map?.marks.orEmpty(),
         )
         return if (noFix) scene.stale() else scene
     }

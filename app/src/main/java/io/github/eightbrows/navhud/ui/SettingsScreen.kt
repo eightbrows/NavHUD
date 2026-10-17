@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.eightbrows.navhud.R
 import io.github.eightbrows.navhud.core.model.SourceMode
+import io.github.eightbrows.navhud.core.io.MapLayer
 import io.github.eightbrows.navhud.core.nav.ColorTheme
 import io.github.eightbrows.navhud.core.nav.DisplayMode
 import io.github.eightbrows.navhud.core.nav.LanguageMode
@@ -174,10 +175,6 @@ fun SettingsScreen(
             ) { v -> onChange { it.copy(profileSize = v) } }
             Stepper(stringResource(R.string.alt_offset), "%.0f m".format(Locale.US, s.altOffsetM), note = withDefault(stringResource(R.string.alt_offset_note), meters(def.altOffsetM))) { d ->
                 onChange { it.copy(altOffsetM = (it.altOffsetM + d).coerceIn(NavSettings.ALT_OFFSET_M_RANGE)) }
-            }
-            // 背景地図（§8）: 海岸線と県境
-            Toggle(stringResource(R.string.base_map), s.baseMap, note = stringResource(R.string.base_map_note), default = def.baseMap) { v ->
-                onChange { it.copy(baseMap = v) }
             }
         }
 
@@ -365,6 +362,19 @@ fun SettingsScreen(
             }
         }
 
+        Section(stringResource(R.string.sec_map_layers)) {
+            // 背景地図（§8）: まとめて消すスイッチと、レイヤごとのスイッチ（背景地図が OFF のときは押せない）
+            Text(stringResource(R.string.map_layers_note), style = RowNote)
+            Toggle(stringResource(R.string.base_map), s.baseMap, note = stringResource(R.string.base_map_note), default = def.baseMap) { v ->
+                onChange { it.copy(baseMap = v) }
+            }
+            for (layer in MAP_LAYER_ORDER) {
+                Toggle(stringResource(mapLayerLabel(layer)), layer in s.mapLayers, enabled = s.baseMap, default = layer in def.mapLayers) { v ->
+                    onChange { it.copy(mapLayers = if (v) it.mapLayers + layer else it.mapLayers - layer) }
+                }
+            }
+        }
+
         Section(stringResource(R.string.sec_other)) {
             Toggle(stringResource(R.string.keep_screen_on), s.keepScreenOn, default = def.keepScreenOn) { v -> onChange { it.copy(keepScreenOn = v) } }
             Toggle(stringResource(R.string.auto_open_last), s.autoOpenLastList, note = stringResource(R.string.auto_open_last_note), default = def.autoOpenLastList) { v ->
@@ -420,6 +430,31 @@ private const val REPO_URL = "https://github.com/eightbrows/NavHUD"
 
 /** 公式サイト（GpsLogger の「情報」の欄と同じ） */
 private const val WEBSITE_URL = "https://eightbrows.github.io/"
+
+/** 設定画面の地図レイヤの並び: 線（海岸線・境・交通・水）→ 面の輪郭 → 点 */
+private val MAP_LAYER_ORDER = listOf(
+    MapLayer.COASTLINE, MapLayer.PREF_BOUNDARY, MapLayer.MUNI_BOUNDARY, MapLayer.ROAD, MapLayer.RAILWAY, MapLayer.RIVER,
+    MapLayer.FERRY, MapLayer.DAM_LINE, MapLayer.INLAND_WATER, MapLayer.BUILT_UP_AREA,
+    MapLayer.AIRPORT, MapLayer.PORT, MapLayer.STATION, MapLayer.DAM_POINT, MapLayer.CITY,
+)
+
+private fun mapLayerLabel(layer: MapLayer): Int = when (layer) {
+    MapLayer.COASTLINE -> R.string.map_layer_coastline
+    MapLayer.PREF_BOUNDARY -> R.string.map_layer_pref_boundary
+    MapLayer.MUNI_BOUNDARY -> R.string.map_layer_muni_boundary
+    MapLayer.ROAD -> R.string.map_layer_road
+    MapLayer.RAILWAY -> R.string.map_layer_railway
+    MapLayer.RIVER -> R.string.map_layer_river
+    MapLayer.FERRY -> R.string.map_layer_ferry
+    MapLayer.DAM_LINE -> R.string.map_layer_dam_line
+    MapLayer.INLAND_WATER -> R.string.map_layer_inland_water
+    MapLayer.BUILT_UP_AREA -> R.string.map_layer_built_up_area
+    MapLayer.AIRPORT -> R.string.map_layer_airport
+    MapLayer.PORT -> R.string.map_layer_port
+    MapLayer.STATION -> R.string.map_layer_station
+    MapLayer.DAM_POINT -> R.string.map_layer_dam_point
+    MapLayer.CITY -> R.string.map_layer_city
+}
 
 /** 背景地図の出典（国土地理院「地球地図日本」のページ） */
 private const val BASEMAP_SOURCE_URL = "https://www.gsi.go.jp/kankyochiri/gm_jpn.html"

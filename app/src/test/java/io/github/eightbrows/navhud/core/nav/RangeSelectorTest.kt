@@ -325,6 +325,26 @@ class RangeSelectorTest {
 
     @Test
     fun allStepsList() {
-        assertEquals(listOf(0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0), RangeAuto.ALL_STEPS_KM)
+        // 20261017-D02 から R1 50 km・100 km（100・200 km の段）を足した 12 段。使う段の初期値は今まで通り R1 25 km までの 10 段
+        assertEquals(listOf(0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0, 200.0), RangeAuto.ALL_STEPS_KM)
+        assertEquals(RangeAuto.ALL_STEPS_KM.take(10), NavSettings().rangeStepsKm)
+    }
+
+    @Test
+    fun newWideStepsWorkWithButtonsAndAuto() {
+        val steps = RangeAuto.ALL_STEPS_KM
+        // ＋ / −: 25 km（50 km の段）から − で 50 km、100 km。その先は止まる。＋ で戻る
+        val sel = RangeSelector(steps, 50.0, auto = false, autoMaxKm = 200.0)
+        sel.zoomOut(); assertEquals(100_000.0, sel.rangeM, 0.0)
+        sel.zoomOut(); assertEquals(200_000.0, sel.rangeM, 0.0)
+        sel.zoomOut(); assertEquals(200_000.0, sel.rangeM, 0.0)
+        sel.zoomIn(); assertEquals(100_000.0, sel.rangeM, 0.0)
+        // AUTO: 広域の限度を R1 100 km（200 km の段）にすると、80 km 先の WP には 100 km の段（R1 50 km）、150 km 先には 200 km の段
+        assertEquals(listOf(100.0, 200.0, 500.0, 1_000.0, 2_000.0, 5_000.0, 10_000.0, 20_000.0, 50_000.0, 100_000.0, 200_000.0),
+            RangeSelector(steps, 1.0, auto = true, autoMinKm = 0.1, autoMaxKm = 200.0).autoSteps)
+        assertEquals(100_000.0, RangeAuto.desired(steps.map { it * 1000 }, 80_000.0, null)!!, 0.0)
+        assertEquals(200_000.0, RangeAuto.desired(steps.map { it * 1000 }, 150_000.0, null)!!, 0.0)
+        // 使う段に入っていなければ、AUTO の広域の限度にしても使う段の端に寄る（初期値の使う段では R1 25 km まで）
+        assertEquals(0.1 to 50.0, RangeAuto.limitsKm(NavSettings().rangeStepsKm, 0.1, 200.0))
     }
 }

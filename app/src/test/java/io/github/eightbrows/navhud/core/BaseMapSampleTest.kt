@@ -21,13 +21,14 @@ import kotlin.math.hypot
 
 /**
  * 背景地図（§8）をサンプルの記録（track.csv）の場所で確かめる（レポート用）。結果は build/basemap/ に書き出す。
- * - 1 回の計算（画面に入る線を選び、画面の位置に直し、点を減らす）にかかる時間: 広域（R1 25 km）と詳細（R1 250 m）
- * - 軌跡（実際に走った道）と海岸線の近さ
+ * - 1 回の計算（画面に入る線・点を選び、画面の位置に直し、点を減らす）にかかる時間と、線・点の数:
+ *   R1 100 km・25 km・2.5 km・250 m で、海岸線と県境だけ（初期値）と、全部のレイヤ
+ * - 軌跡（実際に走った道）と海岸線・県境の近さ
  * track.csv は git 管理外なので、ファイルがなければスキップする。
  */
 class BaseMapSampleTest {
 
-    private val map: BaseMap = BaseMapFile.decode(File("src/main/assets/basemap.bin").readBytes())
+    private val map: BaseMap = BaseMapFile.decode(File("src/main/assets/basemap.bin").readBytes()).also { it.preload(MapLayer.entries.toSet()) }
     private val metrics = HudMetrics().scaled(MeasuredScreen.DENSITY)
 
     private fun state(fix: Fix, rangeM: Double, mode: DisplayMode, heading: Float?) = NavState(
@@ -39,38 +40,41 @@ class BaseMapSampleTest {
     )
 
     @Test
-    fun timeToBuildAtWideAndDetailRanges() {
+    fun timeToBuildAtEachRangeForDefaultAndAllLayers() {
         val fixes = SampleTrack.fixes()
-        // サンプルの記録の 10 か所（等間隔）で、ARC と North Up、広域と詳細
+        // サンプルの記録の 10 か所（等間隔）で
         val at = (0 until 10).map { fixes[it * (fixes.size - 1) / 9] }
-        val out = StringBuilder("range,mode,lines,points,mean_ms,max_ms\n")
-        // 表示の縮尺（R1）は rangeM の半分: 25 km = rangeM 50 km、250 m = rangeM 500 m
-        for ((label, rangeM) in listOf("25km" to 50_000.0, "5km" to 10_000.0, "1km" to 2_000.0, "250m" to 500.0)) {
+        val out = StringBuilder("layers,r1,mode,lines,points,marks,mean_ms,max_ms\n")
+        val sets = listOf("default" to NavSettings.DEFAULT_MAP_LAYERS, "all" to MapLayer.entries.toSet())
+        // 表示の縮尺（R1）は rangeM の半分
+        for ((name, layers) in sets) for ((label, r1) in listOf("100km" to 100_000.0, "25km" to 25_000.0, "2.5km" to 2_500.0, "250m" to 250.0)) {
             for (mode in listOf(DisplayMode.ARC, DisplayMode.NORTH_UP)) {
                 var lines = 0
                 var points = 0
+                var marks = 0
                 val times = mutableListOf<Double>()
                 repeat(3) { round ->
                     for (f in at) {
-                        val s = state(f, rangeM, mode, f.bearingDeg ?: 0f)
+                        val s = state(f, r1 * 2, mode, f.bearingDeg ?: 0f)
                         val avoid = HudSceneBuilder.avoidFrame(MeasuredScreen.RECT, MeasuredScreen.REPLAY)
-                        val proj = HudSceneBuilder.projection(s.settings, MeasuredScreen.RECT, avoid, rangeM, s.heading.deg?.toDouble(), metrics)
+                        val proj = HudSceneBuilder.projection(s.settings, MeasuredScreen.RECT, avoid, r1 * 2, s.heading.deg?.toDouble(), metrics)
                         val t0 = System.nanoTime()
-                        val polylines = BaseMapBuilder.build(map, f.lat, f.lon, proj, MeasuredScreen.RECT)
+                        val scene = BaseMapBuilder.build(map, layers, f.lat, f.lon, proj, MeasuredScreen.RECT, r1)
                         val ms = (System.nanoTime() - t0) / 1e6
                         if (round > 0) {   // 1 回目は JVM の準備の分が入るので数えない
                             times += ms
-                            lines = maxOf(lines, polylines.size)
-                            points = maxOf(points, polylines.sumOf { it.points.size })
+                            lines = maxOf(lines, scene.lines.size)
+                            points = maxOf(points, scene.lines.sumOf { it.points.size })
+                            marks = maxOf(marks, scene.marks.size)
                         }
                     }
                 }
-                out.append(String.format(Locale.US, "%s,%s,%d,%d,%.3f,%.3f\n", label, mode, lines, points, times.average(), times.max()))
+                out.append(String.format(Locale.US, "%s,%s,%s,%d,%d,%d,%.3f,%.3f\n", name, label, mode, lines, points, marks, times.average(), times.max()))
             }
         }
         val dir = File("build/basemap").apply { mkdirs() }
         File(dir, "timing.csv").writeText(out.toString())
-        assertTrue(out.lines().size > 4)
+        assertTrue(out.lines().size > 8)
     }
 
     /** 軌跡のうち、その種類の線にいちばん近い点と、その距離 [m]（線分までの距離。基準の地点からの東・北 [m] で測る） */
@@ -82,8 +86,8 @@ class BaseMapSampleTest {
             for (l in lines) {
                 if (l.maxLat < f.lat - 0.2 || l.minLat > f.lat + 0.2 || l.maxLon < f.lon - 0.25 || l.minLon > f.lon + 0.25) continue
                 for (i in 0 until l.size - 1) {
-                    val a = Geo.toEN(f.lat, f.lon, l.lats[i], l.lons[i])
-                    val b = Geo.toEN(f.lat, f.lon, l.lats[i + 1], l.lons[i + 1])
+                    val a = Geo.toEN(f.lat, f.lon, l.lat(i), l.lon(i))
+                    val b = Geo.toEN(f.lat, f.lon, l.lat(i + 1), l.lon(i + 1))
                     val dx = b.e - a.e
                     val dy = b.n - a.n
                     val len2 = dx * dx + dy * dy
@@ -106,7 +110,7 @@ class BaseMapSampleTest {
         }
         // 海岸線の点の間隔（線分の長さ）[m]: 1/100万の地図なので、詳細ではまっすぐな線分のつながりに見える
         val seg = map.lines.filter { it.layer == MapLayer.COASTLINE }.flatMap { l ->
-            (0 until l.size - 1).map { Geo.distanceM(l.lats[it], l.lons[it], l.lats[it + 1], l.lons[it + 1]) }
+            (0 until l.size - 1).map { Geo.distanceM(l.lat(it), l.lon(it), l.lat(it + 1), l.lon(it + 1)) }
         }.sorted()
         out.append(String.format(Locale.US, "coast_segment_m median=%.0f p90=%.0f max=%.0f count=%d\n", seg[seg.size / 2], seg[seg.size * 9 / 10], seg.last(), seg.size))
         val dir = File("build/basemap").apply { mkdirs() }

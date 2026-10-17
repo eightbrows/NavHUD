@@ -47,8 +47,14 @@ object Tuning {
 
     // ---- 縮尺（§6.1） ----
 
-    /** 選べる縮尺の全段 [km]（使う段は設定で選ぶ） */
-    val RANGE_ALL_STEPS_KM = listOf(0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0)
+    /**
+     * 選べる縮尺の全段 [km]（使う段は設定で選ぶ）。値は縮尺の段（R1 = 1つ目の距離環の距離の 2 倍）で、R1 25m〜100km の 12 段。
+     * 20261017-D02 で R1 50 km・100 km（100.0・200.0）を足した
+     */
+    val RANGE_ALL_STEPS_KM = listOf(0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0, 200.0)
+
+    /** 使う縮尺の段の初期値 [km]: R1 25m〜25km の 10 段（20261017-D02 で全段を増やしたが、初期値は変えない） */
+    val RANGE_DEFAULT_STEPS_KM = listOf(0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0)
 
     /** 画面の大きさがまだ分からないときの AUTO: 次の WP が「縮尺 × これ」以内 */
     const val RANGE_DISTANCE_FIT_RATIO = 0.9
@@ -170,13 +176,29 @@ object Tuning {
     /** LIVE の軌跡: 点の上限（超えたら古い方から捨てる） */
     const val LIVE_TRAIL_MAX_POINTS = 5_000
 
-    /** 背景地図（§8）の線の太さ [dp]: 海岸線 / 県境 */
+    /** 背景地図（§8）の線の太さ [dp]: 海岸線 / 県境 / 市区町村境 / 河川 / 湖沼・市街地の輪郭 / 道路 / 鉄道 / フェリー / ダム・堰 */
     const val BASEMAP_COAST_LINE_DP = 1.2f
     const val BASEMAP_PREF_LINE_DP = 1.2f
+    const val BASEMAP_MUNI_LINE_DP = 0.8f
+    const val BASEMAP_RIVER_LINE_DP = 1f
+    const val BASEMAP_AREA_LINE_DP = 0.8f
+    const val BASEMAP_ROAD_LINE_DP = 1f
+    const val BASEMAP_RAIL_LINE_DP = 1f
+    const val BASEMAP_FERRY_LINE_DP = 1f
+    const val BASEMAP_DAM_LINE_DP = 1.6f
 
-    /** 背景地図の県境の点線: 線 / すき間 [dp] */
+    /** 背景地図の線の種類: 点線（県境）・細かい点線（市区町村境）・破線（鉄道）・長い破線（フェリー）の 線 / すき間 [dp] */
     const val BASEMAP_PREF_DASH_ON_DP = 2f
     const val BASEMAP_PREF_DASH_OFF_DP = 4f
+    const val BASEMAP_FINE_DOT_ON_DP = 1f
+    const val BASEMAP_FINE_DOT_OFF_DP = 3f
+    const val BASEMAP_DASH_ON_DP = 5f
+    const val BASEMAP_DASH_OFF_DP = 3f
+    const val BASEMAP_LONG_DASH_ON_DP = 8f
+    const val BASEMAP_LONG_DASH_OFF_DP = 5f
+
+    /** 背景地図の点の記号の大きさ（半分）[dp] */
+    const val BASEMAP_MARK_DP = 2.5f
 
     /** 背景地図: 画面の上で、前に残した点からこれより近い点は飛ばす [px]（広域で点の数を減らす） */
     const val BASEMAP_MIN_STEP_PX = 1f

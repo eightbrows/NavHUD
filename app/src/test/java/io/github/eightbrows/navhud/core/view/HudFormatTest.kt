@@ -37,14 +37,18 @@ class HudFormatTest {
         assertEquals("75", HudFormat.ringLabel(75.0))
         assertEquals("1.5k", HudFormat.ringLabel(1_500.0))
         assertEquals("12.5k", HudFormat.ringLabel(12_500.0))
+        // 新しい段（R1 50 km・100 km）の距離環の数字
+        assertEquals("50k", HudFormat.ringLabel(50_000.0))
+        assertEquals("100k", HudFormat.ringLabel(100_000.0))
+        assertEquals("200k", HudFormat.ringLabel(200_000.0))
         // 縮尺の段
         assertEquals(
-            listOf("50m", "100m", "200m", "500m", "1km", "2km", "5km", "10km", "20km", "50km"),
+            listOf("50m", "100m", "200m", "500m", "1km", "2km", "5km", "10km", "20km", "50km", "100km", "200km"),
             io.github.eightbrows.navhud.core.nav.RangeAuto.ALL_STEPS_KM.map { HudFormat.rangeStep(it * 1000) },
         )
         // 縮尺の表示（操作列・設定画面）は1つ目の距離環の距離
         assertEquals(
-            listOf("25m", "50m", "100m", "250m", "500m", "1km", "2.5km", "5km", "10km", "25km"),
+            listOf("25m", "50m", "100m", "250m", "500m", "1km", "2.5km", "5km", "10km", "25km", "50km", "100km"),
             io.github.eightbrows.navhud.core.nav.RangeAuto.ALL_STEPS_KM.map { HudFormat.rangeLabel(it * 1000) },
         )
     }

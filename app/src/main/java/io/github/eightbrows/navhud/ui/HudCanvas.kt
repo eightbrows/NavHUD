@@ -39,6 +39,9 @@ import io.github.eightbrows.navhud.core.view.HudMetrics
 import io.github.eightbrows.navhud.core.view.HudRect
 import io.github.eightbrows.navhud.core.io.BaseMap
 import io.github.eightbrows.navhud.core.view.HudScene
+import io.github.eightbrows.navhud.core.view.LineDash
+import io.github.eightbrows.navhud.core.view.MapMark
+import io.github.eightbrows.navhud.core.view.MarkShape
 import io.github.eightbrows.navhud.core.view.HudSceneBuilder
 import io.github.eightbrows.navhud.core.view.HudViewport
 import io.github.eightbrows.navhud.core.view.Ink
@@ -136,6 +139,26 @@ private fun ringLabelStyle(scalePct: Int) = TextStyle(fontFamily = FontFamily.Mo
 
 private fun P.o() = Offset(x, y)
 
+/** 背景地図の点の小さな記号（§8。名前は描かない）。同じ見た目（色・形・塗り）の記号を 1 つの Path にまとめて 1 回で描く */
+private fun DrawScope.drawMapMarks(marks: List<MapMark>, density: Float) {
+    for ((look, group) in marks.groupBy { Triple(it.ink, it.shape, it.filled) }) {
+        val (ink, shape, filled) = look
+        val path = Path()
+        for (m in group) {
+            val r = m.sizeDp * density
+            val x = m.at.x
+            val y = m.at.y
+            when (shape) {
+                MarkShape.CIRCLE -> path.addOval(androidx.compose.ui.geometry.Rect(x - r, y - r, x + r, y + r))
+                MarkShape.SQUARE -> path.addRect(androidx.compose.ui.geometry.Rect(x - r, y - r, x + r, y + r))
+                MarkShape.DIAMOND -> { path.moveTo(x, y - r * 1.3f); path.lineTo(x + r * 1.3f, y); path.lineTo(x, y + r * 1.3f); path.lineTo(x - r * 1.3f, y); path.close() }
+                MarkShape.TRIANGLE -> { path.moveTo(x, y - r * 1.3f); path.lineTo(x + r * 1.2f, y + r); path.lineTo(x - r * 1.2f, y + r); path.close() }
+            }
+        }
+        drawPath(path, HudColors.ofMap(ink), style = if (filled) androidx.compose.ui.graphics.drawscope.Fill else Stroke(Tuning.BASEMAP_AREA_LINE_DP * density))
+    }
+}
+
 private fun DrawScope.drawScene(scene: HudScene, tm: TextMeasurer, density: Float, buttonAlpha: Float, ringStyle: TextStyle) {
     val thin = Tuning.LINE_THIN_DP * density
     val bold = Tuning.LINE_BOLD_DP * density
@@ -144,15 +167,30 @@ private fun DrawScope.drawScene(scene: HudScene, tm: TextMeasurer, density: Floa
 
     drawRect(HudColors.Background)
 
-    // 背景地図（いちばん下。距離環・方位の目盛り・軌跡・WP の線より下。§8）。県境は点線
-    val dot = PathEffect.dashPathEffect(floatArrayOf(Tuning.BASEMAP_PREF_DASH_ON_DP * density, Tuning.BASEMAP_PREF_DASH_OFF_DP * density))
-    for (l in scene.baseMap) {
-        val path = Path().apply {
-            moveTo(l.points[0].x, l.points[0].y)
-            for (i in 1 until l.points.size) lineTo(l.points[i].x, l.points[i].y)
+    // 背景地図（いちばん下。距離環・方位の目盛り・軌跡・WP の線より下。§8）。線はレイヤの描く順に並んでいる。点は線の上
+    val dashes = mapOf(
+        LineDash.DOT to PathEffect.dashPathEffect(floatArrayOf(Tuning.BASEMAP_PREF_DASH_ON_DP * density, Tuning.BASEMAP_PREF_DASH_OFF_DP * density)),
+        LineDash.FINE_DOT to PathEffect.dashPathEffect(floatArrayOf(Tuning.BASEMAP_FINE_DOT_ON_DP * density, Tuning.BASEMAP_FINE_DOT_OFF_DP * density)),
+        LineDash.DASH to PathEffect.dashPathEffect(floatArrayOf(Tuning.BASEMAP_DASH_ON_DP * density, Tuning.BASEMAP_DASH_OFF_DP * density)),
+        LineDash.LONG_DASH to PathEffect.dashPathEffect(floatArrayOf(Tuning.BASEMAP_LONG_DASH_ON_DP * density, Tuning.BASEMAP_LONG_DASH_OFF_DP * density)),
+    )
+    // 線はレイヤの順に並んでいるので、同じ見た目（色・太さ・線の種類）が続く線を 1 つの Path にまとめて 1 回で描く（線が多いときの描く手間を減らす）
+    var i0 = 0
+    while (i0 < scene.baseMap.size) {
+        val first = scene.baseMap[i0]
+        val path = Path()
+        var i = i0
+        while (i < scene.baseMap.size) {
+            val l = scene.baseMap[i]
+            if (l.ink != first.ink || l.widthDp != first.widthDp || l.dash != first.dash) break
+            path.moveTo(l.points[0].x, l.points[0].y)
+            for (k in 1 until l.points.size) path.lineTo(l.points[k].x, l.points[k].y)
+            i++
         }
-        drawPath(path, HudColors.ofMap(l.ink), style = Stroke(l.widthDp * density, join = StrokeJoin.Round, pathEffect = if (l.dashed) dot else null))
+        drawPath(path, HudColors.ofMap(first.ink), style = Stroke(first.widthDp * density, join = StrokeJoin.Round, pathEffect = dashes[first.dash]))
+        i0 = i
     }
+    drawMapMarks(scene.baseMapMarks, density)
 
     for (a in scene.arcs) {
         drawArc(

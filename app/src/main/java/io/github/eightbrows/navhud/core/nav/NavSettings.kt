@@ -1,6 +1,7 @@
 package io.github.eightbrows.navhud.core.nav
 
 import io.github.eightbrows.navhud.core.Tuning
+import io.github.eightbrows.navhud.core.io.MapLayer
 import io.github.eightbrows.navhud.core.model.SourceMode
 
 enum class DisplayMode { ARC, NORTH_UP }
@@ -107,7 +108,7 @@ data class NavSettings(
      * 使う縮尺の段 [km]（RangeAuto.ALL_STEPS_KM の中から）。縮尺は ARC では基準の距離環が左右端に接する距離、
      * North Up では縮尺の距離環（方位サークルはその1つ外側）。距離環の間隔は縮尺の 1/2
      */
-    val rangeStepsKm: List<Double> = Tuning.RANGE_ALL_STEPS_KM,
+    val rangeStepsKm: List<Double> = Tuning.RANGE_DEFAULT_STEPS_KM,
     /** 起動時の縮尺 [km] */
     val initialRangeKm: Double = 0.5,
     /** 縮尺の AUTO（次の WP が収まる最小の段）を起動時に ON にする */
@@ -142,8 +143,10 @@ data class NavSettings(
     val panReturnSec: Int = 30,
     /** 画面常時点灯（§6.8） */
     val keepScreenOn: Boolean = true,
-    /** 背景地図（海岸線・県境。§8）を描く */
+    /** 背景地図（§8）を描く。OFF なら、mapLayers によらず全部描かない */
     val baseMap: Boolean = true,
+    /** 背景地図の描くレイヤ（§8）。初期値は海岸線と県境だけ */
+    val mapLayers: Set<MapLayer> = DEFAULT_MAP_LAYERS,
     /** 地図に重ねるボタン（上部バー・操作列・WP ボタン列・再生の操作列）の不透明度 [%]。20〜100、10 刻み */
     val buttonOpacityPct: Int = Tuning.BUTTON_OPACITY_DEFAULT_PCT,
     /** 数値（4行）の不透明度 [%]。20〜100、10 刻み。警告の表示は常に 100% */
@@ -156,6 +159,8 @@ data class NavSettings(
     val ringLabelScalePct: Int = Tuning.RING_LABEL_SCALE_DEFAULT_PCT,
 ) {
     companion object {
+        /** 背景地図の描くレイヤの初期値 */
+        val DEFAULT_MAP_LAYERS: Set<MapLayer> = setOf(MapLayer.COASTLINE, MapLayer.PREF_BOUNDARY)
         val WP_BUTTONS_MAX_RANGE = 3..6
         val PAN_RETURN_SEC_RANGE = 5..60
         val HUD_WP_COUNT_RANGE = 1..20

@@ -48,7 +48,8 @@ class NavEngineTest {
         assertEquals(10, s.noFixTimeoutSec)
         assertEquals(36.0, s.altOffsetM, 0.0)
         // D03 から: 今使っている端末の設定値を初期値にした（§6.9）
-        assertEquals(RangeAuto.ALL_STEPS_KM, s.rangeStepsKm)
+        // 使う段は R1 25m〜25km の 10 段（20261017-D02 で全段は 12 段になったが、初期値は変えない）
+        assertEquals(RangeAuto.ALL_STEPS_KM.take(10), s.rangeStepsKm)
         assertEquals(5, s.wpButtonsMax)
         assertEquals(10, s.hudWpCount)
         assertEquals(ProfileSize.OFF, s.profileSize)
