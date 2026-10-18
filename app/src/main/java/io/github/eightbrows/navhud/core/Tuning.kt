@@ -182,7 +182,10 @@ object Tuning {
     const val BASEMAP_MUNI_LINE_DP = 0.8f
     const val BASEMAP_RIVER_LINE_DP = 1f
     const val BASEMAP_AREA_LINE_DP = 0.8f
+    /** 道路の線の太さ: 国道（と、種類の分からない道路）。高速道路は太く、県道は細く（色は同じ茶） */
     const val BASEMAP_ROAD_LINE_DP = 1f
+    const val BASEMAP_MOTORWAY_LINE_DP = 1.6f
+    const val BASEMAP_PREF_ROAD_LINE_DP = 0.8f
     const val BASEMAP_RAIL_LINE_DP = 1f
     const val BASEMAP_FERRY_LINE_DP = 1f
     const val BASEMAP_DAM_LINE_DP = 1.6f

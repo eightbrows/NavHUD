@@ -20,7 +20,10 @@
     線・点ごとに「レイヤの中の種類」（0〜255）を持つ。道路は rtt、鉄道は fco、河川は lit、湖沼は hyt、空港は use、海岸線は acc。
     道路は rtt が 16（高速道路）・14（国道）・15（県道。主要地方道など）の線だけを入れる（データにはこの 3 つしかない）。
     アプリは高速道路と国道を描き、県道は設定の「県道も出す」が ON のときだけ描く。
-    河川・鉄道は、1 級河川・新幹線・地下鉄を見分ける値がないので、全部入れる（20261018-D01 のレポート）。
+    河川は、1 級河川を見分ける値がないので、名前のある川（nam の最後の語が G. / K. / KAWA / GAWA）で、lit = 1 の線だけを入れる。
+    名前のない線（UNK）と lit = 2（湖・沼・川幅の大きい川など、水の面の中を通る線。面は「湖沼など」のレイヤにある）は入れない
+    （名前に作業のメモのような値が付いた線も、すべて lit = 2 なので入らない。20261018-D02 のレポート）。
+    鉄道は、新幹線・地下鉄を見分ける値がないので、全部入れる（20261018-D01 のレポート）。
   座標系は緯度経度（ITRF94 / JGD2000）。GPS（WGS84）との差は 1/100万の地図の精度より十分小さいので、直さずに使う。
   ライブラリは使わない（PowerShell と、その中の .NET の標準の機能だけ。重い計算は下の C# で行う）。
 
@@ -213,12 +216,14 @@ if ($List) {
 }
 
 function Num($row, $key) { $v = 0; if ([int]::TryParse($row[$key], [ref]$v) -and $v -ge 0 -and $v -le 255) { $v } else { 0 } }
+# 河川の名前が「〜G.」「〜K.」「〜KAWA」「〜GAWA」で終わるか（名前のない線は UNK）
+function RiverName($row) { $n = "$($row['nam'])".Trim(); $n -ne 'UNK' -and (($n -split '\s+')[-1] -cin 'G.', 'K.', 'KAWA', 'GAWA') }
 
 # 取り込むレイヤ（種類の番号・名前・ファイル・取る行・レイヤの中の種類）
 $Layers = @(
   @{ Code = 1;  Name = 'coastline';      File = 'coastl_jpn';   Keep = { param($r) $true };              Kind = { param($r) Num $r 'acc' } }
   @{ Code = 2;  Name = 'pref_boundary';  File = 'polbndl_jpn';  Keep = { param($r) $r['use'] -eq '26' };   Kind = { param($r) Num $r 'bst' } }
-  @{ Code = 3;  Name = 'river';          File = 'riverl_jpn';   Keep = { param($r) $true };              Kind = { param($r) Num $r 'lit' } }
+  @{ Code = 3;  Name = 'river';          File = 'riverl_jpn';   Keep = { param($r) (Num $r 'lit') -eq 1 -and (RiverName $r) }; Kind = { param($r) Num $r 'lit' } }
   @{ Code = 4;  Name = 'road';           File = 'roadl_jpn';    Keep = { param($r) (Num $r 'rtt') -in 14, 15, 16 }; Kind = { param($r) Num $r 'rtt' } }
   @{ Code = 5;  Name = 'railway';        File = 'raill_jpn';    Keep = { param($r) $true };              Kind = { param($r) Num $r 'fco' } }
   @{ Code = 6;  Name = 'muni_boundary';  File = 'polbndl_jpn';  Keep = { param($r) $r['use'] -eq '30' };   Kind = { param($r) Num $r 'bst' } }

@@ -151,6 +151,28 @@ class BaseMapBuilderTest {
     }
 
     @Test
+    fun roadsAreSplitByWidthWithTheSameColor() {
+        // 地図の中では種類が混ざって並んでいる
+        val map = BaseMap(listOf(
+            road(RoadKind.PRIMARY, -1000.0 to 0.0, 1000.0 to 0.0),
+            road(RoadKind.MOTORWAY, 0.0 to -1000.0, 0.0 to 1000.0),
+            road(RoadKind.SECONDARY, -1000.0 to -1000.0, 1000.0 to 1000.0),
+            road(RoadKind.PRIMARY, -1000.0 to 500.0, 1000.0 to 500.0),
+            road(RoadKind.MOTORWAY, 500.0 to -1000.0, 500.0 to 1000.0),
+        ))
+        // 太さ: 高速道路 1.6・国道 1.0・県道 0.8 [dp]。細い線から（県道 → 国道 → 高速道路）並ぶので、同じ太さが続く
+        val out = build(map, setOf(MapLayer.ROAD), prefRoads = true, brightness = mapOf(MapLayer.ROAD to 4)).lines
+        assertEquals(listOf(0.8f, 1.0f, 1.0f, 1.6f, 1.6f), out.map { it.widthDp })
+        // 色・線の種類は同じ茶の実線。明るさはどの太さにも効く
+        assertTrue(out.all { it.ink == Ink.MAP_ROAD && it.dash == LineDash.SOLID })
+        assertTrue(out.all { it.brightness == Tuning.BASEMAP_BRIGHTNESS_FACTORS[3] })
+        // 県道も出すが OFF なら、国道と高速道路だけ
+        assertEquals(listOf(1.0f, 1.0f, 1.6f, 1.6f), build(map, setOf(MapLayer.ROAD)).lines.map { it.widthDp })
+        // 種類の分からない道路（0）は国道と同じ太さ
+        assertEquals(Tuning.BASEMAP_ROAD_LINE_DP, BaseMapBuilder.roadWidthDp(0))
+    }
+
+    @Test
     fun brightnessScalesEachLayerAndAirportIsAPlane() {
         val map = BaseMap(
             listOf(MapLevel(0.0, listOf(line(MapLayer.COASTLINE, 0.0 to 0.0, 100.0 to 100.0), line(MapLayer.RIVER, 0.0 to 0.0, -100.0 to 100.0)))),

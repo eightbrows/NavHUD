@@ -199,9 +199,9 @@ class BaseMapFileTest {
         val map = BaseMapFile.decode(asset.readBytes())
         // 段: 詳細用（間引かない）・R1 25 km 以上用・R1 50 km 以上用・R1 100 km 以上用
         assertEquals(listOf(0.0, 25_000.0, 50_000.0, 100_000.0), map.levels.map { it.minR1M })
-        // 変換のとき（20261017-D02）の数: 段 0 の線（64 点ずつに分けたあと）と点
+        // 変換のとき（20261017-D02。河川は 20261018-D02 で名前のある川だけにした）の数: 段 0 の線（64 点ずつに分けたあと）と点
         val expectLines = mapOf(
-            MapLayer.COASTLINE to 1779, MapLayer.PREF_BOUNDARY to 278, MapLayer.RIVER to 4794, MapLayer.ROAD to 31428,
+            MapLayer.COASTLINE to 1779, MapLayer.PREF_BOUNDARY to 278, MapLayer.RIVER to 591, MapLayer.ROAD to 31428,
             MapLayer.RAILWAY to 3112, MapLayer.MUNI_BOUNDARY to 4220, MapLayer.FERRY to 540, MapLayer.DAM_LINE to 29,
             MapLayer.INLAND_WATER to 934, MapLayer.BUILT_UP_AREA to 249,
         )
@@ -229,5 +229,10 @@ class BaseMapFileTest {
         assertTrue(near(33.50, 133.30, MapLayer.COASTLINE, 15.0))       // 須崎のあたり
         assertTrue(near(33.60, 132.95, MapLayer.PREF_BOUNDARY, 20.0))   // サンプルの終点（愛媛県久万高原町）のあたり
         assertTrue(near(33.4741, 133.0003, MapLayer.ROAD, 3.0))         // サンプルの記録の始まり
+        // 河川は名前のある川で lit = 1 の線だけ（湖の中などの線 lit = 2 は入れない）。道路は rtt 14・15・16 だけ
+        for (level in map.levels) {
+            assertTrue(level.byLayer[MapLayer.RIVER].orEmpty().all { it.kind == 1 })
+            assertTrue(level.byLayer[MapLayer.ROAD].orEmpty().all { it.kind in 14..16 })
+        }
     }
 }

@@ -96,10 +96,20 @@ object BaseMapBuilder {
                     if (p.layer != layer || !box.contains(p.lat, p.lon)) continue
                     marks += MapMark(project(p.lat, p.lon, refLat, refLon, proj), style.ink, style.shape, Tuning.BASEMAP_MARK_DP, style.filled, k)
                 }
-            } else {
-                val skipPrefRoads = layer == MapLayer.ROAD && !prefRoads
+            } else if (layer == MapLayer.ROAD) {
+                // 道路: 種類ごとに太さを変える（色は同じ）。県道 → 国道 → 高速道路の順に並べる（太い線が上。
+                // 同じ太さが続くので、Canvas はまとめて描ける）。県道は「県道も出す」のときだけ
+                val byWidth = ROAD_WIDTHS.associateWith { ArrayList<Polyline>() }
                 for (line in level?.candidates(layer, box.minLat, box.minLon, box.maxLat, box.maxLon).orEmpty()) {
-                    if (skipPrefRoads && line.kind == RoadKind.SECONDARY) continue
+                    if (!prefRoads && line.kind == RoadKind.SECONDARY) continue
+                    if (!box.intersects(line)) continue
+                    val pts = projectThin(line, refLat, refLon, proj, minStepPx)
+                    val w = roadWidthDp(line.kind)
+                    if (pts.size >= 2) byWidth.getValue(w) += Polyline(pts, style.ink, w, style.dash, k)
+                }
+                for (w in ROAD_WIDTHS) lines += byWidth.getValue(w)
+            } else {
+                for (line in level?.candidates(layer, box.minLat, box.minLon, box.maxLat, box.maxLon).orEmpty()) {
                     if (!box.intersects(line)) continue
                     val pts = projectThin(line, refLat, refLon, proj, minStepPx)
                     if (pts.size >= 2) lines += Polyline(pts, style.ink, style.widthDp, style.dash, k)
@@ -108,6 +118,16 @@ object BaseMapBuilder {
         }
         return BaseMapScene(lines, marks)
     }
+
+    /** 道路の線の太さ [dp]: 高速道路 1.6・国道 1.0・県道 0.8（種類の分からない道路は国道と同じ） */
+    fun roadWidthDp(kind: Int): Float = when (kind) {
+        RoadKind.MOTORWAY -> Tuning.BASEMAP_MOTORWAY_LINE_DP
+        RoadKind.SECONDARY -> Tuning.BASEMAP_PREF_ROAD_LINE_DP
+        else -> Tuning.BASEMAP_ROAD_LINE_DP
+    }
+
+    /** 道路の描く順（細い線から）: 県道 → 国道 → 高速道路 */
+    private val ROAD_WIDTHS = listOf(Tuning.BASEMAP_PREF_ROAD_LINE_DP, Tuning.BASEMAP_ROAD_LINE_DP, Tuning.BASEMAP_MOTORWAY_LINE_DP)
 
     /** 明るさの段（1〜5）を、色の RGB に掛ける数にする（範囲の外は端の段） */
     fun brightnessFactor(level: Int): Float =
