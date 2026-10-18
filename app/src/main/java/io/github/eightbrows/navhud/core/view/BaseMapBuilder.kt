@@ -119,7 +119,7 @@ object BaseMapBuilder {
         return BaseMapScene(lines, marks)
     }
 
-    /** 道路の線の太さ [dp]: 高速道路 1.6・国道 1.0・県道 0.8（種類の分からない道路は国道と同じ） */
+    /** 道路の線の太さ [dp]: 高速道路 3.0・国道 1.5・県道 0.7（種類の分からない道路は国道と同じ） */
     fun roadWidthDp(kind: Int): Float = when (kind) {
         RoadKind.MOTORWAY -> Tuning.BASEMAP_MOTORWAY_LINE_DP
         RoadKind.SECONDARY -> Tuning.BASEMAP_PREF_ROAD_LINE_DP
