@@ -8,6 +8,8 @@ import io.github.eightbrows.navhud.core.model.Fix
 import io.github.eightbrows.navhud.core.model.HeadingSrc
 import io.github.eightbrows.navhud.core.nav.DisplayMode
 import io.github.eightbrows.navhud.core.nav.Heading
+import io.github.eightbrows.navhud.core.nav.MapItem
+import io.github.eightbrows.navhud.core.nav.MapRange
 import io.github.eightbrows.navhud.core.nav.NavSettings
 import io.github.eightbrows.navhud.core.nav.NavState
 import io.github.eightbrows.navhud.core.view.BaseMapBuilder
@@ -45,7 +47,7 @@ class BaseMapSampleTest {
         // サンプルの記録の 10 か所（等間隔）で
         val at = (0 until 10).map { fixes[it * (fixes.size - 1) / 9] }
         val out = StringBuilder("layers,r1,mode,lines,points,marks,mean_ms,max_ms\n")
-        val sets = listOf("default" to NavSettings.DEFAULT_MAP_LAYERS, "all" to MapLayer.entries.toSet())
+        val sets = listOf("default" to NavSettings.DEFAULT_MAP_ITEMS, "all" to MapItem.entries.associateWith { MapRange.ALL })
         // 表示の縮尺（R1）は rangeM の半分
         for ((name, layers) in sets) for ((label, r1) in listOf("100km" to 100_000.0, "25km" to 25_000.0, "2.5km" to 2_500.0, "250m" to 250.0)) {
             for (mode in listOf(DisplayMode.ARC, DisplayMode.NORTH_UP)) {

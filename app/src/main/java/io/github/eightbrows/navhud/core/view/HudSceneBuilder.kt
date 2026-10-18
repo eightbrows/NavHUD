@@ -93,7 +93,7 @@ object HudSceneBuilder {
         )
 
         // 背景地図: 今の R1（縮尺の 1/2）に合う、間引いた段を使う
-        val map = if (baseMap != null && s.baseMap && ref != null) BaseMapBuilder.build(baseMap, s.mapLayers, ref.first, ref.second, proj, rect, range / 2, s.mapBrightness, s.mapPrefRoads) else null
+        val map = if (baseMap != null && s.baseMap && ref != null) BaseMapBuilder.build(baseMap, s.mapItems, ref.first, ref.second, proj, rect, range / 2, s.mapLineWidth, s.mapLineBrightness) else null
         val scene = HudScene(
             rect = rect,
             arcs = arcs,

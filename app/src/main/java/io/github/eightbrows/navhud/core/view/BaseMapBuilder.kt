@@ -7,7 +7,8 @@ import io.github.eightbrows.navhud.core.io.BaseMap
 import io.github.eightbrows.navhud.core.io.MapLayer
 import io.github.eightbrows.navhud.core.io.MapLine
 import io.github.eightbrows.navhud.core.io.RoadKind
-import io.github.eightbrows.navhud.core.nav.NavSettings
+import io.github.eightbrows.navhud.core.nav.MapItem
+import io.github.eightbrows.navhud.core.nav.MapRange
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -62,64 +63,74 @@ object BaseMapBuilder {
     }
 
     /**
-     * @param layers 描くレイヤ（設定の NavSettings.mapLayers）
+     * @param items 項目ごとの、どの縮尺まで描くか（設定の NavSettings.mapItems）。R1 がその値以下の項目だけを描く
      * @param refLat 基準の地点（通常は自機、PAN は PAN の中心。proj の EN の原点）
      * @param rect 描画の枠。この枠に（marginPx だけ外まで）入る範囲の線・点を選ぶ
-     * @param r1M 今の R1 [m]（縮尺の 1/2）。使う段を決める
-     * @param brightness レイヤの明るさ（設定の 1〜5。ないレイヤは 3）
-     * @param prefRoads 道路のレイヤで県道（RoadKind.SECONDARY）も描く。false なら高速道路と国道だけ
+     * @param r1M 今の R1 [m]（縮尺の 1/2）。使う段と、描く項目を決める
+     * @param widthLevel 線の太さの段（設定の 1〜3。全部の線の太さに Tuning.BASEMAP_WIDTH_FACTORS を掛ける）
+     * @param brightnessLevel 線の明るさの段（設定の 1〜3。全部の線と記号の色に Tuning.BASEMAP_BRIGHTNESS_FACTORS を掛ける）
      */
     fun build(
         map: BaseMap,
-        layers: Set<MapLayer>,
+        items: Map<MapItem, MapRange>,
         refLat: Double,
         refLon: Double,
         proj: HudProjection,
         rect: HudRect,
         r1M: Double,
-        brightness: Map<MapLayer, Int> = emptyMap(),
-        prefRoads: Boolean = false,
+        widthLevel: Int = 1,
+        brightnessLevel: Int = 1,
         minStepPx: Float = Tuning.BASEMAP_MIN_STEP_PX,
         marginPx: Float = Tuning.BASEMAP_MARGIN_PX,
     ): BaseMapScene {
-        if (layers.isEmpty()) return BaseMapScene(emptyList(), emptyList())
+        val shown = items.filter { it.value.shows(r1M) }.keys
+        if (shown.isEmpty()) return BaseMapScene(emptyList(), emptyList())
+        val layers = shown.flatMap { it.layers }.toSet()
         val box = visibleBox(refLat, refLon, proj, rect, marginPx)
         val level = map.levelFor(r1M)
+        val wk = factor(Tuning.BASEMAP_WIDTH_FACTORS, widthLevel)
+        val k = factor(Tuning.BASEMAP_BRIGHTNESS_FACTORS, brightnessLevel)
         val lines = ArrayList<Polyline>()
         val marks = ArrayList<MapMark>()
         for (layer in DRAW_ORDER) {
             if (layer !in layers) continue
             val style = styleOf(layer)
-            val k = brightnessFactor(brightness[layer] ?: NavSettings.DEFAULT_MAP_BRIGHTNESS)
             if (layer.isPoint) {
                 for (p in map.points) {
                     if (p.layer != layer || !box.contains(p.lat, p.lon)) continue
                     marks += MapMark(project(p.lat, p.lon, refLat, refLon, proj), style.ink, style.shape, Tuning.BASEMAP_MARK_DP, style.filled, k)
                 }
             } else if (layer == MapLayer.ROAD) {
-                // 道路: 種類ごとに太さを変える（色は同じ）。県道 → 国道 → 高速道路の順に並べる（太い線が上。
-                // 同じ太さが続くので、Canvas はまとめて描ける）。県道は「県道も出す」のときだけ
+                // 道路: 項目（高速道路・国道・県道）ごとに、その縮尺で描く種類だけ。種類ごとに太さを変える（色は同じ）。
+                // 県道 → 国道 → 高速道路の順に並べる（太い線が上。同じ太さが続くので、Canvas はまとめて描ける）
                 val byWidth = ROAD_WIDTHS.associateWith { ArrayList<Polyline>() }
                 for (line in level?.candidates(layer, box.minLat, box.minLon, box.maxLat, box.maxLon).orEmpty()) {
-                    if (!prefRoads && line.kind == RoadKind.SECONDARY) continue
+                    if (roadItem(line.kind) !in shown) continue
                     if (!box.intersects(line)) continue
                     val pts = projectThin(line, refLat, refLon, proj, minStepPx)
                     val w = roadWidthDp(line.kind)
-                    if (pts.size >= 2) byWidth.getValue(w) += Polyline(pts, style.ink, w, style.dash, k)
+                    if (pts.size >= 2) byWidth.getValue(w) += Polyline(pts, style.ink, w * wk, style.dash, k)
                 }
                 for (w in ROAD_WIDTHS) lines += byWidth.getValue(w)
             } else {
                 for (line in level?.candidates(layer, box.minLat, box.minLon, box.maxLat, box.maxLon).orEmpty()) {
                     if (!box.intersects(line)) continue
                     val pts = projectThin(line, refLat, refLon, proj, minStepPx)
-                    if (pts.size >= 2) lines += Polyline(pts, style.ink, style.widthDp, style.dash, k)
+                    if (pts.size >= 2) lines += Polyline(pts, style.ink, style.widthDp * wk, style.dash, k)
                 }
             }
         }
         return BaseMapScene(lines, marks)
     }
 
-    /** 道路の線の太さ [dp]: 高速道路 3.0・国道 1.5・県道 0.7（種類の分からない道路は国道と同じ） */
+    /** 道路の線がどの項目に入るか: 高速道路・国道・県道（種類の分からない道路は国道） */
+    fun roadItem(kind: Int): MapItem = when (kind) {
+        RoadKind.MOTORWAY -> MapItem.MOTORWAY
+        RoadKind.SECONDARY -> MapItem.PREF_ROAD
+        else -> MapItem.NATIONAL_ROAD
+    }
+
+    /** 道路の線の太さ [dp]（線の太さの段 1 のとき）: 高速道路 3.0・国道 1.5・県道 0.7（種類の分からない道路は国道と同じ） */
     fun roadWidthDp(kind: Int): Float = when (kind) {
         RoadKind.MOTORWAY -> Tuning.BASEMAP_MOTORWAY_LINE_DP
         RoadKind.SECONDARY -> Tuning.BASEMAP_PREF_ROAD_LINE_DP
@@ -129,9 +140,8 @@ object BaseMapBuilder {
     /** 道路の描く順（細い線から）: 県道 → 国道 → 高速道路 */
     private val ROAD_WIDTHS = listOf(Tuning.BASEMAP_PREF_ROAD_LINE_DP, Tuning.BASEMAP_ROAD_LINE_DP, Tuning.BASEMAP_MOTORWAY_LINE_DP)
 
-    /** 明るさの段（1〜5）を、色の RGB に掛ける数にする（範囲の外は端の段） */
-    fun brightnessFactor(level: Int): Float =
-        Tuning.BASEMAP_BRIGHTNESS_FACTORS[(level - 1).coerceIn(0, Tuning.BASEMAP_BRIGHTNESS_FACTORS.lastIndex)]
+    /** 段（1〜）を掛ける数にする（範囲の外は端の段） */
+    fun factor(factors: List<Float>, level: Int): Float = factors[(level - 1).coerceIn(0, factors.lastIndex)]
 
     /** 描画の枠の四隅（＋ 余白）を地図に戻した範囲。ARC で画面が回っていても、四隅を含む範囲なので枠全体が入る。 */
     fun visibleBox(refLat: Double, refLon: Double, proj: HudProjection, rect: HudRect, marginPx: Float = 0f): LatLonBox {

@@ -1,6 +1,5 @@
 package io.github.eightbrows.navhud.core.nav
 
-import io.github.eightbrows.navhud.core.io.MapLayer
 import io.github.eightbrows.navhud.core.model.SourceMode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -38,9 +37,9 @@ class SettingsCodecTest {
             autoOpenLastList = false,
             keepScreenOn = false,
             baseMap = false,
-            mapLayers = setOf(MapLayer.ROAD, MapLayer.CITY),
-            mapBrightness = mapOf(MapLayer.ROAD to 5, MapLayer.CITY to 2),
-            mapPrefRoads = true,
+            mapItems = NavSettings.DEFAULT_MAP_ITEMS + mapOf(MapItem.MOTORWAY to MapRange.ALL, MapItem.WATER to MapRange.UPTO_25KM),
+            mapLineWidth = 3,
+            mapLineBrightness = 2,
             buttonOpacityPct = 40,
             numbersOpacityPct = 60,
             trackColor = TrackColor.CYAN,

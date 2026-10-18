@@ -36,10 +36,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.eightbrows.navhud.R
 import io.github.eightbrows.navhud.core.model.SourceMode
-import io.github.eightbrows.navhud.core.io.MapLayer
 import io.github.eightbrows.navhud.core.nav.ColorTheme
 import io.github.eightbrows.navhud.core.nav.DisplayMode
 import io.github.eightbrows.navhud.core.nav.LanguageMode
+import io.github.eightbrows.navhud.core.nav.MapItem
+import io.github.eightbrows.navhud.core.nav.MapRange
 import io.github.eightbrows.navhud.core.nav.NavSettings
 import io.github.eightbrows.navhud.core.nav.OwnshipPosition
 import io.github.eightbrows.navhud.core.nav.ProfileSize
@@ -363,23 +364,29 @@ fun SettingsScreen(
         }
 
         Section(stringResource(R.string.sec_map_layers)) {
-            // 背景地図（§8）: まとめて消すスイッチと、レイヤごとのスイッチ（背景地図が OFF のときは押せない）
+            // 背景地図（§8）: まとめて消すスイッチ、地図全体の線の太さ・明るさ、項目ごとの「どの縮尺まで描くか」
+            // （背景地図が OFF のときは、下の項目は押せない。値は残る）
             Text(stringResource(R.string.map_layers_note), style = RowNote)
             Toggle(stringResource(R.string.base_map), s.baseMap, note = stringResource(R.string.base_map_note), default = def.baseMap) { v ->
                 onChange { it.copy(baseMap = v) }
             }
-            for (layer in MAP_LAYER_ORDER) {
-                LayerRow(
-                    stringResource(mapLayerLabel(layer)), layer in s.mapLayers, s.mapBrightnessOf(layer), enabled = s.baseMap, default = layer in def.mapLayers,
-                    onToggle = { v -> onChange { it.copy(mapLayers = if (v) it.mapLayers + layer else it.mapLayers - layer) } },
-                    onStep = { d -> onChange { it.withMapBrightness(layer, it.mapBrightnessOf(layer) + d) } },
-                )
-                // 道路の下に「県道も出す」（道路が OFF のときも押せない）
-                if (layer == MapLayer.ROAD) {
-                    Toggle(
-                        stringResource(R.string.map_pref_roads), s.mapPrefRoads, note = stringResource(R.string.map_pref_roads_note),
-                        enabled = s.baseMap && MapLayer.ROAD in s.mapLayers, default = def.mapPrefRoads,
-                    ) { v -> onChange { it.copy(mapPrefRoads = v) } }
+            val levels = NavSettings.MAP_LINE_LEVELS.map { it.toString() to it }
+            Choice(stringResource(R.string.map_line_width), levels, s.mapLineWidth, note = stringResource(R.string.map_line_width_note), enabled = s.baseMap, default = def.mapLineWidth) { v ->
+                onChange { it.copy(mapLineWidth = v) }
+            }
+            Choice(stringResource(R.string.map_line_brightness), levels, s.mapLineBrightness, note = stringResource(R.string.map_line_brightness_note), enabled = s.baseMap, default = def.mapLineBrightness) { v ->
+                onChange { it.copy(mapLineBrightness = v) }
+            }
+            val ranges = listOf(
+                stringResource(R.string.map_range_off) to MapRange.OFF,
+                stringResource(R.string.map_range_10) to MapRange.UPTO_10KM,
+                stringResource(R.string.map_range_25) to MapRange.UPTO_25KM,
+                stringResource(R.string.map_range_50) to MapRange.UPTO_50KM,
+                stringResource(R.string.map_range_all) to MapRange.ALL,
+            )
+            for (item in MAP_ITEM_ORDER) {
+                Choice(stringResource(mapItemLabel(item)), ranges, s.mapRangeOf(item), enabled = s.baseMap, default = def.mapRangeOf(item), compact = true) { v ->
+                    onChange { it.withMapRange(item, v) }
                 }
             }
         }
@@ -440,29 +447,30 @@ private const val REPO_URL = "https://github.com/eightbrows/NavHUD"
 /** 公式サイト（GpsLogger の「情報」の欄と同じ） */
 private const val WEBSITE_URL = "https://eightbrows.github.io/"
 
-/** 設定画面の地図レイヤの並び: 線（海岸線・境・交通・水）→ 面の輪郭 → 点 */
-private val MAP_LAYER_ORDER = listOf(
-    MapLayer.COASTLINE, MapLayer.PREF_BOUNDARY, MapLayer.MUNI_BOUNDARY, MapLayer.ROAD, MapLayer.RAILWAY, MapLayer.RIVER,
-    MapLayer.FERRY, MapLayer.DAM_LINE, MapLayer.INLAND_WATER, MapLayer.BUILT_UP_AREA,
-    MapLayer.AIRPORT, MapLayer.PORT, MapLayer.STATION, MapLayer.DAM_POINT, MapLayer.CITY,
+/** 設定画面の地図レイヤの項目の並び: 線（海岸線・境・道路・鉄道・水・フェリー・ダム）→ 面の輪郭 → 点 */
+private val MAP_ITEM_ORDER = listOf(
+    MapItem.COASTLINE, MapItem.PREF_BOUNDARY, MapItem.MUNI_BOUNDARY, MapItem.MOTORWAY, MapItem.NATIONAL_ROAD, MapItem.PREF_ROAD,
+    MapItem.RAILWAY, MapItem.WATER, MapItem.FERRY, MapItem.DAM_LINE, MapItem.BUILT_UP_AREA,
+    MapItem.AIRPORT, MapItem.PORT, MapItem.STATION, MapItem.DAM_POINT, MapItem.CITY,
 )
 
-private fun mapLayerLabel(layer: MapLayer): Int = when (layer) {
-    MapLayer.COASTLINE -> R.string.map_layer_coastline
-    MapLayer.PREF_BOUNDARY -> R.string.map_layer_pref_boundary
-    MapLayer.MUNI_BOUNDARY -> R.string.map_layer_muni_boundary
-    MapLayer.ROAD -> R.string.map_layer_road
-    MapLayer.RAILWAY -> R.string.map_layer_railway
-    MapLayer.RIVER -> R.string.map_layer_river
-    MapLayer.FERRY -> R.string.map_layer_ferry
-    MapLayer.DAM_LINE -> R.string.map_layer_dam_line
-    MapLayer.INLAND_WATER -> R.string.map_layer_inland_water
-    MapLayer.BUILT_UP_AREA -> R.string.map_layer_built_up_area
-    MapLayer.AIRPORT -> R.string.map_layer_airport
-    MapLayer.PORT -> R.string.map_layer_port
-    MapLayer.STATION -> R.string.map_layer_station
-    MapLayer.DAM_POINT -> R.string.map_layer_dam_point
-    MapLayer.CITY -> R.string.map_layer_city
+private fun mapItemLabel(item: MapItem): Int = when (item) {
+    MapItem.COASTLINE -> R.string.map_layer_coastline
+    MapItem.PREF_BOUNDARY -> R.string.map_layer_pref_boundary
+    MapItem.MUNI_BOUNDARY -> R.string.map_layer_muni_boundary
+    MapItem.MOTORWAY -> R.string.map_item_motorway
+    MapItem.NATIONAL_ROAD -> R.string.map_item_national_road
+    MapItem.PREF_ROAD -> R.string.map_item_pref_road
+    MapItem.RAILWAY -> R.string.map_layer_railway
+    MapItem.WATER -> R.string.map_item_water
+    MapItem.FERRY -> R.string.map_layer_ferry
+    MapItem.DAM_LINE -> R.string.map_layer_dam_line
+    MapItem.BUILT_UP_AREA -> R.string.map_layer_built_up_area
+    MapItem.AIRPORT -> R.string.map_layer_airport
+    MapItem.PORT -> R.string.map_layer_port
+    MapItem.STATION -> R.string.map_layer_station
+    MapItem.DAM_POINT -> R.string.map_layer_dam_point
+    MapItem.CITY -> R.string.map_layer_city
 }
 
 /** 背景地図の出典（国土地理院「地球地図日本」のページ） */
@@ -584,19 +592,21 @@ private fun <T> Choice(
     enabled: Boolean = true,
     /** 初期値（選ぶ項目）。補足文の最後に「（初期値：その選択肢の名前）」と書く。null なら書かない */
     default: T? = null,
+    /** 小さな選択肢（地図レイヤの項目。5 つの選択肢を 1 行に収める） */
+    compact: Boolean = false,
     onSelect: (T) -> Unit,
 ) {
     val n = if (default == null) note else withDefault(note, options.firstOrNull { it.second == default }?.first ?: default.toString())
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Label(label, n, enabled)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            for ((text, value) in options) Chip(text, value == selected, enabled) { onSelect(value) }
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            for ((text, value) in options) Chip(text, value == selected, enabled, compact) { onSelect(value) }
         }
     }
 }
 
 @Composable
-private fun Chip(text: String, on: Boolean, enabled: Boolean = true, onClick: () -> Unit) {
+private fun Chip(text: String, on: Boolean, enabled: Boolean = true, compact: Boolean = false, onClick: () -> Unit) {
     val shape = RoundedCornerShape(4.dp)
     // 押せないとき（自動車の固定値など）はグレー
     val c = if (enabled) HudColors.Scale else HudColors.WpReached
@@ -605,9 +615,9 @@ private fun Chip(text: String, on: Boolean, enabled: Boolean = true, onClick: ()
             .border(1.dp, if (on) c else HudColors.WpDisabled, shape)
             .background(if (on) c else HudColors.Background, shape)
             .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 5.dp),
+            .padding(horizontal = if (compact) 7.dp else 10.dp, vertical = 5.dp),
     ) {
-        Text(text, style = ValueText.copy(color = if (on) HudColors.Background else c, fontSize = 13.sp))
+        Text(text, style = ValueText.copy(color = if (on) HudColors.Background else c, fontSize = if (compact) 12.sp else 13.sp))
     }
 }
 
@@ -653,34 +663,6 @@ private fun PercentSlider(
                 inactiveTickColor = HudColors.ScaleDim,
             ),
         )
-    }
-}
-
-/**
- * 地図レイヤの1行: 名前（補足は初期値の ON / OFF）、明るさの − / 段 / ＋（1〜5）、スイッチ。
- * enabled が false（背景地図が OFF）なら、明るさもスイッチも押せない（値は残る）。
- */
-@Composable
-private fun LayerRow(
-    label: String,
-    on: Boolean,
-    brightness: Int,
-    enabled: Boolean,
-    default: Boolean,
-    onToggle: (Boolean) -> Unit,
-    onStep: (Int) -> Unit,
-) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Box(Modifier.weight(1f)) { Label(label, withDefault(null, if (default) "ON" else "OFF"), enabled) }
-        HudButton("−", { onStep(-1) }, enabled = enabled && brightness > NavSettings.MAP_BRIGHTNESS_RANGE.first, small = true)
-        Text(
-            brightness.toString(),
-            style = if (enabled) ValueText else ValueText.copy(color = HudColors.WpReached),
-            textAlign = TextAlign.Center,
-            modifier = Modifier.widthIn(min = 16.dp),
-        )
-        HudButton("＋", { onStep(1) }, enabled = enabled && brightness < NavSettings.MAP_BRIGHTNESS_RANGE.last, small = true)
-        SettingsSwitch(on, enabled, onToggle)
     }
 }
 

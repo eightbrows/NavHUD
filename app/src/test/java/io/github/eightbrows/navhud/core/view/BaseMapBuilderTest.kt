@@ -14,6 +14,8 @@ import io.github.eightbrows.navhud.core.model.Fix
 import io.github.eightbrows.navhud.core.model.HeadingSrc
 import io.github.eightbrows.navhud.core.nav.DisplayMode
 import io.github.eightbrows.navhud.core.nav.Heading
+import io.github.eightbrows.navhud.core.nav.MapItem
+import io.github.eightbrows.navhud.core.nav.MapRange
 import io.github.eightbrows.navhud.core.nav.NavSettings
 import io.github.eightbrows.navhud.core.nav.NavState
 import io.github.eightbrows.navhud.core.nav.PanView
@@ -27,7 +29,12 @@ import org.junit.Test
 class BaseMapBuilderTest {
 
     private val rect = HudRect(0f, 0f, 720f, 1200f)
-    private val all = MapLayer.entries.toSet()
+
+    /** 全部の項目を「すべて」 */
+    private val all = MapItem.entries.associateWith { MapRange.ALL }
+
+    /** 選んだ項目だけを range、ほかは描かない */
+    private fun items(vararg on: MapItem, range: MapRange = MapRange.ALL) = on.associateWith { range }
 
     /** 自機（基準の地点）を画面の (360, 600) に置く。pxPerM = 0.1 は 1 px = 10 m */
     private fun proj(upDeg: Double = 0.0, pxPerM: Double = 0.1) = HudProjection(P(360f, 600f), pxPerM, upDeg)
@@ -44,13 +51,13 @@ class BaseMapBuilderTest {
 
     private fun build(
         map: BaseMap,
-        layers: Set<MapLayer> = all,
+        items: Map<MapItem, MapRange> = all,
         p: HudProjection = proj(),
         r1M: Double = 500.0,
         minStepPx: Float = 1f,
-        brightness: Map<MapLayer, Int> = emptyMap(),
-        prefRoads: Boolean = false,
-    ) = BaseMapBuilder.build(map, layers, TestGeo.LAT0, TestGeo.LON0, p, rect, r1M, brightness, prefRoads, minStepPx = minStepPx, marginPx = 0f)
+        width: Int = 1,
+        brightness: Int = 1,
+    ) = BaseMapBuilder.build(map, items, TestGeo.LAT0, TestGeo.LON0, p, rect, r1M, width, brightness, minStepPx = minStepPx, marginPx = 0f)
 
     @Test
     fun visibleBoxCoversTheWholeFrame() {
@@ -113,12 +120,12 @@ class BaseMapBuilderTest {
             listOf(MapLevel(0.0, listOf(line(MapLayer.COASTLINE, 0.0 to 0.0, 100.0 to 100.0), line(MapLayer.ROAD, 0.0 to 0.0, -100.0 to 100.0)))),
             listOf(point(MapLayer.STATION, 200.0, 200.0), point(MapLayer.CITY, -200.0, 200.0), point(MapLayer.AIRPORT, 50_000.0, 0.0)),
         )
-        // 初期値（海岸線・県境・市区町村境・湖沼など・フェリー）: 道路と点は描かない
-        val d = build(map, NavSettings.DEFAULT_MAP_LAYERS)
+        // 初期値（海岸線・県境・市区町村境・フェリー・河川・湖沼が「すべて」）: 道路と点は描かない
+        val d = build(map, NavSettings.DEFAULT_MAP_ITEMS)
         assertEquals(listOf(Ink.COASTLINE), d.lines.map { it.ink })
         assertTrue(d.marks.isEmpty())
-        // 道路と駅だけ
-        val r = build(map, setOf(MapLayer.ROAD, MapLayer.STATION))
+        // 国道（種類の分からない道路も国道）と駅だけ
+        val r = build(map, items(MapItem.NATIONAL_ROAD, MapItem.STATION))
         assertEquals(listOf(Ink.MAP_ROAD), r.lines.map { it.ink })
         assertEquals(listOf(Ink.MAP_STATION), r.marks.map { it.ink })
         assertEquals(MarkShape.SQUARE, r.marks.single().shape)
@@ -127,27 +134,57 @@ class BaseMapBuilderTest {
         assertEquals(setOf(Ink.MAP_STATION, Ink.MAP_CITY), a.marks.map { it.ink }.toSet())
         assertEquals(380f, a.marks.first { it.ink == Ink.MAP_STATION }.at.x, 0.05f)   // 東 200 m = 右 20 px
         // 何も選ばなければ何も描かない
-        assertTrue(build(map, emptySet()).let { it.lines.isEmpty() && it.marks.isEmpty() })
+        assertTrue(build(map, emptyMap()).let { it.lines.isEmpty() && it.marks.isEmpty() })
+        assertTrue(build(map, MapItem.entries.associateWith { MapRange.OFF }).let { it.lines.isEmpty() && it.marks.isEmpty() })
     }
 
     @Test
-    fun prefectureRoadsAreDrawnOnlyWhenSwitchedOn() {
+    fun itemsAreDrawnOnlyUpToTheirRange() {
+        val map = BaseMap(listOf(line(MapLayer.COASTLINE, 0.0 to 0.0, 100.0 to 100.0)))
+        fun drawn(range: MapRange, r1Km: Double) = build(map, items(MapItem.COASTLINE, range = range), r1M = r1Km * 1000).lines.isNotEmpty()
+        // R1 がその値以下のときだけ描く（ちょうどの値は描く）
+        assertEquals(listOf(true, true, false), listOf(5.0, 10.0, 25.0).map { drawn(MapRange.UPTO_10KM, it) })
+        assertEquals(listOf(true, false), listOf(25.0, 50.0).map { drawn(MapRange.UPTO_25KM, it) })
+        assertEquals(listOf(true, false), listOf(50.0, 100.0).map { drawn(MapRange.UPTO_50KM, it) })
+        assertEquals(listOf(true, true, true), listOf(0.025, 25.0, 100.0).map { drawn(MapRange.ALL, it) })
+        assertEquals(listOf(false, false), listOf(0.025, 100.0).map { drawn(MapRange.OFF, it) })
+    }
+
+    @Test
+    fun roadItemsChooseTheKindsOfRoads() {
         val map = BaseMap(listOf(
             road(RoadKind.MOTORWAY, -1000.0 to 0.0, 1000.0 to 0.0),
             road(RoadKind.PRIMARY, 0.0 to -1000.0, 0.0 to 1000.0),
             road(RoadKind.SECONDARY, -1000.0 to -1000.0, 1000.0 to 1000.0),
         ))
-        // 初期値（県道も出す = OFF）: 高速道路と国道だけ
-        assertEquals(2, build(map, setOf(MapLayer.ROAD)).lines.size)
-        // ON: 県道も描く（3 本とも道路の見た目）
-        val on = build(map, setOf(MapLayer.ROAD), prefRoads = true).lines
+        // 高速道路・国道・県道の項目が、それぞれの種類の線を描く
+        assertEquals(listOf(3f), build(map, items(MapItem.MOTORWAY)).lines.map { it.widthDp })
+        assertEquals(listOf(1.5f), build(map, items(MapItem.NATIONAL_ROAD)).lines.map { it.widthDp })
+        assertEquals(listOf(0.7f), build(map, items(MapItem.PREF_ROAD)).lines.map { it.widthDp })
+        val on = build(map, items(MapItem.MOTORWAY, MapItem.NATIONAL_ROAD, MapItem.PREF_ROAD)).lines
         assertEquals(3, on.size)
         assertTrue(on.all { it.ink == Ink.MAP_ROAD })
-        // ほかのレイヤの種類（rtt と同じ 15 の値でも）は飛ばさない
+        // 項目ごとに縮尺が違う: R1 50 km で、高速道路は「すべて」・国道は「〜25 km」なら高速道路だけ
+        val mixed = mapOf(MapItem.MOTORWAY to MapRange.ALL, MapItem.NATIONAL_ROAD to MapRange.UPTO_25KM, MapItem.PREF_ROAD to MapRange.UPTO_10KM)
+        assertEquals(listOf(3f), build(map, mixed, r1M = 50_000.0).lines.map { it.widthDp })
+        assertEquals(listOf(1.5f, 3f), build(map, mixed, r1M = 25_000.0).lines.map { it.widthDp })
+        // ほかのレイヤの種類（rtt と同じ 15 の値でも）は飛ばさない（河川・湖沼の項目で描く）
         val river = MapLine.of(MapLayer.RIVER, doubleArrayOf(TestGeo.LAT0, TestGeo.lat(100.0)), doubleArrayOf(TestGeo.LON0, TestGeo.LON0), RoadKind.SECONDARY, unit = 10_000_000)
-        assertEquals(1, build(BaseMap(listOf(river)), setOf(MapLayer.RIVER)).lines.size)
-        // 道路のレイヤが OFF なら、県道も出すが ON でも描かない
-        assertTrue(build(map, setOf(MapLayer.COASTLINE), prefRoads = true).lines.isEmpty())
+        assertEquals(1, build(BaseMap(listOf(river)), items(MapItem.WATER)).lines.size)
+        // 道路の項目が全部 OFF なら描かない
+        assertTrue(build(map, items(MapItem.COASTLINE)).lines.isEmpty())
+    }
+
+    @Test
+    fun waterItemDrawsRiversAndLakeOutlinesInTheSameBlue() {
+        val map = BaseMap(listOf(
+            line(MapLayer.RIVER, -1000.0 to 0.0, 1000.0 to 0.0),
+            line(MapLayer.INLAND_WATER, 0.0 to 0.0, 200.0 to 0.0, 200.0 to 200.0, 0.0 to 0.0),
+        ))
+        val out = build(map, items(MapItem.WATER)).lines
+        assertEquals(2, out.size)
+        assertTrue(out.all { it.ink == Ink.MAP_WATER && it.dash == LineDash.SOLID })
+        assertTrue(build(map, items(MapItem.COASTLINE)).lines.isEmpty())
     }
 
     @Test
@@ -161,36 +198,43 @@ class BaseMapBuilderTest {
             road(RoadKind.MOTORWAY, 500.0 to -1000.0, 500.0 to 1000.0),
         ))
         // 太さ: 高速道路 3.0・国道 1.5・県道 0.7 [dp]。細い線から（県道 → 国道 → 高速道路）並ぶので、同じ太さが続く
-        val out = build(map, setOf(MapLayer.ROAD), prefRoads = true, brightness = mapOf(MapLayer.ROAD to 4)).lines
+        val roads = items(MapItem.MOTORWAY, MapItem.NATIONAL_ROAD, MapItem.PREF_ROAD)
+        val out = build(map, roads, brightness = 2).lines
         assertEquals(listOf(0.7f, 1.5f, 1.5f, 3f, 3f), out.map { it.widthDp })
         // 色・線の種類は同じ茶の実線。明るさはどの太さにも効く
         assertTrue(out.all { it.ink == Ink.MAP_ROAD && it.dash == LineDash.SOLID })
-        assertTrue(out.all { it.brightness == Tuning.BASEMAP_BRIGHTNESS_FACTORS[3] })
-        // 県道も出すが OFF なら、国道と高速道路だけ
-        assertEquals(listOf(1.5f, 1.5f, 3f, 3f), build(map, setOf(MapLayer.ROAD)).lines.map { it.widthDp })
+        assertTrue(out.all { it.brightness == Tuning.BASEMAP_BRIGHTNESS_FACTORS[1] })
+        // 県道が OFF なら、国道と高速道路だけ
+        assertEquals(listOf(1.5f, 1.5f, 3f, 3f), build(map, items(MapItem.MOTORWAY, MapItem.NATIONAL_ROAD)).lines.map { it.widthDp })
+        // 線の太さの段 3 は、比を保って全部に 1.8 倍
+        val w = Tuning.BASEMAP_WIDTH_FACTORS[2]
+        assertEquals(listOf(0.7f * w, 1.5f * w, 1.5f * w, 3f * w, 3f * w), build(map, roads, width = 3).lines.map { it.widthDp })
         // 種類の分からない道路（0）は国道と同じ太さ
         assertEquals(Tuning.BASEMAP_ROAD_LINE_DP, BaseMapBuilder.roadWidthDp(0))
     }
 
     @Test
-    fun brightnessScalesEachLayerAndAirportIsAPlane() {
+    fun lineWidthAndBrightnessApplyToTheWholeMapAndAirportIsAPlane() {
         val map = BaseMap(
             listOf(MapLevel(0.0, listOf(line(MapLayer.COASTLINE, 0.0 to 0.0, 100.0 to 100.0), line(MapLayer.RIVER, 0.0 to 0.0, -100.0 to 100.0)))),
             listOf(point(MapLayer.AIRPORT, 200.0, 200.0), point(MapLayer.STATION, -200.0, 200.0)),
         )
-        // 初期値（全部 3）: 掛ける数は 1（D02 までと同じ明るさ）
+        // 初期値（太さ 1・明るさ 1）: 掛ける数は 1（今の太さ・色）
         val d = build(map)
         assertTrue(d.lines.all { it.brightness == 1f } && d.marks.all { it.brightness == 1f })
-        // レイヤごとに変えられる: 海岸線 5・空港 1。ほかは 3 のまま
-        val b = build(map, brightness = mapOf(MapLayer.COASTLINE to 5, MapLayer.AIRPORT to 1))
-        assertEquals(Tuning.BASEMAP_BRIGHTNESS_FACTORS[4], b.lines.first { it.ink == Ink.COASTLINE }.brightness)
-        assertEquals(1f, b.lines.first { it.ink == Ink.MAP_WATER }.brightness)
-        assertEquals(Tuning.BASEMAP_BRIGHTNESS_FACTORS[0], b.marks.first { it.ink == Ink.MAP_AIRPORT }.brightness)
-        assertEquals(1f, b.marks.first { it.ink == Ink.MAP_STATION }.brightness)
-        // 数が大きいほど明るい（3 が 1）
-        val f = (1..5).map { BaseMapBuilder.brightnessFactor(it) }
-        assertEquals(f.sorted(), f)
-        assertEquals(1f, BaseMapBuilder.brightnessFactor(NavSettings.DEFAULT_MAP_BRIGHTNESS))
+        assertEquals(listOf(Tuning.BASEMAP_RIVER_LINE_DP, Tuning.BASEMAP_COAST_LINE_DP), d.lines.map { it.widthDp })
+        // 段 3: 全部の線の太さに 1.8 倍・全部の線と記号の色に 1.6 倍（項目どうしの比は同じ）。記号の大きさは変えない
+        val b = build(map, width = 3, brightness = 3)
+        val w = Tuning.BASEMAP_WIDTH_FACTORS[2]
+        assertEquals(listOf(Tuning.BASEMAP_RIVER_LINE_DP * w, Tuning.BASEMAP_COAST_LINE_DP * w), b.lines.map { it.widthDp })
+        assertTrue(b.lines.all { it.brightness == Tuning.BASEMAP_BRIGHTNESS_FACTORS[2] } && b.marks.all { it.brightness == Tuning.BASEMAP_BRIGHTNESS_FACTORS[2] })
+        assertEquals(d.marks.map { it.sizeDp }, b.marks.map { it.sizeDp })
+        // 段が大きいほど太く・明るい。段 1 が 1。範囲の外は端の段
+        for (f in listOf(Tuning.BASEMAP_WIDTH_FACTORS, Tuning.BASEMAP_BRIGHTNESS_FACTORS)) {
+            assertEquals(f.sorted(), f)
+            assertEquals(1f, f[0])
+            assertEquals(f.last(), BaseMapBuilder.factor(f, 9))
+        }
         // 空港は飛行機の記号（塗り）。大きさはほかの記号と同じ
         val plane = d.marks.first { it.ink == Ink.MAP_AIRPORT }
         assertEquals(MarkShape.PLANE, plane.shape)
@@ -263,16 +307,16 @@ class BaseMapBuilderTest {
 
     @Test
     fun hudSceneDrawsTheSelectedLayersWhenSwitchedOn() {
-        // 初期値: 背景地図 ON、レイヤは海岸線・県境・市区町村境・湖沼など・フェリー（この地図にあるのは海岸線と県境）
+        // 初期値: 背景地図 ON、海岸線・県境・市区町村境・フェリー・河川・湖沼が「すべて」（この地図にあるのは海岸線と県境）
         val on = HudSceneBuilder.build(state(), rect, baseMap = map)
         assertEquals(listOf(Ink.COASTLINE, Ink.PREF_BOUNDARY), on.baseMap.map { it.ink })
         assertTrue(on.baseMapMarks.isEmpty())
-        // レイヤを足すと描く（道路と駅）
-        val more = HudSceneBuilder.build(state(NavSettings(mapLayers = NavSettings.DEFAULT_MAP_LAYERS + MapLayer.ROAD + MapLayer.STATION)), rect, baseMap = map)
+        // 項目を足すと描く（国道と駅）
+        val more = HudSceneBuilder.build(state(NavSettings().withMapRange(MapItem.NATIONAL_ROAD, MapRange.ALL).withMapRange(MapItem.STATION, MapRange.UPTO_10KM)), rect, baseMap = map)
         assertEquals(listOf(Ink.COASTLINE, Ink.PREF_BOUNDARY, Ink.MAP_ROAD), more.baseMap.map { it.ink })
         assertEquals(1, more.baseMapMarks.size)
-        // 背景地図を OFF にすると、選んだレイヤによらず全部描かない。背景地図がまだ読めていない（null）ときも描かない
-        val off = HudSceneBuilder.build(state(NavSettings(baseMap = false, mapLayers = all)), rect, baseMap = map)
+        // 背景地図を OFF にすると、選んだ項目によらず全部描かない。背景地図がまだ読めていない（null）ときも描かない
+        val off = HudSceneBuilder.build(state(NavSettings(baseMap = false, mapItems = all)), rect, baseMap = map)
         assertTrue(off.baseMap.isEmpty() && off.baseMapMarks.isEmpty())
         assertTrue(HudSceneBuilder.build(state(), rect, baseMap = null).baseMap.isEmpty())
         // North Up と PAN でも描く。PAN は PAN の中心が基準
@@ -282,11 +326,14 @@ class BaseMapBuilderTest {
         assertFalse(pan.baseMap == on.baseMap)
         // 背景地図は軌跡とは別のリスト（Canvas がいちばん下に描く）
         assertTrue(on.trails.none { it.ink == Ink.COASTLINE || it.ink == Ink.PREF_BOUNDARY })
-        // 設定の明るさと「県道も出す」が届く（この地図の道路は種類 0 なので、県道も出すによらず描く）
-        val lit = HudSceneBuilder.build(state(NavSettings().withMapBrightness(MapLayer.PREF_BOUNDARY, 4)), rect, baseMap = map)
-        assertEquals(listOf(1f, Tuning.BASEMAP_BRIGHTNESS_FACTORS[3]), lit.baseMap.map { it.brightness })
+        // 設定の線の太さ・明るさが届く
+        val lit = HudSceneBuilder.build(state(NavSettings(mapLineWidth = 2, mapLineBrightness = 3)), rect, baseMap = map)
+        assertTrue(lit.baseMap.all { it.brightness == Tuning.BASEMAP_BRIGHTNESS_FACTORS[2] })
+        assertEquals(on.baseMap.map { it.widthDp * Tuning.BASEMAP_WIDTH_FACTORS[1] }, lit.baseMap.map { it.widthDp })
+        // 項目の縮尺は今の R1（この状態は 1 km）で決まる: 県道「〜10 km」は描き、県境「OFF」は描かない
         val prefMap = BaseMap(listOf(road(RoadKind.SECONDARY, -300.0 to -300.0, 300.0 to 300.0)))
-        assertTrue(HudSceneBuilder.build(state(NavSettings(mapLayers = setOf(MapLayer.ROAD))), rect, baseMap = prefMap).baseMap.isEmpty())
-        assertEquals(1, HudSceneBuilder.build(state(NavSettings(mapLayers = setOf(MapLayer.ROAD), mapPrefRoads = true)), rect, baseMap = prefMap).baseMap.size)
+        assertTrue(HudSceneBuilder.build(state(), rect, baseMap = prefMap).baseMap.isEmpty())
+        assertEquals(1, HudSceneBuilder.build(state(NavSettings().withMapRange(MapItem.PREF_ROAD, MapRange.UPTO_10KM)), rect, baseMap = prefMap).baseMap.size)
+        assertEquals(listOf(Ink.COASTLINE), HudSceneBuilder.build(state(NavSettings().withMapRange(MapItem.PREF_BOUNDARY, MapRange.OFF)), rect, baseMap = map).baseMap.map { it.ink })
     }
 }

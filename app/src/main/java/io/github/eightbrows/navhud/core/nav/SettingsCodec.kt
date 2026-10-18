@@ -1,6 +1,5 @@
 package io.github.eightbrows.navhud.core.nav
 
-import io.github.eightbrows.navhud.core.io.MapLayer
 import io.github.eightbrows.navhud.core.model.SourceMode
 
 /**
@@ -47,11 +46,10 @@ object SettingsCodec {
         "autoOpenLastList" to s.autoOpenLastList.toString(),
         "keepScreenOn" to s.keepScreenOn.toString(),
         "baseMap" to s.baseMap.toString(),
-        "mapLayers" to MapLayer.entries.filter { it in s.mapLayers }.joinToString(",") { it.name },
-        // 明るさ: 3 でないレイヤだけ「名前:段」をカンマでつなぐ（全部 3 なら空）
-        "mapBrightness" to MapLayer.entries.filter { s.mapBrightnessOf(it) != NavSettings.DEFAULT_MAP_BRIGHTNESS }
-            .joinToString(",") { "${it.name}:${s.mapBrightnessOf(it)}" },
-        "mapPrefRoads" to s.mapPrefRoads.toString(),
+        // 背景地図の項目: 全部の項目を「名前:縮尺」でカンマでつなぐ（例 COASTLINE:ALL,MOTORWAY:UPTO_50KM）
+        "mapItems" to MapItem.entries.joinToString(",") { "${it.name}:${s.mapRangeOf(it).name}" },
+        "mapLineWidth" to s.mapLineWidth.toString(),
+        "mapLineBrightness" to s.mapLineBrightness.toString(),
         "buttonOpacityPct" to s.buttonOpacityPct.toString(),
         "numbersOpacityPct" to s.numbersOpacityPct.toString(),
         "trackColor" to s.trackColor.name,
@@ -180,17 +178,15 @@ object SettingsCodec {
             autoOpenLastList = bool("autoOpenLastList", d.autoOpenLastList),
             keepScreenOn = bool("keepScreenOn", d.keepScreenOn),
             baseMap = bool("baseMap", d.baseMap),
-            // 描くレイヤ: 保存がなければ初期値。読めない名前は飛ばす（空 = 全部 OFF）
-            mapLayers = str("mapLayers")?.let { v -> v.split(',').mapNotNull { n -> MapLayer.entries.firstOrNull { it.name == n.trim() } }.toSet() } ?: d.mapLayers,
-            // 明るさ: 「名前:段」。読めない名前・段（1〜5 の外）は飛ばす（そのレイヤは 3）。3 は表に入れない
-            mapBrightness = str("mapBrightness")?.split(',')?.mapNotNull { e ->
+            // 背景地図の項目: 「名前:縮尺」。保存にない項目・読めない名前や縮尺は初期値（20261018-D04 より前の保存の形は読まない）
+            mapItems = d.mapItems + str("mapItems")?.split(',')?.mapNotNull { e ->
                 val (n, v) = e.split(':').takeIf { it.size == 2 } ?: return@mapNotNull null
-                val layer = MapLayer.entries.firstOrNull { it.name == n.trim() } ?: return@mapNotNull null
-                val level = v.trim().toIntOrNull()?.takeIf { it in NavSettings.MAP_BRIGHTNESS_RANGE && it != NavSettings.DEFAULT_MAP_BRIGHTNESS }
-                    ?: return@mapNotNull null
-                layer to level
-            }?.toMap() ?: d.mapBrightness,
-            mapPrefRoads = bool("mapPrefRoads", d.mapPrefRoads),
+                val item = MapItem.entries.firstOrNull { it.name == n.trim() } ?: return@mapNotNull null
+                val range = MapRange.entries.firstOrNull { it.name == v.trim() } ?: return@mapNotNull null
+                item to range
+            }.orEmpty(),
+            mapLineWidth = int("mapLineWidth", d.mapLineWidth).takeIf { it in NavSettings.MAP_LINE_LEVELS } ?: d.mapLineWidth,
+            mapLineBrightness = int("mapLineBrightness", d.mapLineBrightness).takeIf { it in NavSettings.MAP_LINE_LEVELS } ?: d.mapLineBrightness,
             // 不透明度: 20〜100 の 10 刻み以外は既定値
             buttonOpacityPct = int("buttonOpacityPct", d.buttonOpacityPct).takeIf { it in NavSettings.OPACITY_CHOICES_PCT } ?: d.buttonOpacityPct,
             numbersOpacityPct = int("numbersOpacityPct", d.numbersOpacityPct).takeIf { it in NavSettings.OPACITY_CHOICES_PCT } ?: d.numbersOpacityPct,

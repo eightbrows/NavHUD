@@ -17,7 +17,7 @@
     面  9 湖沼など（inwatera）  10 市街地（builtupa）     … 塗らずに、輪郭を線として入れる
     点  20 空港（airp）  21 港（portp）  22 駅（rstatp）  23 ダム・堰（miscp）  24 都市（builtupp） … 名前も入れる
     行政区域の面（polbnda）は、境の線と同じ形なので入れない。
-    線・点ごとに「レイヤの中の種類」（0〜255）を持つ。道路は rtt、鉄道は fco、河川は lit、湖沼は hyt、空港は use、海岸線は acc。
+    線・点ごとに「レイヤの中の種類」（0〜255）を持つ。道路は rtt、鉄道は fco、空港は use、海岸線は acc。河川・湖沼などは大きさの段（下の「段」の説明）。
     道路は rtt が 16（高速道路）・14（国道）・15（県道。主要地方道など）の線だけを入れる（データにはこの 3 つしかない）。
     アプリは高速道路と国道を描き、県道は設定の「県道も出す」が ON のときだけ描く。
     河川は、1 級河川を見分ける値がないので、名前のある川（nam の最後の語が G. / K. / KAWA / GAWA）で、lit = 1 の線だけを入れる。
@@ -31,9 +31,16 @@
     段 0（詳細用。R1 25 km 未満）: 間引かない
     段 1（R1 25 km 以上用）       : 許す差 70 m（R1 25 km の画面で約 1 px）
     段 2（R1 50 km 以上用）       : 許す差 150 m（R1 50 km の画面で約 1 px）。範囲の対角が 300 m 未満の線、
-                                    道路・鉄道・河川・市区町村境は 1 km（約 7 px）未満の線を入れない
+                                    鉄道・市区町村境は 1 km（約 7 px）未満の線を入れない
     段 3（R1 100 km 以上用）      : 許す差 500 m（R1 100 km の画面で約 2 px）。範囲の対角が 500 m 未満の線、
-                                    道路・鉄道・河川・市区町村境は 4 km（約 14 px）未満の線を入れない（点が多く、広域では細かすぎるため）
+                                    鉄道・市区町村境は 4 km（約 14 px）未満の線を入れない（点が多く、広域では細かすぎるため）
+    道路・河川・湖沼などは、この「短い線を入れない」決まりから外す（道路はインターチェンジなどで短く分かれていて、
+    外さないと広域で途切れて見える。河川・湖沼などは下の大きさの段で絞る。20261018-D04）。
+    河川・湖沼などは、大きさの段（$RiverClassKm・$WaterClassKm2）で、段 2 では中・大、段 3 では大だけを入れる:
+      河川（名前のある川の、同じ名前でつながった長さ。湖や川幅の大きい川の中のつなぎの線 lit = 2 も含めて数える）:
+        どの段も 10 km 未満は入れない、段 2 は 30 km 未満、段 3 は 50 km 未満を入れない
+      湖沼など（面の面積）: どの段も 0.1 km² 未満は入れない、段 2 は 1 km² 未満、段 3 は 10 km² 未満を入れない
+    湖沼などは外の輪だけを入れ（穴 = 中洲などの輪郭は入れない）、となりの面と重なる辺も入れない。
     （R1 2.5 km 以上用の段も試したが、元の点の間隔が数百 m あるので、許す差を 1 px（約 7 m）にするとほとんど減らず、入れていない）
   アプリは今の R1（自機から 1 つ目の距離環の距離）以下で、いちばん間引いた段を使う。
 
@@ -178,6 +185,79 @@ public static class Gm {
     return res;
   }
 
+  // 線の長さ [km]（部分ごとの点 [x0, y0, x1, y1, ...]。東西は 2 点の中ほどの緯度で縮める）
+  public static double Km(double[] xy) {
+    double km = 0, r = 6371.0088 * Math.PI / 180.0;
+    for (int i = 2; i < xy.Length; i += 2) {
+      double k = Math.Cos((xy[i-1] + xy[i+1]) / 2 * Math.PI / 180.0);
+      double dx = (xy[i] - xy[i-2]) * k * r, dy = (xy[i+1] - xy[i-1]) * r; km += Math.Sqrt(dx * dx + dy * dy);
+    }
+    return km;
+  }
+
+  // 輪が外の輪か（シェープファイルでは外の輪は時計回り、穴（中洲など）は反時計回り）
+  public static bool IsOuter(double[] xy) {
+    double s = 0; for (int i = 2; i < xy.Length; i += 2) s += (xy[i] - xy[i-2]) * (xy[i+1] + xy[i-1]);
+    return s > 0;   // 経度を右、緯度を上にとると、時計回りで正
+  }
+
+  // 面の面積 [km2]（外の輪 − 穴）。東西はレコードの最初の点の緯度で縮める（全部の辺で同じ数にしないと式が成り立たない）
+  public static double AreaKm2(List<double[]> parts) {
+    if (parts.Count == 0 || parts[0].Length < 2) return 0;
+    double yref = parts[0][1], kref = Math.Cos(yref * Math.PI / 180.0), signed = 0;
+    foreach (var r in parts) for (int i = 2; i < r.Length; i += 2) signed += (r[i] - r[i-2]) * kref * ((r[i+1] - yref) + (r[i-1] - yref)) / 2;
+    double m = 6371.0088 * Math.PI / 180.0; return Math.Abs(signed) * m * m;
+  }
+
+  // 同じ名前の線を、端の点が同じものどうしでまとめ、まとまりごとの長さの合計 [km] をレコードごとに返す（use が false のレコードは 0）
+  public static double[] ConnectedKm(List<ShpRecord> recs, string[] names, bool[] use) {
+    int n = recs.Count; var p = new int[n]; for (int i = 0; i < n; i++) p[i] = i;
+    Func<int, int> find = null; find = x => { while (p[x] != x) { p[x] = p[p[x]]; x = p[x]; } return x; };
+    var ends = new Dictionary<string, int>();
+    for (int i = 0; i < n; i++) {
+      if (!use[i]) continue;
+      foreach (var r in recs[i].Parts) {
+        if (r.Length < 4) continue;
+        foreach (var e in new[] { 0, r.Length - 2 }) {
+          string k = names[i] + "|" + Math.Round(r[e] * 1e6) + "|" + Math.Round(r[e+1] * 1e6);
+          int j; if (ends.TryGetValue(k, out j)) { int a = find(i), b = find(j); if (a != b) p[a] = b; } else ends[k] = i;
+        }
+      }
+    }
+    var sum = new Dictionary<int, double>(); var km = new double[n];
+    for (int i = 0; i < n; i++) { if (!use[i]) continue; double l = 0; foreach (var r in recs[i].Parts) l += Km(r); km[i] = l; int g = find(i); double v; sum.TryGetValue(g, out v); sum[g] = v + l; }
+    var res = new double[n]; for (int i = 0; i < n; i++) if (use[i]) res[i] = sum[find(i)];
+    return res;
+  }
+
+  // 面の輪郭のうち、ほかの面と重なる辺（となりの面との境。2 回描くことになり、水の面の中を横切る線にもなる）を除き、
+  // 残りを続いた線に分ける。object[] = { int[] lat, int[] lon, int kind }（輪は最初と最後の点が同じ）
+  public static List<object[]> DropSharedEdges(List<object[]> rings) {
+    Func<int, int, int, int, string> edge = (a, b, c, d) => {
+      long p = ((long)a << 32) ^ (uint)b, q = ((long)c << 32) ^ (uint)d; return p < q ? p + "|" + q : q + "|" + p; };
+    var count = new Dictionary<string, int>();
+    foreach (var r in rings) { var la = (int[])r[0]; var lo = (int[])r[1];
+      for (int i = 1; i < la.Length; i++) { string k = edge(la[i-1], lo[i-1], la[i], lo[i]); int v; count.TryGetValue(k, out v); count[k] = v + 1; } }
+    var res = new List<object[]>();
+    foreach (var r in rings) {
+      var la = (int[])r[0]; var lo = (int[])r[1]; int n = la.Length;
+      var shared = new bool[n]; bool any = false;   // shared[i]: 点 i-1 から i への辺がほかの面と重なる
+      for (int i = 1; i < n; i++) { shared[i] = count[edge(la[i-1], lo[i-1], la[i], lo[i])] > 1; any |= shared[i]; }
+      if (!any) { res.Add(r); continue; }
+      // 重なる辺のあとから始めて、輪を 1 周たどる（輪の始まりで切れないように）
+      int start = 1; while (!shared[start]) start++;
+      var curLa = new List<int>(); var curLo = new List<int>();
+      for (int s = 0; s < n - 1; s++) {
+        int i = (start + s - 1) % (n - 1) + 1;   // 辺 i（点 i-1 → i）。1..n-1 を start から回る
+        if (shared[i]) { if (curLa.Count >= 2) res.Add(new object[] { curLa.ToArray(), curLo.ToArray(), r[2] }); curLa = new List<int>(); curLo = new List<int>(); continue; }
+        if (curLa.Count == 0) { curLa.Add(la[i-1]); curLo.Add(lo[i-1]); }
+        curLa.Add(la[i]); curLo.Add(lo[i]);
+      }
+      if (curLa.Count >= 2) res.Add(new object[] { curLa.ToArray(), curLo.ToArray(), r[2] });
+    }
+    return res;
+  }
+
   public static void UVarint(Stream s, long v) {
  while (v >= 0x80) { s.WriteByte((byte)((v & 0x7F) | 0x80)); v >>= 7; } s.WriteByte((byte)v); }
   public static void SVarint(Stream s, long v) { UVarint(s, (v << 1) ^ (v >> 63)); }
@@ -223,13 +303,13 @@ function RiverName($row) { $n = "$($row['nam'])".Trim(); $n -ne 'UNK' -and (($n 
 $Layers = @(
   @{ Code = 1;  Name = 'coastline';      File = 'coastl_jpn';   Keep = { param($r) $true };              Kind = { param($r) Num $r 'acc' } }
   @{ Code = 2;  Name = 'pref_boundary';  File = 'polbndl_jpn';  Keep = { param($r) $r['use'] -eq '26' };   Kind = { param($r) Num $r 'bst' } }
-  @{ Code = 3;  Name = 'river';          File = 'riverl_jpn';   Keep = { param($r) (Num $r 'lit') -eq 1 -and (RiverName $r) }; Kind = { param($r) Num $r 'lit' } }
+  @{ Code = 3;  Name = 'river';          File = 'riverl_jpn';   Keep = { param($r) (Num $r 'lit') -eq 1 -and (RiverName $r) }; Kind = { param($r) 0 } }
   @{ Code = 4;  Name = 'road';           File = 'roadl_jpn';    Keep = { param($r) (Num $r 'rtt') -in 14, 15, 16 }; Kind = { param($r) Num $r 'rtt' } }
   @{ Code = 5;  Name = 'railway';        File = 'raill_jpn';    Keep = { param($r) $true };              Kind = { param($r) Num $r 'fco' } }
   @{ Code = 6;  Name = 'muni_boundary';  File = 'polbndl_jpn';  Keep = { param($r) $r['use'] -eq '30' };   Kind = { param($r) Num $r 'bst' } }
   @{ Code = 7;  Name = 'ferry';          File = 'ferryl_jpn';   Keep = { param($r) $true };              Kind = { param($r) 0 } }
   @{ Code = 8;  Name = 'dam_line';       File = 'miscl_jpn';    Keep = { param($r) $true };              Kind = { param($r) 0 } }
-  @{ Code = 9;  Name = 'inland_water';   File = 'inwatera_jpn'; Keep = { param($r) $true };              Kind = { param($r) Num $r 'hyt' } }
+  @{ Code = 9;  Name = 'inland_water';   File = 'inwatera_jpn'; Keep = { param($r) $true };              Kind = { param($r) 0 } }
   @{ Code = 10; Name = 'built_up_area';  File = 'builtupa_jpn'; Keep = { param($r) $true };              Kind = { param($r) 0 } }
   @{ Code = 20; Name = 'airport';        File = 'airp_jpn';     Keep = { param($r) $true };              Kind = { param($r) Num $r 'use' } }
   @{ Code = 21; Name = 'port';           File = 'portp_jpn';    Keep = { param($r) $true };              Kind = { param($r) 0 } }
@@ -245,28 +325,60 @@ $Levels = @(
   @{ MinR1 = 100000; Tol = 500.0; MinExtent = 500.0; DenseMinExtent = 4000.0 }
 )
 $Unit = 10000
+# 短い線を捨てる決まり（段 2・3 の MinExtent / DenseMinExtent）から外すレイヤ: 道路（線が途切れて見えるため）・河川・湖沼など（大きさの段で絞るため）
+$NoExtentRule = @(3, 4, 9)
+# 点の多いレイヤ（段 2・3 で DenseMinExtent を使う）: 鉄道・市区町村境
+$DenseLayers = @(5, 6)
+
+# 河川・湖沼などの大きさの段（レイヤの中の種類に入れる）。段 2（R1 50 km 以上）・段 3（100 km 以上）は、この段以上だけを入れる
+#   河川: 同じ名前で、端の点がつながった線（湖や川幅の大きい川の中の「つなぎの線」lit = 2 も含めて）の長さの合計
+#         1 = 10 km 以上 30 km 未満、2 = 30〜50 km、3 = 50 km 以上（10 km 未満は入れない）。描くのは lit = 1 の線だけ
+#   湖沼など: 面の面積（外の輪 − 穴）。1 = 0.1 km² 以上 1 km² 未満、2 = 1〜10 km²、3 = 10 km² 以上（0.1 km² 未満は入れない）
+$RiverMinKm = 10; $RiverClassKm = @(30, 50)
+$WaterMinKm2 = 0.1; $WaterClassKm2 = @(1, 10)
+$MinSizeClass = @(1, 1, 2, 3)   # 段ごとに入れる大きさの段の下限
+function SizeClass($v, $edges) { if ($v -ge $edges[1]) { 3 } elseif ($v -ge $edges[0]) { 2 } else { 1 } }
 
 # 読む（レイヤごとに、線の部分（単位の整数）と点）
 $data = foreach ($layer in $Layers) {
   $recs = [Gm]::ReadShp((Join-Path $Src "$($layer.File).shp"))
   $rows = [Gm]::ReadDbf((Join-Path $Src "$($layer.File).dbf"))
   if ($recs.Count -ne $rows.Count) { throw "$($layer.File): .shp と .dbf の件数が違う" }
+  # 河川: 名前のある川の lit = 1・2 を、同じ名前で端がつながるものどうしでまとめた長さ
+  $riverKm = $null
+  if ($layer.Code -eq 3) {
+    $use = [bool[]]::new($rows.Count); $names = [string[]]::new($rows.Count)
+    for ($i = 0; $i -lt $rows.Count; $i++) { $use[$i] = (Num $rows[$i] 'lit') -in 1, 2 -and (RiverName $rows[$i]); $names[$i] = "$($rows[$i]['nam'])".Trim() }
+    $riverKm = [Gm]::ConnectedKm($recs, $names, $use)
+  }
   $lines = [System.Collections.Generic.List[object[]]]::new(); $points = [System.Collections.Generic.List[object]]::new(); $kept = 0
   for ($i = 0; $i -lt $recs.Count; $i++) {
     if (-not (& $layer.Keep $rows[$i])) { continue }
-    $kept++; $kind = & $layer.Kind $rows[$i]; $r = $recs[$i]
+    $kind = & $layer.Kind $rows[$i]; $r = $recs[$i]; $parts = $r.Parts
+    if ($layer.Code -eq 3) {
+      if ($riverKm[$i] -lt $RiverMinKm) { continue }
+      $kind = SizeClass $riverKm[$i] $RiverClassKm
+    } elseif ($layer.Code -eq 9) {
+      $a = [Gm]::AreaKm2($r.Parts)
+      if ($a -lt $WaterMinKm2) { continue }
+      $kind = SizeClass $a $WaterClassKm2
+      # 穴（中洲など）の輪郭は描かない（外の輪だけ）
+      $parts = [System.Collections.Generic.List[double[]]]::new(); foreach ($xy in $r.Parts) { if ([Gm]::IsOuter($xy)) { $parts.Add($xy) } }
+    }
+    $kept++
     if ($r.Type -in 1, 11, 21) {
       $name = if ($rows[$i].ContainsKey('nam') -and $rows[$i]['nam'] -ne 'UNK') { $rows[$i]['nam'] } else { '' }
       $points.Add(@{ Kind = $kind; Lat = [int][math]::Round($r.Y * $Unit); Lon = [int][math]::Round($r.X * $Unit); Name = $name })
     } else {
-      foreach ($xy in $r.Parts) {
+      foreach ($xy in $parts) {
         $lon = $null; $lat = [Gm]::ToUnits($xy, $Unit, [ref]$lon)
         if ($lat.Length -ge 2) { $lines.Add([object[]]@($lat, $lon, [int]$kind)) }
       }
     }
   }
-  # 線のレイヤは、端がつながっている線をつなぐ（面の輪郭はそのまま）
+  # 線のレイヤは、端がつながっている線をつなぐ（面の輪郭はそのまま）。湖沼などは、となりの面と重なる辺を除く
   $isArea = $recs.Count -gt 0 -and $recs[0].Type -in 5, 15, 25
+  if ($layer.Code -eq 9) { $lines = [Gm]::DropSharedEdges($lines) }
   $merged = if ($lines.Count -gt 0 -and -not $isArea) { [Gm]::Merge($lines) } else { $lines }
   $lineObjs = [System.Collections.Generic.List[object]]::new()
   foreach ($m in $merged) { $lineObjs.Add(@{ Lat = [int[]]$m[0]; Lon = [int[]]$m[1]; Kind = [int]$m[2] }) }
@@ -296,10 +408,12 @@ for ($lv = 0; $lv -lt $Levels.Count; $lv++) {
     $start = $tmp.Length; $pts = 0; $n0 = $count
     foreach ($ln in $d.Sorted) {
       $lat = $ln.Lat; $lon = $ln.Lon
+      # 河川・湖沼など: 段ごとに小さいものを入れない（大きさの段）
+      if ($d.Layer.Code -in 3, 9 -and $ln.Kind -lt $MinSizeClass[$lv]) { continue }
       if ($level.Tol -gt 0) {
         $idx = [Gm]::Simplify($lat, $lon, $level.Tol, $Unit)
         $lat = [int[]]::new($idx.Length); $lon = [int[]]::new($idx.Length); for ($q = 0; $q -lt $idx.Length; $q++) { $lat[$q] = $ln.Lat[$idx[$q]]; $lon[$q] = $ln.Lon[$idx[$q]] }
-        $minExt = if ($d.Layer.Code -in 3, 4, 5, 6) { $level.DenseMinExtent } else { $level.MinExtent }
+        $minExt = if ($d.Layer.Code -in $NoExtentRule) { 0 } elseif ($d.Layer.Code -in $DenseLayers) { $level.DenseMinExtent } else { $level.MinExtent }
         if ($lat.Length -lt 2 -or ($minExt -gt 0 -and [Gm]::Extent($lat, $lon, $Unit) -lt $minExt)) { continue }
       }
       $pts += $lat.Length

@@ -150,7 +150,7 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
         // 背景地図のファイル（assets）を読む
         viewModelScope.launch {
             // 読むのはかたまりの見出しと点だけ。描くレイヤの線は、ここで（画面とは別のスレッドで）読んでから出す
-            _baseMap.value = withContext(Dispatchers.IO) { BaseMapStore.load(getApplication()).also { it.preload(engine.settings.mapLayers) } }
+            _baseMap.value = withContext(Dispatchers.IO) { BaseMapStore.load(getApplication()).also { it.preload(engine.settings.mapLayersInUse()) } }
         }
     }
 
@@ -221,13 +221,13 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
 
     /** 設定を変える（すぐ画面に反映し、保存する）。 */
     fun updateSettings(transform: (NavSettings) -> NavSettings) {
-        val before = engine.settings.mapLayers
+        val before = engine.settings.mapLayersInUse()
         val next = transform(engine.settings)
         publish(engine.updateSettings(next))
         settingsStore.save(next)
         // 地図レイヤを足したら、そのレイヤの線を別のスレッドで読む（読み終わるまでは、そのレイヤだけ描かない。次の刻みで出る）
         val map = _baseMap.value
-        if (map != null && next.mapLayers != before) viewModelScope.launch(Dispatchers.IO) { map.preload(next.mapLayers) }
+        if (map != null && next.mapLayersInUse() != before) viewModelScope.launch(Dispatchers.IO) { map.preload(next.mapLayersInUse()) }
     }
 
     /** 設定を初期値に戻す。カスタム1〜3 の値は残す（移動手段は自動車に戻る）。 */
