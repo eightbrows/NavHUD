@@ -234,6 +234,14 @@ class BaseMapFileTest {
             val kinds = level.byLayer[MapLayer.ROAD].orEmpty().map { it.kind }.toSet()
             assertEquals(setOf(14, 15, 16, 17), kinds)
         }
+        // カーブの多いまとまり（100 km 未満で、1 km あたり 80 度以上）も 17（20261018-D07）: 伊豆スカイラインは 17。
+        // 大きな網の中の山の高速道路（中央道の恵那山のあたり・中国道）は 16 のまま
+        fun motorwayKindsNear(lat: Double, lon: Double) = map.lines.filter { l ->
+            l.layer == MapLayer.ROAD && l.kind >= 16 && (0 until l.size).any { i -> Geo.distanceM(lat, lon, l.lat(i), l.lon(i)) < 300 }
+        }.map { it.kind }.toSet()
+        assertEquals(setOf(17), motorwayKindsNear(35.0662, 138.9983))
+        assertEquals(setOf(16), motorwayKindsNear(35.4572, 137.4468))
+        assertEquals(setOf(16), motorwayKindsNear(35.0109, 133.5008))
         // 河川・湖沼などの種類は大きさの段（下の 4 ビット: 1 = 小・2 = 中・3 = 大）と幅のある川の印。
         // R1 50 km 以上の段は中・大だけ、100 km 以上の段は大だけ
         for ((i, level) in map.levels.withIndex()) {

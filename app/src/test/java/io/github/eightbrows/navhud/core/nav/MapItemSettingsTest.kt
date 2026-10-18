@@ -19,10 +19,10 @@ class MapItemSettingsTest {
         // 海岸線・県境・市区町村境・フェリー・河川・湖沼は「すべて」、ほかは OFF
         val all = setOf(MapItem.COASTLINE, MapItem.PREF_BOUNDARY, MapItem.MUNI_BOUNDARY, MapItem.FERRY, MapItem.WATER)
         for (item in MapItem.entries) assertEquals(item.name, if (item in all) MapRange.ALL else MapRange.OFF, d.mapRangeOf(item))
-        // 線の太さ・明るさは 1（今の値）。選べるのは 1〜3
-        assertEquals(1, d.mapLineWidth)
-        assertEquals(1, d.mapLineBrightness)
-        assertEquals(1..3, NavSettings.MAP_LINE_LEVELS)
+        // 線の太さ・明るさは 4（今の太さ・色）。選べるのは 1〜6
+        assertEquals(4, d.mapLineWidth)
+        assertEquals(4, d.mapLineBrightness)
+        assertEquals(1..6, NavSettings.MAP_LINE_LEVELS)
         // 使うレイヤ（開くレイヤ）は、OFF でない項目のレイヤ。河川・湖沼は 2 つのレイヤ
         assertEquals(
             setOf(MapLayer.COASTLINE, MapLayer.PREF_BOUNDARY, MapLayer.MUNI_BOUNDARY, MapLayer.FERRY, MapLayer.RIVER, MapLayer.INLAND_WATER),
@@ -53,7 +53,7 @@ class MapItemSettingsTest {
         val enc = SettingsCodec.encode(s)
         // 全部の項目を「名前:縮尺」で（MapItem の順）
         assertTrue(enc.getValue("mapItems").startsWith("COASTLINE:ALL,PREF_BOUNDARY:ALL,MUNI_BOUNDARY:ALL,MOTORWAY:ALL,OTHER_MOTORWAY:OFF,NATIONAL_ROAD:UPTO_50KM,PREF_ROAD:UPTO_10KM,"))
-        assertEquals("3", enc["mapLineWidth"])
+        assertEquals("3", enc["mapLineWidthLevel"])
         val back = SettingsCodec.decode(enc)
         assertEquals(s.mapItems, back.mapItems)
         assertEquals(3, back.mapLineWidth)
@@ -63,21 +63,28 @@ class MapItemSettingsTest {
         assertEquals(NavSettings.DEFAULT_MAP_ITEMS, old.mapItems)
         assertEquals(NavSettings.DEFAULT_MAP_ITEMS, SettingsCodec.decode(emptyMap()).mapItems)
         // 読めない名前・縮尺は飛ばす（その項目は初期値）。保存にない項目も初期値
-        val bad = SettingsCodec.decode(mapOf("mapItems" to "MOTORWAY:UPTO_25KM,FOO:ALL,COASTLINE:BAR,CITY", "mapLineWidth" to "4", "mapLineBrightness" to "x"))
+        val bad = SettingsCodec.decode(mapOf("mapItems" to "MOTORWAY:UPTO_25KM,FOO:ALL,COASTLINE:BAR,CITY", "mapLineWidthLevel" to "7", "mapLineBrightnessLevel" to "x"))
         assertEquals(MapRange.UPTO_25KM, bad.mapRangeOf(MapItem.MOTORWAY))
         assertEquals(MapRange.ALL, bad.mapRangeOf(MapItem.COASTLINE))
         assertEquals(MapRange.OFF, bad.mapRangeOf(MapItem.CITY))
-        assertEquals(1, bad.mapLineWidth)
-        assertEquals(1, bad.mapLineBrightness)
+        assertEquals(4, bad.mapLineWidth)
+        assertEquals(4, bad.mapLineBrightness)
+        assertEquals(4, SettingsCodec.decode(mapOf("mapLineWidthLevel" to "0")).mapLineWidth)
+        assertEquals(6, SettingsCodec.decode(mapOf("mapLineWidthLevel" to "6")).mapLineWidth)
+        assertEquals(1, SettingsCodec.decode(mapOf("mapLineBrightnessLevel" to "1")).mapLineBrightness)
+        // 3 段のころ（20261018-D06 まで）の保存（mapLineWidth・mapLineBrightness）は読まない: 段 1（当時の初期値）が、今のいちばん細い・暗い段にならない
+        val three = SettingsCodec.decode(mapOf("mapLineWidth" to "1", "mapLineBrightness" to "3"))
+        assertEquals(4, three.mapLineWidth)
+        assertEquals(4, three.mapLineBrightness)
     }
 
     @Test
     fun resetSettingsResetsTheMapSettings() {
-        val changed = NavSettings(baseMap = false, mapItems = MapItem.entries.associateWith { MapRange.UPTO_10KM }, mapLineWidth = 3, mapLineBrightness = 3)
+        val changed = NavSettings(baseMap = false, mapItems = MapItem.entries.associateWith { MapRange.UPTO_10KM }, mapLineWidth = 1, mapLineBrightness = 6)
         val reset = changed.resetKeepingCustomReach()
         assertTrue(reset.baseMap)
         assertEquals(NavSettings.DEFAULT_MAP_ITEMS, reset.mapItems)
-        assertEquals(1, reset.mapLineWidth)
-        assertEquals(1, reset.mapLineBrightness)
+        assertEquals(4, reset.mapLineWidth)
+        assertEquals(4, reset.mapLineBrightness)
     }
 }

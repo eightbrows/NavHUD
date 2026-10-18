@@ -147,10 +147,10 @@ data class NavSettings(
     val baseMap: Boolean = true,
     /** 背景地図の項目ごとの、どの縮尺まで描くか（§8）。表にない項目は OFF（mapRangeOf で読む）。初期値は DEFAULT_MAP_ITEMS */
     val mapItems: Map<MapItem, MapRange> = DEFAULT_MAP_ITEMS,
-    /** 背景地図の線の太さの段（1〜3。Tuning.BASEMAP_WIDTH_FACTORS を全部の線の太さに掛ける） */
-    val mapLineWidth: Int = 1,
-    /** 背景地図の線の明るさの段（1〜3。Tuning.BASEMAP_BRIGHTNESS_FACTORS を全部の線と記号の色に掛ける） */
-    val mapLineBrightness: Int = 1,
+    /** 背景地図の線の太さの段（1〜6。Tuning.BASEMAP_WIDTH_FACTORS を全部の線の太さに掛ける） */
+    val mapLineWidth: Int = MAP_LINE_DEFAULT_LEVEL,
+    /** 背景地図の線の明るさの段（1〜6。Tuning.BASEMAP_BRIGHTNESS_FACTORS を全部の線と記号の色に掛ける） */
+    val mapLineBrightness: Int = MAP_LINE_DEFAULT_LEVEL,
     /** 地図に重ねるボタン（上部バー・操作列・WP ボタン列・再生の操作列）の不透明度 [%]。20〜100、10 刻み */
     val buttonOpacityPct: Int = Tuning.BUTTON_OPACITY_DEFAULT_PCT,
     /** 数値（4行）の不透明度 [%]。20〜100、10 刻み。警告の表示は常に 100% */
@@ -176,8 +176,10 @@ data class NavSettings(
         val DEFAULT_MAP_ITEMS: Map<MapItem, MapRange> = MapItem.entries.associateWith {
             if (it in setOf(MapItem.COASTLINE, MapItem.PREF_BOUNDARY, MapItem.MUNI_BOUNDARY, MapItem.FERRY, MapItem.WATER)) MapRange.ALL else MapRange.OFF
         }
-        /** 背景地図の線の太さ・明るさの段（1〜3。1 が今の値） */
+        /** 背景地図の線の太さ・明るさの段（1〜6。1 がいちばん細い・暗い） */
         val MAP_LINE_LEVELS = 1..Tuning.BASEMAP_WIDTH_FACTORS.size
+        /** 背景地図の線の太さ・明るさの段の初期値（仮）。この段の掛ける数が 1（今の太さ・色） */
+        const val MAP_LINE_DEFAULT_LEVEL = 4
         val WP_BUTTONS_MAX_RANGE = 3..6
         val PAN_RETURN_SEC_RANGE = 5..60
         val HUD_WP_COUNT_RANGE = 1..20

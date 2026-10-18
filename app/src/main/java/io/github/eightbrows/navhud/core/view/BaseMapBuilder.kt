@@ -10,6 +10,7 @@ import io.github.eightbrows.navhud.core.io.RoadKind
 import io.github.eightbrows.navhud.core.io.WaterKind
 import io.github.eightbrows.navhud.core.nav.MapItem
 import io.github.eightbrows.navhud.core.nav.MapRange
+import io.github.eightbrows.navhud.core.nav.NavSettings
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -68,8 +69,8 @@ object BaseMapBuilder {
      * @param refLat 基準の地点（通常は自機、PAN は PAN の中心。proj の EN の原点）
      * @param rect 描画の枠。この枠に（marginPx だけ外まで）入る範囲の線・点を選ぶ
      * @param r1M 今の R1 [m]（縮尺の 1/2）。使う段と、描く項目を決める
-     * @param widthLevel 線の太さの段（設定の 1〜3。全部の線の太さに Tuning.BASEMAP_WIDTH_FACTORS を掛ける）
-     * @param brightnessLevel 線の明るさの段（設定の 1〜3。全部の線と記号の色に Tuning.BASEMAP_BRIGHTNESS_FACTORS を掛ける）
+     * @param widthLevel 線の太さの段（設定の 1〜6。全部の線の太さに Tuning.BASEMAP_WIDTH_FACTORS を掛ける）
+     * @param brightnessLevel 線の明るさの段（設定の 1〜6。全部の線と記号の色に Tuning.BASEMAP_BRIGHTNESS_FACTORS を掛ける）
      */
     fun build(
         map: BaseMap,
@@ -79,8 +80,8 @@ object BaseMapBuilder {
         proj: HudProjection,
         rect: HudRect,
         r1M: Double,
-        widthLevel: Int = 1,
-        brightnessLevel: Int = 1,
+        widthLevel: Int = NavSettings.MAP_LINE_DEFAULT_LEVEL,
+        brightnessLevel: Int = NavSettings.MAP_LINE_DEFAULT_LEVEL,
         minStepPx: Float = Tuning.BASEMAP_MIN_STEP_PX,
         marginPx: Float = Tuning.BASEMAP_MARGIN_PX,
     ): BaseMapScene {

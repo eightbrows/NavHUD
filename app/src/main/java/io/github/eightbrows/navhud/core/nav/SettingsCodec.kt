@@ -48,8 +48,9 @@ object SettingsCodec {
         "baseMap" to s.baseMap.toString(),
         // 背景地図の項目: 全部の項目を「名前:縮尺」でカンマでつなぐ（例 COASTLINE:ALL,MOTORWAY:UPTO_50KM）
         "mapItems" to MapItem.entries.joinToString(",") { "${it.name}:${s.mapRangeOf(it).name}" },
-        "mapLineWidth" to s.mapLineWidth.toString(),
-        "mapLineBrightness" to s.mapLineBrightness.toString(),
+        // 線の太さ・明るさの段（1〜6）。20261018-D07 で 3 段から 6 段にしたので名前を変えた（前の mapLineWidth・mapLineBrightness は読まない）
+        "mapLineWidthLevel" to s.mapLineWidth.toString(),
+        "mapLineBrightnessLevel" to s.mapLineBrightness.toString(),
         "buttonOpacityPct" to s.buttonOpacityPct.toString(),
         "numbersOpacityPct" to s.numbersOpacityPct.toString(),
         "trackColor" to s.trackColor.name,
@@ -185,8 +186,8 @@ object SettingsCodec {
                 val range = MapRange.entries.firstOrNull { it.name == v.trim() } ?: return@mapNotNull null
                 item to range
             }.orEmpty(),
-            mapLineWidth = int("mapLineWidth", d.mapLineWidth).takeIf { it in NavSettings.MAP_LINE_LEVELS } ?: d.mapLineWidth,
-            mapLineBrightness = int("mapLineBrightness", d.mapLineBrightness).takeIf { it in NavSettings.MAP_LINE_LEVELS } ?: d.mapLineBrightness,
+            mapLineWidth = int("mapLineWidthLevel", d.mapLineWidth).takeIf { it in NavSettings.MAP_LINE_LEVELS } ?: d.mapLineWidth,
+            mapLineBrightness = int("mapLineBrightnessLevel", d.mapLineBrightness).takeIf { it in NavSettings.MAP_LINE_LEVELS } ?: d.mapLineBrightness,
             // 不透明度: 20〜100 の 10 刻み以外は既定値
             buttonOpacityPct = int("buttonOpacityPct", d.buttonOpacityPct).takeIf { it in NavSettings.OPACITY_CHOICES_PCT } ?: d.buttonOpacityPct,
             numbersOpacityPct = int("numbersOpacityPct", d.numbersOpacityPct).takeIf { it in NavSettings.OPACITY_CHOICES_PCT } ?: d.numbersOpacityPct,

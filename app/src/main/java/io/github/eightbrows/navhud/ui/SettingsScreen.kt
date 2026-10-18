@@ -22,8 +22,11 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
@@ -55,6 +58,8 @@ import io.github.eightbrows.navhud.core.view.HudFormat
 import io.github.eightbrows.navhud.source.AppPermission
 import io.github.eightbrows.navhud.source.PermissionStatus
 import java.util.Locale
+import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
 
 private val SectionTitle get() = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 15.sp, color = HudColors.Scale)
 private val RowLabel get() = TextStyle(fontSize = 14.sp, color = HudColors.Scale)
@@ -63,7 +68,8 @@ private val ValueText get() = TextStyle(fontFamily = FontFamily.Monospace, fontS
 
 /**
  * 設定画面。NavSettings のすべての値と INPUT を変えられる。変えたらすぐ画面に反映し、保存する。
- * セクション: 表示 / 方位 / 縮尺 / WP / 測位・入力 / その他 / 言語 / 権限 / 情報。
+ * セクション: 表示 / 方位 / 縮尺 / WP / 測位・入力 / 地図レイヤ / その他 / 言語 / 権限 / 情報。
+ * いちばん上に、セクションの並びから作る目次（押すとそのセクションへ）。各セクションの見出しの右に「▲ 目次」（目次へ戻る）。
  * 下の3つ（言語・権限・情報）は NavSettings の外（§6.9）: 言語は端末かアプリが別に保存し、権限と情報は見るだけ。
  */
 @Composable
@@ -90,21 +96,9 @@ fun SettingsScreen(
     val s = settings
     // 数値を設定する項目の補足文の最後に書く初期値（NavSettings の既定値。到達の判定は自動車の値）
     val def = remember { NavSettings() }
-    Column(
-        modifier
-            .fillMaxSize()
-            .background(HudColors.Background)
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 14.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            HudButton(stringResource(R.string.back), onBack)
-            Text(stringResource(R.string.settings_title), style = SectionTitle.copy(fontSize = 18.sp))
-        }
-        Text(stringResource(R.string.settings_note), style = RowNote)
-
-        Section(stringResource(R.string.sec_display)) {
+    // セクションの並び（上の目次は、この並びから作る）
+    val sections = listOf(
+        SettingsSection(stringResource(R.string.sec_display)) {
             Choice(stringResource(R.string.display_mode), listOf("ARC" to DisplayMode.ARC, "North Up" to DisplayMode.NORTH_UP), s.displayMode, default = def.displayMode) { v ->
                 onChange { it.copy(displayMode = v) }
             }
@@ -177,9 +171,9 @@ fun SettingsScreen(
             Stepper(stringResource(R.string.alt_offset), "%.0f m".format(Locale.US, s.altOffsetM), note = withDefault(stringResource(R.string.alt_offset_note), meters(def.altOffsetM))) { d ->
                 onChange { it.copy(altOffsetM = (it.altOffsetM + d).coerceIn(NavSettings.ALT_OFFSET_M_RANGE)) }
             }
-        }
+        },
 
-        Section(stringResource(R.string.sec_heading)) {
+        SettingsSection(stringResource(R.string.sec_heading)) {
             Choice(
                 stringResource(R.string.heading_source),
                 listOf("GPS" to SourceMode.GPS, "HYBRID" to SourceMode.HYBRID, "COMPASS" to SourceMode.COMPASS),
@@ -216,9 +210,9 @@ fun SettingsScreen(
             Stepper(stringResource(R.string.max_gps_bearing_acc), "%.0f°".format(Locale.US, s.maxGpsBearingAccDeg), note = withDefault(stringResource(R.string.max_gps_bearing_acc_note), "%.0f°".format(Locale.US, def.maxGpsBearingAccDeg))) { d ->
                 onChange { it.copy(maxGpsBearingAccDeg = (it.maxGpsBearingAccDeg + d * 5).coerceIn(NavSettings.MAX_GPS_BEARING_ACC_DEG_RANGE)) }
             }
-        }
+        },
 
-        Section(stringResource(R.string.sec_range)) {
+        SettingsSection(stringResource(R.string.sec_range)) {
             // 初期値: すべての段なら「すべて」、そうでなければ いちばん詳細な段〜いちばん広域の段
             val defSteps = if (def.rangeStepsKm.size == RangeAuto.ALL_STEPS_KM.size) {
                 stringResource(R.string.default_all)
@@ -290,9 +284,9 @@ fun SettingsScreen(
             Stepper(stringResource(R.string.pan_return), seconds(s.panReturnSec), note = withDefault(stringResource(R.string.pan_return_note), seconds(def.panReturnSec))) { d ->
                 onChange { it.copy(panReturnSec = (it.panReturnSec + d * 5).coerceIn(NavSettings.PAN_RETURN_SEC_RANGE)) }
             }
-        }
+        },
 
-        Section(stringResource(R.string.sec_wp)) {
+        SettingsSection(stringResource(R.string.sec_wp)) {
             // 到達判定の値: 自動車は推奨値で固定（表示だけ）、カスタム1〜3 は枠ごとに保存する
             val custom = s.travelMode != TravelMode.CAR
             fun judge(f: (ReachProfile) -> ReachProfile) = onChange { it.editReach(f) }
@@ -348,9 +342,9 @@ fun SettingsScreen(
             Stepper(stringResource(R.string.hud_wp_count), count(s.hudWpCount), note = withDefault(stringResource(R.string.hud_wp_count_note), count(def.hudWpCount))) { d ->
                 onChange { it.copy(hudWpCount = (it.hudWpCount + d).coerceIn(NavSettings.HUD_WP_COUNT_RANGE)) }
             }
-        }
+        },
 
-        Section(stringResource(R.string.sec_input)) {
+        SettingsSection(stringResource(R.string.sec_input)) {
             Choice("INPUT", listOf(stringResource(R.string.input_live) to SourceKind.LIVE, stringResource(R.string.input_replay) to SourceKind.REPLAY), input, note = withDefault(null, "LIVE")) { v ->
                 onInput(v)
             }
@@ -361,9 +355,9 @@ fun SettingsScreen(
             Choice(stringResource(R.string.rate_window), NavSettings.RATE_WINDOW_CHOICES_SEC.map { seconds(it) to it }, s.rateWindowSec, note = withDefault(null, seconds(def.rateWindowSec))) { v ->
                 onChange { it.copy(rateWindowSec = v) }
             }
-        }
+        },
 
-        Section(stringResource(R.string.sec_map_layers)) {
+        SettingsSection(stringResource(R.string.sec_map_layers)) {
             // 背景地図（§8）: まとめて消すスイッチ、地図全体の線の太さ・明るさ、項目ごとの「どの縮尺まで描くか」
             // （背景地図が OFF のときは、下の項目は押せない。値は残る）
             Text(stringResource(R.string.map_layers_note), style = RowNote)
@@ -389,17 +383,17 @@ fun SettingsScreen(
                     onChange { it.withMapRange(item, v) }
                 }
             }
-        }
+        },
 
-        Section(stringResource(R.string.sec_other)) {
+        SettingsSection(stringResource(R.string.sec_other)) {
             Toggle(stringResource(R.string.keep_screen_on), s.keepScreenOn, default = def.keepScreenOn) { v -> onChange { it.copy(keepScreenOn = v) } }
             Toggle(stringResource(R.string.auto_open_last), s.autoOpenLastList, note = stringResource(R.string.auto_open_last_note), default = def.autoOpenLastList) { v ->
                 onChange { it.copy(autoOpenLastList = v) }
             }
             Row(Modifier.padding(top = 6.dp)) { HudButton(stringResource(R.string.reset_settings), onReset) }
-        }
+        },
 
-        Section(stringResource(R.string.sec_language)) {
+        SettingsSection(stringResource(R.string.sec_language)) {
             // 選ぶと画面が作り直されて、すぐに切り替わる。「設定を初期値に戻す」では変えない（NavSettings の外）
             Choice(
                 stringResource(R.string.app_language),
@@ -413,9 +407,9 @@ fun SettingsScreen(
                 default = LanguageMode.SYSTEM,
                 onSelect = onLanguage,
             )
-        }
+        },
 
-        Section(stringResource(R.string.sec_permissions)) {
+        SettingsSection(stringResource(R.string.sec_permissions)) {
             Text(stringResource(R.string.permissions_note), style = RowNote)
             for (p in permissions) {
                 val (label, note) = when (p.permission) {
@@ -425,9 +419,9 @@ fun SettingsScreen(
                 }
                 PermissionRow(stringResource(label), stringResource(note), p.granted, onOpenAppSettings)
             }
-        }
+        },
 
-        Section(stringResource(R.string.sec_about)) {
+        SettingsSection(stringResource(R.string.sec_about)) {
             InfoRow(stringResource(R.string.about_app), stringResource(R.string.about_app_value))
             InfoRow(stringResource(R.string.about_version), versionName)
             InfoRow(stringResource(R.string.about_license), "Apache License 2.0", "$REPO_URL/blob/main/LICENSE")
@@ -437,6 +431,33 @@ fun SettingsScreen(
             // 背景地図の出典（§8）
             SourceNote(stringResource(R.string.about_basemap_source, BASEMAP_SOURCE_URL), BASEMAP_SOURCE_URL)
             Text(stringResource(R.string.about_links_note), style = RowNote)
+        },
+    )
+    val scroll = rememberScrollState()
+    val scope = rememberCoroutineScope()
+    // セクションの見出しの位置（Column の中の y [px]）。目次を押したら、そこまでスクロールする
+    val tops = remember { mutableMapOf<Int, Int>() }
+    Column(
+        modifier
+            .fillMaxSize()
+            .background(HudColors.Background)
+            .verticalScroll(scroll)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            HudButton(stringResource(R.string.back), onBack)
+            Text(stringResource(R.string.settings_title), style = SectionTitle.copy(fontSize = 18.sp))
+        }
+        Text(stringResource(R.string.settings_note), style = RowNote)
+        Toc(sections.map { it.title }) { i -> tops[i]?.let { y -> scope.launch { scroll.animateScrollTo(y) } } }
+        for ((i, sec) in sections.withIndex()) {
+            Section(
+                sec.title,
+                onToc = { scope.launch { scroll.animateScrollTo(0) } },
+                modifier = Modifier.onGloballyPositioned { tops[i] = it.positionInParent().y.roundToInt() },
+                content = sec.content,
+            )
         }
     }
 }
@@ -511,16 +532,34 @@ private fun withDefault(note: String?, default: String): String {
 @Composable
 private fun count(n: Int) = stringResource(R.string.value_count, n.toString())
 
+/** 設定画面のセクション（見出しと中身）。この並びの順に、目次と本文を作る */
+private class SettingsSection(val title: String, val content: @Composable () -> Unit)
+
+/** 目次: セクションの見出しを、選択肢と同じ形のボタンで並べる（折り返す）。押すと、そのセクションの見出しまでスクロールする */
 @Composable
-private fun Section(title: String, content: @Composable () -> Unit) {
+private fun Toc(titles: List<String>, onJump: (Int) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(stringResource(R.string.settings_toc), style = RowNote)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            titles.forEachIndexed { i, t -> Chip(t, on = false) { onJump(i) } }
+        }
+    }
+}
+
+/** セクションの枠。見出しの右に「▲ 目次」（押すと、いちばん上の目次に戻る） */
+@Composable
+private fun Section(title: String, onToc: () -> Unit, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     Column(
-        Modifier
+        modifier
             .fillMaxWidth()
             .border(0.5.dp, HudColors.Frame, RoundedCornerShape(6.dp))
             .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Text(title, style = SectionTitle)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(title, style = SectionTitle, modifier = Modifier.weight(1f))
+            Chip(stringResource(R.string.back_to_toc), on = false, compact = true, onClick = onToc)
+        }
         content()
     }
 }

@@ -56,8 +56,8 @@ class BaseMapBuilderTest {
         p: HudProjection = proj(),
         r1M: Double = 500.0,
         minStepPx: Float = 1f,
-        width: Int = 1,
-        brightness: Int = 1,
+        width: Int = 4,
+        brightness: Int = 4,
     ) = BaseMapBuilder.build(map, items, TestGeo.LAT0, TestGeo.LON0, p, rect, r1M, width, brightness, minStepPx = minStepPx, marginPx = 0f)
 
     @Test
@@ -246,9 +246,9 @@ class BaseMapBuilderTest {
         assertTrue(out.all { it.brightness == Tuning.BASEMAP_BRIGHTNESS_FACTORS[1] })
         // 県道が OFF なら、国道と高速道路だけ
         assertEquals(listOf(1.5f, 1.5f, 3f, 3f), build(map, items(MapItem.MOTORWAY, MapItem.NATIONAL_ROAD)).lines.map { it.widthDp })
-        // 線の太さの段 3 は、比を保って全部に 1.8 倍
-        val w = Tuning.BASEMAP_WIDTH_FACTORS[2]
-        assertEquals(listOf(0.7f * w, 1.5f * w, 1.5f * w, 3f * w, 3f * w), build(map, roads, width = 3).lines.map { it.widthDp })
+        // 線の太さの段 6 は、比を保って全部に 1.8 倍
+        val w = Tuning.BASEMAP_WIDTH_FACTORS[5]
+        assertEquals(listOf(0.7f * w, 1.5f * w, 1.5f * w, 3f * w, 3f * w), build(map, roads, width = 6).lines.map { it.widthDp })
         // 種類の分からない道路（0）は国道と同じ太さ
         assertEquals(Tuning.BASEMAP_ROAD_LINE_DP, BaseMapBuilder.roadWidthDp(0))
     }
@@ -259,21 +259,27 @@ class BaseMapBuilderTest {
             listOf(MapLevel(0.0, listOf(line(MapLayer.COASTLINE, 0.0 to 0.0, 100.0 to 100.0), line(MapLayer.RIVER, 0.0 to 0.0, -100.0 to 100.0)))),
             listOf(point(MapLayer.AIRPORT, 200.0, 200.0), point(MapLayer.STATION, -200.0, 200.0)),
         )
-        // 初期値（太さ 1・明るさ 1）: 掛ける数は 1（今の太さ・色）
+        // 初期値（太さ 4・明るさ 4）: 掛ける数は 1（今の太さ・色）
         val d = build(map)
         assertTrue(d.lines.all { it.brightness == 1f } && d.marks.all { it.brightness == 1f })
         assertEquals(listOf(Tuning.BASEMAP_RIVER_LINE_DP, Tuning.BASEMAP_COAST_LINE_DP), d.lines.map { it.widthDp })
-        // 段 3: 全部の線の太さに 1.8 倍・全部の線と記号の色に 1.6 倍（項目どうしの比は同じ）。記号の大きさは変えない
-        val b = build(map, width = 3, brightness = 3)
-        val w = Tuning.BASEMAP_WIDTH_FACTORS[2]
+        // 段 6: 全部の線の太さに 1.8 倍・全部の線と記号の色に 1.6 倍（項目どうしの比は同じ）。記号の大きさは変えない
+        val b = build(map, width = 6, brightness = 6)
+        val w = Tuning.BASEMAP_WIDTH_FACTORS[5]
         assertEquals(listOf(Tuning.BASEMAP_RIVER_LINE_DP * w, Tuning.BASEMAP_COAST_LINE_DP * w), b.lines.map { it.widthDp })
-        assertTrue(b.lines.all { it.brightness == Tuning.BASEMAP_BRIGHTNESS_FACTORS[2] } && b.marks.all { it.brightness == Tuning.BASEMAP_BRIGHTNESS_FACTORS[2] })
+        assertTrue(b.lines.all { it.brightness == Tuning.BASEMAP_BRIGHTNESS_FACTORS[5] } && b.marks.all { it.brightness == Tuning.BASEMAP_BRIGHTNESS_FACTORS[5] })
         assertEquals(d.marks.map { it.sizeDp }, b.marks.map { it.sizeDp })
-        // 段が大きいほど太く・明るい。段 1 が 1。範囲の外は端の段
+        // 段 1: 全部の線の太さに 0.4 倍・色に 0.4 倍（細く・暗く）
+        val t = build(map, width = 1, brightness = 1)
+        assertEquals(listOf(Tuning.BASEMAP_RIVER_LINE_DP * 0.4f, Tuning.BASEMAP_COAST_LINE_DP * 0.4f), t.lines.map { it.widthDp })
+        assertTrue(t.lines.all { it.brightness == 0.4f } && t.marks.all { it.brightness == 0.4f })
+        // 6 段。段が大きいほど太く・明るい。初期値の段 4 が 1。範囲の外は端の段
         for (f in listOf(Tuning.BASEMAP_WIDTH_FACTORS, Tuning.BASEMAP_BRIGHTNESS_FACTORS)) {
+            assertEquals(6, f.size)
             assertEquals(f.sorted(), f)
-            assertEquals(1f, f[0])
+            assertEquals(1f, f[NavSettings.MAP_LINE_DEFAULT_LEVEL - 1])
             assertEquals(f.last(), BaseMapBuilder.factor(f, 9))
+            assertEquals(f.first(), BaseMapBuilder.factor(f, 0))
         }
         // 空港は飛行機の記号（塗り）。大きさはほかの記号と同じ
         val plane = d.marks.first { it.ink == Ink.MAP_AIRPORT }

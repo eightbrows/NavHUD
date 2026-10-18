@@ -78,6 +78,8 @@
     <!-- 設定画面 -->
     <string name="settings_title">Settings</string>
     <string name="settings_note">Changes apply and are saved immediately.</string>
+    <string name="settings_toc">Contents</string>
+    <string name="back_to_toc">▲ Top</string>
     <string name="default_value">(Default: %1$s)</string>
     <string name="note_with_default">%1$s %2$s</string>
     <string name="default_all">all</string>

@@ -231,6 +231,37 @@ public static class Gm {
     return res;
   }
 
+  // 線の曲がった角度の合計 [度]（点ごとの向きの変わりの絶対値の合計。部分ごと）
+  public static double TurnDeg(double[] xy) {
+    double r = 6371008.8 * Math.PI / 180, turn = 0; double? prev = null;
+    for (int i = 2; i < xy.Length; i += 2) {
+      double k = Math.Cos((xy[i-1] + xy[i+1]) / 2 * Math.PI / 180), dx = (xy[i] - xy[i-2]) * k * r, dy = (xy[i+1] - xy[i-1]) * r;
+      if (dx == 0 && dy == 0) continue;
+      double h = Math.Atan2(dx, dy) * 180 / Math.PI;
+      if (prev.HasValue) { double a = h - prev.Value; while (a > 180) a -= 360; while (a < -180) a += 360; turn += Math.Abs(a); }
+      prev = h;
+    }
+    return turn;
+  }
+
+  // 端の点がつながるまとまりごとの、長さ [km] と、1 km あたりの曲がった角度 [度/km]（まとまりの角度の合計 ÷ 長さ）。
+  // 戻り値: { レコードごとのまとまりの長さ, レコードごとのまとまりの 1 km あたりの角度 }（use が false のレコードは 0）
+  public static double[][] ComponentCurvature(List<ShpRecord> recs, bool[] use) {
+    int n = recs.Count; var p = new int[n]; for (int i = 0; i < n; i++) p[i] = i;
+    Func<int, int> find = null; find = x => { while (p[x] != x) { p[x] = p[p[x]]; x = p[x]; } return x; };
+    var ends = new Dictionary<string, int>();
+    for (int i = 0; i < n; i++) { if (!use[i]) continue;
+      foreach (var r in recs[i].Parts) { if (r.Length < 4) continue;
+        foreach (var e in new[] { 0, r.Length - 2 }) { string k = Math.Round(r[e] * 1e6) + "|" + Math.Round(r[e+1] * 1e6); int j;
+          if (ends.TryGetValue(k, out j)) { int a = find(i), b = find(j); if (a != b) p[a] = b; } else ends[k] = i; } } }
+    var km = new Dictionary<int, double>(); var turn = new Dictionary<int, double>();
+    for (int i = 0; i < n; i++) { if (!use[i]) continue; int g = find(i); double l = 0, t = 0; foreach (var r in recs[i].Parts) { l += Km(r); t += TurnDeg(r); }
+      double v; km.TryGetValue(g, out v); km[g] = v + l; turn.TryGetValue(g, out v); turn[g] = v + t; }
+    var resKm = new double[n]; var resDeg = new double[n];
+    for (int i = 0; i < n; i++) if (use[i]) { int g = find(i); resKm[i] = km[g]; resDeg[i] = km[g] > 0 ? turn[g] / km[g] : 0; }
+    return new[] { resKm, resDeg };
+  }
+
   // 点が面の中か（偶奇の規則。穴も含めて全部の輪を数える）
   static bool Inside(List<double[]> poly, double x, double y) {
     bool inside = false;
@@ -465,6 +496,7 @@ $RiverMinKm = 5; $RiverClassKm = @(30, 50); $BridgeMaxKm = 20; $LakeTolM = 300
 $WaterMinKm2 = 0.1; $WaterClassKm2 = @(1, 10); $HoleMinKm2 = 1
 $WideRiverFlag = 0x10
 $MotorwayMinKm = 20   # 高速道路のまとまりがこれより短いと「その他の自動車専用道路」
+$MotorwayCurvyMaxKm = 100; $MotorwayCurvyDegPerKm = 80   # これより短く、1 km あたりの曲がった角度がこれ以上のまとまりも同じ
 $MinSizeClass = @(1, 1, 2, 3)   # 段ごとに入れる大きさの段の下限
 function SizeClass($v, $edges) { if ($v -ge $edges[1]) { 3 } elseif ($v -ge $edges[0]) { 2 } else { 1 } }
 
@@ -488,17 +520,21 @@ $data = foreach ($layer in $Layers) {
   }
   # 道路: 高速道路（rtt = 16）の線を、端の点がつながるまとまりに分けた長さ。$MotorwayMinKm 未満のまとまりは
   # 「その他の自動車専用道路」（種類 17）にする（観光の有料道路・有料の橋やトンネル・バイパス・網から切れたかけら。20261018-D06）
-  $motorwayKm = $null
+  # まとまりが $MotorwayCurvyMaxKm 未満で、1 km あたりの曲がった角度が $MotorwayCurvyDegPerKm 以上のもの
+  # （カーブの続く観光の有料道路。大きな網から離れている）も同じにする（20261018-D07）
+  $motorwayKm = $null; $motorwayDeg = $null
   if ($layer.Code -eq 4) {
-    $mUse = [bool[]]::new($rows.Count); $mNames = [string[]]::new($rows.Count)
-    for ($k = 0; $k -lt $rows.Count; $k++) { $mUse[$k] = (Num $rows[$k] 'rtt') -eq 16; $mNames[$k] = '' }
-    $motorwayKm = [Gm]::ConnectedKm($recs, $mNames, $mUse)
+    $mUse = [bool[]]::new($rows.Count)
+    for ($k = 0; $k -lt $rows.Count; $k++) { $mUse[$k] = (Num $rows[$k] 'rtt') -eq 16 }
+    $mc = [Gm]::ComponentCurvature($recs, $mUse); $motorwayKm = $mc[0]; $motorwayDeg = $mc[1]
+    $script:MotorwayStats = @{ Km = $motorwayKm; Deg = $motorwayDeg; Use = $mUse; Recs = $recs; Rows = $rows }
   }
   $lines = [System.Collections.Generic.List[object[]]]::new(); $points = [System.Collections.Generic.List[object]]::new(); $kept = 0
   for ($i = 0; $i -lt $recs.Count; $i++) {
     if (-not (& $layer.Keep $rows[$i])) { continue }
     $kind = & $layer.Kind $rows[$i]; $r = $recs[$i]; $parts = $r.Parts
-    if ($layer.Code -eq 4 -and $kind -eq 16 -and $motorwayKm[$i] -lt $MotorwayMinKm) { $kind = 17 }
+    if ($layer.Code -eq 4 -and $kind -eq 16 -and ($motorwayKm[$i] -lt $MotorwayMinKm -or
+        ($motorwayKm[$i] -lt $MotorwayCurvyMaxKm -and $motorwayDeg[$i] -ge $MotorwayCurvyDegPerKm))) { $kind = 17 }
     if ($layer.Code -eq 3) {
       if ($riverKm[$i] -lt $RiverMinKm) { continue }
       if ($lit[$i] -eq 2 -and $riverCont[$i] -in 4, 13) { continue }   # 湖・沼の中のつなぎの線は入れない
