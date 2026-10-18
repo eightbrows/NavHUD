@@ -20,9 +20,8 @@
     線・点ごとに「レイヤの中の種類」（0〜255）を持つ。道路は rtt、鉄道は fco、空港は use、海岸線は acc。河川・湖沼などは大きさの段（下の「段」の説明）。
     道路は rtt が 16（高速道路）・14（国道）・15（県道。主要地方道など）の線だけを入れる（データにはこの 3 つしかない）。
     アプリは高速道路と国道を描き、県道は設定の「県道も出す」が ON のときだけ描く。
-    河川は、1 級河川を見分ける値がないので、名前のある川（nam の最後の語が G. / K. / KAWA / GAWA）で、lit = 1 の線だけを入れる。
-    名前のない線（UNK）と lit = 2（湖・沼・川幅の大きい川など、水の面の中を通る線。面は「湖沼など」のレイヤにある）は入れない
-    （名前に作業のメモのような値が付いた線も、すべて lit = 2 なので入らない。20261018-D02 のレポート）。
+    河川は、1 級河川を見分ける値がないので、名前のある川（nam の最後の語が G. / K. / KAWA / GAWA）の水系を入れる（下の「段」の説明）。
+    名前のない線は、名前のある川どうしの切れ目をつなぐ区間だけを入れる（20261018-D05）。
     鉄道は、新幹線・地下鉄を見分ける値がないので、全部入れる（20261018-D01 のレポート）。
   座標系は緯度経度（ITRF94 / JGD2000）。GPS（WGS84）との差は 1/100万の地図の精度より十分小さいので、直さずに使う。
   ライブラリは使わない（PowerShell と、その中の .NET の標準の機能だけ。重い計算は下の C# で行う）。
@@ -37,10 +36,11 @@
     道路・河川・湖沼などは、この「短い線を入れない」決まりから外す（道路はインターチェンジなどで短く分かれていて、
     外さないと広域で途切れて見える。河川・湖沼などは下の大きさの段で絞る。20261018-D04）。
     河川・湖沼などは、大きさの段（$RiverClassKm・$WaterClassKm2）で、段 2 では中・大、段 3 では大だけを入れる:
-      河川（名前のある川の、同じ名前でつながった長さ。湖や川幅の大きい川の中のつなぎの線 lit = 2 も含めて数える）:
-        どの段も 10 km 未満は入れない、段 2 は 30 km 未満、段 3 は 50 km 未満を入れない
+      河川（水系の長さ。名前によらず端がつながる名前のある川と、切れ目をつなぐ名前のない区間。湖・沼の中は数えない）:
+        どの段も 5 km 未満は入れない、段 2 は 30 km 未満、段 3 は 50 km 未満を入れない
       湖沼など（面の面積）: どの段も 0.1 km² 未満は入れない、段 2 は 1 km² 未満、段 3 は 10 km² 未満を入れない
-    湖沼などは外の輪だけを入れ（穴 = 中洲などの輪郭は入れない）、となりの面と重なる辺も入れない。
+    湖沼などは外の輪と 1 km² 以上の穴（湖の島・干拓地）だけを入れ（小さな穴 = 中洲などは入れない）、となりの面と重なる辺も入れない。
+    幅のある川: 川の面（hyt = 1）は段 0 だけに入れ、R1 10 km 以上では代わりに川の中心の線（lit = 2）を描く（種類の 0x10。20261018-D05）。
     （R1 2.5 km 以上用の段も試したが、元の点の間隔が数百 m あるので、許す差を 1 px（約 7 m）にするとほとんど減らず、入れていない）
   アプリは今の R1（自機から 1 つ目の距離環の距離）以下で、いちばん間引いた段を使う。
 
@@ -230,6 +230,126 @@ public static class Gm {
     return res;
   }
 
+  // 点が面の中か（偶奇の規則。穴も含めて全部の輪を数える）
+  static bool Inside(List<double[]> poly, double x, double y) {
+    bool inside = false;
+    foreach (var r in poly) { int n = r.Length / 2;
+      for (int i = 0, j = n - 1; i < n; j = i++) { double xi = r[2*i], yi = r[2*i+1], xj = r[2*j], yj = r[2*j+1];
+        if (((yi > y) != (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) inside = !inside; } }
+    return inside;
+  }
+
+  // 線ごとに、点の半分以上が入っている面の種類（hyt）を返す（どの面にも半分以上入っていなければ 0）
+  public static int[] ContainerHyt(List<ShpRecord> lines, List<ShpRecord> polys, int[] hyt) {
+    var box = new List<double[]>();
+    foreach (var p in polys) { double a = 1e9, b = 1e9, c = -1e9, d = -1e9; foreach (var r in p.Parts) for (int i = 0; i < r.Length; i += 2) { a = Math.Min(a, r[i]); c = Math.Max(c, r[i]); b = Math.Min(b, r[i+1]); d = Math.Max(d, r[i+1]); } box.Add(new[] { a, b, c, d }); }
+    var res = new int[lines.Count];
+    for (int li = 0; li < lines.Count; li++) {
+      var cnt = new Dictionary<int, int>(); int tot = 0;
+      foreach (var r in lines[li].Parts) for (int i = 0; i < r.Length; i += 2) {
+        tot++; double x = r[i], y = r[i+1];
+        for (int k = 0; k < polys.Count; k++) { var bb = box[k]; if (x < bb[0] || x > bb[2] || y < bb[1] || y > bb[3]) continue; if (Inside(polys[k].Parts, x, y)) { int v; cnt.TryGetValue(k, out v); cnt[k] = v + 1; break; } }
+      }
+      int best = -1, bn = 0; foreach (var kv in cnt) if (kv.Value > bn) { best = kv.Key; bn = kv.Value; }
+      res[li] = (best >= 0 && bn * 2 >= tot) ? hyt[best] : 0;
+    }
+    return res;
+  }
+
+  // 水系: 名前のある川（named）を、名前によらず端がつながるものどうしでまとめ、名前のない線（lit = 1・2）で切れている所は、
+  // 名前のない線をたどる最短の道（湖・沼の中のつなぎの線は 0 km と数える）が maxBridgeKm 以下なら、その道の線も入れる。
+  // 戻り値: レコードごとの、入っている水系の長さ [km]（湖・沼の中のつなぎの線は数えない）。水系に入らないレコードは 0
+  // 点から面の輪郭までの距離 [m]（面の中なら 0）
+  static double DistToPolyM(List<double[]> poly, double x, double y) {
+    if (Inside(poly, x, y)) return 0;
+    double k = Math.Cos(y * Math.PI / 180.0), m = 6371008.8 * Math.PI / 180.0, best = double.MaxValue;
+    foreach (var r in poly) for (int i = 2; i < r.Length; i += 2) {
+      double ax = (r[i-2] - x) * k * m, ay = (r[i-1] - y) * m, bx = (r[i] - x) * k * m, by = (r[i+1] - y) * m;
+      double dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy, t = l2 == 0 ? 0 : -(ax * dx + ay * dy) / l2;
+      if (t < 0) t = 0; else if (t > 1) t = 1;
+      double qx = ax + t * dx, qy = ay + t * dy; best = Math.Min(best, Math.Sqrt(qx * qx + qy * qy));
+    }
+    return best;
+  }
+
+  public static double[] WaterSystems(List<ShpRecord> recs, int[] lit, bool[] named, int[] cont, double maxBridgeKm) {
+    return WaterSystems(recs, lit, named, cont, maxBridgeKm, new List<ShpRecord>(), 0);
+  }
+
+  // lakes: 湖・沼・貯水池の面。川の端の点がこの面の中か、輪郭から lakeTolM 以内なら、その湖につながっているとみなす
+  // （湖の中につなぎの線がないとき（琵琶湖など）、湖に入る川と出る川を、湖を通ってつなぐため。湖を通る道は 0 km）
+  public static double[] WaterSystems(List<ShpRecord> recs, int[] lit, bool[] named, int[] cont, double maxBridgeKm, List<ShpRecord> lakes, double lakeTolM) {
+    int n = recs.Count;
+    var km = new double[n]; var w = new double[n]; var use = new bool[n];
+    for (int i = 0; i < n; i++) {
+      use[i] = lit[i] == 1 || lit[i] == 2;
+      foreach (var r in recs[i].Parts) km[i] += Km(r);
+      w[i] = (lit[i] == 2 && (cont[i] == 4 || cont[i] == 13)) ? 0 : km[i];
+    }
+    // 端の点（部分ごとの最初と最後）→ 点の番号
+    var nodeOf = new Dictionary<string, int>(); var ends = new List<int>[n]; var adj = new List<List<int>>();
+    var nx = new List<double>(); var ny = new List<double>();
+    for (int i = 0; i < n; i++) {
+      ends[i] = new List<int>(); if (!use[i]) continue;
+      foreach (var r in recs[i].Parts) { if (r.Length < 4) continue;
+        foreach (var e in new[] { 0, r.Length - 2 }) {
+          string k = Math.Round(r[e] * 1e6) + "|" + Math.Round(r[e+1] * 1e6); int id;
+          if (!nodeOf.TryGetValue(k, out id)) { id = adj.Count; nodeOf[k] = id; adj.Add(new List<int>()); nx.Add(r[e]); ny.Add(r[e+1]); }
+          if (!ends[i].Contains(id)) { ends[i].Add(id); adj[id].Add(i); }
+        } }
+    }
+    // 湖の点（番号は adj.Count から）と、川の端の点とのつながり（0 km）
+    int real = adj.Count; var virt = new List<List<int>>();
+    for (int v = 0; v < real + lakes.Count; v++) virt.Add(new List<int>());
+    for (int k = 0; k < lakes.Count; k++) {
+      double a = 1e9, b = 1e9, c = -1e9, d = -1e9; foreach (var r in lakes[k].Parts) for (int i = 0; i < r.Length; i += 2) { a = Math.Min(a, r[i]); c = Math.Max(c, r[i]); b = Math.Min(b, r[i+1]); d = Math.Max(d, r[i+1]); }
+      double pad = lakeTolM / 80000.0 + 1e-6;
+      for (int v = 0; v < real; v++) {
+        if (nx[v] < a - pad || nx[v] > c + pad || ny[v] < b - pad || ny[v] > d + pad) continue;
+        if (DistToPolyM(lakes[k].Parts, nx[v], ny[v]) <= lakeTolM) { virt[v].Add(real + k); virt[real + k].Add(v); }
+      }
+    }
+    // 名前のある川のまとまり（名前によらず端がつながるもの）
+    var p = new int[n]; for (int i = 0; i < n; i++) p[i] = i;
+    Func<int, int> find = null; find = x => { while (p[x] != x) { p[x] = p[p[x]]; x = p[x]; } return x; };
+    for (int v = 0; v < adj.Count; v++) { int first = -1; foreach (int i in adj[v]) { if (!named[i]) continue; if (first < 0) first = i; else { int a = find(i), b = find(first); if (a != b) p[a] = b; } } }
+    var nodeComps = new List<HashSet<int>>(); for (int v = 0; v < adj.Count; v++) { var s = new HashSet<int>(); foreach (int i in adj[v]) if (named[i]) s.Add(find(i)); nodeComps.Add(s); }
+    // まとまりごとに、名前のない線を最短でたどって、ほかのまとまりへの道を探す
+    var bridge = new bool[n];
+    var comps = new HashSet<int>(); for (int i = 0; i < n; i++) if (named[i]) comps.Add(find(i));
+    var compNodes = new Dictionary<int, List<int>>(); for (int v = 0; v < adj.Count; v++) foreach (int c in nodeComps[v]) { List<int> l; if (!compNodes.TryGetValue(c, out l)) compNodes[c] = l = new List<int>(); l.Add(v); }
+    foreach (int c in comps) {
+      var dist = new Dictionary<int, double>(); var prevRec = new Dictionary<int, int>(); var prevNode = new Dictionary<int, int>();
+      var pq = new SortedSet<Tuple<double, int>>();
+      foreach (int v in compNodes[c]) { dist[v] = 0; pq.Add(Tuple.Create(0.0, v)); }
+      var reached = new HashSet<int>();
+      while (pq.Count > 0) {
+        var top = pq.Min; pq.Remove(top); double d = top.Item1; int u = top.Item2;
+        if (d > dist[u]) continue;
+        bool other = false;
+        if (u < real) foreach (int oc in nodeComps[u]) if (oc != c) { other = true; if (!reached.Contains(oc)) { reached.Add(oc);
+              int x = u; while (prevNode.ContainsKey(x)) { if (prevRec[x] >= 0) bridge[prevRec[x]] = true; x = prevNode[x]; } } }
+        if (other) continue;   // ほかのまとまりに着いたら、その先へは進まない
+        Action<int, int, double> relax = (v, i, nd) => {
+          if (nd > maxBridgeKm) return;
+          double old; if (!dist.TryGetValue(v, out old) || nd < old) { if (dist.ContainsKey(v)) pq.Remove(Tuple.Create(old, v)); dist[v] = nd; prevRec[v] = i; prevNode[v] = u; pq.Add(Tuple.Create(nd, v)); } };
+        if (u < real) foreach (int i in adj[u]) {
+          if (named[i] || !use[i]) continue;
+          foreach (int v in ends[i]) if (v != u) relax(v, i, d + w[i]);
+        }
+        foreach (int v in virt[u]) relax(v, -1, d);   // 湖を通る（0 km）
+      }
+    }
+    // 水系 = 名前のある川 ＋ つなぐ線。長さは湖・沼の中のつなぎの線を除いて足す
+    var q = new int[n]; for (int i = 0; i < n; i++) q[i] = i;
+    Func<int, int> find2 = null; find2 = x => { while (q[x] != x) { q[x] = q[q[x]]; x = q[x]; } return x; };
+    for (int v = 0; v < adj.Count; v++) { int first = -1; foreach (int i in adj[v]) { if (!named[i] && !bridge[i]) continue; if (first < 0) first = i; else { int a = find2(i), b = find2(first); if (a != b) q[a] = b; } } }
+    var sum = new Dictionary<int, double>();
+    for (int i = 0; i < n; i++) if (named[i] || bridge[i]) { int g = find2(i); double s; sum.TryGetValue(g, out s); sum[g] = s + w[i]; }
+    var res = new double[n]; for (int i = 0; i < n; i++) if (named[i] || bridge[i]) res[i] = sum[find2(i)];
+    return res;
+  }
+
   // 面の輪郭のうち、ほかの面と重なる辺（となりの面との境。2 回描くことになり、水の面の中を横切る線にもなる）を除き、
   // 残りを続いた線に分ける。object[] = { int[] lat, int[] lon, int kind }（輪は最初と最後の点が同じ）
   public static List<object[]> DropSharedEdges(List<object[]> rings) {
@@ -303,7 +423,7 @@ function RiverName($row) { $n = "$($row['nam'])".Trim(); $n -ne 'UNK' -and (($n 
 $Layers = @(
   @{ Code = 1;  Name = 'coastline';      File = 'coastl_jpn';   Keep = { param($r) $true };              Kind = { param($r) Num $r 'acc' } }
   @{ Code = 2;  Name = 'pref_boundary';  File = 'polbndl_jpn';  Keep = { param($r) $r['use'] -eq '26' };   Kind = { param($r) Num $r 'bst' } }
-  @{ Code = 3;  Name = 'river';          File = 'riverl_jpn';   Keep = { param($r) (Num $r 'lit') -eq 1 -and (RiverName $r) }; Kind = { param($r) 0 } }
+  @{ Code = 3;  Name = 'river';          File = 'riverl_jpn';   Keep = { param($r) (Num $r 'lit') -in 1, 2 }; Kind = { param($r) 0 } }
   @{ Code = 4;  Name = 'road';           File = 'roadl_jpn';    Keep = { param($r) (Num $r 'rtt') -in 14, 15, 16 }; Kind = { param($r) Num $r 'rtt' } }
   @{ Code = 5;  Name = 'railway';        File = 'raill_jpn';    Keep = { param($r) $true };              Kind = { param($r) Num $r 'fco' } }
   @{ Code = 6;  Name = 'muni_boundary';  File = 'polbndl_jpn';  Keep = { param($r) $r['use'] -eq '30' };   Kind = { param($r) Num $r 'bst' } }
@@ -330,12 +450,19 @@ $NoExtentRule = @(3, 4, 9)
 # 点の多いレイヤ（段 2・3 で DenseMinExtent を使う）: 鉄道・市区町村境
 $DenseLayers = @(5, 6)
 
-# 河川・湖沼などの大きさの段（レイヤの中の種類に入れる）。段 2（R1 50 km 以上）・段 3（100 km 以上）は、この段以上だけを入れる
-#   河川: 同じ名前で、端の点がつながった線（湖や川幅の大きい川の中の「つなぎの線」lit = 2 も含めて）の長さの合計
-#         1 = 10 km 以上 30 km 未満、2 = 30〜50 km、3 = 50 km 以上（10 km 未満は入れない）。描くのは lit = 1 の線だけ
+# 河川・湖沼などの「レイヤの中の種類」= 大きさの段（下の 4 ビット）＋ 幅のある川の印（0x10）。
+# 段 2（R1 50 km 以上）・段 3（100 km 以上）は、大きさの段がこの値以上の線だけを入れる
+#   河川: 水系の長さ。水系 = 名前のある川（lit = 1・2）を、名前によらず端がつながるものどうしでまとめ、名前のない区間で
+#         切れている所は、その区間（名前のない線をたどる最短の道が $BridgeMaxKm 以下）も入れたもの。長さは湖・沼の中の
+#         つなぎの線を除いて足す。1 = 5 km 以上 30 km 未満、2 = 30〜50 km、3 = 50 km 以上（5 km 未満は入れない）
+#         描く線: lit = 1 と、川の面（hyt = 1）・貯水池（hyt = 10）・面の外のつなぎの線 lit = 2（0x10 を付ける。アプリは
+#         R1 10 km 以上でだけ描く）。湖（hyt = 4）・沼（hyt = 13）の中のつなぎの線は入れない（湖の輪郭がある）
 #   湖沼など: 面の面積（外の輪 − 穴）。1 = 0.1 km² 以上 1 km² 未満、2 = 1〜10 km²、3 = 10 km² 以上（0.1 km² 未満は入れない）
-$RiverMinKm = 10; $RiverClassKm = @(30, 50)
-$WaterMinKm2 = 0.1; $WaterClassKm2 = @(1, 10)
+#         川の面（hyt = 1）は 0x10 を付け、段 0 だけに入れる（アプリは R1 10 km 未満でだけ描く。それより広域では川の中心の線）
+#         穴（内側の輪）は 1 km² 以上（湖の島・干拓地）だけを入れる。小さな穴（中洲など）は入れない
+$RiverMinKm = 5; $RiverClassKm = @(30, 50); $BridgeMaxKm = 20; $LakeTolM = 300
+$WaterMinKm2 = 0.1; $WaterClassKm2 = @(1, 10); $HoleMinKm2 = 1
+$WideRiverFlag = 0x10
 $MinSizeClass = @(1, 1, 2, 3)   # 段ごとに入れる大きさの段の下限
 function SizeClass($v, $edges) { if ($v -ge $edges[1]) { 3 } elseif ($v -ge $edges[0]) { 2 } else { 1 } }
 
@@ -344,12 +471,18 @@ $data = foreach ($layer in $Layers) {
   $recs = [Gm]::ReadShp((Join-Path $Src "$($layer.File).shp"))
   $rows = [Gm]::ReadDbf((Join-Path $Src "$($layer.File).dbf"))
   if ($recs.Count -ne $rows.Count) { throw "$($layer.File): .shp と .dbf の件数が違う" }
-  # 河川: 名前のある川の lit = 1・2 を、同じ名前で端がつながるものどうしでまとめた長さ
-  $riverKm = $null
+  # 河川: 水系の長さと、線がどの面（湖沼など）の中にあるか
+  $riverKm = $null; $riverCont = $null
   if ($layer.Code -eq 3) {
-    $use = [bool[]]::new($rows.Count); $names = [string[]]::new($rows.Count)
-    for ($i = 0; $i -lt $rows.Count; $i++) { $use[$i] = (Num $rows[$i] 'lit') -in 1, 2 -and (RiverName $rows[$i]); $names[$i] = "$($rows[$i]['nam'])".Trim() }
-    $riverKm = [Gm]::ConnectedKm($recs, $names, $use)
+    $wRecs = [Gm]::ReadShp((Join-Path $Src 'inwatera_jpn.shp')); $wRows = [Gm]::ReadDbf((Join-Path $Src 'inwatera_jpn.dbf'))
+    $wHyt = [int[]]::new($wRows.Count); for ($k = 0; $k -lt $wRows.Count; $k++) { $wHyt[$k] = Num $wRows[$k] 'hyt' }
+    $riverCont = [Gm]::ContainerHyt($recs, $wRecs, $wHyt)
+    # 湖・沼・貯水池の面（川の端がこの面の中か輪郭から $LakeTolM 以内なら、湖を通ってつながっているとみなす）
+    $lakes = [System.Collections.Generic.List[ShpRecord]]::new(); for ($k = 0; $k -lt $wRecs.Count; $k++) { if ($wHyt[$k] -in 4, 10, 13) { $lakes.Add($wRecs[$k]) } }
+    $lit = [int[]]::new($rows.Count); $named = [bool[]]::new($rows.Count)
+    for ($k = 0; $k -lt $rows.Count; $k++) { $lit[$k] = Num $rows[$k] 'lit'; $named[$k] = $lit[$k] -in 1, 2 -and (RiverName $rows[$k]) }
+    $riverKm = [Gm]::WaterSystems($recs, $lit, $named, $riverCont, $BridgeMaxKm, $lakes, $LakeTolM)
+    $script:RiverStats = @{ Km = $riverKm; Cont = $riverCont; Lit = $lit; Named = $named; Rows = $rows }
   }
   $lines = [System.Collections.Generic.List[object[]]]::new(); $points = [System.Collections.Generic.List[object]]::new(); $kept = 0
   for ($i = 0; $i -lt $recs.Count; $i++) {
@@ -357,13 +490,20 @@ $data = foreach ($layer in $Layers) {
     $kind = & $layer.Kind $rows[$i]; $r = $recs[$i]; $parts = $r.Parts
     if ($layer.Code -eq 3) {
       if ($riverKm[$i] -lt $RiverMinKm) { continue }
+      if ($lit[$i] -eq 2 -and $riverCont[$i] -in 4, 13) { continue }   # 湖・沼の中のつなぎの線は入れない
       $kind = SizeClass $riverKm[$i] $RiverClassKm
+      if ($lit[$i] -eq 2) { $kind = $kind -bor $WideRiverFlag }
     } elseif ($layer.Code -eq 9) {
       $a = [Gm]::AreaKm2($r.Parts)
       if ($a -lt $WaterMinKm2) { continue }
       $kind = SizeClass $a $WaterClassKm2
-      # 穴（中洲など）の輪郭は描かない（外の輪だけ）
-      $parts = [System.Collections.Generic.List[double[]]]::new(); foreach ($xy in $r.Parts) { if ([Gm]::IsOuter($xy)) { $parts.Add($xy) } }
+      if ((Num $rows[$i] 'hyt') -eq 1) { $kind = $kind -bor $WideRiverFlag }
+      # 外の輪と、1 km² 以上の穴（湖の島・干拓地）だけ。小さな穴（中洲など）は描かない
+      $parts = [System.Collections.Generic.List[double[]]]::new()
+      foreach ($xy in $r.Parts) {
+        $ring = [System.Collections.Generic.List[double[]]]::new(); $ring.Add($xy)
+        if ([Gm]::IsOuter($xy) -or [Gm]::AreaKm2($ring) -ge $HoleMinKm2) { $parts.Add($xy) }
+      }
     }
     $kept++
     if ($r.Type -in 1, 11, 21) {
@@ -409,7 +549,9 @@ for ($lv = 0; $lv -lt $Levels.Count; $lv++) {
     foreach ($ln in $d.Sorted) {
       $lat = $ln.Lat; $lon = $ln.Lon
       # 河川・湖沼など: 段ごとに小さいものを入れない（大きさの段）
-      if ($d.Layer.Code -in 3, 9 -and $ln.Kind -lt $MinSizeClass[$lv]) { continue }
+      if ($d.Layer.Code -in 3, 9 -and ($ln.Kind -band 0x0F) -lt $MinSizeClass[$lv]) { continue }
+      # 川の面（hyt = 1）は段 0 だけ（R1 10 km 以上は川の中心の線で描くので、段 1 から上には要らない）
+      if ($d.Layer.Code -eq 9 -and ($ln.Kind -band $WideRiverFlag) -and $lv -gt 0) { continue }
       if ($level.Tol -gt 0) {
         $idx = [Gm]::Simplify($lat, $lon, $level.Tol, $Unit)
         $lat = [int[]]::new($idx.Length); $lon = [int[]]::new($idx.Length); for ($q = 0; $q -lt $idx.Length; $q++) { $lat[$q] = $ln.Lat[$idx[$q]]; $lon[$q] = $ln.Lon[$idx[$q]] }
@@ -483,4 +625,10 @@ $kinds = foreach ($k in $kindStats.Keys | Sort-Object) {
     bytes0 = $ks.Bytes[0]; bytes1 = $ks.Bytes[1]; bytes2 = $ks.Bytes[2]; bytes3 = $ks.Bytes[3] }
 }
 $kinds | ConvertTo-Csv -NoTypeInformation | Set-Content -Encoding utf8 (Join-Path ([System.IO.Path]::GetTempPath()) 'gm2basemap_kinds.csv')
+# 河川のレコードごと（名前・lit・入っている面の種類・水系の長さ。0 = 水系に入らない）（レポート用）
+$rs = $script:RiverStats
+$riverRows = for ($k = 0; $k -lt $rs.Rows.Count; $k++) {
+  [pscustomobject]@{ idx = $k; lit = $rs.Lit[$k]; nam = $rs.Rows[$k]['nam']; named = $rs.Named[$k]; cont = $rs.Cont[$k]; systemKm = [math]::Round($rs.Km[$k], 2) }
+}
+$riverRows | ConvertTo-Csv -NoTypeInformation | Set-Content -Encoding utf8 (Join-Path ([System.IO.Path]::GetTempPath()) 'gm2basemap_rivers.csv')
 "書いた: $Out（$($buf.Length) バイト、圧縮の目安 $([Gm]::Deflated($buf.ToArray())) バイト）"

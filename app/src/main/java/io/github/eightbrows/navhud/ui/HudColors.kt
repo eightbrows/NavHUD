@@ -59,9 +59,12 @@ object HudColors {
     val Coastline = Color(0xFF5C5C5C)
     val PrefBoundary = Color(0xFF4A4A4A)
 
-    /** 背景地図のほかのレイヤ（どれも暗い色。レイヤどうしは色と線の種類で見分ける） */
+    /**
+     * 背景地図のほかのレイヤ（暗い色。レイヤどうしは色と線の種類で見分ける）。河川・湖沼だけは見やすいよう明るい水色
+     * （20261018-D05。読み込んだ軌跡の色の水色・青と紛れないよう、その間の色にした）
+     */
     val MuniBoundary = Color(0xFF383838)
-    val MapWater = Color(0xFF1F4466)
+    val MapWater = Color(0xFF6AB0E8)
     val MapRoad = Color(0xFF5A4530)
     val MapRail = Color(0xFF4F4A66)
     val MapFerry = Color(0xFF22504F)

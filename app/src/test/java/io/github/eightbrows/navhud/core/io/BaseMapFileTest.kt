@@ -199,11 +199,11 @@ class BaseMapFileTest {
         val map = BaseMapFile.decode(asset.readBytes())
         // 段: 詳細用（間引かない）・R1 25 km 以上用・R1 50 km 以上用・R1 100 km 以上用
         assertEquals(listOf(0.0, 25_000.0, 50_000.0, 100_000.0), map.levels.map { it.minR1M })
-        // 変換のとき（20261017-D02。河川・湖沼などは 20261018-D04 で大きさの段を入れた）の数: 段 0 の線（64 点ずつに分けたあと）と点
+        // 変換のとき（20261017-D02。河川・湖沼などは 20261018-D05 で水系・幅のある川の線を入れた）の数: 段 0 の線（64 点ずつに分けたあと）と点
         val expectLines = mapOf(
-            MapLayer.COASTLINE to 1779, MapLayer.PREF_BOUNDARY to 278, MapLayer.RIVER to 547, MapLayer.ROAD to 31428,
+            MapLayer.COASTLINE to 1779, MapLayer.PREF_BOUNDARY to 278, MapLayer.RIVER to 764, MapLayer.ROAD to 31428,
             MapLayer.RAILWAY to 3112, MapLayer.MUNI_BOUNDARY to 4220, MapLayer.FERRY to 540, MapLayer.DAM_LINE to 29,
-            MapLayer.INLAND_WATER to 894, MapLayer.BUILT_UP_AREA to 249,
+            MapLayer.INLAND_WATER to 899, MapLayer.BUILT_UP_AREA to 249,
         )
         for ((layer, n) in expectLines) assertEquals(layer.name, n, map.countOf(layer))
         val expectPoints = mapOf(MapLayer.AIRPORT to 92, MapLayer.PORT to 128, MapLayer.STATION to 108, MapLayer.DAM_POINT to 271, MapLayer.CITY to 1640)
@@ -231,13 +231,29 @@ class BaseMapFileTest {
         assertTrue(near(33.4741, 133.0003, MapLayer.ROAD, 3.0))         // サンプルの記録の始まり
         // 道路は rtt 14・15・16 だけ
         for (level in map.levels) assertTrue(level.byLayer[MapLayer.ROAD].orEmpty().all { it.kind in 14..16 })
-        // 河川・湖沼などの種類は大きさの段（1 = 小・2 = 中・3 = 大）。R1 50 km 以上の段は中・大だけ、100 km 以上の段は大だけ
+        // 河川・湖沼などの種類は大きさの段（下の 4 ビット: 1 = 小・2 = 中・3 = 大）と幅のある川の印。
+        // R1 50 km 以上の段は中・大だけ、100 km 以上の段は大だけ
         for ((i, level) in map.levels.withIndex()) {
             val min = when (i) { 2 -> 2; 3 -> 3; else -> 1 }
             for (layer in listOf(MapLayer.RIVER, MapLayer.INLAND_WATER)) {
                 val kinds = level.byLayer[layer].orEmpty().map { it.kind }.toSet()
-                assertTrue("段 $i ${layer.name} $kinds", kinds.isNotEmpty() && kinds.all { it in min..3 })
+                assertTrue("段 $i ${layer.name} $kinds", kinds.isNotEmpty() && kinds.all { (it and WaterKind.SIZE_MASK) in min..3 })
             }
+            // 川の中心の線（印付きの河川）はどの段にもある。川の面（印付きの湖沼など）は段 0 だけ（R1 10 km 未満でだけ描くため）
+            assertTrue(level.byLayer[MapLayer.RIVER].orEmpty().any { WaterKind.isWideRiver(it.kind) })
+            assertEquals("段 $i", i == 0, level.byLayer[MapLayer.INLAND_WATER].orEmpty().any { WaterKind.isWideRiver(it.kind) })
+        }
+        // 琵琶湖から大阪湾まで（瀬田川 → 宇治川 → 淀川）が、どの段でもつながっている: 瀬田川の琵琶湖側の端（北緯 34.9838・東経 135.9082）から、
+        // 淀川の河口（北緯 34.6806・東経 135.4177）まで、河川の線の端どうしをたどって行ける
+        for ((i, level) in map.levels.withIndex()) {
+            val rivers = level.byLayer[MapLayer.RIVER].orEmpty()
+            fun key(l: MapLine, j: Int) = Math.round(l.lat(j) * 1e3) to Math.round(l.lon(j) * 1e3)
+            val byEnd = HashMap<Pair<Long, Long>, MutableList<MapLine>>()
+            for (l in rivers) for (j in listOf(0, l.size - 1)) byEnd.getOrPut(key(l, j)) { mutableListOf() } += l
+            val start = rivers.filter { l -> (0 until l.size).any { Geo.distanceM(34.9838, 135.9082, l.lat(it), l.lon(it)) < 300 } }
+            val seen = HashSet<MapLine>(start); val todo = ArrayDeque(start)
+            while (todo.isNotEmpty()) { val l = todo.removeFirst(); for (j in listOf(0, l.size - 1)) for (n in byEnd[key(l, j)].orEmpty()) if (seen.add(n)) todo += n }
+            assertTrue("段 $i", seen.any { l -> (0 until l.size).any { Geo.distanceM(34.6806, 135.4177, l.lat(it), l.lon(it)) < 500 } })
         }
         // 道路は、広域の段でも短い線を捨てない（段 3 の線の数は、段 0 のつないだ線の数と同じ。20261018-D04 の変換のとき）
         assertEquals(30_251, map.levels[3].countOf(MapLayer.ROAD))

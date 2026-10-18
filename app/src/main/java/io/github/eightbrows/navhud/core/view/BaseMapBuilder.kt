@@ -7,6 +7,7 @@ import io.github.eightbrows.navhud.core.io.BaseMap
 import io.github.eightbrows.navhud.core.io.MapLayer
 import io.github.eightbrows.navhud.core.io.MapLine
 import io.github.eightbrows.navhud.core.io.RoadKind
+import io.github.eightbrows.navhud.core.io.WaterKind
 import io.github.eightbrows.navhud.core.nav.MapItem
 import io.github.eightbrows.navhud.core.nav.MapRange
 import kotlin.math.cos
@@ -113,7 +114,11 @@ object BaseMapBuilder {
                 }
                 for (w in ROAD_WIDTHS) lines += byWidth.getValue(w)
             } else {
+                // 幅のある川: R1 10 km 以上は川の中心の線（河川の印付きの線）、未満は川の面の輪郭（湖沼などの印付きの線）
+                val wide = r1M >= Tuning.BASEMAP_WIDE_RIVER_R1_M
                 for (line in level?.candidates(layer, box.minLat, box.minLon, box.maxLat, box.maxLon).orEmpty()) {
+                    if (layer == MapLayer.RIVER && !wide && WaterKind.isWideRiver(line.kind)) continue
+                    if (layer == MapLayer.INLAND_WATER && wide && WaterKind.isWideRiver(line.kind)) continue
                     if (!box.intersects(line)) continue
                     val pts = projectThin(line, refLat, refLon, proj, minStepPx)
                     if (pts.size >= 2) lines += Polyline(pts, style.ink, style.widthDp * wk, style.dash, k)

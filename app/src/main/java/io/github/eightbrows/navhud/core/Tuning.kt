@@ -212,6 +212,9 @@ object Tuning {
     /** 背景地図の線の太さ（設定。地図全体で 1〜3、1 が初期値）ごとに、全部の線の太さに掛ける数（仮の値。点線の長さは変えない） */
     val BASEMAP_WIDTH_FACTORS = listOf(1f, 1.4f, 1.8f)
 
+    /** 背景地図: 幅のある川を、R1 がこれ以上では川の中心の線 1 本で、未満では川の面の輪郭（両岸）で描く [m] */
+    const val BASEMAP_WIDE_RIVER_R1_M = 10_000.0
+
     /** 背景地図: 画面の上で、前に残した点からこれより近い点は飛ばす [px]（広域で点の数を減らす） */
     const val BASEMAP_MIN_STEP_PX = 1f
 

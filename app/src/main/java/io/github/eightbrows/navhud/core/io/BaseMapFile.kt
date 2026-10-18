@@ -30,6 +30,18 @@ enum class MapLayer(val code: Int, val isPoint: Boolean = false) {
 }
 
 /**
+ * 河川・湖沼などのレイヤの中の種類: 下の 4 ビットが大きさの段（1 = 小・2 = 中・3 = 大。変換で、広域の段では小さいものを入れない）、
+ * WIDE_RIVER（0x10）が幅のある川の印。河川では川の中心の線（地球地図の lit = 2）、湖沼などでは川の面（hyt = 1）の輪郭。
+ * 幅のある川は、R1 が Tuning.BASEMAP_WIDE_RIVER_R1_M 未満では川の面の輪郭（両岸）で、以上では川の中心の線 1 本で描く。
+ */
+object WaterKind {
+    const val WIDE_RIVER = 0x10
+    const val SIZE_MASK = 0x0F
+
+    fun isWideRiver(kind: Int): Boolean = kind and WIDE_RIVER != 0
+}
+
+/**
  * 道路のレイヤの中の種類（地球地図の rtt。データにはこの 3 つしかない）。
  * 国道・県道に当たるとしたのは見立て: データの長さ（14 が約 5.2 万 km、15 が約 6.3 万 km）が、全国の国道・主要地方道の長さに近いため。
  */

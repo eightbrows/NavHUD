@@ -10,6 +10,7 @@ import io.github.eightbrows.navhud.core.io.MapLevel
 import io.github.eightbrows.navhud.core.io.MapLine
 import io.github.eightbrows.navhud.core.io.MapPoint
 import io.github.eightbrows.navhud.core.io.RoadKind
+import io.github.eightbrows.navhud.core.io.WaterKind
 import io.github.eightbrows.navhud.core.model.Fix
 import io.github.eightbrows.navhud.core.model.HeadingSrc
 import io.github.eightbrows.navhud.core.nav.DisplayMode
@@ -173,6 +174,25 @@ class BaseMapBuilderTest {
         assertEquals(1, build(BaseMap(listOf(river)), items(MapItem.WATER)).lines.size)
         // 道路の項目が全部 OFF なら描かない
         assertTrue(build(map, items(MapItem.COASTLINE)).lines.isEmpty())
+    }
+
+    @Test
+    fun wideRiversAreBanksInDetailAndOneCenterLineFrom10Km() {
+        // 幅のある川: 川の面の輪郭（湖沼などの印付き）と、川の中心の線（河川の印付き）。ふつうの川・湖は印なし
+        fun water(layer: MapLayer, kind: Int, vararg en: Pair<Double, Double>) =
+            MapLine.of(layer, DoubleArray(en.size) { TestGeo.lat(en[it].second) }, DoubleArray(en.size) { TestGeo.lon(en[it].first) }, kind, unit = 10_000_000)
+        val bank = water(MapLayer.INLAND_WATER, 3 or WaterKind.WIDE_RIVER, -1000.0 to -50.0, 1000.0 to -50.0, 1000.0 to 50.0, -1000.0 to 50.0, -1000.0 to -50.0)
+        val center = water(MapLayer.RIVER, 3 or WaterKind.WIDE_RIVER, -1000.0 to 0.0, 1000.0 to 0.0)
+        val river = water(MapLayer.RIVER, 3, 1000.0 to 0.0, 2000.0 to 500.0)
+        val lake = water(MapLayer.INLAND_WATER, 3, 0.0 to 200.0, 100.0 to 200.0, 100.0 to 300.0, 0.0 to 200.0)
+        val map = BaseMap(listOf(bank, center, river, lake))
+        fun drawn(r1Km: Double) = build(map, items(MapItem.WATER), r1M = r1Km * 1000, p = proj(pxPerM = 0.01)).lines.map { it.points.size }.sorted()
+        // R1 10 km 未満: 両岸の輪郭（5 点）・ふつうの川・湖。中心の線は描かない
+        assertEquals(listOf(2, 4, 5), drawn(5.0))
+        // R1 10 km 以上: 中心の線（2 点）・ふつうの川・湖。両岸の輪郭は描かない
+        assertEquals(listOf(2, 2, 4), drawn(10.0))
+        assertEquals(listOf(2, 2, 4), drawn(100.0))
+        assertEquals(10_000.0, Tuning.BASEMAP_WIDE_RIVER_R1_M, 0.0)
     }
 
     @Test
