@@ -66,6 +66,10 @@ object HudColors {
     val MuniBoundary = Color(0xFF383838)
     val MapWater = Color(0xFF6AB0E8)
     val MapRoad = Color(0xFF5A4530)
+    /** 道路の色分け（20261018-D06）: 高速道路は濃くはっきりした青、その他の自動車専用道路は同じ青の系統で暗め、国道は落ち着いた赤 */
+    val MapMotorway = Color(0xFF2E56F0)
+    val MapOtherMotorway = Color(0xFF203CA8)
+    val MapNationalRoad = Color(0xFFA8443C)
     val MapRail = Color(0xFF4F4A66)
     val MapFerry = Color(0xFF22504F)
     val MapDam = Color(0xFF2F5470)
@@ -168,6 +172,9 @@ object HudColors {
         Ink.MUNI_BOUNDARY -> MuniBoundary
         Ink.MAP_WATER -> MapWater
         Ink.MAP_ROAD -> MapRoad
+        Ink.MAP_NATIONAL_ROAD -> MapNationalRoad
+        Ink.MAP_MOTORWAY -> MapMotorway
+        Ink.MAP_OTHER_MOTORWAY -> MapOtherMotorway
         Ink.MAP_RAIL -> MapRail
         Ink.MAP_FERRY -> MapFerry
         Ink.MAP_DAM -> MapDam

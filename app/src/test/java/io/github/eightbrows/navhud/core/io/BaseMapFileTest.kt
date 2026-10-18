@@ -229,8 +229,11 @@ class BaseMapFileTest {
         assertTrue(near(33.50, 133.30, MapLayer.COASTLINE, 15.0))       // 須崎のあたり
         assertTrue(near(33.60, 132.95, MapLayer.PREF_BOUNDARY, 20.0))   // サンプルの終点（愛媛県久万高原町）のあたり
         assertTrue(near(33.4741, 133.0003, MapLayer.ROAD, 3.0))         // サンプルの記録の始まり
-        // 道路は rtt 14・15・16 だけ
-        for (level in map.levels) assertTrue(level.byLayer[MapLayer.ROAD].orEmpty().all { it.kind in 14..16 })
+        // 道路は rtt 14・15・16 と、その他の自動車専用道路（高速道路のうち、まとまりが 20 km 未満）の 17
+        for (level in map.levels) {
+            val kinds = level.byLayer[MapLayer.ROAD].orEmpty().map { it.kind }.toSet()
+            assertEquals(setOf(14, 15, 16, 17), kinds)
+        }
         // 河川・湖沼などの種類は大きさの段（下の 4 ビット: 1 = 小・2 = 中・3 = 大）と幅のある川の印。
         // R1 50 km 以上の段は中・大だけ、100 km 以上の段は大だけ
         for ((i, level) in map.levels.withIndex()) {

@@ -449,7 +449,7 @@ private const val WEBSITE_URL = "https://eightbrows.github.io/"
 
 /** 設定画面の地図レイヤの項目の並び: 線（海岸線・境・道路・鉄道・水・フェリー・ダム）→ 面の輪郭 → 点 */
 private val MAP_ITEM_ORDER = listOf(
-    MapItem.COASTLINE, MapItem.PREF_BOUNDARY, MapItem.MUNI_BOUNDARY, MapItem.MOTORWAY, MapItem.NATIONAL_ROAD, MapItem.PREF_ROAD,
+    MapItem.COASTLINE, MapItem.PREF_BOUNDARY, MapItem.MUNI_BOUNDARY, MapItem.MOTORWAY, MapItem.OTHER_MOTORWAY, MapItem.NATIONAL_ROAD, MapItem.PREF_ROAD,
     MapItem.RAILWAY, MapItem.WATER, MapItem.FERRY, MapItem.DAM_LINE, MapItem.BUILT_UP_AREA,
     MapItem.AIRPORT, MapItem.PORT, MapItem.STATION, MapItem.DAM_POINT, MapItem.CITY,
 )
@@ -459,6 +459,7 @@ private fun mapItemLabel(item: MapItem): Int = when (item) {
     MapItem.PREF_BOUNDARY -> R.string.map_layer_pref_boundary
     MapItem.MUNI_BOUNDARY -> R.string.map_layer_muni_boundary
     MapItem.MOTORWAY -> R.string.map_item_motorway
+    MapItem.OTHER_MOTORWAY -> R.string.map_item_other_motorway
     MapItem.NATIONAL_ROAD -> R.string.map_item_national_road
     MapItem.PREF_ROAD -> R.string.map_item_pref_road
     MapItem.RAILWAY -> R.string.map_layer_railway

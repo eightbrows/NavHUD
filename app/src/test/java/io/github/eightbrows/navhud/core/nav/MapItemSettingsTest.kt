@@ -52,7 +52,7 @@ class MapItemSettingsTest {
             .withMapRange(MapItem.PREF_ROAD, MapRange.UPTO_10KM).withMapRange(MapItem.WATER, MapRange.UPTO_25KM)
         val enc = SettingsCodec.encode(s)
         // 全部の項目を「名前:縮尺」で（MapItem の順）
-        assertTrue(enc.getValue("mapItems").startsWith("COASTLINE:ALL,PREF_BOUNDARY:ALL,MUNI_BOUNDARY:ALL,MOTORWAY:ALL,NATIONAL_ROAD:UPTO_50KM,PREF_ROAD:UPTO_10KM,"))
+        assertTrue(enc.getValue("mapItems").startsWith("COASTLINE:ALL,PREF_BOUNDARY:ALL,MUNI_BOUNDARY:ALL,MOTORWAY:ALL,OTHER_MOTORWAY:OFF,NATIONAL_ROAD:UPTO_50KM,PREF_ROAD:UPTO_10KM,"))
         assertEquals("3", enc["mapLineWidth"])
         val back = SettingsCodec.decode(enc)
         assertEquals(s.mapItems, back.mapItems)

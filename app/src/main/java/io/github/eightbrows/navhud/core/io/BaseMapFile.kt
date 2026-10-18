@@ -48,10 +48,12 @@ object WaterKind {
 object RoadKind {
     /** 国道（地球地図の Primary route） */
     const val PRIMARY = 14
-    /** 県道（主要地方道など。地球地図の Secondary route）。設定の「県道も出す」が ON のときだけ描く */
+    /** 県道（主要地方道など。地球地図の Secondary route） */
     const val SECONDARY = 15
-    /** 高速道路（地球地図の National motorway） */
+    /** 高速道路（地球地図の Highway。端がつながるまとまりの長さが 20 km 以上） */
     const val MOTORWAY = 16
+    /** その他の自動車専用道路（地球地図では Highway のうち、まとまりの長さが 20 km 未満。変換で付ける） */
+    const val OTHER_MOTORWAY = 17
 }
 
 /**

@@ -99,7 +99,7 @@ class BaseMapBuilderTest {
             MapLayer.COASTLINE, MapLayer.RIVER, MapLayer.INLAND_WATER, MapLayer.BUILT_UP_AREA, MapLayer.DAM_LINE)
         val out = build(BaseMap(layers.map { line(it, 0.0 to 0.0, 100.0 to 100.0) })).lines
         assertEquals(
-            listOf(Ink.MAP_BUILT_UP, Ink.MAP_WATER, Ink.MAP_WATER, Ink.COASTLINE, Ink.MUNI_BOUNDARY, Ink.PREF_BOUNDARY, Ink.MAP_ROAD, Ink.MAP_RAIL, Ink.MAP_FERRY, Ink.MAP_DAM),
+            listOf(Ink.MAP_BUILT_UP, Ink.MAP_WATER, Ink.MAP_WATER, Ink.COASTLINE, Ink.MUNI_BOUNDARY, Ink.PREF_BOUNDARY, Ink.MAP_NATIONAL_ROAD, Ink.MAP_RAIL, Ink.MAP_FERRY, Ink.MAP_DAM),
             out.map { it.ink },
         )
         // 線の種類: 県境は点線、市区町村境は細かい点線、鉄道は破線、フェリーは長い破線、ほかは実線
@@ -127,7 +127,7 @@ class BaseMapBuilderTest {
         assertTrue(d.marks.isEmpty())
         // 国道（種類の分からない道路も国道）と駅だけ
         val r = build(map, items(MapItem.NATIONAL_ROAD, MapItem.STATION))
-        assertEquals(listOf(Ink.MAP_ROAD), r.lines.map { it.ink })
+        assertEquals(listOf(Ink.MAP_NATIONAL_ROAD), r.lines.map { it.ink })
         assertEquals(listOf(Ink.MAP_STATION), r.marks.map { it.ink })
         assertEquals(MarkShape.SQUARE, r.marks.single().shape)
         // 全部: 画面の外の点（東 50 km の空港）は描かない
@@ -164,7 +164,7 @@ class BaseMapBuilderTest {
         assertEquals(listOf(0.7f), build(map, items(MapItem.PREF_ROAD)).lines.map { it.widthDp })
         val on = build(map, items(MapItem.MOTORWAY, MapItem.NATIONAL_ROAD, MapItem.PREF_ROAD)).lines
         assertEquals(3, on.size)
-        assertTrue(on.all { it.ink == Ink.MAP_ROAD })
+        assertEquals(listOf(Ink.MAP_ROAD, Ink.MAP_NATIONAL_ROAD, Ink.MAP_MOTORWAY), on.map { it.ink })
         // 項目ごとに縮尺が違う: R1 50 km で、高速道路は「すべて」・国道は「〜25 km」なら高速道路だけ
         val mixed = mapOf(MapItem.MOTORWAY to MapRange.ALL, MapItem.NATIONAL_ROAD to MapRange.UPTO_25KM, MapItem.PREF_ROAD to MapRange.UPTO_10KM)
         assertEquals(listOf(3f), build(map, mixed, r1M = 50_000.0).lines.map { it.widthDp })
@@ -208,7 +208,26 @@ class BaseMapBuilderTest {
     }
 
     @Test
-    fun roadsAreSplitByWidthWithTheSameColor() {
+    fun otherMotorwaysAreTheirOwnItemBetweenNationalRoadsAndMotorways() {
+        val map = BaseMap(listOf(
+            road(RoadKind.OTHER_MOTORWAY, -1000.0 to 300.0, 1000.0 to 300.0),
+            road(RoadKind.MOTORWAY, -1000.0 to 0.0, 1000.0 to 0.0),
+            road(RoadKind.PRIMARY, 0.0 to -1000.0, 0.0 to 1000.0),
+        ))
+        // 「その他の自動車専用道路」の項目だけが、種類 17 の線を描く（高速道路の項目では描かない）
+        assertEquals(listOf(Ink.MAP_OTHER_MOTORWAY), build(map, items(MapItem.OTHER_MOTORWAY)).lines.map { it.ink })
+        assertEquals(listOf(Ink.MAP_MOTORWAY), build(map, items(MapItem.MOTORWAY)).lines.map { it.ink })
+        // 太さは国道と同じ 1.5dp。描く順は国道と高速道路の間
+        val all = build(map, items(MapItem.MOTORWAY, MapItem.OTHER_MOTORWAY, MapItem.NATIONAL_ROAD)).lines
+        assertEquals(listOf(Ink.MAP_NATIONAL_ROAD, Ink.MAP_OTHER_MOTORWAY, Ink.MAP_MOTORWAY), all.map { it.ink })
+        assertEquals(listOf(1.5f, 1.5f, 3f), all.map { it.widthDp })
+        assertEquals(MapItem.OTHER_MOTORWAY, BaseMapBuilder.roadItem(RoadKind.OTHER_MOTORWAY))
+        // 縮尺も別に選べる
+        assertEquals(listOf(Ink.MAP_MOTORWAY), build(map, mapOf(MapItem.MOTORWAY to MapRange.ALL, MapItem.OTHER_MOTORWAY to MapRange.UPTO_10KM), r1M = 25_000.0).lines.map { it.ink })
+    }
+
+    @Test
+    fun roadsAreSplitByWidthAndColor() {
         // 地図の中では種類が混ざって並んでいる
         val map = BaseMap(listOf(
             road(RoadKind.PRIMARY, -1000.0 to 0.0, 1000.0 to 0.0),
@@ -221,8 +240,9 @@ class BaseMapBuilderTest {
         val roads = items(MapItem.MOTORWAY, MapItem.NATIONAL_ROAD, MapItem.PREF_ROAD)
         val out = build(map, roads, brightness = 2).lines
         assertEquals(listOf(0.7f, 1.5f, 1.5f, 3f, 3f), out.map { it.widthDp })
-        // 色・線の種類は同じ茶の実線。明るさはどの太さにも効く
-        assertTrue(out.all { it.ink == Ink.MAP_ROAD && it.dash == LineDash.SOLID })
+        // 色: 県道は茶・国道は赤・高速道路は青。線の種類はどれも実線。明るさはどの道路にも効く
+        assertEquals(listOf(Ink.MAP_ROAD, Ink.MAP_NATIONAL_ROAD, Ink.MAP_NATIONAL_ROAD, Ink.MAP_MOTORWAY, Ink.MAP_MOTORWAY), out.map { it.ink })
+        assertTrue(out.all { it.dash == LineDash.SOLID })
         assertTrue(out.all { it.brightness == Tuning.BASEMAP_BRIGHTNESS_FACTORS[1] })
         // 県道が OFF なら、国道と高速道路だけ
         assertEquals(listOf(1.5f, 1.5f, 3f, 3f), build(map, items(MapItem.MOTORWAY, MapItem.NATIONAL_ROAD)).lines.map { it.widthDp })
@@ -333,7 +353,7 @@ class BaseMapBuilderTest {
         assertTrue(on.baseMapMarks.isEmpty())
         // 項目を足すと描く（国道と駅）
         val more = HudSceneBuilder.build(state(NavSettings().withMapRange(MapItem.NATIONAL_ROAD, MapRange.ALL).withMapRange(MapItem.STATION, MapRange.UPTO_10KM)), rect, baseMap = map)
-        assertEquals(listOf(Ink.COASTLINE, Ink.PREF_BOUNDARY, Ink.MAP_ROAD), more.baseMap.map { it.ink })
+        assertEquals(listOf(Ink.COASTLINE, Ink.PREF_BOUNDARY, Ink.MAP_NATIONAL_ROAD), more.baseMap.map { it.ink })
         assertEquals(1, more.baseMapMarks.size)
         // 背景地図を OFF にすると、選んだ項目によらず全部描かない。背景地図がまだ読めていない（null）ときも描かない
         val off = HudSceneBuilder.build(state(NavSettings(baseMap = false, mapItems = all)), rect, baseMap = map)

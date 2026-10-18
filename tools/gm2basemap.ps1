@@ -19,7 +19,8 @@
     行政区域の面（polbnda）は、境の線と同じ形なので入れない。
     線・点ごとに「レイヤの中の種類」（0〜255）を持つ。道路は rtt、鉄道は fco、空港は use、海岸線は acc。河川・湖沼などは大きさの段（下の「段」の説明）。
     道路は rtt が 16（高速道路）・14（国道）・15（県道。主要地方道など）の線だけを入れる（データにはこの 3 つしかない）。
-    アプリは高速道路と国道を描き、県道は設定の「県道も出す」が ON のときだけ描く。
+    高速道路のうち、端がつながるまとまりの長さが 20 km 未満のものは、種類を 17（その他の自動車専用道路）にする。
+    アプリは種類ごと（高速道路・その他の自動車専用道路・国道・県道）に、設定の縮尺で描く。
     河川は、1 級河川を見分ける値がないので、名前のある川（nam の最後の語が G. / K. / KAWA / GAWA）の水系を入れる（下の「段」の説明）。
     名前のない線は、名前のある川どうしの切れ目をつなぐ区間だけを入れる（20261018-D05）。
     鉄道は、新幹線・地下鉄を見分ける値がないので、全部入れる（20261018-D01 のレポート）。
@@ -463,6 +464,7 @@ $DenseLayers = @(5, 6)
 $RiverMinKm = 5; $RiverClassKm = @(30, 50); $BridgeMaxKm = 20; $LakeTolM = 300
 $WaterMinKm2 = 0.1; $WaterClassKm2 = @(1, 10); $HoleMinKm2 = 1
 $WideRiverFlag = 0x10
+$MotorwayMinKm = 20   # 高速道路のまとまりがこれより短いと「その他の自動車専用道路」
 $MinSizeClass = @(1, 1, 2, 3)   # 段ごとに入れる大きさの段の下限
 function SizeClass($v, $edges) { if ($v -ge $edges[1]) { 3 } elseif ($v -ge $edges[0]) { 2 } else { 1 } }
 
@@ -484,10 +486,19 @@ $data = foreach ($layer in $Layers) {
     $riverKm = [Gm]::WaterSystems($recs, $lit, $named, $riverCont, $BridgeMaxKm, $lakes, $LakeTolM)
     $script:RiverStats = @{ Km = $riverKm; Cont = $riverCont; Lit = $lit; Named = $named; Rows = $rows }
   }
+  # 道路: 高速道路（rtt = 16）の線を、端の点がつながるまとまりに分けた長さ。$MotorwayMinKm 未満のまとまりは
+  # 「その他の自動車専用道路」（種類 17）にする（観光の有料道路・有料の橋やトンネル・バイパス・網から切れたかけら。20261018-D06）
+  $motorwayKm = $null
+  if ($layer.Code -eq 4) {
+    $mUse = [bool[]]::new($rows.Count); $mNames = [string[]]::new($rows.Count)
+    for ($k = 0; $k -lt $rows.Count; $k++) { $mUse[$k] = (Num $rows[$k] 'rtt') -eq 16; $mNames[$k] = '' }
+    $motorwayKm = [Gm]::ConnectedKm($recs, $mNames, $mUse)
+  }
   $lines = [System.Collections.Generic.List[object[]]]::new(); $points = [System.Collections.Generic.List[object]]::new(); $kept = 0
   for ($i = 0; $i -lt $recs.Count; $i++) {
     if (-not (& $layer.Keep $rows[$i])) { continue }
     $kind = & $layer.Kind $rows[$i]; $r = $recs[$i]; $parts = $r.Parts
+    if ($layer.Code -eq 4 -and $kind -eq 16 -and $motorwayKm[$i] -lt $MotorwayMinKm) { $kind = 17 }
     if ($layer.Code -eq 3) {
       if ($riverKm[$i] -lt $RiverMinKm) { continue }
       if ($lit[$i] -eq 2 -and $riverCont[$i] -in 4, 13) { continue }   # 湖・沼の中のつなぎの線は入れない

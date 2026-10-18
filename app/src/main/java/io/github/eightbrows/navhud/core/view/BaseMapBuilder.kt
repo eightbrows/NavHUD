@@ -102,17 +102,17 @@ object BaseMapBuilder {
                     marks += MapMark(project(p.lat, p.lon, refLat, refLon, proj), style.ink, style.shape, Tuning.BASEMAP_MARK_DP, style.filled, k)
                 }
             } else if (layer == MapLayer.ROAD) {
-                // 道路: 項目（高速道路・国道・県道）ごとに、その縮尺で描く種類だけ。種類ごとに太さを変える（色は同じ）。
-                // 県道 → 国道 → 高速道路の順に並べる（太い線が上。同じ太さが続くので、Canvas はまとめて描ける）
-                val byWidth = ROAD_WIDTHS.associateWith { ArrayList<Polyline>() }
+                // 道路: 項目（高速道路・その他の自動車専用道路・国道・県道）ごとに、その縮尺で描く種類だけ。種類ごとに色と太さを変える。
+                // 県道 → 国道 → その他の自動車専用道路 → 高速道路の順に並べる（太い線が上。同じ見た目が続くので、Canvas はまとめて描ける）
+                val byItem = ROAD_DRAW_ORDER.associateWith { ArrayList<Polyline>() }
                 for (line in level?.candidates(layer, box.minLat, box.minLon, box.maxLat, box.maxLon).orEmpty()) {
-                    if (roadItem(line.kind) !in shown) continue
+                    val item = roadItem(line.kind)
+                    if (item !in shown) continue
                     if (!box.intersects(line)) continue
                     val pts = projectThin(line, refLat, refLon, proj, minStepPx)
-                    val w = roadWidthDp(line.kind)
-                    if (pts.size >= 2) byWidth.getValue(w) += Polyline(pts, style.ink, w * wk, style.dash, k)
+                    if (pts.size >= 2) byItem.getValue(item) += Polyline(pts, roadInk(item), roadWidthDp(line.kind) * wk, style.dash, k)
                 }
-                for (w in ROAD_WIDTHS) lines += byWidth.getValue(w)
+                for (item in ROAD_DRAW_ORDER) lines += byItem.getValue(item)
             } else {
                 // 幅のある川: R1 10 km 以上は川の中心の線（河川の印付きの線）、未満は川の面の輪郭（湖沼などの印付きの線）
                 val wide = r1M >= Tuning.BASEMAP_WIDE_RIVER_R1_M
@@ -128,22 +128,35 @@ object BaseMapBuilder {
         return BaseMapScene(lines, marks)
     }
 
-    /** 道路の線がどの項目に入るか: 高速道路・国道・県道（種類の分からない道路は国道） */
+    /** 道路の線がどの項目に入るか: 高速道路・その他の自動車専用道路・国道・県道（種類の分からない道路は国道） */
     fun roadItem(kind: Int): MapItem = when (kind) {
         RoadKind.MOTORWAY -> MapItem.MOTORWAY
+        RoadKind.OTHER_MOTORWAY -> MapItem.OTHER_MOTORWAY
         RoadKind.SECONDARY -> MapItem.PREF_ROAD
         else -> MapItem.NATIONAL_ROAD
     }
 
-    /** 道路の線の太さ [dp]（線の太さの段 1 のとき）: 高速道路 3.0・国道 1.5・県道 0.7（種類の分からない道路は国道と同じ） */
+    /** 道路の色: 高速道路は青、その他の自動車専用道路は暗めの青、国道は赤、県道は茶 */
+    fun roadInk(item: MapItem): Ink = when (item) {
+        MapItem.MOTORWAY -> Ink.MAP_MOTORWAY
+        MapItem.OTHER_MOTORWAY -> Ink.MAP_OTHER_MOTORWAY
+        MapItem.NATIONAL_ROAD -> Ink.MAP_NATIONAL_ROAD
+        else -> Ink.MAP_ROAD
+    }
+
+    /**
+     * 道路の線の太さ [dp]（線の太さの段 1 のとき）: 高速道路 3.0・その他の自動車専用道路 1.5・国道 1.5・県道 0.7
+     * （種類の分からない道路は国道と同じ）
+     */
     fun roadWidthDp(kind: Int): Float = when (kind) {
         RoadKind.MOTORWAY -> Tuning.BASEMAP_MOTORWAY_LINE_DP
+        RoadKind.OTHER_MOTORWAY -> Tuning.BASEMAP_OTHER_MOTORWAY_LINE_DP
         RoadKind.SECONDARY -> Tuning.BASEMAP_PREF_ROAD_LINE_DP
         else -> Tuning.BASEMAP_ROAD_LINE_DP
     }
 
-    /** 道路の描く順（細い線から）: 県道 → 国道 → 高速道路 */
-    private val ROAD_WIDTHS = listOf(Tuning.BASEMAP_PREF_ROAD_LINE_DP, Tuning.BASEMAP_ROAD_LINE_DP, Tuning.BASEMAP_MOTORWAY_LINE_DP)
+    /** 道路の描く順（下から）: 県道 → 国道 → その他の自動車専用道路 → 高速道路 */
+    val ROAD_DRAW_ORDER = listOf(MapItem.PREF_ROAD, MapItem.NATIONAL_ROAD, MapItem.OTHER_MOTORWAY, MapItem.MOTORWAY)
 
     /** 段（1〜）を掛ける数にする（範囲の外は端の段） */
     fun factor(factors: List<Float>, level: Int): Float = factors[(level - 1).coerceIn(0, factors.lastIndex)]

@@ -52,8 +52,11 @@ enum class Ink {
     /** 背景地図の河川・湖沼の輪郭（暗い青） */
     MAP_WATER,
 
-    /** 背景地図の道路（暗い茶色） */
+    /** 背景地図の道路: 県道（暗い茶色）・国道（落ち着いた赤）・高速道路（青）・その他の自動車専用道路（暗めの青） */
     MAP_ROAD,
+    MAP_NATIONAL_ROAD,
+    MAP_MOTORWAY,
+    MAP_OTHER_MOTORWAY,
 
     /** 背景地図の鉄道（暗い紫がかった灰色の破線） */
     MAP_RAIL,

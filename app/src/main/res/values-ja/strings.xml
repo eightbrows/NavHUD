@@ -189,6 +189,7 @@
     <string name="map_layer_pref_boundary">県境</string>
     <string name="map_layer_muni_boundary">市区町村境</string>
     <string name="map_item_motorway">高速道路</string>
+    <string name="map_item_other_motorway">その他の自動車専用道路</string>
     <string name="map_item_national_road">国道</string>
     <string name="map_item_pref_road">県道</string>
     <string name="map_layer_railway">鉄道</string>

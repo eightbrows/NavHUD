@@ -191,6 +191,7 @@
     <string name="map_layer_pref_boundary">Prefecture borders</string>
     <string name="map_layer_muni_boundary">Municipal borders</string>
     <string name="map_item_motorway">Expressways</string>
+    <string name="map_item_other_motorway">Other motorways</string>
     <string name="map_item_national_road">National routes</string>
     <string name="map_item_pref_road">Prefectural roads</string>
     <string name="map_layer_railway">Railways</string>
