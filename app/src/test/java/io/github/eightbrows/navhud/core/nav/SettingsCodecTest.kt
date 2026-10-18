@@ -39,6 +39,8 @@ class SettingsCodecTest {
             keepScreenOn = false,
             baseMap = false,
             mapLayers = setOf(MapLayer.ROAD, MapLayer.CITY),
+            mapBrightness = mapOf(MapLayer.ROAD to 5, MapLayer.CITY to 2),
+            mapPrefRoads = true,
             buttonOpacityPct = 40,
             numbersOpacityPct = 60,
             trackColor = TrackColor.CYAN,

@@ -137,6 +137,13 @@ object HudColors {
     /** 描く要素の色（地図の色。地図の Canvas） */
     fun ofMap(ink: Ink): Color = of(ink, mapPalette, map = true)
 
+    /** 背景地図の色に明るさ（RGB に掛ける数。1 を超えた分は 255 で止まる）を掛けた色 */
+    fun ofMap(ink: Ink, brightness: Float): Color {
+        val c = ofMap(ink)
+        if (brightness == 1f) return c
+        return Color(red = (c.red * brightness).coerceIn(0f, 1f), green = (c.green * brightness).coerceIn(0f, 1f), blue = (c.blue * brightness).coerceIn(0f, 1f), alpha = c.alpha)
+    }
+
     private fun gray(v: Int): Color = Color(red = v, green = v, blue = v)
 
     private fun of(ink: Ink, p: HudPalette, map: Boolean): Color = when (ink) {

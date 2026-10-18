@@ -369,8 +369,17 @@ fun SettingsScreen(
                 onChange { it.copy(baseMap = v) }
             }
             for (layer in MAP_LAYER_ORDER) {
-                Toggle(stringResource(mapLayerLabel(layer)), layer in s.mapLayers, enabled = s.baseMap, default = layer in def.mapLayers) { v ->
-                    onChange { it.copy(mapLayers = if (v) it.mapLayers + layer else it.mapLayers - layer) }
+                LayerRow(
+                    stringResource(mapLayerLabel(layer)), layer in s.mapLayers, s.mapBrightnessOf(layer), enabled = s.baseMap, default = layer in def.mapLayers,
+                    onToggle = { v -> onChange { it.copy(mapLayers = if (v) it.mapLayers + layer else it.mapLayers - layer) } },
+                    onStep = { d -> onChange { it.withMapBrightness(layer, it.mapBrightnessOf(layer) + d) } },
+                )
+                // 道路の下に「県道も出す」（道路が OFF のときも押せない）
+                if (layer == MapLayer.ROAD) {
+                    Toggle(
+                        stringResource(R.string.map_pref_roads), s.mapPrefRoads, note = stringResource(R.string.map_pref_roads_note),
+                        enabled = s.baseMap && MapLayer.ROAD in s.mapLayers, default = def.mapPrefRoads,
+                    ) { v -> onChange { it.copy(mapPrefRoads = v) } }
                 }
             }
         }
@@ -647,6 +656,51 @@ private fun PercentSlider(
     }
 }
 
+/**
+ * 地図レイヤの1行: 名前（補足は初期値の ON / OFF）、明るさの − / 段 / ＋（1〜5）、スイッチ。
+ * enabled が false（背景地図が OFF）なら、明るさもスイッチも押せない（値は残る）。
+ */
+@Composable
+private fun LayerRow(
+    label: String,
+    on: Boolean,
+    brightness: Int,
+    enabled: Boolean,
+    default: Boolean,
+    onToggle: (Boolean) -> Unit,
+    onStep: (Int) -> Unit,
+) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Box(Modifier.weight(1f)) { Label(label, withDefault(null, if (default) "ON" else "OFF"), enabled) }
+        HudButton("−", { onStep(-1) }, enabled = enabled && brightness > NavSettings.MAP_BRIGHTNESS_RANGE.first, small = true)
+        Text(
+            brightness.toString(),
+            style = if (enabled) ValueText else ValueText.copy(color = HudColors.WpReached),
+            textAlign = TextAlign.Center,
+            modifier = Modifier.widthIn(min = 16.dp),
+        )
+        HudButton("＋", { onStep(1) }, enabled = enabled && brightness < NavSettings.MAP_BRIGHTNESS_RANGE.last, small = true)
+        SettingsSwitch(on, enabled, onToggle)
+    }
+}
+
+@Composable
+private fun SettingsSwitch(on: Boolean, enabled: Boolean, onChange: (Boolean) -> Unit) {
+    Switch(
+        checked = on,
+        onCheckedChange = onChange,
+        enabled = enabled,
+        colors = SwitchDefaults.colors(
+            checkedThumbColor = HudColors.Background,
+            checkedTrackColor = HudColors.Scale,
+            checkedBorderColor = HudColors.Scale,
+            uncheckedThumbColor = HudColors.ScaleDim,
+            uncheckedTrackColor = HudColors.Background,
+            uncheckedBorderColor = HudColors.WpDisabled,
+        ),
+    )
+}
+
 @Composable
 private fun Toggle(
     label: String,
@@ -660,19 +714,7 @@ private fun Toggle(
     val n = if (default == null) note else withDefault(note, if (default) "ON" else "OFF")
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.weight(1f)) { Label(label, n, enabled) }
-        Switch(
-            checked = on,
-            onCheckedChange = onChange,
-            enabled = enabled,
-            colors = SwitchDefaults.colors(
-                checkedThumbColor = HudColors.Background,
-                checkedTrackColor = HudColors.Scale,
-                checkedBorderColor = HudColors.Scale,
-                uncheckedThumbColor = HudColors.ScaleDim,
-                uncheckedTrackColor = HudColors.Background,
-                uncheckedBorderColor = HudColors.WpDisabled,
-            ),
-        )
+        SettingsSwitch(on, enabled, onChange)
     }
 }
 

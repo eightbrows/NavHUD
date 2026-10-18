@@ -139,12 +139,37 @@ private fun ringLabelStyle(scalePct: Int) = TextStyle(fontFamily = FontFamily.Mo
 
 private fun P.o() = Offset(x, y)
 
-/** 背景地図の点の小さな記号（§8。名前は描かない）。同じ見た目（色・形・塗り）の記号を 1 つの Path にまとめて 1 回で描く */
+/**
+ * 飛行機の記号（上から見た形。機首が上）の右半分の点。記号の半分の大きさを 1 とした位置（下が +）。
+ * 機首 → 胴体 → 主翼 → 胴体 → 水平尾翼 → 尾の中央。左半分は左右を入れ替えて逆の順にたどる
+ */
+private val PLANE_RIGHT_HALF = floatArrayOf(
+    0f, -1.5f, 0.22f, -1.2f, 0.22f, -0.35f, 1.5f, 0.25f, 1.5f, 0.55f, 0.22f, 0.2f,
+    0.22f, 0.9f, 0.65f, 1.2f, 0.65f, 1.45f, 0f, 1.3f,
+)
+
+/** 飛行機の記号の輪郭（右半分 → 左半分）の x, y の並び。描くたびに作らないよう、前もって作っておく */
+private val PLANE_OUTLINE: FloatArray = run {
+    val n = PLANE_RIGHT_HALF.size / 2
+    val left = (n - 2 downTo 1).flatMap { listOf(-PLANE_RIGHT_HALF[2 * it], PLANE_RIGHT_HALF[2 * it + 1]) }
+    PLANE_RIGHT_HALF + left.toFloatArray()
+}
+
+/**
+ * 背景地図の点の小さな記号（§8。名前は描かない）。記号はレイヤの描く順に並んでいるので、同じ見た目（色・明るさ・形・塗り）が
+ * 続く記号を 1 つの Path にまとめて 1 回で描く（記号ごとに表を引いたり物を作ったりしない。記号が多いときに遅くなるため）
+ */
 private fun DrawScope.drawMapMarks(marks: List<MapMark>, density: Float) {
-    for ((look, group) in marks.groupBy { Triple(it.ink, it.shape, it.filled) }) {
-        val (ink, shape, filled) = look
+    var i0 = 0
+    while (i0 < marks.size) {
+        val first = marks[i0]
+        val shape = first.shape
         val path = Path()
-        for (m in group) {
+        var i = i0
+        while (i < marks.size) {
+            val m = marks[i]
+            if (m.ink != first.ink || m.shape != shape || m.filled != first.filled || m.brightness != first.brightness) break
+            i++
             val r = m.sizeDp * density
             val x = m.at.x
             val y = m.at.y
@@ -153,9 +178,16 @@ private fun DrawScope.drawMapMarks(marks: List<MapMark>, density: Float) {
                 MarkShape.SQUARE -> path.addRect(androidx.compose.ui.geometry.Rect(x - r, y - r, x + r, y + r))
                 MarkShape.DIAMOND -> { path.moveTo(x, y - r * 1.3f); path.lineTo(x + r * 1.3f, y); path.lineTo(x, y + r * 1.3f); path.lineTo(x - r * 1.3f, y); path.close() }
                 MarkShape.TRIANGLE -> { path.moveTo(x, y - r * 1.3f); path.lineTo(x + r * 1.2f, y + r); path.lineTo(x - r * 1.2f, y + r); path.close() }
+                MarkShape.PLANE -> {
+                    path.moveTo(x + PLANE_OUTLINE[0] * r, y + PLANE_OUTLINE[1] * r)
+                    for (k in 2 until PLANE_OUTLINE.size step 2) path.lineTo(x + PLANE_OUTLINE[k] * r, y + PLANE_OUTLINE[k + 1] * r)
+                    path.close()
+                }
             }
         }
-        drawPath(path, HudColors.ofMap(ink), style = if (filled) androidx.compose.ui.graphics.drawscope.Fill else Stroke(Tuning.BASEMAP_AREA_LINE_DP * density))
+        val style = if (first.filled) androidx.compose.ui.graphics.drawscope.Fill else Stroke(Tuning.BASEMAP_AREA_LINE_DP * density)
+        drawPath(path, HudColors.ofMap(first.ink, first.brightness), style = style)
+        i0 = i
     }
 }
 
@@ -182,12 +214,12 @@ private fun DrawScope.drawScene(scene: HudScene, tm: TextMeasurer, density: Floa
         var i = i0
         while (i < scene.baseMap.size) {
             val l = scene.baseMap[i]
-            if (l.ink != first.ink || l.widthDp != first.widthDp || l.dash != first.dash) break
+            if (l.ink != first.ink || l.widthDp != first.widthDp || l.dash != first.dash || l.brightness != first.brightness) break
             path.moveTo(l.points[0].x, l.points[0].y)
             for (k in 1 until l.points.size) path.lineTo(l.points[k].x, l.points[k].y)
             i++
         }
-        drawPath(path, HudColors.ofMap(first.ink), style = Stroke(first.widthDp * density, join = StrokeJoin.Round, pathEffect = dashes[first.dash]))
+        drawPath(path, HudColors.ofMap(first.ink, first.brightness), style = Stroke(first.widthDp * density, join = StrokeJoin.Round, pathEffect = dashes[first.dash]))
         i0 = i
     }
     drawMapMarks(scene.baseMapMarks, density)

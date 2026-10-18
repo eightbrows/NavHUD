@@ -30,6 +30,19 @@ enum class MapLayer(val code: Int, val isPoint: Boolean = false) {
 }
 
 /**
+ * 道路のレイヤの中の種類（地球地図の rtt。データにはこの 3 つしかない）。
+ * 国道・県道に当たるとしたのは見立て: データの長さ（14 が約 5.2 万 km、15 が約 6.3 万 km）が、全国の国道・主要地方道の長さに近いため。
+ */
+object RoadKind {
+    /** 国道（地球地図の Primary route） */
+    const val PRIMARY = 14
+    /** 県道（主要地方道など。地球地図の Secondary route）。設定の「県道も出す」が ON のときだけ描く */
+    const val SECONDARY = 15
+    /** 高速道路（地球地図の National motorway） */
+    const val MOTORWAY = 16
+}
+
+/**
  * 背景地図の線 1 本（緯度・経度の折れ線）。メモリを節約するため、座標は「度 × unit」の整数で持つ。
  * 範囲（最小・最大）を持つので、画面の外の線はすぐ飛ばせる。長い線は変換のときに短く分けてある。
  * @param kind レイヤの中の種類（道路の rtt、鉄道の fco など。0〜255）

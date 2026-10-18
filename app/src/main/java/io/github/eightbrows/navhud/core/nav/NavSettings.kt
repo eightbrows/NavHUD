@@ -145,8 +145,12 @@ data class NavSettings(
     val keepScreenOn: Boolean = true,
     /** 背景地図（§8）を描く。OFF なら、mapLayers によらず全部描かない */
     val baseMap: Boolean = true,
-    /** 背景地図の描くレイヤ（§8）。初期値は海岸線と県境だけ */
+    /** 背景地図の描くレイヤ（§8）。初期値は DEFAULT_MAP_LAYERS */
     val mapLayers: Set<MapLayer> = DEFAULT_MAP_LAYERS,
+    /** 背景地図のレイヤごとの明るさ（1〜5）。表にないレイヤは DEFAULT_MAP_BRIGHTNESS（3）。3 のレイヤは表に入れない（mapBrightnessOf で読む） */
+    val mapBrightness: Map<MapLayer, Int> = emptyMap(),
+    /** 道路のレイヤで、県道（データの rtt = 15。主要地方道など）も描く。OFF なら高速道路と国道だけ */
+    val mapPrefRoads: Boolean = false,
     /** 地図に重ねるボタン（上部バー・操作列・WP ボタン列・再生の操作列）の不透明度 [%]。20〜100、10 刻み */
     val buttonOpacityPct: Int = Tuning.BUTTON_OPACITY_DEFAULT_PCT,
     /** 数値（4行）の不透明度 [%]。20〜100、10 刻み。警告の表示は常に 100% */
@@ -158,9 +162,23 @@ data class NavSettings(
     /** 距離環の数字の大きさ [%]。Tuning.RING_LABEL_SP（10sp）を 100% として 100 / 125 / 150 / 175 / 200 */
     val ringLabelScalePct: Int = Tuning.RING_LABEL_SCALE_DEFAULT_PCT,
 ) {
+    /** そのレイヤの明るさ（1〜5） */
+    fun mapBrightnessOf(layer: MapLayer): Int = mapBrightness[layer] ?: DEFAULT_MAP_BRIGHTNESS
+
+    /** そのレイヤの明るさを変えた設定（範囲の外は端に寄せる。3 にしたら表から外す） */
+    fun withMapBrightness(layer: MapLayer, level: Int): NavSettings {
+        val v = level.coerceIn(MAP_BRIGHTNESS_RANGE)
+        return copy(mapBrightness = if (v == DEFAULT_MAP_BRIGHTNESS) mapBrightness - layer else mapBrightness + (layer to v))
+    }
+
     companion object {
         /** 背景地図の描くレイヤの初期値 */
-        val DEFAULT_MAP_LAYERS: Set<MapLayer> = setOf(MapLayer.COASTLINE, MapLayer.PREF_BOUNDARY)
+        val DEFAULT_MAP_LAYERS: Set<MapLayer> = setOf(
+            MapLayer.COASTLINE, MapLayer.PREF_BOUNDARY, MapLayer.MUNI_BOUNDARY, MapLayer.INLAND_WATER, MapLayer.FERRY,
+        )
+        /** 背景地図の明るさの段（1〜5。数が大きいほど明るい）と初期値 */
+        val MAP_BRIGHTNESS_RANGE = 1..Tuning.BASEMAP_BRIGHTNESS_FACTORS.size
+        const val DEFAULT_MAP_BRIGHTNESS = 3
         val WP_BUTTONS_MAX_RANGE = 3..6
         val PAN_RETURN_SEC_RANGE = 5..60
         val HUD_WP_COUNT_RANGE = 1..20

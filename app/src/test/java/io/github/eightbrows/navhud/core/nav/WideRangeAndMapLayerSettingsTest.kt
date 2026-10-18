@@ -46,10 +46,10 @@ class WideRangeAndMapLayerSettingsTest {
 
     @Test
     fun mapLayersAreSavedAndReadBack() {
-        // 初期値: 背景地図 ON、レイヤは海岸線と県境
+        // 初期値: 背景地図 ON、レイヤは DEFAULT_MAP_LAYERS（20261018-D01 で 5 つに変えた。MapLayerLookSettingsTest）
         val d = NavSettings()
         assertTrue(d.baseMap)
-        assertEquals(setOf(MapLayer.COASTLINE, MapLayer.PREF_BOUNDARY), d.mapLayers)
+        assertEquals(NavSettings.DEFAULT_MAP_LAYERS, d.mapLayers)
         // 往復
         val s = NavSettings(mapLayers = setOf(MapLayer.ROAD, MapLayer.RAILWAY, MapLayer.CITY))
         assertEquals(s.mapLayers, SettingsCodec.decode(SettingsCodec.encode(s)).mapLayers)

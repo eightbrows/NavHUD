@@ -18,6 +18,9 @@
     点  20 空港（airp）  21 港（portp）  22 駅（rstatp）  23 ダム・堰（miscp）  24 都市（builtupp） … 名前も入れる
     行政区域の面（polbnda）は、境の線と同じ形なので入れない。
     線・点ごとに「レイヤの中の種類」（0〜255）を持つ。道路は rtt、鉄道は fco、河川は lit、湖沼は hyt、空港は use、海岸線は acc。
+    道路は rtt が 16（高速道路）・14（国道）・15（県道。主要地方道など）の線だけを入れる（データにはこの 3 つしかない）。
+    アプリは高速道路と国道を描き、県道は設定の「県道も出す」が ON のときだけ描く。
+    河川・鉄道は、1 級河川・新幹線・地下鉄を見分ける値がないので、全部入れる（20261018-D01 のレポート）。
   座標系は緯度経度（ITRF94 / JGD2000）。GPS（WGS84）との差は 1/100万の地図の精度より十分小さいので、直さずに使う。
   ライブラリは使わない（PowerShell と、その中の .NET の標準の機能だけ。重い計算は下の C# で行う）。
 
@@ -216,7 +219,7 @@ $Layers = @(
   @{ Code = 1;  Name = 'coastline';      File = 'coastl_jpn';   Keep = { param($r) $true };              Kind = { param($r) Num $r 'acc' } }
   @{ Code = 2;  Name = 'pref_boundary';  File = 'polbndl_jpn';  Keep = { param($r) $r['use'] -eq '26' };   Kind = { param($r) Num $r 'bst' } }
   @{ Code = 3;  Name = 'river';          File = 'riverl_jpn';   Keep = { param($r) $true };              Kind = { param($r) Num $r 'lit' } }
-  @{ Code = 4;  Name = 'road';           File = 'roadl_jpn';    Keep = { param($r) $true };              Kind = { param($r) Num $r 'rtt' } }
+  @{ Code = 4;  Name = 'road';           File = 'roadl_jpn';    Keep = { param($r) (Num $r 'rtt') -in 14, 15, 16 }; Kind = { param($r) Num $r 'rtt' } }
   @{ Code = 5;  Name = 'railway';        File = 'raill_jpn';    Keep = { param($r) $true };              Kind = { param($r) Num $r 'fco' } }
   @{ Code = 6;  Name = 'muni_boundary';  File = 'polbndl_jpn';  Keep = { param($r) $r['use'] -eq '30' };   Kind = { param($r) Num $r 'bst' } }
   @{ Code = 7;  Name = 'ferry';          File = 'ferryl_jpn';   Keep = { param($r) $true };              Kind = { param($r) 0 } }
@@ -277,6 +280,7 @@ foreach ($layer in $Layers) { $nb = [System.Text.Encoding]::UTF8.GetBytes($layer
 
 # 段ごとの線（レイヤの順）。レイヤごと・段ごとの点の数とバイト数を数える
 $stats = @{}
+$kindStats = @{}
 $buf.WriteByte([byte]$Levels.Count)
 for ($lv = 0; $lv -lt $Levels.Count; $lv++) {
   $level = $Levels[$lv]
@@ -294,10 +298,15 @@ for ($lv = 0; $lv -lt $Levels.Count; $lv++) {
         if ($lat.Length -lt 2 -or ($minExt -gt 0 -and [Gm]::Extent($lat, $lon, $Unit) -lt $minExt)) { continue }
       }
       $pts += $lat.Length
+      $before = $segBuf.Length
       for ($s = 0; $s -lt $lat.Length - 1; $s += $ChunkPoints - 1) {
         $e = [math]::Min($s + $ChunkPoints, $lat.Length)
         [Gm]::WriteLine($segBuf, $d.Layer.Code, $ln.Kind, $lat, $lon, $s, $e, $prev); $count++
       }
+      # レイヤの中の種類ごとの線の数・点の数・バイト数（レポート用）
+      $kk = "$($d.Layer.Name),$($ln.Kind)"
+      if (-not $kindStats.ContainsKey($kk)) { $kindStats[$kk] = @{ Lines = @(0, 0, 0, 0); Points = @(0, 0, 0, 0); Bytes = @(0, 0, 0, 0) } }
+      $kindStats[$kk].Lines[$lv]++; $kindStats[$kk].Points[$lv] += $lat.Length; $kindStats[$kk].Bytes[$lv] += $segBuf.Length - $before
     }
     if ($count -gt $n0) {
       $tmp.WriteByte([byte]$d.Layer.Code)
@@ -348,4 +357,11 @@ $table = foreach ($d in $data) {
 }
 $table | Format-Table code, layer, records, merged, pts0, pts1, pts2, pts3, bytes0, bytes1, bytes2, bytes3, points, pbytes, deflated -AutoSize | Out-String -Width 300 | Write-Host
 $table | ConvertTo-Csv -NoTypeInformation | Set-Content -Encoding utf8 (Join-Path ([System.IO.Path]::GetTempPath()) 'gm2basemap_stats.csv')
+# レイヤの中の種類ごと（線のレイヤ。つないだあとの線の数、点の数・バイト数は段 0 / 1 / 2 / 3）
+$kinds = foreach ($k in $kindStats.Keys | Sort-Object) {
+  $ks = $kindStats[$k]; $layerName, $kind = $k -split ','
+  [pscustomobject]@{ layer = $layerName; kind = [int]$kind; lines0 = $ks.Lines[0]; pts0 = $ks.Points[0]; pts1 = $ks.Points[1]; pts2 = $ks.Points[2]; pts3 = $ks.Points[3]
+    bytes0 = $ks.Bytes[0]; bytes1 = $ks.Bytes[1]; bytes2 = $ks.Bytes[2]; bytes3 = $ks.Bytes[3] }
+}
+$kinds | ConvertTo-Csv -NoTypeInformation | Set-Content -Encoding utf8 (Join-Path ([System.IO.Path]::GetTempPath()) 'gm2basemap_kinds.csv')
 "書いた: $Out（$($buf.Length) バイト、圧縮の目安 $([Gm]::Deflated($buf.ToArray())) バイト）"

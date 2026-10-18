@@ -200,6 +200,12 @@ object Tuning {
     /** 背景地図の点の記号の大きさ（半分）[dp] */
     const val BASEMAP_MARK_DP = 2.5f
 
+    /**
+     * 背景地図の明るさ（設定。レイヤごとに 1〜5、3 が初期値）ごとに、色の RGB に掛ける数（1 を超えた分は 255 で止まる）。
+     * 3 = 1.0 が D02 までの明るさ。数が大きいほど明るい
+     */
+    val BASEMAP_BRIGHTNESS_FACTORS = listOf(0.5f, 0.75f, 1f, 1.4f, 1.9f)
+
     /** 背景地図: 画面の上で、前に残した点からこれより近い点は飛ばす [px]（広域で点の数を減らす） */
     const val BASEMAP_MIN_STEP_PX = 1f
 

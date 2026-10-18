@@ -173,13 +173,15 @@
     <string name="no_fix_timeout">NO FIX とみなす時間</string>
     <string name="rate_window">RATE の窓</string>
     <string name="sec_map_layers">地図レイヤ</string>
-    <string name="map_layers_note">国土地理院「地球地図日本」（1/100万相当）の線と記号を、地図のいちばん下に暗く描きます。点のレイヤは小さな記号だけ（名前は出しません）。</string>
+    <string name="map_layers_note">国土地理院「地球地図日本」（1/100万相当）の線と記号を、地図のいちばん下に暗く描きます。点のレイヤは小さな記号だけ（名前は出しません）。− / ＋ で明るさを 1〜5 から選びます（初期値 3。数が大きいほど明るい）。</string>
     <string name="base_map">背景地図</string>
     <string name="base_map_note">OFF にすると、下のレイヤをまとめて消す</string>
     <string name="map_layer_coastline">海岸線</string>
     <string name="map_layer_pref_boundary">県境</string>
     <string name="map_layer_muni_boundary">市区町村境</string>
     <string name="map_layer_road">道路</string>
+    <string name="map_pref_roads">県道も出す</string>
+    <string name="map_pref_roads_note">道路は高速道路と国道だけを描く。ON にすると県道（主要地方道など）も描く</string>
     <string name="map_layer_railway">鉄道</string>
     <string name="map_layer_river">河川</string>
     <string name="map_layer_ferry">フェリーの航路</string>

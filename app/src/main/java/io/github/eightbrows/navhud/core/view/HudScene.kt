@@ -77,11 +77,14 @@ enum class Ink {
 /** 折れ線の線の種類（背景地図のレイヤの描き分け）。長さは Tuning.BASEMAP_*_DP */
 enum class LineDash { SOLID, DOT, FINE_DOT, DASH, LONG_DASH }
 
-/** 背景地図の点の記号の形 */
-enum class MarkShape { CIRCLE, SQUARE, DIAMOND, TRIANGLE }
+/** 背景地図の点の記号の形。PLANE は上から見た飛行機（機首が上。向きは変えない） */
+enum class MarkShape { CIRCLE, SQUARE, DIAMOND, TRIANGLE, PLANE }
 
-/** 背景地図の点（小さな記号。名前は描かない）。sizeDp は記号の半分の大きさ [dp]、filled は塗るか */
-data class MapMark(val at: P, val ink: Ink, val shape: MarkShape, val sizeDp: Float, val filled: Boolean)
+/**
+ * 背景地図の点（小さな記号。名前は描かない）。sizeDp は記号の半分の大きさ [dp]、filled は塗るか、
+ * brightness は色の RGB に掛ける数（設定の明るさ。Tuning.BASEMAP_BRIGHTNESS_FACTORS）
+ */
+data class MapMark(val at: P, val ink: Ink, val shape: MarkShape, val sizeDp: Float, val filled: Boolean, val brightness: Float = 1f)
 
 /** 線。dashed は無効 WP の破線、longDash は次の WP への方位線の長い破線（Tuning.ACTIVE_DASH_*）。 */
 data class Segment(val a: P, val b: P, val ink: Ink, val dashed: Boolean = false, val bold: Boolean = false, val longDash: Boolean = false)
@@ -117,8 +120,11 @@ data class EdgeArrow(val at: P, val lines: List<String>, val textAt: P, val ink:
     val text: String get() = lines.joinToString(" ")
 }
 
-/** 折れ線（軌跡・背景地図）。widthDp は線の太さ [dp]。dash は線の種類（背景地図のレイヤの描き分け）。 */
-data class Polyline(val points: List<P>, val ink: Ink, val widthDp: Float, val dash: LineDash = LineDash.SOLID)
+/**
+ * 折れ線（軌跡・背景地図）。widthDp は線の太さ [dp]。dash は線の種類（背景地図のレイヤの描き分け）。
+ * brightness は色の RGB に掛ける数（背景地図の設定の明るさ。Tuning.BASEMAP_BRIGHTNESS_FACTORS）。
+ */
+data class Polyline(val points: List<P>, val ink: Ink, val widthDp: Float, val dash: LineDash = LineDash.SOLID, val brightness: Float = 1f)
 
 /** 三角形の印。tip の向きが angleDeg。 */
 data class Pointer(val tip: P, val angleDeg: Float, val sizePx: Float, val ink: Ink)

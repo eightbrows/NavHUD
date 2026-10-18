@@ -175,13 +175,15 @@
     <string name="no_fix_timeout">NO FIX after</string>
     <string name="rate_window">RATE window</string>
     <string name="sec_map_layers">Map layers</string>
-    <string name="map_layers_note">Lines and symbols from Global Map Japan (about 1:1,000,000), drawn dark under the HUD. Point layers are small symbols only (no names).</string>
+    <string name="map_layers_note">Lines and symbols from Global Map Japan (about 1:1,000,000), drawn dark under the HUD. Point layers are small symbols only (no names). Use − / ＋ to set the brightness from 1 to 5 (default 3; higher is brighter).</string>
     <string name="base_map">Base map</string>
     <string name="base_map_note">Turns all layers below off at once</string>
     <string name="map_layer_coastline">Coastline</string>
     <string name="map_layer_pref_boundary">Prefecture borders</string>
     <string name="map_layer_muni_boundary">Municipal borders</string>
     <string name="map_layer_road">Roads</string>
+    <string name="map_pref_roads">Also show prefectural roads</string>
+    <string name="map_pref_roads_note">Roads shows expressways and national routes only. Turn on to add prefectural roads (major regional roads)</string>
     <string name="map_layer_railway">Railways</string>
     <string name="map_layer_river">Rivers</string>
     <string name="map_layer_ferry">Ferry routes</string>

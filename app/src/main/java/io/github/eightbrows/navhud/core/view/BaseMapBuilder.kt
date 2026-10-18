@@ -6,6 +6,8 @@ import io.github.eightbrows.navhud.core.geo.Screen
 import io.github.eightbrows.navhud.core.io.BaseMap
 import io.github.eightbrows.navhud.core.io.MapLayer
 import io.github.eightbrows.navhud.core.io.MapLine
+import io.github.eightbrows.navhud.core.io.RoadKind
+import io.github.eightbrows.navhud.core.nav.NavSettings
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -55,7 +57,7 @@ object BaseMapBuilder {
         MapLayer.CITY -> MapLayerStyle(Ink.MAP_CITY, shape = MarkShape.CIRCLE)
         MapLayer.STATION -> MapLayerStyle(Ink.MAP_STATION, shape = MarkShape.SQUARE, filled = true)
         MapLayer.PORT -> MapLayerStyle(Ink.MAP_PORT, shape = MarkShape.CIRCLE, filled = true)
-        MapLayer.AIRPORT -> MapLayerStyle(Ink.MAP_AIRPORT, shape = MarkShape.TRIANGLE)
+        MapLayer.AIRPORT -> MapLayerStyle(Ink.MAP_AIRPORT, shape = MarkShape.PLANE, filled = true)
         MapLayer.DAM_POINT -> MapLayerStyle(Ink.MAP_DAM, shape = MarkShape.DIAMOND, filled = true)
     }
 
@@ -64,6 +66,8 @@ object BaseMapBuilder {
      * @param refLat 基準の地点（通常は自機、PAN は PAN の中心。proj の EN の原点）
      * @param rect 描画の枠。この枠に（marginPx だけ外まで）入る範囲の線・点を選ぶ
      * @param r1M 今の R1 [m]（縮尺の 1/2）。使う段を決める
+     * @param brightness レイヤの明るさ（設定の 1〜5。ないレイヤは 3）
+     * @param prefRoads 道路のレイヤで県道（RoadKind.SECONDARY）も描く。false なら高速道路と国道だけ
      */
     fun build(
         map: BaseMap,
@@ -73,6 +77,8 @@ object BaseMapBuilder {
         proj: HudProjection,
         rect: HudRect,
         r1M: Double,
+        brightness: Map<MapLayer, Int> = emptyMap(),
+        prefRoads: Boolean = false,
         minStepPx: Float = Tuning.BASEMAP_MIN_STEP_PX,
         marginPx: Float = Tuning.BASEMAP_MARGIN_PX,
     ): BaseMapScene {
@@ -84,21 +90,28 @@ object BaseMapBuilder {
         for (layer in DRAW_ORDER) {
             if (layer !in layers) continue
             val style = styleOf(layer)
+            val k = brightnessFactor(brightness[layer] ?: NavSettings.DEFAULT_MAP_BRIGHTNESS)
             if (layer.isPoint) {
                 for (p in map.points) {
                     if (p.layer != layer || !box.contains(p.lat, p.lon)) continue
-                    marks += MapMark(project(p.lat, p.lon, refLat, refLon, proj), style.ink, style.shape, Tuning.BASEMAP_MARK_DP, style.filled)
+                    marks += MapMark(project(p.lat, p.lon, refLat, refLon, proj), style.ink, style.shape, Tuning.BASEMAP_MARK_DP, style.filled, k)
                 }
             } else {
+                val skipPrefRoads = layer == MapLayer.ROAD && !prefRoads
                 for (line in level?.candidates(layer, box.minLat, box.minLon, box.maxLat, box.maxLon).orEmpty()) {
+                    if (skipPrefRoads && line.kind == RoadKind.SECONDARY) continue
                     if (!box.intersects(line)) continue
                     val pts = projectThin(line, refLat, refLon, proj, minStepPx)
-                    if (pts.size >= 2) lines += Polyline(pts, style.ink, style.widthDp, style.dash)
+                    if (pts.size >= 2) lines += Polyline(pts, style.ink, style.widthDp, style.dash, k)
                 }
             }
         }
         return BaseMapScene(lines, marks)
     }
+
+    /** 明るさの段（1〜5）を、色の RGB に掛ける数にする（範囲の外は端の段） */
+    fun brightnessFactor(level: Int): Float =
+        Tuning.BASEMAP_BRIGHTNESS_FACTORS[(level - 1).coerceIn(0, Tuning.BASEMAP_BRIGHTNESS_FACTORS.lastIndex)]
 
     /** 描画の枠の四隅（＋ 余白）を地図に戻した範囲。ARC で画面が回っていても、四隅を含む範囲なので枠全体が入る。 */
     fun visibleBox(refLat: Double, refLon: Double, proj: HudProjection, rect: HudRect, marginPx: Float = 0f): LatLonBox {
