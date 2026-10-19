@@ -196,6 +196,7 @@
     <string name="map_item_other_motorway">Other motorways</string>
     <string name="map_item_national_road">National routes</string>
     <string name="map_item_pref_road">Prefectural roads</string>
+    <string name="map_item_shinkansen">Shinkansen</string>
     <string name="map_layer_railway">Railways</string>
     <string name="map_item_water">Rivers and lakes</string>
     <string name="map_layer_ferry">Ferry routes</string>

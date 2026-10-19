@@ -199,10 +199,10 @@ class BaseMapFileTest {
         val map = BaseMapFile.decode(asset.readBytes())
         // 段: 詳細用（間引かない）・R1 25 km 以上用・R1 50 km 以上用・R1 100 km 以上用
         assertEquals(listOf(0.0, 25_000.0, 50_000.0, 100_000.0), map.levels.map { it.minR1M })
-        // 変換のとき（20261017-D02。河川・湖沼などは 20261018-D05 で水系・幅のある川の線を入れた）の数: 段 0 の線（64 点ずつに分けたあと）と点
+        // 変換のとき（20261017-D02。河川・湖沼などは 20261018-D05 で水系・幅のある川の線を入れた。鉄道は 20261019-D02 で新幹線の印が変わる所で切った）の数: 段 0 の線（64 点ずつに分けたあと）と点
         val expectLines = mapOf(
             MapLayer.COASTLINE to 1779, MapLayer.PREF_BOUNDARY to 278, MapLayer.RIVER to 764, MapLayer.ROAD to 31428,
-            MapLayer.RAILWAY to 3112, MapLayer.MUNI_BOUNDARY to 4220, MapLayer.FERRY to 540, MapLayer.DAM_LINE to 29,
+            MapLayer.RAILWAY to 3142, MapLayer.MUNI_BOUNDARY to 4220, MapLayer.FERRY to 540, MapLayer.DAM_LINE to 29,
             MapLayer.INLAND_WATER to 899, MapLayer.BUILT_UP_AREA to 249,
         )
         for ((layer, n) in expectLines) assertEquals(layer.name, n, map.countOf(layer))
@@ -260,6 +260,22 @@ class BaseMapFileTest {
             "西九州道（佐世保のあたり）の枝" to (33.1594 to 129.8661), "阪神高速（堺のあたり）の枝" to (34.6407 to 135.4861),
         )
         for ((name, p) in realMotorways) assertEquals(name, setOf(16), kindAt(p.first, p.second))
+        // 鉄道: 新幹線の印（0x10）と、山形・秋田の印（0x20）は変換で付ける（20261019-D02）。どの段にも新幹線と在来線がある
+        for (level in map.levels) {
+            val rail = level.byLayer[MapLayer.RAILWAY].orEmpty()
+            assertTrue(rail.any { RailKind.isShinkansen(it.kind) } && rail.any { !RailKind.isShinkansen(it.kind) })
+        }
+        fun railKindsAt(lat: Double, lon: Double) = map.lines.filter { l ->
+            l.layer == MapLayer.RAILWAY && (0 until l.size).any { i -> Geo.distanceM(lat, lon, l.lat(i), l.lon(i)) < 50 }
+        }.map { it.kind }.toSet()
+        val shinkansen = mapOf("東海道新幹線（浜松の西）" to (34.71093 to 137.87790), "東北新幹線（仙台の北）" to (38.24120 to 140.89430))
+        for ((name, p) in shinkansen) railKindsAt(p.first, p.second).let { assertTrue(name, it.isNotEmpty() && it.all { k -> RailKind.isShinkansen(k) }) }
+        // 新幹線と並んで走る在来線は在来線のまま
+        val conventional = mapOf("東海道線（浜松の西）" to (34.71020 to 137.83330), "東北線（仙台）" to (38.23200 to 140.88969))
+        for ((name, p) in conventional) railKindsAt(p.first, p.second).let { assertTrue(name, it.isNotEmpty() && it.none { k -> RailKind.isShinkansen(k) }) }
+        // 山形・秋田新幹線の線路は、山形・秋田の印だけ（新幹線の印はない。在来線として描く）
+        val mini = mapOf("山形新幹線（赤湯の北）" to (38.08840 to 140.19310), "秋田新幹線（雫石の西）" to (39.67220 to 140.88580))
+        for ((name, p) in mini) railKindsAt(p.first, p.second).let { assertTrue(name, it.isNotEmpty() && it.all { k -> k and RailKind.MINI_SHINKANSEN != 0 && !RailKind.isShinkansen(k) }) }
         // 河川・湖沼などの種類は大きさの段（下の 4 ビット: 1 = 小・2 = 中・3 = 大）と幅のある川の印。
         // R1 50 km 以上の段は中・大だけ、100 km 以上の段は大だけ
         for ((i, level) in map.levels.withIndex()) {

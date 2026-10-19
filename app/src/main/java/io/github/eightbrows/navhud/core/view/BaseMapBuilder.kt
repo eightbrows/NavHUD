@@ -6,6 +6,7 @@ import io.github.eightbrows.navhud.core.geo.Screen
 import io.github.eightbrows.navhud.core.io.BaseMap
 import io.github.eightbrows.navhud.core.io.MapLayer
 import io.github.eightbrows.navhud.core.io.MapLine
+import io.github.eightbrows.navhud.core.io.RailKind
 import io.github.eightbrows.navhud.core.io.RoadKind
 import io.github.eightbrows.navhud.core.io.WaterKind
 import io.github.eightbrows.navhud.core.nav.MapItem
@@ -114,6 +115,21 @@ object BaseMapBuilder {
                     if (pts.size >= 2) byItem.getValue(item) += Polyline(pts, roadInk(item), roadWidthDp(line.kind) * wk, style.dash, k)
                 }
                 for (item in ROAD_DRAW_ORDER) lines += byItem.getValue(item)
+            } else if (layer == MapLayer.RAILWAY) {
+                // 鉄道: 項目（新幹線・在来線）ごとに、その縮尺で描く種類だけ。在来線 → 新幹線の順に並べる（新幹線が上）
+                val conventional = ArrayList<Polyline>()
+                val shinkansen = ArrayList<Polyline>()
+                for (line in level?.candidates(layer, box.minLat, box.minLon, box.maxLat, box.maxLon).orEmpty()) {
+                    val item = railItem(line.kind)
+                    if (item !in shown) continue
+                    if (!box.intersects(line)) continue
+                    val pts = projectThin(line, refLat, refLon, proj, minStepPx)
+                    if (pts.size < 2) continue
+                    if (item == MapItem.SHINKANSEN) shinkansen += Polyline(pts, Ink.MAP_SHINKANSEN, Tuning.BASEMAP_SHINKANSEN_LINE_DP * wk, style.dash, k)
+                    else conventional += Polyline(pts, style.ink, style.widthDp * wk, style.dash, k)
+                }
+                lines += conventional
+                lines += shinkansen
             } else {
                 // 幅のある川: R1 10 km 以上は川の中心の線（河川の印付きの線）、未満は川の面の輪郭（湖沼などの印付きの線）
                 val wide = r1M >= Tuning.BASEMAP_WIDE_RIVER_R1_M
@@ -136,6 +152,9 @@ object BaseMapBuilder {
         RoadKind.SECONDARY -> MapItem.PREF_ROAD
         else -> MapItem.NATIONAL_ROAD
     }
+
+    /** 鉄道の線がどの項目に入るか: 新幹線の印があれば新幹線、ほかは在来線（山形・秋田新幹線も在来線） */
+    fun railItem(kind: Int): MapItem = if (RailKind.isShinkansen(kind)) MapItem.SHINKANSEN else MapItem.RAILWAY
 
     /** 道路の色: 高速道路は青、その他の自動車専用道路は暗めの青、国道は赤、県道は茶 */
     fun roadInk(item: MapItem): Ink = when (item) {

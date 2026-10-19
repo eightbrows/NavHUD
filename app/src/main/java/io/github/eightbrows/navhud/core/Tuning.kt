@@ -188,6 +188,8 @@ object Tuning {
     const val BASEMAP_OTHER_MOTORWAY_LINE_DP = 1.5f
     const val BASEMAP_PREF_ROAD_LINE_DP = 0.7f
     const val BASEMAP_RAIL_LINE_DP = 1f
+    /** 新幹線の線の太さ [dp]（在来線 1.0 より少し太く。仮の値） */
+    const val BASEMAP_SHINKANSEN_LINE_DP = 1.6f
     const val BASEMAP_FERRY_LINE_DP = 1f
     const val BASEMAP_DAM_LINE_DP = 1.6f
 

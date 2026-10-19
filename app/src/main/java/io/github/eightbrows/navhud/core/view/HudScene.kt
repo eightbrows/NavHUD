@@ -60,6 +60,7 @@ enum class Ink {
 
     /** 背景地図の鉄道（暗い紫がかった灰色の破線） */
     MAP_RAIL,
+    MAP_SHINKANSEN,
 
     /** 背景地図のフェリーの航路（暗い青緑の長い破線） */
     MAP_FERRY,

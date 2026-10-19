@@ -17,7 +17,7 @@
     面  9 湖沼など（inwatera）  10 市街地（builtupa）     … 塗らずに、輪郭を線として入れる
     点  20 空港（airp）  21 港（portp）  22 駅（rstatp）  23 ダム・堰（miscp）  24 都市（builtupp） … 名前も入れる
     行政区域の面（polbnda）は、境の線と同じ形なので入れない。
-    線・点ごとに「レイヤの中の種類」（0〜255）を持つ。道路は rtt、鉄道は fco、空港は use、海岸線は acc。河川・湖沼などは大きさの段（下の「段」の説明）。
+    線・点ごとに「レイヤの中の種類」（0〜255）を持つ。道路は rtt、鉄道は fco（新幹線は 0x10・山形と秋田は 0x20 を足す）、空港は use、海岸線は acc。河川・湖沼などは大きさの段（下の「段」の説明）。
     道路は rtt が 16（高速道路）・14（国道）・15（県道。主要地方道など）の線だけを入れる（データにはこの 3 つしかない）。
     高速道路のうち、端がつながるまとまりの長さが 20 km 未満のものは、種類を 17（その他の自動車専用道路）にする。
     アプリは種類ごと（高速道路・その他の自動車専用道路・国道・県道）に、設定の縮尺で描く。
@@ -462,6 +462,113 @@ public static class Gm {
     var ms = new MemoryStream(); using (var z = new System.IO.Compression.DeflateStream(ms, System.IO.Compression.CompressionLevel.Optimal, true)) z.Write(b, 0, b.Length); return ms.Length;
   }
 }
+
+// 新幹線を見分ける（20261019-D02）。地球地図の鉄道には新幹線の区分がないので、新幹線の駅（rstatp）を手がかりにする。
+// 1. 鉄道の線の頂点を点、となりの頂点を辺とするグラフを作る。辺の重み = 長さ × (1 + レコードの 1 km あたりの角度 ÷ curvK)
+//    （カーブの少ない線を通りやすくする。複線かどうか（fco）は、新幹線でも単線になっている所があるので使わない）。
+//    線の行き止まりの点は、gapM 以内のほかの線の頂点とつなぐ（新幹線のトンネルの線などの継ぎ目のずれ）。
+// 2. 駅（snapM 以内の頂点から出る）どうしの重み付きの最短の道を、直線で pairKm 以内の組について出し、駅の最小全域木を作る。
+// 3. 木を、木の次数が 2 でない駅で「路線のまとまり」に分ける。道を 200 m ごとにならしてから測った 1 km あたりの角度が
+//    miniDeg 以上のまとまりは、在来線の線路を走る新幹線（山形・秋田）とする。
+// 4. 道が通った辺に印を付ける（1 = 新幹線、2 = 山形・秋田）。戻り値: [レコード][部分][辺] の印
+public static class Rail {
+  static List<double> X = new List<double>(), Y = new List<double>();
+  static List<List<int[]>> Adj;   // { 相手の点, レコード, 部分, 辺（-1 はつなぎ） }
+  static List<List<double>> W;
+  static double D(double x0, double y0, double x1, double y1) { double r = 6371008.8 * Math.PI / 180, k = Math.Cos((y0 + y1) / 2 * Math.PI / 180), dx = (x1 - x0) * k * r, dy = (y1 - y0) * r; return Math.Sqrt(dx*dx + dy*dy); }
+  static double TurnPerKm(List<double> x, List<double> y, double step) {
+    if (x.Count < 2) return 0;
+    var rx = new List<double> { x[0] }; var ry = new List<double> { y[0] }; double need = step, len = 0;
+    for (int i = 1; i < x.Count; i++) { double d = D(x[i-1], y[i-1], x[i], y[i]); len += d; double at = 0;
+      while (d - at >= need) { at += need; double f = at / d; rx.Add(x[i-1] + (x[i] - x[i-1]) * f); ry.Add(y[i-1] + (y[i] - y[i-1]) * f); need = step; }
+      need -= (d - at); }
+    if (need < step) { rx.Add(x[x.Count-1]); ry.Add(y[y.Count-1]); }
+    double t = 0; double? prev = null;
+    for (int i = 1; i < rx.Count; i++) { double k = Math.Cos((ry[i-1] + ry[i]) / 2 * Math.PI / 180), dx = (rx[i] - rx[i-1]) * k, dy = ry[i] - ry[i-1]; if (dx == 0 && dy == 0) continue;
+      double h = Math.Atan2(dx, dy) * 180 / Math.PI; if (prev.HasValue) { double a = h - prev.Value; while (a > 180) a -= 360; while (a < -180) a += 360; t += Math.Abs(a); } prev = h; }
+    return len > 0 ? t / (len / 1000) : 0;
+  }
+  // 調べた結果（レポート用）: 木の辺 { 駅 a, 駅 b, 道の長さ [m], 200 m でならした 1 km あたりの角度 }、まとまり { 駅の並び, 長さ, 角度, 山形・秋田か }
+  public static List<double[]> TreeEdges = new List<double[]>();
+  public static List<string> Chains = new List<string>();
+  public static int[][][] Shinkansen(List<ShpRecord> recs, List<double[]> stations, double curvK, double gapM, double snapM, double pairKm, double miniDeg) {
+    X.Clear(); Y.Clear(); TreeEdges.Clear(); Chains.Clear();
+    Adj = new List<List<int[]>>(); W = new List<List<double>>();
+    var id = new Dictionary<string, int>();
+    Func<double, double, int> node = (x, y) => { string k = Math.Round(x * 1e6) + "|" + Math.Round(y * 1e6); int v;
+      if (!id.TryGetValue(k, out v)) { v = X.Count; id[k] = v; X.Add(x); Y.Add(y); Adj.Add(new List<int[]>()); W.Add(new List<double>()); } return v; };
+    for (int i = 0; i < recs.Count; i++) {
+      double turn = 0, len = 0; foreach (var p in recs[i].Parts) { turn += Gm.TurnDeg(p); len += Gm.Km(p); }
+      double f = 1 + Math.Min(len > 0 ? turn / len : 0, 300) / curvK;
+      for (int pi = 0; pi < recs[i].Parts.Count; pi++) { var p = recs[i].Parts[pi];
+        for (int q = 2; q < p.Length; q += 2) { int a = node(p[q-2], p[q-1]), b = node(p[q], p[q+1]); if (a == b) continue; double d = D(p[q-2], p[q-1], p[q], p[q+1]);
+          Adj[a].Add(new[] { b, i, pi, q / 2 - 1 }); W[a].Add(d * f); Adj[b].Add(new[] { a, i, pi, q / 2 - 1 }); W[b].Add(d * f); } } }
+    // 行き止まりの点を、近くのほかのレコードの頂点とつなぐ
+    var grid = new Dictionary<long, List<int>>(); double cell = 0.01; int n0 = X.Count;
+    for (int v = 0; v < n0; v++) { long k = (long)Math.Floor(X[v] / cell) * 100000L + (long)Math.Floor(Y[v] / cell); List<int> l; if (!grid.TryGetValue(k, out l)) grid[k] = l = new List<int>(); l.Add(v); }
+    for (int v = 0; v < n0; v++) { if (Adj[v].Count != 1) continue; int rec = Adj[v][0][1]; int best = -1; double bd = gapM;
+      long cx = (long)Math.Floor(X[v] / cell), cy = (long)Math.Floor(Y[v] / cell);
+      for (long dx = -1; dx <= 1; dx++) for (long dy = -1; dy <= 1; dy++) { List<int> l; if (!grid.TryGetValue((cx + dx) * 100000L + cy + dy, out l)) continue;
+        foreach (var u in l) { if (u == v) continue; bool same = false; foreach (var e in Adj[u]) if (e[1] == rec) { same = true; break; } if (same) continue;
+          double d = D(X[v], Y[v], X[u], Y[u]); if (d < bd) { bd = d; best = u; } } }
+      if (best >= 0) { Adj[v].Add(new[] { best, -1, -1, -1 }); W[v].Add(bd + 1); Adj[best].Add(new[] { v, -1, -1, -1 }); W[best].Add(bd + 1); } }
+    // 駅の近くの頂点
+    int ns = stations.Count; var snap = new List<int>[ns];
+    for (int s = 0; s < ns; s++) { snap[s] = new List<int>(); for (int v = 0; v < X.Count; v++) if (Math.Abs(Y[v] - stations[s][1]) < 0.02 && D(stations[s][0], stations[s][1], X[v], Y[v]) < snapM) snap[s].Add(v); }
+    // 駅の組ごとの最短の道（Dijkstra）
+    var pairs = new List<Tuple<double, int, int>>(); var paths = new Dictionary<long, List<int[]>>();   // 道: { 点, その点に来た辺の { レコード, 部分, 辺 } }
+    int nv = X.Count;
+    for (int a = 0; a < ns; a++) { if (snap[a].Count == 0) continue;
+      var dist = new double[nv]; var prev = new int[nv]; var prevE = new int[nv][]; for (int v = 0; v < nv; v++) { dist[v] = double.MaxValue; prev[v] = -1; }
+      var pq = new SortedSet<Tuple<double, int>>();
+      foreach (var v in snap[a]) { dist[v] = D(stations[a][0], stations[a][1], X[v], Y[v]); pq.Add(Tuple.Create(dist[v], v)); }
+      double maxCost = pairKm * 3000;
+      while (pq.Count > 0) { var t = pq.Min; pq.Remove(t); int u = t.Item2; if (t.Item1 > maxCost) break;
+        for (int k = 0; k < Adj[u].Count; k++) { int v = Adj[u][k][0]; double nd = dist[u] + W[u][k];
+          if (nd < dist[v]) { if (dist[v] != double.MaxValue) pq.Remove(Tuple.Create(dist[v], v)); dist[v] = nd; prev[v] = u; prevE[v] = Adj[u][k]; pq.Add(Tuple.Create(nd, v)); } } }
+      for (int b = a + 1; b < ns; b++) { if (snap[b].Count == 0 || D(stations[a][0], stations[a][1], stations[b][0], stations[b][1]) > pairKm * 1000) continue;
+        double best = double.MaxValue; int bv = -1; foreach (var v in snap[b]) { if (dist[v] == double.MaxValue) continue; double c = dist[v] + D(stations[b][0], stations[b][1], X[v], Y[v]); if (c < best) { best = c; bv = v; } }
+        if (bv < 0) continue;
+        var path = new List<int[]>(); int w = bv; while (w >= 0) { path.Add(new[] { w, prevE[w] == null ? -2 : prevE[w][1], prevE[w] == null ? -2 : prevE[w][2], prevE[w] == null ? -2 : prevE[w][3] }); w = prev[w]; }
+        pairs.Add(Tuple.Create(best, a, b)); paths[(long)a * 100000 + b] = path; } }
+    // 駅の最小全域木
+    var par = new int[ns]; for (int s = 0; s < ns; s++) par[s] = s;
+    Func<int, int> root = null; root = x => { while (par[x] != x) x = par[x] = par[par[x]]; return x; };
+    var tree = new List<Tuple<int, int>>(); var adjT = new List<int>[ns]; for (int s = 0; s < ns; s++) adjT[s] = new List<int>();
+    foreach (var e in pairs.OrderBy(t => t.Item1)) { int ra = root(e.Item2), rb = root(e.Item3); if (ra == rb) continue; par[ra] = rb; tree.Add(Tuple.Create(e.Item2, e.Item3)); adjT[e.Item2].Add(tree.Count - 1); adjT[e.Item3].Add(tree.Count - 1); }
+    var eLen = new double[tree.Count]; var eDeg = new double[tree.Count];
+    for (int t = 0; t < tree.Count; t++) { var path = paths[(long)tree[t].Item1 * 100000 + tree[t].Item2]; var px = new List<double>(); var py = new List<double>(); double len = 0;
+      for (int j = 0; j < path.Count; j++) { px.Add(X[path[j][0]]); py.Add(Y[path[j][0]]); if (j > 0) len += D(px[j-1], py[j-1], px[j], py[j]); }
+      eLen[t] = len; eDeg[t] = TurnPerKm(px, py, 200); TreeEdges.Add(new double[] { tree[t].Item1, tree[t].Item2, len, eDeg[t] }); }
+    // 路線のまとまり（木の次数が 2 でない駅で切る）
+    var edgeMini = new bool[tree.Count]; var usedT = new bool[tree.Count];
+    for (int s = 0; s < ns; s++) { if (adjT[s].Count == 2 || adjT[s].Count == 0) continue;
+      foreach (int e0 in adjT[s]) { if (usedT[e0]) continue; var list = new List<int>(); var seq = new List<int> { s }; int cur = s, e = e0;
+        while (true) { usedT[e] = true; list.Add(e); cur = tree[e].Item1 == cur ? tree[e].Item2 : tree[e].Item1; seq.Add(cur);
+          if (adjT[cur].Count != 2) break; int nx = -1; foreach (int f in adjT[cur]) if (!usedT[f]) nx = f; if (nx < 0) break; e = nx; }
+        double km = list.Sum(t => eLen[t]), deg = km > 0 ? list.Sum(t => eLen[t] * eDeg[t]) / km : 0; bool mini = deg >= miniDeg;
+        foreach (int t in list) edgeMini[t] = mini;
+        Chains.Add(string.Join(",", seq) + "|" + km.ToString("F0") + "|" + deg.ToString("F1") + "|" + (mini ? 1 : 0)); } }
+    // 印
+    var flags = new int[recs.Count][][];
+    for (int i = 0; i < recs.Count; i++) { flags[i] = new int[recs[i].Parts.Count][]; for (int pi = 0; pi < recs[i].Parts.Count; pi++) flags[i][pi] = new int[Math.Max(0, recs[i].Parts[pi].Length / 2 - 1)]; }
+    for (int t = 0; t < tree.Count; t++) { int mark = edgeMini[t] ? 2 : 1; var path = paths[(long)tree[t].Item1 * 100000 + tree[t].Item2];
+      foreach (var st in path) { if (st[1] < 0) continue; var fl = flags[st[1]][st[2]]; if (mark == 1 || fl[st[3]] == 0) fl[st[3]] = mark; } }
+    return flags;
+  }
+  // レコードの印を整える: 通った長さがレコードの half 以上なら、レコード全部を多い方の印にする。そうでなければ、minRunKm 以上続く所だけ残す
+  public static void Tidy(List<ShpRecord> recs, int[][][] flags, double half, double minRunKm) {
+    for (int i = 0; i < recs.Count; i++) {
+      double total = 0, on1 = 0, on2 = 0;
+      for (int pi = 0; pi < recs[i].Parts.Count; pi++) { var p = recs[i].Parts[pi]; for (int s = 0; s < flags[i][pi].Length; s++) { double d = D(p[2*s], p[2*s+1], p[2*s+2], p[2*s+3]); total += d; if (flags[i][pi][s] == 1) on1 += d; else if (flags[i][pi][s] == 2) on2 += d; } }
+      if (on1 + on2 == 0) continue;
+      if (on1 + on2 >= half * total) { int m = on1 >= on2 ? 1 : 2; foreach (var fl in flags[i]) for (int s = 0; s < fl.Length; s++) fl[s] = m; continue; }
+      for (int pi = 0; pi < recs[i].Parts.Count; pi++) { var p = recs[i].Parts[pi]; var fl = flags[i][pi]; int s0 = 0;
+        while (s0 < fl.Length) { int s1 = s0; double run = 0; while (s1 < fl.Length && fl[s1] == fl[s0]) { run += D(p[2*s1], p[2*s1+1], p[2*s1+2], p[2*s1+3]); s1++; }
+          if (fl[s0] != 0 && run < minRunKm * 1000) for (int s = s0; s < s1; s++) fl[s] = 0;
+          s0 = s1; } } }
+  }
+}
 "@
 
 $ShapeTypes = @{ 0 = 'なし'; 1 = '点'; 3 = '線'; 5 = '面'; 8 = '複数の点'; 11 = '点(Z)'; 13 = '線(Z)'; 15 = '面(Z)'; 21 = '点(M)'; 23 = '線(M)'; 25 = '面(M)' }
@@ -531,6 +638,9 @@ $WideRiverFlag = 0x10
 $MotorwayMinKm = 20   # 高速道路のまとまりがこれより短いと「その他の自動車専用道路」
 $MotorwayCurvyMaxKm = 100; $MotorwayCurvyDegPerKm = 80   # これより短く、1 km あたりの曲がった角度がこれ以上のまとまりも同じ
 $BranchMinKm = 2; $BranchMaxKm = 100; $BranchDegPerKm = 100   # 網の枝: 長さがこの範囲で、1 km あたりの曲がった角度がこれ以上の枝も同じ
+# 鉄道: 新幹線を見分ける（Rail の説明）。種類の 0x10 = 新幹線、0x20 = 在来線の線路を走る新幹線（山形・秋田。アプリは在来線として描く）
+$RailCurvK = 50; $RailGapM = 300; $StationSnapM = 1000; $StationPairKm = 150; $MiniShinkansenDeg = 15; $RailHalf = 0.5; $RailMinRunKm = 2
+$ShinkansenFlag = 0x10; $MiniShinkansenFlag = 0x20
 $MinSizeClass = @(1, 1, 2, 3)   # 段ごとに入れる大きさの段の下限
 function SizeClass($v, $edges) { if ($v -ge $edges[1]) { 3 } elseif ($v -ge $edges[0]) { 2 } else { 1 } }
 
@@ -558,6 +668,15 @@ $data = foreach ($layer in $Layers) {
   # （カーブの続く観光の有料道路。大きな網から離れている）も同じにする（20261018-D07）
   # 大きな網につながっていても、網の枝（片方の端だけで網につながる部分）のうち、長さ $BranchMinKm 以上 $BranchMaxKm 未満で、
   # 1 km あたりの曲がった角度が $BranchDegPerKm 以上のもの（網につながるカーブの多い観光の有料道路）も同じにする（20261019-D01）
+  # 鉄道: 新幹線の駅（rstatp）どうしを結ぶ道から、新幹線と、在来線の線路を走る新幹線（山形・秋田）を見分ける（20261019-D02。Rail の説明）
+  $railFlags = $null
+  if ($layer.Code -eq 5) {
+    $sRecs = [Gm]::ReadShp((Join-Path $Src 'rstatp_jpn.shp')); $sRows = [Gm]::ReadDbf((Join-Path $Src 'rstatp_jpn.dbf'))
+    $stations = [System.Collections.Generic.List[double[]]]::new(); foreach ($s in $sRecs) { $stations.Add([double[]]@($s.X, $s.Y)) }
+    $railFlags = [Rail]::Shinkansen($recs, $stations, $RailCurvK, $RailGapM, $StationSnapM, $StationPairKm, $MiniShinkansenDeg)
+    [Rail]::Tidy($recs, $railFlags, $RailHalf, $RailMinRunKm)
+    $script:RailStats = @{ Flags = $railFlags; Recs = $recs; Rows = $rows; StationRows = $sRows; TreeEdges = @([Rail]::TreeEdges); Chains = @([Rail]::Chains) }
+  }
   $motorwayKm = $null; $motorwayDeg = $null; $motorwayBranch = $null
   if ($layer.Code -eq 4) {
     $mUse = [bool[]]::new($rows.Count)
@@ -598,6 +717,19 @@ $data = foreach ($layer in $Layers) {
     if ($r.Type -in 1, 11, 21) {
       $name = if ($rows[$i].ContainsKey('nam') -and $rows[$i]['nam'] -ne 'UNK') { $rows[$i]['nam'] } else { '' }
       $points.Add(@{ Kind = $kind; Lat = [int][math]::Round($r.Y * $Unit); Lon = [int][math]::Round($r.X * $Unit); Name = $name })
+    } elseif ($layer.Code -eq 5) {
+      # 鉄道: 新幹線・山形と秋田の印が変わる所で線を切り、種類に印を足す（種類の下位は fco のまま）
+      for ($pi = 0; $pi -lt $parts.Count; $pi++) {
+        $xy = $parts[$pi]; $fl = $railFlags[$i][$pi]; $s0 = 0
+        while ($s0 -lt $fl.Length) {
+          $s1 = $s0; while ($s1 -lt $fl.Length -and $fl[$s1] -eq $fl[$s0]) { $s1++ }
+          $sub = [double[]]::new(2 * ($s1 - $s0 + 1)); [Array]::Copy($xy, 2 * $s0, $sub, 0, $sub.Length)
+          $k = [int]$kind -bor $(if ($fl[$s0] -eq 1) { $ShinkansenFlag } elseif ($fl[$s0] -eq 2) { $MiniShinkansenFlag } else { 0 })
+          $lon = $null; $lat = [Gm]::ToUnits($sub, $Unit, [ref]$lon)
+          if ($lat.Length -ge 2) { $lines.Add([object[]]@($lat, $lon, $k)) }
+          $s0 = $s1
+        }
+      }
     } else {
       foreach ($xy in $parts) {
         $lon = $null; $lat = [Gm]::ToUnits($xy, $Unit, [ref]$lon)

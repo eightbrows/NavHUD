@@ -71,6 +71,9 @@ object HudColors {
     val MapOtherMotorway = Color(0xFF203CA8)
     val MapNationalRoad = Color(0xFFA8443C)
     val MapRail = Color(0xFF4F4A66)
+
+    /** 新幹線: 在来線（くすんだ紫）と同じ系統の、明るい紫（仮。ほかの地図・HUD の色との ΔE は 24.9 以上） */
+    val MapShinkansen = Color(0xFF9B7BC8)
     val MapFerry = Color(0xFF22504F)
     val MapDam = Color(0xFF2F5470)
     val MapBuiltUp = Color(0xFF3D3A28)
@@ -176,6 +179,7 @@ object HudColors {
         Ink.MAP_MOTORWAY -> MapMotorway
         Ink.MAP_OTHER_MOTORWAY -> MapOtherMotorway
         Ink.MAP_RAIL -> MapRail
+        Ink.MAP_SHINKANSEN -> MapShinkansen
         Ink.MAP_FERRY -> MapFerry
         Ink.MAP_DAM -> MapDam
         Ink.MAP_BUILT_UP -> MapBuiltUp

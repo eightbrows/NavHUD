@@ -9,6 +9,7 @@ import io.github.eightbrows.navhud.core.io.MapLayer
 import io.github.eightbrows.navhud.core.io.MapLevel
 import io.github.eightbrows.navhud.core.io.MapLine
 import io.github.eightbrows.navhud.core.io.MapPoint
+import io.github.eightbrows.navhud.core.io.RailKind
 import io.github.eightbrows.navhud.core.io.RoadKind
 import io.github.eightbrows.navhud.core.io.WaterKind
 import io.github.eightbrows.navhud.core.model.Fix
@@ -113,6 +114,36 @@ class BaseMapBuilderTest {
         // 点のレイヤも、色か記号の形で見分けられる
         val marks = MapLayer.entries.filter { it.isPoint }.map { BaseMapBuilder.styleOf(it).let { s -> Triple(s.ink, s.shape, s.filled) } }
         assertEquals(marks.size, marks.distinct().size)
+    }
+
+    @Test
+    fun shinkansenAndConventionalRailwaysAreTheirOwnItems() {
+        // 鉄道の種類: 下位は fco、0x10 = 新幹線、0x20 = 山形・秋田（在来線として描く）。地図の中では混ざって並んでいる
+        fun rail(kind: Int, vararg en: Pair<Double, Double>) =
+            MapLine.of(MapLayer.RAILWAY, DoubleArray(en.size) { TestGeo.lat(en[it].second) }, DoubleArray(en.size) { TestGeo.lon(en[it].first) }, kind, unit = 10_000_000)
+        val map = BaseMap(listOf(
+            rail(2 or RailKind.SHINKANSEN, 0.0 to -1000.0, 0.0 to 1000.0),
+            rail(2, -1000.0 to 0.0, 1000.0 to 0.0),
+            rail(3 or RailKind.MINI_SHINKANSEN, -1000.0 to -1000.0, 1000.0 to 1000.0),
+            rail(3 or RailKind.SHINKANSEN, 500.0 to -1000.0, 500.0 to 1000.0),
+        ))
+        assertEquals(MapItem.SHINKANSEN, BaseMapBuilder.railItem(2 or RailKind.SHINKANSEN))
+        assertEquals(MapItem.RAILWAY, BaseMapBuilder.railItem(3 or RailKind.MINI_SHINKANSEN))
+        assertEquals(MapItem.RAILWAY, BaseMapBuilder.railItem(0))
+        // 両方: 在来線（山形・秋田を含む）→ 新幹線の順（新幹線が上）。新幹線は明るい紫で少し太い。どちらも破線
+        val both = build(map, items(MapItem.SHINKANSEN, MapItem.RAILWAY)).lines
+        assertEquals(listOf(Ink.MAP_RAIL, Ink.MAP_RAIL, Ink.MAP_SHINKANSEN, Ink.MAP_SHINKANSEN), both.map { it.ink })
+        assertEquals(listOf(Tuning.BASEMAP_RAIL_LINE_DP, Tuning.BASEMAP_RAIL_LINE_DP, Tuning.BASEMAP_SHINKANSEN_LINE_DP, Tuning.BASEMAP_SHINKANSEN_LINE_DP), both.map { it.widthDp })
+        assertTrue(Tuning.BASEMAP_SHINKANSEN_LINE_DP > Tuning.BASEMAP_RAIL_LINE_DP)
+        assertTrue(both.all { it.dash == LineDash.DASH })
+        // 片方だけ
+        assertEquals(listOf(Ink.MAP_SHINKANSEN, Ink.MAP_SHINKANSEN), build(map, items(MapItem.SHINKANSEN)).lines.map { it.ink })
+        assertEquals(listOf(Ink.MAP_RAIL, Ink.MAP_RAIL), build(map, items(MapItem.RAILWAY)).lines.map { it.ink })
+        // 縮尺も別に選べる（この試験の R1 は 500 m）
+        assertTrue(build(map, mapOf(MapItem.SHINKANSEN to MapRange.ALL, MapItem.RAILWAY to MapRange.OFF)).lines.all { it.ink == Ink.MAP_SHINKANSEN })
+        // 初期値は両方とも OFF
+        assertEquals(MapRange.OFF, NavSettings().mapRangeOf(MapItem.SHINKANSEN))
+        assertEquals(MapRange.OFF, NavSettings().mapRangeOf(MapItem.RAILWAY))
     }
 
     @Test

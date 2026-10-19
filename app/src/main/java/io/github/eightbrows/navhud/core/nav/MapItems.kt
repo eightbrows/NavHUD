@@ -20,6 +20,7 @@ enum class MapRange(val maxR1Km: Double?) {
 /**
  * 設定画面の背景地図の項目（§8）。1 つの項目が、ファイルのレイヤ（MapLayer）のどれを描くかを持つ。
  * - 道路は種類（高速道路・その他の自動車専用道路・国道・県道）ごとに分ける（どれも ROAD のレイヤ。描くときにレイヤの中の種類で分ける）
+ * - 鉄道は新幹線と在来線に分ける（どちらも RAILWAY のレイヤ。種類の印で分ける。山形・秋田新幹線は在来線に入れる）
  * - 河川・湖沼は 1 つの項目（河川の線と、湖沼などの面の輪郭）
  */
 enum class MapItem(val layers: Set<MapLayer>) {
@@ -30,6 +31,7 @@ enum class MapItem(val layers: Set<MapLayer>) {
     OTHER_MOTORWAY(setOf(MapLayer.ROAD)),
     NATIONAL_ROAD(setOf(MapLayer.ROAD)),
     PREF_ROAD(setOf(MapLayer.ROAD)),
+    SHINKANSEN(setOf(MapLayer.RAILWAY)),
     RAILWAY(setOf(MapLayer.RAILWAY)),
     WATER(setOf(MapLayer.RIVER, MapLayer.INLAND_WATER)),
     FERRY(setOf(MapLayer.FERRY)),
