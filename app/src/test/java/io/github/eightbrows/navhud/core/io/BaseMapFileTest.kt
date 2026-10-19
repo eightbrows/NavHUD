@@ -242,6 +242,24 @@ class BaseMapFileTest {
         assertEquals(setOf(17), motorwayKindsNear(35.0662, 138.9983))
         assertEquals(setOf(16), motorwayKindsNear(35.4572, 137.4468))
         assertEquals(setOf(16), motorwayKindsNear(35.0109, 133.5008))
+        // 大きな網の枝（片方の端だけで網につながる部分）のうち、2〜100 km で 1 km あたり 100 度以上のものも 17（20261019-D01）
+        fun kindAt(lat: Double, lon: Double) = map.lines.filter { l ->
+            l.layer == MapLayer.ROAD && l.kind >= 16 && (0 until l.size).any { i -> Geo.distanceM(lat, lon, l.lat(i), l.lon(i)) < 50 }
+        }.map { it.kind }.toSet()
+        val curvyBranches = mapOf(
+            "六甲のドライブウェイ" to (34.7626 to 135.2236), "箱根ターンパイク" to (35.2153 to 139.1015),
+            "指宿スカイライン" to (31.3666 to 130.5058), "白山白川郷ホワイトロード" to (36.2619 to 136.8324),
+            "日本平のあたり" to (34.9702 to 138.4590), "山梨北部（小淵沢のあたり）" to (35.8989 to 138.3602),
+        )
+        for ((name, p) in curvyBranches) assertEquals(name, setOf(17), kindAt(p.first, p.second))
+        // 本当の高速道路（通り道）と、網の枝でも曲がりの少ない支線・空港線は 16 のまま
+        val realMotorways = mapOf(
+            "上信越道（碓氷のあたり）" to (36.3097 to 138.6829), "東海北陸道（白川郷の北）" to (36.5938 to 136.9020),
+            "東海北陸道（白川郷の南）" to (35.9814 to 136.9023), "磐越道" to (37.5369 to 140.0274),
+            "関西空港連絡橋" to (34.4150 to 135.2925), "新空港自動車道（成田）" to (35.7830 to 140.3729),
+            "西九州道（佐世保のあたり）の枝" to (33.1594 to 129.8661), "阪神高速（堺のあたり）の枝" to (34.6407 to 135.4861),
+        )
+        for ((name, p) in realMotorways) assertEquals(name, setOf(16), kindAt(p.first, p.second))
         // 河川・湖沼などの種類は大きさの段（下の 4 ビット: 1 = 小・2 = 中・3 = 大）と幅のある川の印。
         // R1 50 km 以上の段は中・大だけ、100 km 以上の段は大だけ
         for ((i, level) in map.levels.withIndex()) {

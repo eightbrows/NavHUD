@@ -76,7 +76,7 @@ $ErrorActionPreference = 'Stop'
 [System.Text.Encoding]::RegisterProvider([System.Text.CodePagesEncodingProvider]::Instance)
 
 Add-Type -TypeDefinition @"
-using System; using System.IO; using System.Collections.Generic; using System.Text;
+using System; using System.IO; using System.Collections.Generic; using System.Text; using System.Linq;
 
 public class ShpRecord { public int Type; public List<double[]> Parts = new List<double[]>(); public double X, Y; }
 
@@ -260,6 +260,39 @@ public static class Gm {
     var resKm = new double[n]; var resDeg = new double[n];
     for (int i = 0; i < n; i++) if (use[i]) { int g = find(i); resKm[i] = km[g]; resDeg[i] = km[g] > 0 ? turn[g] / km[g] : 0; }
     return new[] { resKm, resDeg };
+  }
+
+  // 網の枝のうち、カーブの多いもの。use のレコード（の部分）を線、端の点を点とする。
+  // 分かれ目（3 本以上が来る点）v ごとに、v を通らずにつながる線のかたまりに分け、いちばん長いかたまりを網、
+  // ほかを v にぶら下がる「枝」とする（枝の中に小さな輪や、さらに枝があってもよい。枝の中の枝も枝）。
+  // 枝の長さが minKm 以上 maxKm 未満で、1 km あたりの曲がった角度（枝の角度の合計 ÷ 長さ）が degPerKm 以上なら、枝の全部のレコードに印を付ける。
+  // 両端とも網につながる区間（通り道）は、どの v で分けても網の側に入るので、印は付かない
+  public static bool[] CurvyBranches(List<ShpRecord> recs, bool[] use, double minKm, double maxKm, double degPerKm) {
+    var eRec = new List<int>(); var eA = new List<int>(); var eB = new List<int>(); var eKm = new List<double>(); var eTurn = new List<double>();
+    var node = new Dictionary<string, int>(); var inc = new List<List<int>>();
+    Func<double, double, int> nid = (x, y) => { string k = Math.Round(x * 1e6) + "|" + Math.Round(y * 1e6); int v;
+      if (!node.TryGetValue(k, out v)) { v = node.Count; node[k] = v; inc.Add(new List<int>()); } return v; };
+    for (int i = 0; i < recs.Count; i++) { if (!use[i]) continue;
+      foreach (var r in recs[i].Parts) { if (r.Length < 4) continue;
+        int a = nid(r[0], r[1]), b = nid(r[r.Length - 2], r[r.Length - 1]), e = eRec.Count;
+        eRec.Add(i); eA.Add(a); eB.Add(b); eKm.Add(Km(r)); eTurn.Add(TurnDeg(r)); inc[a].Add(e); if (b != a) inc[b].Add(e); } }
+    var mark = new bool[recs.Count];
+    for (int v = 0; v < inc.Count; v++) {
+      int deg = 0; foreach (var e in inc[v]) deg += eA[e] == eB[e] ? 2 : 1;
+      if (deg < 3) continue;
+      var group = new Dictionary<int, int>(); var groups = new List<List<int>>();
+      foreach (var e0 in inc[v]) { if (group.ContainsKey(e0)) continue;
+        var g = new List<int>(); var todo = new Queue<int>(); todo.Enqueue(e0); group[e0] = groups.Count;
+        while (todo.Count > 0) { int e = todo.Dequeue(); g.Add(e);
+          foreach (var n in new[] { eA[e], eB[e] }) { if (n == v) continue; foreach (var f in inc[n]) if (!group.ContainsKey(f)) { group[f] = groups.Count; todo.Enqueue(f); } } }
+        groups.Add(g); }
+      if (groups.Count < 2) continue;
+      var km = groups.Select(g => g.Sum(e => eKm[e])).ToList(); int net = km.IndexOf(km.Max());
+      for (int k = 0; k < groups.Count; k++) { if (k == net || km[k] < minKm || km[k] >= maxKm) continue;
+        if (groups[k].Sum(e => eTurn[e]) / km[k] < degPerKm) continue;
+        foreach (var e in groups[k]) mark[eRec[e]] = true; }
+    }
+    return mark;
   }
 
   // 点が面の中か（偶奇の規則。穴も含めて全部の輪を数える）
@@ -497,6 +530,7 @@ $WaterMinKm2 = 0.1; $WaterClassKm2 = @(1, 10); $HoleMinKm2 = 1
 $WideRiverFlag = 0x10
 $MotorwayMinKm = 20   # 高速道路のまとまりがこれより短いと「その他の自動車専用道路」
 $MotorwayCurvyMaxKm = 100; $MotorwayCurvyDegPerKm = 80   # これより短く、1 km あたりの曲がった角度がこれ以上のまとまりも同じ
+$BranchMinKm = 2; $BranchMaxKm = 100; $BranchDegPerKm = 100   # 網の枝: 長さがこの範囲で、1 km あたりの曲がった角度がこれ以上の枝も同じ
 $MinSizeClass = @(1, 1, 2, 3)   # 段ごとに入れる大きさの段の下限
 function SizeClass($v, $edges) { if ($v -ge $edges[1]) { 3 } elseif ($v -ge $edges[0]) { 2 } else { 1 } }
 
@@ -522,19 +556,27 @@ $data = foreach ($layer in $Layers) {
   # 「その他の自動車専用道路」（種類 17）にする（観光の有料道路・有料の橋やトンネル・バイパス・網から切れたかけら。20261018-D06）
   # まとまりが $MotorwayCurvyMaxKm 未満で、1 km あたりの曲がった角度が $MotorwayCurvyDegPerKm 以上のもの
   # （カーブの続く観光の有料道路。大きな網から離れている）も同じにする（20261018-D07）
-  $motorwayKm = $null; $motorwayDeg = $null
+  # 大きな網につながっていても、網の枝（片方の端だけで網につながる部分）のうち、長さ $BranchMinKm 以上 $BranchMaxKm 未満で、
+  # 1 km あたりの曲がった角度が $BranchDegPerKm 以上のもの（網につながるカーブの多い観光の有料道路）も同じにする（20261019-D01）
+  $motorwayKm = $null; $motorwayDeg = $null; $motorwayBranch = $null
   if ($layer.Code -eq 4) {
     $mUse = [bool[]]::new($rows.Count)
     for ($k = 0; $k -lt $rows.Count; $k++) { $mUse[$k] = (Num $rows[$k] 'rtt') -eq 16 }
     $mc = [Gm]::ComponentCurvature($recs, $mUse); $motorwayKm = $mc[0]; $motorwayDeg = $mc[1]
-    $script:MotorwayStats = @{ Km = $motorwayKm; Deg = $motorwayDeg; Use = $mUse; Recs = $recs; Rows = $rows }
+    # 枝を調べるのは、D06・D07 の決め方で格下げしないまとまりだけ
+    $bUse = [bool[]]::new($rows.Count)
+    for ($k = 0; $k -lt $rows.Count; $k++) {
+      $bUse[$k] = $mUse[$k] -and $motorwayKm[$k] -ge $MotorwayMinKm -and -not ($motorwayKm[$k] -lt $MotorwayCurvyMaxKm -and $motorwayDeg[$k] -ge $MotorwayCurvyDegPerKm)
+    }
+    $motorwayBranch = [Gm]::CurvyBranches($recs, $bUse, $BranchMinKm, $BranchMaxKm, $BranchDegPerKm)
+    $script:MotorwayStats = @{ Km = $motorwayKm; Deg = $motorwayDeg; Branch = $motorwayBranch; Use = $mUse; Recs = $recs; Rows = $rows }
   }
   $lines = [System.Collections.Generic.List[object[]]]::new(); $points = [System.Collections.Generic.List[object]]::new(); $kept = 0
   for ($i = 0; $i -lt $recs.Count; $i++) {
     if (-not (& $layer.Keep $rows[$i])) { continue }
     $kind = & $layer.Kind $rows[$i]; $r = $recs[$i]; $parts = $r.Parts
     if ($layer.Code -eq 4 -and $kind -eq 16 -and ($motorwayKm[$i] -lt $MotorwayMinKm -or
-        ($motorwayKm[$i] -lt $MotorwayCurvyMaxKm -and $motorwayDeg[$i] -ge $MotorwayCurvyDegPerKm))) { $kind = 17 }
+        ($motorwayKm[$i] -lt $MotorwayCurvyMaxKm -and $motorwayDeg[$i] -ge $MotorwayCurvyDegPerKm) -or $motorwayBranch[$i])) { $kind = 17 }
     if ($layer.Code -eq 3) {
       if ($riverKm[$i] -lt $RiverMinKm) { continue }
       if ($lit[$i] -eq 2 -and $riverCont[$i] -in 4, 13) { continue }   # 湖・沼の中のつなぎの線は入れない
