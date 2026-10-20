@@ -178,7 +178,7 @@ object Tuning {
 
     /** 背景地図（§8）の線の太さ [dp]: 海岸線 / 県境 / 市区町村境 / 河川 / 湖沼などの輪郭 / 道路 / 鉄道 / フェリー */
     const val BASEMAP_COAST_LINE_DP = 1.2f
-    const val BASEMAP_PREF_LINE_DP = 1.2f
+    const val BASEMAP_PREF_LINE_DP = 2f
     const val BASEMAP_MUNI_LINE_DP = 0.8f
     const val BASEMAP_RIVER_LINE_DP = 1f
     const val BASEMAP_AREA_LINE_DP = 0.8f

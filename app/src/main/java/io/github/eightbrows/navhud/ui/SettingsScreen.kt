@@ -11,9 +11,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Slider
@@ -26,6 +29,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalUriHandler
@@ -214,17 +218,12 @@ fun SettingsScreen(
         },
 
         SettingsSection(stringResource(R.string.sec_range)) {
-            // 初期値: すべての段なら「すべて」、そうでなければ いちばん詳細な段〜いちばん広域の段
-            val defSteps = if (def.rangeStepsKm.size == RangeAuto.ALL_STEPS_KM.size) {
-                stringResource(R.string.default_all)
-            } else {
-                r1Label(def.rangeStepsKm.first() * 1000) + "–" + r1Label(def.rangeStepsKm.last() * 1000)
-            }
-            Label(stringResource(R.string.range_steps), defaultText = defSteps)
+            // 初期値の段のボタンに、初期値の印（水色の枠と点）を付ける
+            Label(stringResource(R.string.range_steps))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 for (km in RangeAuto.ALL_STEPS_KM) {
                     val on = km in s.rangeStepsKm
-                    Chip(r1Label(km * 1000), on) {
+                    Chip(r1Label(km * 1000), on, isDefault = km in def.rangeStepsKm) {
                         onChange {
                             val steps = if (on) it.rangeStepsKm - km else (it.rangeStepsKm + km).sorted()
                             if (steps.isEmpty()) it else it.copy(rangeStepsKm = steps)
@@ -236,7 +235,7 @@ fun SettingsScreen(
                 stringResource(R.string.initial_range),
                 s.rangeStepsKm.map { r1Label(it * 1000) to it },
                 s.rangeStepsKm.minByOrNull { kotlin.math.abs(it - s.initialRangeKm) },
-                defaultText = r1Label(def.initialRangeKm * 1000),
+                default = def.initialRangeKm,
             ) { v -> onChange { it.copy(initialRangeKm = v) } }
             // AUTO の詳細の限度・広域の限度: 使う段から選ぶ（詳細の限度は広域の限度と同じか、それより詳細）。表示は1つ目の距離環の距離
             val (lo, hi) = RangeAuto.limitsKm(s.rangeStepsKm, s.autoMinRangeKm, s.autoMaxRangeKm)
@@ -244,13 +243,13 @@ fun SettingsScreen(
                 stringResource(R.string.auto_min),
                 s.rangeStepsKm.filter { it <= hi }.map { r1Label(it * 1000) to it },
                 lo,
-                note = stringResource(R.string.auto_min_note), defaultText = r1Label(def.autoMinRangeKm * 1000),
+                note = stringResource(R.string.auto_min_note), default = def.autoMinRangeKm,
             ) { v -> onChange { it.copy(autoMinRangeKm = v) } }
             Choice(
                 stringResource(R.string.auto_max),
                 s.rangeStepsKm.filter { it >= lo }.map { r1Label(it * 1000) to it },
                 hi,
-                note = stringResource(R.string.auto_max_note), defaultText = r1Label(def.autoMaxRangeKm * 1000),
+                note = stringResource(R.string.auto_max_note), default = def.autoMaxRangeKm,
             ) { v -> onChange { it.copy(autoMaxRangeKm = v) } }
             Toggle(stringResource(R.string.auto_on_start), s.autoRange, note = stringResource(R.string.auto_on_start_note), default = def.autoRange) { v ->
                 onChange { it.copy(autoRange = v) }
@@ -308,7 +307,7 @@ fun SettingsScreen(
                 stringResource(R.string.arrival_radius),
                 NavSettings.REACH_RADIUS_CHOICES_M.map { "%.0f".format(Locale.US, it) to it },
                 s.reachRadiusM,
-                note = stringResource(R.string.arrival_radius_note), defaultText = meters(def.reachRadiusM),
+                note = stringResource(R.string.arrival_radius_note), default = def.reachRadiusM,
                 enabled = custom,
             ) { v -> judge { it.copy(reachRadiusM = v) } }
             Toggle(stringResource(R.string.side_pass), s.sidePass, note = stringResource(R.string.side_pass_note), enabled = custom, default = def.sidePass) { v ->
@@ -346,14 +345,14 @@ fun SettingsScreen(
         },
 
         SettingsSection(stringResource(R.string.sec_input)) {
-            Choice("INPUT", listOf(stringResource(R.string.input_live) to SourceKind.LIVE, stringResource(R.string.input_replay) to SourceKind.REPLAY), input, defaultText = "LIVE") { v ->
+            Choice("INPUT", listOf(stringResource(R.string.input_live) to SourceKind.LIVE, stringResource(R.string.input_replay) to SourceKind.REPLAY), input, default = SourceKind.LIVE) { v ->
                 onInput(v)
             }
             // 決まった値から選ぶ: 3 / 5 / 10 / 15 / 20 / 30 / 60 / 120 秒
             Stepper(stringResource(R.string.no_fix_timeout), seconds(s.noFixTimeoutSec), defaultText = seconds(def.noFixTimeoutSec)) { d ->
                 onChange { it.copy(noFixTimeoutSec = stepChoice(NavSettings.NO_FIX_TIMEOUT_CHOICES_SEC, it.noFixTimeoutSec, d)) }
             }
-            Choice(stringResource(R.string.rate_window), NavSettings.RATE_WINDOW_CHOICES_SEC.map { seconds(it) to it }, s.rateWindowSec, defaultText = seconds(def.rateWindowSec)) { v ->
+            Choice(stringResource(R.string.rate_window), NavSettings.RATE_WINDOW_CHOICES_SEC.map { seconds(it) to it }, s.rateWindowSec, default = def.rateWindowSec) { v ->
                 onChange { it.copy(rateWindowSec = v) }
             }
         },
@@ -451,6 +450,7 @@ fun SettingsScreen(
             Text(stringResource(R.string.settings_title), style = SectionTitle.copy(fontSize = 18.sp))
         }
         Text(stringResource(R.string.settings_note), style = RowNote)
+        DefaultMarkLegend()
         Toc(sections.map { it.title }) { i -> tops[i]?.let { y -> scope.launch { scroll.animateScrollTo(y) } } }
         for ((i, sec) in sections.withIndex()) {
             Section(
@@ -630,44 +630,107 @@ private fun <T> Choice(
     selected: T?,
     note: String? = null,
     enabled: Boolean = true,
-    /** 初期値（選ぶ項目）。名前の行に「（初期値：その選択肢の名前）」と書く。null なら書かない */
+    /** 初期値（選ぶ項目）。そのボタンに初期値の印（水色の枠と点）を付ける。null なら付けない */
     default: T? = null,
-    /** 初期値の文字（選択肢にない書き方で書くとき。default より優先） */
-    defaultText: String? = null,
-    /** 小さな選択肢（地図レイヤの項目。5 つの選択肢を 1 行に収める） */
+    /** 小さな選択肢（地図レイヤの項目）。名前とボタンの列をいつも同じ行に置く（名前は左で折り返し、ボタンの列は右端に揃う） */
     compact: Boolean = false,
     onSelect: (T) -> Unit,
 ) {
-    val d = defaultText ?: default?.let { v -> options.firstOrNull { it.second == v }?.first ?: v.toString() }
-    // 名前の行と選ぶボタンの列: 1 行に収まれば同じ行、収まらなければボタンの列を次の行に送る。補足文はその下
-    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Box(Modifier.align(Alignment.CenterVertically)) { NameLine(label, d, enabled) }
-            FlowRow(
-                Modifier.align(Alignment.CenterVertically),
-                horizontalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 6.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                for ((text, value) in options) Chip(text, value == selected, enabled, compact) { onSelect(value) }
+    val buttons: @Composable () -> Unit = {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            for ((text, value) in options) {
+                Chip(text, value == selected, enabled, compact, isDefault = default != null && value == default) { onSelect(value) }
             }
+        }
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        if (compact) {
+            // 地図レイヤ: どの項目もボタンの列が同じ位置（右端）に並ぶ
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Box(Modifier.weight(1f)) { NameLine(label, null, enabled) }
+                buttons()
+            }
+        } else {
+            NameAndButtons(name = { NameLine(label, null, enabled) }, buttons = buttons)
         }
         note?.let { Text(it, style = RowNote) }
     }
 }
 
+/**
+ * 名前とボタンの列: 1 行に収まれば同じ行に置き、ボタンの列を右端に揃える。
+ * 収まらなければ、ボタンの列を名前の下の行に（左に寄せて）置く。
+ */
 @Composable
-private fun Chip(text: String, on: Boolean, enabled: Boolean = true, compact: Boolean = false, onClick: () -> Unit) {
+private fun NameAndButtons(name: @Composable () -> Unit, buttons: @Composable () -> Unit) {
+    Layout(content = { Box { name() }; Box { buttons() } }) { measurables, constraints ->
+        val gap = 10.dp.roundToPx()
+        val rowGap = 4.dp.roundToPx()
+        val loose = constraints.copy(minWidth = 0, minHeight = 0)
+        val n = measurables[0].measure(loose)
+        val b = measurables[1].measure(loose)
+        val width = constraints.maxWidth
+        if (n.width + gap + b.width <= width) {
+            val h = maxOf(n.height, b.height)
+            layout(width, h) {
+                n.placeRelative(0, (h - n.height) / 2)
+                b.placeRelative(width - b.width, (h - b.height) / 2)
+            }
+        } else {
+            layout(width, n.height + rowGap + b.height) {
+                n.placeRelative(0, 0)
+                b.placeRelative(0, n.height + rowGap)
+            }
+        }
+    }
+}
+
+/** 初期値の印の点（水色。塗ったボタンの上でも見えるよう、背景の色のふちを付ける） */
+@Composable
+private fun DefaultDot(modifier: Modifier = Modifier) {
+    Box(
+        modifier
+            .size(8.dp)
+            .background(HudColors.Background, CircleShape)
+            .padding(1.5.dp)
+            .background(HudColors.SettingsDefault, CircleShape),
+    )
+}
+
+/**
+ * 選ぶボタン。on は今選んでいる（塗る）。isDefault は初期値（水色の枠と、右上の水色の点。20261020-D03）。
+ * 初期値を選んでいるときは、塗り＋水色の枠＋点
+ */
+@Composable
+private fun Chip(text: String, on: Boolean, enabled: Boolean = true, compact: Boolean = false, isDefault: Boolean = false, onClick: () -> Unit) {
     val shape = RoundedCornerShape(4.dp)
     // 押せないとき（自動車の固定値など）はグレー
     val c = if (enabled) HudColors.Scale else HudColors.WpReached
-    Box(
-        Modifier
-            .border(1.dp, if (on) c else HudColors.WpDisabled, shape)
-            .background(if (on) c else HudColors.Background, shape)
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = if (compact) 7.dp else 9.dp, vertical = 4.dp),
-    ) {
-        Text(text, style = ValueText.copy(color = if (on) HudColors.Background else c, fontSize = if (compact) 12.sp else 13.sp))
+    val frame = when {
+        isDefault -> HudColors.SettingsDefault
+        on -> c
+        else -> HudColors.WpDisabled
+    }
+    Box {
+        Box(
+            Modifier
+                .border(if (isDefault) 1.5.dp else 1.dp, frame, shape)
+                .background(if (on) c else HudColors.Background, shape)
+                .clickable(enabled = enabled, onClick = onClick)
+                .padding(horizontal = if (compact) 7.dp else 9.dp, vertical = 4.dp),
+        ) {
+            Text(text, style = ValueText.copy(color = if (on) HudColors.Background else c, fontSize = if (compact) 12.sp else 13.sp))
+        }
+        if (isDefault) DefaultDot(Modifier.align(Alignment.TopEnd).offset(x = 3.dp, y = (-3).dp))
+    }
+}
+
+/** 設定画面のいちばん上の、初期値の印の説明（「● 水色の点・枠 ＝ 初期値」） */
+@Composable
+private fun DefaultMarkLegend() {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        DefaultDot()
+        Text(stringResource(R.string.settings_default_mark), style = RowNote)
     }
 }
 

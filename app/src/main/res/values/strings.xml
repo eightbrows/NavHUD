@@ -79,9 +79,9 @@
     <string name="settings_title">Settings</string>
     <string name="settings_note">Changes apply and are saved immediately.</string>
     <string name="settings_toc">Contents</string>
+    <string name="settings_default_mark">Blue dot/border = default</string>
     <string name="back_to_toc">▲ Top</string>
     <string name="default_value">(Default: %1$s)</string>
-    <string name="default_all">all</string>
     <string name="sec_display">Display</string>
     <string name="display_mode">Display mode</string>
     <string name="color_white">White</string>

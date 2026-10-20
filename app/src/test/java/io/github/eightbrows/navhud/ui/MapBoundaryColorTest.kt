@@ -14,7 +14,8 @@ class MapBoundaryColorTest {
         assertTrue(muni.luminance() > HudColors.PrefBoundary.luminance())
         assertTrue(muni.luminance() > HudColors.BearingLine.luminance() * 2)
         // 県境（太めの点線）より細く、点は細かい（描く 1dp・空ける 2dp。県境は 2dp・4dp）
-        assertTrue(Tuning.BASEMAP_MUNI_LINE_DP < Tuning.BASEMAP_PREF_LINE_DP)
+        // 県境は市区町村境の 2 倍以上の太さ（20261020-D03。境の重さの順が分かるように）
+        assertTrue(Tuning.BASEMAP_PREF_LINE_DP >= 2 * Tuning.BASEMAP_MUNI_LINE_DP)
         assertTrue(Tuning.BASEMAP_FINE_DOT_ON_DP < Tuning.BASEMAP_PREF_DASH_ON_DP && Tuning.BASEMAP_FINE_DOT_OFF_DP < Tuning.BASEMAP_PREF_DASH_OFF_DP)
         assertTrue(Tuning.BASEMAP_FINE_DOT_OFF_DP <= 2 * Tuning.BASEMAP_FINE_DOT_ON_DP)
     }

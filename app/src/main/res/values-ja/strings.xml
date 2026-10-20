@@ -77,9 +77,9 @@
     <string name="settings_title">設定</string>
     <string name="settings_note">変更はすぐ画面に反映され、保存されます。</string>
     <string name="settings_toc">目次</string>
+    <string name="settings_default_mark">水色の点・枠 ＝ 初期値</string>
     <string name="back_to_toc">▲ 目次</string>
     <string name="default_value">（初期値：%1$s）</string>
-    <string name="default_all">すべて</string>
     <string name="sec_display">表示</string>
     <string name="display_mode">表示モード</string>
     <string name="color_white">白</string>

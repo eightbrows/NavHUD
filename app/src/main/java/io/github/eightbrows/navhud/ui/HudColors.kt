@@ -78,6 +78,9 @@ object HudColors {
 
     /** 新幹線: 在来線（くすんだ紫）と同じ系統の、明るい紫（仮。ほかの地図・HUD の色との ΔE は 24.9 以上） */
     val MapShinkansen = Color(0xFF9B7BC8)
+
+    /** 設定画面: 選ぶボタンの初期値の印（枠と右上の点）。水色（仮。白・緑・琥珀のどのテーマの塗りと枠とも ΔE 40 以上離れる。20261020-D03） */
+    val SettingsDefault = Color(0xFF4FC3F7)
     val MapFerry = Color(0xFF22504F)
     val MapAirport = Color(0xFF6A5A3A)
 
