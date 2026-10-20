@@ -176,7 +176,7 @@ object Tuning {
     /** LIVE の軌跡: 点の上限（超えたら古い方から捨てる） */
     const val LIVE_TRAIL_MAX_POINTS = 5_000
 
-    /** 背景地図（§8）の線の太さ [dp]: 海岸線 / 県境 / 市区町村境 / 河川 / 湖沼などの輪郭 / 道路 / 鉄道 / フェリー / ダム・堰 */
+    /** 背景地図（§8）の線の太さ [dp]: 海岸線 / 県境 / 市区町村境 / 河川 / 湖沼などの輪郭 / 道路 / 鉄道 / フェリー */
     const val BASEMAP_COAST_LINE_DP = 1.2f
     const val BASEMAP_PREF_LINE_DP = 1.2f
     const val BASEMAP_MUNI_LINE_DP = 0.8f
@@ -191,13 +191,12 @@ object Tuning {
     /** 新幹線の線の太さ [dp]（在来線 1.0 より少し太く。仮の値） */
     const val BASEMAP_SHINKANSEN_LINE_DP = 1.6f
     const val BASEMAP_FERRY_LINE_DP = 1f
-    const val BASEMAP_DAM_LINE_DP = 1.6f
 
     /** 背景地図の線の種類: 点線（県境）・細かい点線（市区町村境）・破線（鉄道）・長い破線（フェリー）の 線 / すき間 [dp] */
     const val BASEMAP_PREF_DASH_ON_DP = 2f
     const val BASEMAP_PREF_DASH_OFF_DP = 4f
     const val BASEMAP_FINE_DOT_ON_DP = 1f
-    const val BASEMAP_FINE_DOT_OFF_DP = 3f
+    const val BASEMAP_FINE_DOT_OFF_DP = 2f
     const val BASEMAP_DASH_ON_DP = 5f
     const val BASEMAP_DASH_OFF_DP = 3f
     const val BASEMAP_LONG_DASH_ON_DP = 8f

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
@@ -63,7 +64,7 @@ import kotlinx.coroutines.launch
 
 private val SectionTitle get() = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 15.sp, color = HudColors.Scale)
 private val RowLabel get() = TextStyle(fontSize = 14.sp, color = HudColors.Scale)
-private val RowNote get() = TextStyle(fontSize = 12.sp, color = HudColors.ScaleDim)
+private val RowNote get() = TextStyle(fontSize = 11.sp, lineHeight = 14.sp, color = HudColors.ScaleDim)
 private val ValueText get() = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 14.sp, color = HudColors.Scale)
 
 /**
@@ -111,11 +112,11 @@ fun SettingsScreen(
             Choice(stringResource(R.string.map_color), colors, s.mapTheme, default = def.mapTheme) { v -> onChange { it.copy(mapTheme = v) } }
             PercentSlider(
                 stringResource(R.string.button_opacity), s.buttonOpacityPct,
-                note = withDefault(stringResource(R.string.button_opacity_note), pct(def.buttonOpacityPct)),
+                note = stringResource(R.string.button_opacity_note), defaultText = pct(def.buttonOpacityPct),
             ) { v -> onChange { it.copy(buttonOpacityPct = v) } }
             PercentSlider(
                 stringResource(R.string.numbers_opacity), s.numbersOpacityPct,
-                note = withDefault(stringResource(R.string.numbers_opacity_note), pct(def.numbersOpacityPct)),
+                note = stringResource(R.string.numbers_opacity_note), defaultText = pct(def.numbersOpacityPct),
             ) { v -> onChange { it.copy(numbersOpacityPct = v) } }
             Choice(
                 stringResource(R.string.track_color),
@@ -133,12 +134,12 @@ fun SettingsScreen(
             ) { v -> onChange { it.copy(trackColor = v) } }
             PercentSlider(
                 stringResource(R.string.track_brightness), s.trackBrightnessPct,
-                note = withDefault(stringResource(R.string.track_brightness_note), pct(def.trackBrightnessPct)),
+                note = stringResource(R.string.track_brightness_note), defaultText = pct(def.trackBrightnessPct),
                 choices = NavSettings.TRACK_BRIGHTNESS_CHOICES_PCT,
             ) { v -> onChange { it.copy(trackBrightnessPct = v) } }
             PercentSlider(
                 stringResource(R.string.ring_label_size), s.ringLabelScalePct,
-                note = withDefault(stringResource(R.string.ring_label_size_note), pct(def.ringLabelScalePct)),
+                note = stringResource(R.string.ring_label_size_note), defaultText = pct(def.ringLabelScalePct),
                 choices = NavSettings.RING_LABEL_SCALE_CHOICES_PCT,
             ) { v -> onChange { it.copy(ringLabelScalePct = v) } }
             Choice(
@@ -168,7 +169,7 @@ fun SettingsScreen(
                 note = stringResource(R.string.profile_note),
                 default = def.profileSize,
             ) { v -> onChange { it.copy(profileSize = v) } }
-            Stepper(stringResource(R.string.alt_offset), "%.0f m".format(Locale.US, s.altOffsetM), note = withDefault(stringResource(R.string.alt_offset_note), meters(def.altOffsetM))) { d ->
+            Stepper(stringResource(R.string.alt_offset), "%.0f".format(Locale.US, s.altOffsetM), note = stringResource(R.string.alt_offset_note), defaultText = meters(def.altOffsetM)) { d ->
                 onChange { it.copy(altOffsetM = (it.altOffsetM + d).coerceIn(NavSettings.ALT_OFFSET_M_RANGE)) }
             }
         },
@@ -185,7 +186,7 @@ fun SettingsScreen(
             val kmhRange = NavSettings.HOLD_SPEED_KMH_RANGE
             Stepper(
                 stringResource(R.string.hold_enter), kmh(NavSettings.holdSpeedKmh(s.holdEnterSpeedMps)),
-                note = withDefault(stringResource(R.string.hold_enter_note), kmh(NavSettings.holdSpeedKmh(def.holdEnterSpeedMps))),
+                note = stringResource(R.string.hold_enter_note), defaultText = kmh(NavSettings.holdSpeedKmh(def.holdEnterSpeedMps)),
             ) { d ->
                 onChange {
                     val enter = (NavSettings.holdSpeedKmh(it.holdEnterSpeedMps) + d).coerceIn(kmhRange.first, kmhRange.last - 1)
@@ -195,7 +196,7 @@ fun SettingsScreen(
             }
             Stepper(
                 stringResource(R.string.hold_exit), kmh(NavSettings.holdSpeedKmh(s.holdExitSpeedMps)),
-                note = withDefault(stringResource(R.string.hold_exit_note), kmh(NavSettings.holdSpeedKmh(def.holdExitSpeedMps))),
+                note = stringResource(R.string.hold_exit_note), defaultText = kmh(NavSettings.holdSpeedKmh(def.holdExitSpeedMps)),
             ) { d ->
                 onChange {
                     val enter = NavSettings.holdSpeedKmh(it.holdEnterSpeedMps)
@@ -204,10 +205,10 @@ fun SettingsScreen(
                 }
             }
             // 決まった値から選ぶ（＋ / − で次の値へ）: 3 / 5 / 10 / 15 / 20 / 30 / 50 / 100 m
-            Stepper(stringResource(R.string.max_gps_acc), meters(s.maxGpsAccM), note = withDefault(null, meters(def.maxGpsAccM))) { d ->
+            Stepper(stringResource(R.string.max_gps_acc), meters(s.maxGpsAccM), defaultText = meters(def.maxGpsAccM)) { d ->
                 onChange { it.copy(maxGpsAccM = stepChoice(NavSettings.MAX_GPS_ACC_CHOICES_M, it.maxGpsAccM, d)) }
             }
-            Stepper(stringResource(R.string.max_gps_bearing_acc), "%.0f°".format(Locale.US, s.maxGpsBearingAccDeg), note = withDefault(stringResource(R.string.max_gps_bearing_acc_note), "%.0f°".format(Locale.US, def.maxGpsBearingAccDeg))) { d ->
+            Stepper(stringResource(R.string.max_gps_bearing_acc), "%.0f°".format(Locale.US, s.maxGpsBearingAccDeg), note = stringResource(R.string.max_gps_bearing_acc_note), defaultText = "%.0f°".format(Locale.US, def.maxGpsBearingAccDeg)) { d ->
                 onChange { it.copy(maxGpsBearingAccDeg = (it.maxGpsBearingAccDeg + d * 5).coerceIn(NavSettings.MAX_GPS_BEARING_ACC_DEG_RANGE)) }
             }
         },
@@ -217,13 +218,13 @@ fun SettingsScreen(
             val defSteps = if (def.rangeStepsKm.size == RangeAuto.ALL_STEPS_KM.size) {
                 stringResource(R.string.default_all)
             } else {
-                HudFormat.rangeLabel(def.rangeStepsKm.first() * 1000) + "–" + HudFormat.rangeLabel(def.rangeStepsKm.last() * 1000)
+                r1Label(def.rangeStepsKm.first() * 1000) + "–" + r1Label(def.rangeStepsKm.last() * 1000)
             }
-            Label(stringResource(R.string.range_steps), note = withDefault(null, defSteps))
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Label(stringResource(R.string.range_steps), defaultText = defSteps)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 for (km in RangeAuto.ALL_STEPS_KM) {
                     val on = km in s.rangeStepsKm
-                    Chip(HudFormat.rangeLabel(km * 1000), on) {
+                    Chip(r1Label(km * 1000), on) {
                         onChange {
                             val steps = if (on) it.rangeStepsKm - km else (it.rangeStepsKm + km).sorted()
                             if (steps.isEmpty()) it else it.copy(rangeStepsKm = steps)
@@ -233,33 +234,33 @@ fun SettingsScreen(
             }
             Choice(
                 stringResource(R.string.initial_range),
-                s.rangeStepsKm.map { HudFormat.rangeLabel(it * 1000) to it },
+                s.rangeStepsKm.map { r1Label(it * 1000) to it },
                 s.rangeStepsKm.minByOrNull { kotlin.math.abs(it - s.initialRangeKm) },
-                note = withDefault(null, HudFormat.rangeLabel(def.initialRangeKm * 1000)),
+                defaultText = r1Label(def.initialRangeKm * 1000),
             ) { v -> onChange { it.copy(initialRangeKm = v) } }
             // AUTO の詳細の限度・広域の限度: 使う段から選ぶ（詳細の限度は広域の限度と同じか、それより詳細）。表示は1つ目の距離環の距離
             val (lo, hi) = RangeAuto.limitsKm(s.rangeStepsKm, s.autoMinRangeKm, s.autoMaxRangeKm)
             Choice(
                 stringResource(R.string.auto_min),
-                s.rangeStepsKm.filter { it <= hi }.map { HudFormat.rangeLabel(it * 1000) to it },
+                s.rangeStepsKm.filter { it <= hi }.map { r1Label(it * 1000) to it },
                 lo,
-                note = withDefault(stringResource(R.string.auto_min_note), HudFormat.rangeLabel(def.autoMinRangeKm * 1000)),
+                note = stringResource(R.string.auto_min_note), defaultText = r1Label(def.autoMinRangeKm * 1000),
             ) { v -> onChange { it.copy(autoMinRangeKm = v) } }
             Choice(
                 stringResource(R.string.auto_max),
-                s.rangeStepsKm.filter { it >= lo }.map { HudFormat.rangeLabel(it * 1000) to it },
+                s.rangeStepsKm.filter { it >= lo }.map { r1Label(it * 1000) to it },
                 hi,
-                note = withDefault(stringResource(R.string.auto_max_note), HudFormat.rangeLabel(def.autoMaxRangeKm * 1000)),
+                note = stringResource(R.string.auto_max_note), defaultText = r1Label(def.autoMaxRangeKm * 1000),
             ) { v -> onChange { it.copy(autoMaxRangeKm = v) } }
             Toggle(stringResource(R.string.auto_on_start), s.autoRange, note = stringResource(R.string.auto_on_start_note), default = def.autoRange) { v ->
                 onChange { it.copy(autoRange = v) }
             }
-            Stepper(stringResource(R.string.zoom_in_delay), seconds(s.autoRangeZoomInDelaySec), note = withDefault(stringResource(R.string.zoom_in_delay_note), seconds(def.autoRangeZoomInDelaySec))) { d ->
+            Stepper(stringResource(R.string.zoom_in_delay), seconds(s.autoRangeZoomInDelaySec), note = stringResource(R.string.zoom_in_delay_note), defaultText = seconds(def.autoRangeZoomInDelaySec)) { d ->
                 onChange { it.copy(autoRangeZoomInDelaySec = (it.autoRangeZoomInDelaySec + d).coerceIn(NavSettings.AUTO_RANGE_ZOOM_IN_DELAY_SEC_RANGE)) }
             }
             Stepper(
                 stringResource(R.string.hold_after_wp), seconds(s.autoHoldAfterWpSec),
-                note = withDefault(stringResource(R.string.hold_after_wp_note), seconds(def.autoHoldAfterWpSec)),
+                note = stringResource(R.string.hold_after_wp_note), defaultText = seconds(def.autoHoldAfterWpSec),
             ) { d ->
                 // 決まった値から選ぶ: 0 / 5 / 10 / 15 / 20 / 30 / 60 秒
                 onChange { it.copy(autoHoldAfterWpSec = stepChoice(NavSettings.AUTO_HOLD_AFTER_WP_CHOICES_SEC, it.autoHoldAfterWpSec, d)) }
@@ -267,13 +268,13 @@ fun SettingsScreen(
             // 今の段での例: 「今の段 R1 500m: WP まで 650m 以内」（R1 = 1つ目の距離環 = 段の 1/2）
             val hasNarrower = s.rangeStepsKm.any { it >= lo && it < rangeM / 1000 - 1e-9 }
             val example = if (hasNarrower) {
-                stringResource(R.string.zoom_in_example, HudFormat.rangeLabel(rangeM), HudFormat.rangeStep(s.autoZoomInDistRatio * rangeM / 2))
+                stringResource(R.string.zoom_in_example, r1Label(rangeM), HudFormat.ringLabel(s.autoZoomInDistRatio * rangeM / 2))
             } else {
-                stringResource(R.string.zoom_in_example_none, HudFormat.rangeLabel(rangeM))
+                stringResource(R.string.zoom_in_example_none, r1Label(rangeM))
             }
             Stepper(
                 stringResource(R.string.zoom_in_ratio), stringResource(R.string.zoom_in_ratio_value, "%.1f".format(Locale.US, s.autoZoomInDistRatio)),
-                note = withDefault(stringResource(R.string.zoom_in_ratio_note, example), stringResource(R.string.zoom_in_ratio_value, "%.1f".format(Locale.US, def.autoZoomInDistRatio))),
+                note = stringResource(R.string.zoom_in_ratio_note, example), defaultText = stringResource(R.string.zoom_in_ratio_value, "%.1f".format(Locale.US, def.autoZoomInDistRatio)),
             ) { d ->
                 onChange {
                     val c = NavSettings.AUTO_ZOOM_IN_DIST_RATIO_CHOICES
@@ -281,7 +282,7 @@ fun SettingsScreen(
                     it.copy(autoZoomInDistRatio = c[(i + d).coerceIn(0, c.lastIndex)])
                 }
             }
-            Stepper(stringResource(R.string.pan_return), seconds(s.panReturnSec), note = withDefault(stringResource(R.string.pan_return_note), seconds(def.panReturnSec))) { d ->
+            Stepper(stringResource(R.string.pan_return), seconds(s.panReturnSec), note = stringResource(R.string.pan_return_note), defaultText = seconds(def.panReturnSec)) { d ->
                 onChange { it.copy(panReturnSec = (it.panReturnSec + d * 5).coerceIn(NavSettings.PAN_RETURN_SEC_RANGE)) }
             }
         },
@@ -305,9 +306,9 @@ fun SettingsScreen(
             if (custom) HudButton(stringResource(R.string.reset_to_car), { onChange { it.editReach { ReachProfile.CAR } } })
             Choice(
                 stringResource(R.string.arrival_radius),
-                NavSettings.REACH_RADIUS_CHOICES_M.map { "%.0f m".format(Locale.US, it) to it },
+                NavSettings.REACH_RADIUS_CHOICES_M.map { "%.0f".format(Locale.US, it) to it },
                 s.reachRadiusM,
-                note = withDefault(stringResource(R.string.arrival_radius_note), meters(def.reachRadiusM)),
+                note = stringResource(R.string.arrival_radius_note), defaultText = meters(def.reachRadiusM),
                 enabled = custom,
             ) { v -> judge { it.copy(reachRadiusM = v) } }
             Toggle(stringResource(R.string.side_pass), s.sidePass, note = stringResource(R.string.side_pass_note), enabled = custom, default = def.sidePass) { v ->
@@ -316,43 +317,43 @@ fun SettingsScreen(
             Stepper(
                 stringResource(R.string.side_pass_max),
                 stringResource(R.string.within_meters, "%.0f".format(Locale.US, s.sidePassMaxM)),
-                note = withDefault(null, stringResource(R.string.within_meters, "%.0f".format(Locale.US, def.sidePassMaxM))),
+                defaultText = stringResource(R.string.within_meters, "%.0f".format(Locale.US, def.sidePassMaxM)),
                 enabled = custom,
             ) { d ->
                 judge { it.copy(sidePassMaxM = (it.sidePassMaxM + d * 10).coerceIn(NavSettings.SIDE_PASS_MAX_M_RANGE)) }
             }
-            Stepper(stringResource(R.string.side_pass_depart), "+%.0f m".format(Locale.US, s.sidePassDepartM), note = withDefault(stringResource(R.string.side_pass_depart_note), "+%.0f m".format(Locale.US, def.sidePassDepartM)), enabled = custom) { d ->
+            Stepper(stringResource(R.string.side_pass_depart), "+%.0f".format(Locale.US, s.sidePassDepartM), note = stringResource(R.string.side_pass_depart_note), defaultText = "+%.0f".format(Locale.US, def.sidePassDepartM), enabled = custom) { d ->
                 judge { it.copy(sidePassDepartM = (it.sidePassDepartM + d * 5).coerceIn(NavSettings.SIDE_PASS_DEPART_M_RANGE)) }
             }
             Toggle(stringResource(R.string.pass_detection), s.passDetection, note = stringResource(R.string.pass_detection_note), enabled = custom, default = def.passDetection) { v ->
                 judge { it.copy(passDetection = v) }
             }
-            Stepper(stringResource(R.string.pass_max), "%.0f m".format(Locale.US, s.passMaxApproachM), note = withDefault(stringResource(R.string.pass_max_note), meters(def.passMaxApproachM)), enabled = custom) { d ->
+            Stepper(stringResource(R.string.pass_max), "%.0f".format(Locale.US, s.passMaxApproachM), note = stringResource(R.string.pass_max_note), defaultText = meters(def.passMaxApproachM), enabled = custom) { d ->
                 judge { it.copy(passMaxApproachM = (it.passMaxApproachM + d * 50).coerceIn(NavSettings.PASS_MAX_APPROACH_M_RANGE)) }
             }
-            Stepper(stringResource(R.string.pass_depart), "+%.0f m".format(Locale.US, s.passDepartM), note = withDefault(null, "+%.0f m".format(Locale.US, def.passDepartM)), enabled = custom) { d ->
+            Stepper(stringResource(R.string.pass_depart), "+%.0f".format(Locale.US, s.passDepartM), defaultText = "+%.0f".format(Locale.US, def.passDepartM), enabled = custom) { d ->
                 judge { it.copy(passDepartM = (it.passDepartM + d * 10).coerceIn(NavSettings.PASS_DEPART_M_RANGE)) }
             }
-            Stepper(stringResource(R.string.pass_hold), seconds(s.passHoldSec), note = withDefault(null, seconds(def.passHoldSec)), enabled = custom) { d ->
+            Stepper(stringResource(R.string.pass_hold), seconds(s.passHoldSec), defaultText = seconds(def.passHoldSec), enabled = custom) { d ->
                 judge { it.copy(passHoldSec = (it.passHoldSec + d).coerceIn(NavSettings.PASS_HOLD_SEC_RANGE)) }
             }
-            Stepper(stringResource(R.string.wp_buttons), count(s.wpButtonsMax), note = withDefault(stringResource(R.string.wp_buttons_note), count(def.wpButtonsMax))) { d ->
+            Stepper(stringResource(R.string.wp_buttons), count(s.wpButtonsMax), note = stringResource(R.string.wp_buttons_note), defaultText = count(def.wpButtonsMax)) { d ->
                 onChange { it.copy(wpButtonsMax = (it.wpButtonsMax + d).coerceIn(NavSettings.WP_BUTTONS_MAX_RANGE)) }
             }
-            Stepper(stringResource(R.string.hud_wp_count), count(s.hudWpCount), note = withDefault(stringResource(R.string.hud_wp_count_note), count(def.hudWpCount))) { d ->
+            Stepper(stringResource(R.string.hud_wp_count), count(s.hudWpCount), note = stringResource(R.string.hud_wp_count_note), defaultText = count(def.hudWpCount)) { d ->
                 onChange { it.copy(hudWpCount = (it.hudWpCount + d).coerceIn(NavSettings.HUD_WP_COUNT_RANGE)) }
             }
         },
 
         SettingsSection(stringResource(R.string.sec_input)) {
-            Choice("INPUT", listOf(stringResource(R.string.input_live) to SourceKind.LIVE, stringResource(R.string.input_replay) to SourceKind.REPLAY), input, note = withDefault(null, "LIVE")) { v ->
+            Choice("INPUT", listOf(stringResource(R.string.input_live) to SourceKind.LIVE, stringResource(R.string.input_replay) to SourceKind.REPLAY), input, defaultText = "LIVE") { v ->
                 onInput(v)
             }
             // 決まった値から選ぶ: 3 / 5 / 10 / 15 / 20 / 30 / 60 / 120 秒
-            Stepper(stringResource(R.string.no_fix_timeout), seconds(s.noFixTimeoutSec), note = withDefault(null, seconds(def.noFixTimeoutSec))) { d ->
+            Stepper(stringResource(R.string.no_fix_timeout), seconds(s.noFixTimeoutSec), defaultText = seconds(def.noFixTimeoutSec)) { d ->
                 onChange { it.copy(noFixTimeoutSec = stepChoice(NavSettings.NO_FIX_TIMEOUT_CHOICES_SEC, it.noFixTimeoutSec, d)) }
             }
-            Choice(stringResource(R.string.rate_window), NavSettings.RATE_WINDOW_CHOICES_SEC.map { seconds(it) to it }, s.rateWindowSec, note = withDefault(null, seconds(def.rateWindowSec))) { v ->
+            Choice(stringResource(R.string.rate_window), NavSettings.RATE_WINDOW_CHOICES_SEC.map { seconds(it) to it }, s.rateWindowSec, defaultText = seconds(def.rateWindowSec)) { v ->
                 onChange { it.copy(rateWindowSec = v) }
             }
         },
@@ -390,7 +391,7 @@ fun SettingsScreen(
             Toggle(stringResource(R.string.auto_open_last), s.autoOpenLastList, note = stringResource(R.string.auto_open_last_note), default = def.autoOpenLastList) { v ->
                 onChange { it.copy(autoOpenLastList = v) }
             }
-            Row(Modifier.padding(top = 6.dp)) { HudButton(stringResource(R.string.reset_settings), onReset) }
+            Row(Modifier.padding(top = 2.dp)) { HudButton(stringResource(R.string.reset_settings), onReset) }
         },
 
         SettingsSection(stringResource(R.string.sec_language)) {
@@ -442,8 +443,8 @@ fun SettingsScreen(
             .fillMaxSize()
             .background(HudColors.Background)
             .verticalScroll(scroll)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             HudButton(stringResource(R.string.back), onBack)
@@ -468,10 +469,10 @@ private const val REPO_URL = "https://github.com/eightbrows/NavHUD"
 /** 公式サイト（GpsLogger の「情報」の欄と同じ） */
 private const val WEBSITE_URL = "https://eightbrows.github.io/"
 
-/** 設定画面の地図レイヤの項目の並び: 線（海岸線・境・道路・鉄道・水・フェリー・ダム）→ 点（空港） */
+/** 設定画面の地図レイヤの項目の並び: 線（海岸線・境・道路・鉄道・水・フェリー）→ 点（空港） */
 private val MAP_ITEM_ORDER = listOf(
     MapItem.COASTLINE, MapItem.PREF_BOUNDARY, MapItem.MUNI_BOUNDARY, MapItem.MOTORWAY, MapItem.OTHER_MOTORWAY, MapItem.NATIONAL_ROAD, MapItem.PREF_ROAD,
-    MapItem.SHINKANSEN, MapItem.RAILWAY, MapItem.WATER, MapItem.FERRY, MapItem.DAM_LINE, MapItem.AIRPORT,
+    MapItem.SHINKANSEN, MapItem.RAILWAY, MapItem.WATER, MapItem.FERRY, MapItem.AIRPORT,
 )
 
 private fun mapItemLabel(item: MapItem): Int = when (item) {
@@ -486,7 +487,6 @@ private fun mapItemLabel(item: MapItem): Int = when (item) {
     MapItem.RAILWAY -> R.string.map_layer_railway
     MapItem.WATER -> R.string.map_item_water
     MapItem.FERRY -> R.string.map_layer_ferry
-    MapItem.DAM_LINE -> R.string.map_layer_dam_line
     MapItem.AIRPORT -> R.string.map_layer_airport
 }
 
@@ -510,19 +510,11 @@ private fun seconds(sec: Int) = stringResource(R.string.value_seconds, sec.toStr
 private fun pct(p: Int) = "$p%"
 
 
-private fun meters(m: Number) = "%.0f m".format(Locale.US, m.toDouble())
+// 設定画面の距離は、m は数字だけ、km は「k」（距離環の文字と同じ書き方。20261020-D02）
+private fun meters(m: Number) = "%.0f".format(Locale.US, m.toDouble())
 
-/**
- * 補足文の最後に初期値を書き足す（日本語「…（初期値：150%）」、英語「… (Default: 150%)」）。
- * 補足文がない項目は、初期値だけの補足文にする。行は増やさず、補足文の文の続きに入れる。
- */
-@Composable
-private fun withDefault(note: String?, default: String): String {
-    val d = stringResource(R.string.default_value, default)
-    // 日本語の補足文の最後の「。」は取って、かっこを続ける（英語は文の終わりの「.」のあとに空白を入れて続ける）
-    val n = note?.trim()?.trimEnd('。')
-    return if (n.isNullOrEmpty()) d else stringResource(R.string.note_with_default, n, d)
-}
+/** 縮尺の段 [m] の表示: 自機から 1 つ目の距離環の距離（段の 1/2）を、距離環の文字と同じ書き方で（25 / 250 / 2.5k / 100k） */
+private fun r1Label(rangeM: Double) = HudFormat.ringLabel(rangeM / 2)
 
 @Composable
 private fun count(n: Int) = stringResource(R.string.value_count, n.toString())
@@ -533,9 +525,9 @@ private class SettingsSection(val title: String, val content: @Composable () -> 
 /** 目次: セクションの見出しを、選択肢と同じ形のボタンで並べる（折り返す）。押すと、そのセクションの見出しまでスクロールする */
 @Composable
 private fun Toc(titles: List<String>, onJump: (Int) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(stringResource(R.string.settings_toc), style = RowNote)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             titles.forEachIndexed { i, t -> Chip(t, on = false) { onJump(i) } }
         }
     }
@@ -548,8 +540,8 @@ private fun Section(title: String, onToc: () -> Unit, modifier: Modifier = Modif
         modifier
             .fillMaxWidth()
             .border(0.5.dp, HudColors.Frame, RoundedCornerShape(6.dp))
-            .padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(title, style = SectionTitle, modifier = Modifier.weight(1f))
@@ -559,10 +551,23 @@ private fun Section(title: String, onToc: () -> Unit, modifier: Modifier = Modif
     }
 }
 
+/**
+ * 項目の名前の行: 名前と「（初期値：…）」を 1 行に並べる（幅が足りないときだけ、初期値を次の行に送る）。
+ * defaultText は初期値の値の文字（null なら初期値を書かない）。
+ */
 @Composable
-private fun Label(text: String, note: String? = null, enabled: Boolean = true) {
-    Column {
-        Text(text, style = if (enabled) RowLabel else RowLabel.copy(color = HudColors.WpReached))
+private fun NameLine(text: String, defaultText: String?, enabled: Boolean) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(text, style = if (enabled) RowLabel else RowLabel.copy(color = HudColors.WpReached), modifier = Modifier.align(Alignment.CenterVertically))
+        defaultText?.let { Text(stringResource(R.string.default_value, it), style = RowNote, modifier = Modifier.align(Alignment.CenterVertically)) }
+    }
+}
+
+/** 項目の名前の行（名前と初期値）と、その下の補足文 */
+@Composable
+private fun Label(text: String, note: String? = null, enabled: Boolean = true, defaultText: String? = null) {
+    Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+        NameLine(text, defaultText, enabled)
         note?.let { Text(it, style = RowNote) }
     }
 }
@@ -625,18 +630,28 @@ private fun <T> Choice(
     selected: T?,
     note: String? = null,
     enabled: Boolean = true,
-    /** 初期値（選ぶ項目）。補足文の最後に「（初期値：その選択肢の名前）」と書く。null なら書かない */
+    /** 初期値（選ぶ項目）。名前の行に「（初期値：その選択肢の名前）」と書く。null なら書かない */
     default: T? = null,
+    /** 初期値の文字（選択肢にない書き方で書くとき。default より優先） */
+    defaultText: String? = null,
     /** 小さな選択肢（地図レイヤの項目。5 つの選択肢を 1 行に収める） */
     compact: Boolean = false,
     onSelect: (T) -> Unit,
 ) {
-    val n = if (default == null) note else withDefault(note, options.firstOrNull { it.second == default }?.first ?: default.toString())
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Label(label, n, enabled)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            for ((text, value) in options) Chip(text, value == selected, enabled, compact) { onSelect(value) }
+    val d = defaultText ?: default?.let { v -> options.firstOrNull { it.second == v }?.first ?: v.toString() }
+    // 名前の行と選ぶボタンの列: 1 行に収まれば同じ行、収まらなければボタンの列を次の行に送る。補足文はその下
+    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Box(Modifier.align(Alignment.CenterVertically)) { NameLine(label, d, enabled) }
+            FlowRow(
+                Modifier.align(Alignment.CenterVertically),
+                horizontalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 6.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                for ((text, value) in options) Chip(text, value == selected, enabled, compact) { onSelect(value) }
+            }
         }
+        note?.let { Text(it, style = RowNote) }
     }
 }
 
@@ -650,24 +665,24 @@ private fun Chip(text: String, on: Boolean, enabled: Boolean = true, compact: Bo
             .border(1.dp, if (on) c else HudColors.WpDisabled, shape)
             .background(if (on) c else HudColors.Background, shape)
             .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = if (compact) 7.dp else 10.dp, vertical = 5.dp),
+            .padding(horizontal = if (compact) 7.dp else 9.dp, vertical = 4.dp),
     ) {
         Text(text, style = ValueText.copy(color = if (on) HudColors.Background else c, fontSize = if (compact) 12.sp else 13.sp))
     }
 }
 
 @Composable
-private fun Stepper(label: String, value: String, note: String? = null, enabled: Boolean = true, onStep: (Int) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Box(Modifier.weight(1f)) { Label(label, note, enabled) }
-        HudButton("−", { onStep(-1) }, enabled = enabled)
+private fun Stepper(label: String, value: String, note: String? = null, defaultText: String? = null, enabled: Boolean = true, onStep: (Int) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Box(Modifier.weight(1f)) { Label(label, note, enabled, defaultText) }
+        HudButton("−", { onStep(-1) }, enabled = enabled, small = true)
         Text(
             value,
             style = if (enabled) ValueText else ValueText.copy(color = HudColors.WpReached),
             textAlign = TextAlign.Center,
-            modifier = Modifier.widthIn(min = 72.dp),
+            modifier = Modifier.widthIn(min = 64.dp),
         )
-        HudButton("＋", { onStep(1) }, enabled = enabled)
+        HudButton("＋", { onStep(1) }, enabled = enabled, small = true)
     }
 }
 
@@ -677,15 +692,18 @@ private fun PercentSlider(
     label: String,
     pct: Int,
     note: String? = null,
+    defaultText: String? = null,
     choices: List<Int> = NavSettings.OPACITY_CHOICES_PCT,
     onChange: (Int) -> Unit,
 ) {
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.weight(1f)) { Label(label, note) }
+            Box(Modifier.weight(1f)) { Label(label, note, defaultText = defaultText) }
             Text("$pct%", style = ValueText, textAlign = TextAlign.Center, modifier = Modifier.widthIn(min = 56.dp))
         }
+        // スライダーは高さを詰める（つまみと目盛りが収まる高さ）
         Slider(
+            modifier = Modifier.height(32.dp),
             value = pct.toFloat(),
             onValueChange = { v -> choices.minByOrNull { kotlin.math.abs(it - v) }?.takeIf { it != pct }?.let(onChange) },
             valueRange = choices.first().toFloat()..choices.last().toFloat(),
@@ -724,13 +742,12 @@ private fun Toggle(
     on: Boolean,
     note: String? = null,
     enabled: Boolean = true,
-    /** 初期値（ON / OFF）。補足文の最後に「（初期値：ON）」と書く。null なら書かない */
+    /** 初期値（ON / OFF）。名前の行に「（初期値：ON）」と書く。null なら書かない */
     default: Boolean? = null,
     onChange: (Boolean) -> Unit,
 ) {
-    val n = if (default == null) note else withDefault(note, if (default) "ON" else "OFF")
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.weight(1f)) { Label(label, n, enabled) }
+        Box(Modifier.weight(1f)) { Label(label, note, enabled, default?.let { if (it) "ON" else "OFF" }) }
         SettingsSwitch(on, enabled, onChange)
     }
 }

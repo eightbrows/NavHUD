@@ -79,7 +79,6 @@
     <string name="settings_toc">目次</string>
     <string name="back_to_toc">▲ 目次</string>
     <string name="default_value">（初期値：%1$s）</string>
-    <string name="note_with_default">%1$s%2$s</string>
     <string name="default_all">すべて</string>
     <string name="sec_display">表示</string>
     <string name="display_mode">表示モード</string>
@@ -156,7 +155,7 @@
     <string name="side_pass">真横通過</string>
     <string name="side_pass_note">走行中に WP が真横か後ろになり、いちばん近づいた距離から離れたら到達</string>
     <string name="side_pass_max">真横通過: WP までの距離</string>
-    <string name="within_meters">%1$s m 以内</string>
+    <string name="within_meters">%1$s 以内</string>
     <string name="side_pass_depart">真横通過: 離れたとみなす距離</string>
     <string name="side_pass_depart_note">いちばん近づいた距離から</string>
     <string name="pass_detection">通過判定（予備）</string>
@@ -183,9 +182,9 @@
     <string name="map_line_brightness">線の明るさ</string>
     <string name="map_line_brightness_note">全部の線と記号の明るさ（1 がいちばん暗い）</string>
     <string name="map_range_off">OFF</string>
-    <string name="map_range_10">〜10km</string>
-    <string name="map_range_25">〜25km</string>
-    <string name="map_range_50">〜50km</string>
+    <string name="map_range_10">〜10k</string>
+    <string name="map_range_25">〜25k</string>
+    <string name="map_range_50">〜50k</string>
     <string name="map_range_all">すべて</string>
     <string name="map_layer_coastline">海岸線</string>
     <string name="map_layer_pref_boundary">県境</string>
@@ -198,7 +197,6 @@
     <string name="map_layer_railway">在来線</string>
     <string name="map_item_water">河川・湖沼</string>
     <string name="map_layer_ferry">フェリーの航路</string>
-    <string name="map_layer_dam_line">ダム・堰（線）</string>
     <string name="map_layer_airport">空港</string>
     <string name="sec_other">その他</string>
     <string name="keep_screen_on">画面常時点灯</string>

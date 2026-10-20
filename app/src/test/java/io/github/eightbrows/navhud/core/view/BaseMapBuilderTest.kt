@@ -95,17 +95,17 @@ class BaseMapBuilderTest {
 
     @Test
     fun eachLayerHasItsOwnLookAndDrawOrder() {
-        // 地図の中の順番によらず、描く順（DRAW_ORDER）に並ぶ: 湖沼などの輪郭 → 水 → 境 → 交通 → ダム
+        // 地図の中の順番によらず、描く順（DRAW_ORDER）に並ぶ: 湖沼などの輪郭 → 水 → 境 → 交通
         val layers = listOf(MapLayer.FERRY, MapLayer.ROAD, MapLayer.RAILWAY, MapLayer.PREF_BOUNDARY, MapLayer.MUNI_BOUNDARY,
-            MapLayer.COASTLINE, MapLayer.RIVER, MapLayer.INLAND_WATER, MapLayer.DAM_LINE)
+            MapLayer.COASTLINE, MapLayer.RIVER, MapLayer.INLAND_WATER)
         val out = build(BaseMap(layers.map { line(it, 0.0 to 0.0, 100.0 to 100.0) })).lines
         assertEquals(
-            listOf(Ink.MAP_WATER, Ink.MAP_WATER, Ink.COASTLINE, Ink.MUNI_BOUNDARY, Ink.PREF_BOUNDARY, Ink.MAP_NATIONAL_ROAD, Ink.MAP_RAIL, Ink.MAP_FERRY, Ink.MAP_DAM),
+            listOf(Ink.MAP_WATER, Ink.MAP_WATER, Ink.COASTLINE, Ink.MUNI_BOUNDARY, Ink.PREF_BOUNDARY, Ink.MAP_NATIONAL_ROAD, Ink.MAP_RAIL, Ink.MAP_FERRY),
             out.map { it.ink },
         )
         // 線の種類: 県境は点線、市区町村境は細かい点線、鉄道（在来線）は破線、フェリーは長い破線、ほかは実線
         assertEquals(
-            listOf(LineDash.SOLID, LineDash.SOLID, LineDash.SOLID, LineDash.FINE_DOT, LineDash.DOT, LineDash.SOLID, LineDash.DASH, LineDash.LONG_DASH, LineDash.SOLID),
+            listOf(LineDash.SOLID, LineDash.SOLID, LineDash.SOLID, LineDash.FINE_DOT, LineDash.DOT, LineDash.SOLID, LineDash.DASH, LineDash.LONG_DASH),
             out.map { it.dash },
         )
         // 線のレイヤどうしは、色か線の種類のどちらかで見分けられる（河川と湖沼の輪郭だけが同じ。どちらも水）

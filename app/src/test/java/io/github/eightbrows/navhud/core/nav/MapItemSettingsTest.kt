@@ -67,12 +67,12 @@ class MapItemSettingsTest {
         assertEquals(MapRange.UPTO_25KM, bad.mapRangeOf(MapItem.MOTORWAY))
         assertEquals(MapRange.ALL, bad.mapRangeOf(MapItem.COASTLINE))
         assertEquals(MapRange.UPTO_10KM, bad.mapRangeOf(MapItem.AIRPORT))
-        // 20261020-D01 でなくした項目（港・駅・ダムと堰の点・都市・市街地）の保存は、読めない名前として飛ばす
-        val removed = SettingsCodec.decode(mapOf("mapItems" to "PORT:ALL,STATION:ALL,DAM_POINT:ALL,CITY:ALL,BUILT_UP_AREA:ALL,RAILWAY:UPTO_50KM"))
+        // なくした項目（港・駅・ダムと堰の点・都市・市街地は 20261020-D01、ダム・堰の線は 20261020-D02）の保存は、読めない名前として飛ばす
+        val removed = SettingsCodec.decode(mapOf("mapItems" to "PORT:ALL,STATION:ALL,DAM_POINT:ALL,CITY:ALL,BUILT_UP_AREA:ALL,DAM_LINE:ALL,RAILWAY:UPTO_50KM"))
         assertEquals(MapRange.UPTO_50KM, removed.mapRangeOf(MapItem.RAILWAY))
         assertEquals(NavSettings.DEFAULT_MAP_ITEMS - MapItem.RAILWAY, removed.mapItems - MapItem.RAILWAY)
         val savedNames = SettingsCodec.encode(removed).getValue("mapItems").split(',').map { it.substringBefore(':') }
-        assertTrue(listOf("PORT", "STATION", "DAM_POINT", "CITY", "BUILT_UP_AREA").none { it in savedNames })
+        assertTrue(listOf("PORT", "STATION", "DAM_POINT", "CITY", "BUILT_UP_AREA", "DAM_LINE").none { it in savedNames })
         assertEquals(4, bad.mapLineWidth)
         assertEquals(4, bad.mapLineBrightness)
         assertEquals(4, SettingsCodec.decode(mapOf("mapLineWidthLevel" to "0")).mapLineWidth)

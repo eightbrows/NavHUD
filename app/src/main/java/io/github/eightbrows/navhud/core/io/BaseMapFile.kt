@@ -4,8 +4,9 @@ import java.io.ByteArrayOutputStream
 
 /**
  * 背景地図のレイヤ（§8）。番号はファイルに書く値で、tools/gm2basemap.ps1 と同じ。
- * 線（1〜9。面は輪郭の線として入れる）と点（20 = 空港）。元のデータは国土地理院「地球地図日本」第2.2版。
- * 10（市街地）・21〜24（港・駅・ダムと堰の点・都市）は 20261020-D01 で入れなくなった（番号は空けておく。古いファイルにあれば飛ばす）。
+ * 線（1〜7・9。面は輪郭の線として入れる）と点（20 = 空港）。元のデータは国土地理院「地球地図日本」第2.2版。
+ * 10（市街地）・21〜24（港・駅・ダムと堰の点・都市）は 20261020-D01、8（ダム・堰の線）は 20261020-D02 で入れなくなった
+ * （番号は空けておく。古いファイルにあれば飛ばす）。
  */
 enum class MapLayer(val code: Int, val isPoint: Boolean = false) {
     COASTLINE(1),
@@ -15,7 +16,6 @@ enum class MapLayer(val code: Int, val isPoint: Boolean = false) {
     RAILWAY(5),
     MUNI_BOUNDARY(6),
     FERRY(7),
-    DAM_LINE(8),
     INLAND_WATER(9),
     AIRPORT(20, isPoint = true);
 
@@ -97,7 +97,7 @@ class MapLine(
     }
 }
 
-/** 背景地図の点（空港・港・駅・ダム・都市）。名前はローマ字（元のデータのまま。今は描かない）。 */
+/** 背景地図の点（空港）。名前はローマ字（元のデータのまま。今は描かない）。 */
 class MapPoint(val layer: MapLayer, val kind: Int, val lat: Double, val lon: Double, val name: String)
 
 

@@ -38,11 +38,11 @@ data class MapLayerStyle(val ink: Ink, val widthDp: Float = 0f, val dash: LineDa
  */
 object BaseMapBuilder {
 
-    /** 描く順番（下から上）。湖沼などの輪郭 → 水（河川・海岸線）→ 境 → 交通 → ダム。点（空港）は線の上 */
+    /** 描く順番（下から上）。湖沼などの輪郭 → 水（河川・海岸線）→ 境 → 交通。点（空港）は線の上 */
     val DRAW_ORDER: List<MapLayer> = listOf(
         MapLayer.INLAND_WATER, MapLayer.RIVER, MapLayer.COASTLINE,
         MapLayer.MUNI_BOUNDARY, MapLayer.PREF_BOUNDARY,
-        MapLayer.ROAD, MapLayer.RAILWAY, MapLayer.FERRY, MapLayer.DAM_LINE,
+        MapLayer.ROAD, MapLayer.RAILWAY, MapLayer.FERRY,
         MapLayer.AIRPORT,
     )
 
@@ -56,7 +56,6 @@ object BaseMapBuilder {
         MapLayer.ROAD -> MapLayerStyle(Ink.MAP_ROAD, Tuning.BASEMAP_ROAD_LINE_DP)
         MapLayer.RAILWAY -> MapLayerStyle(Ink.MAP_RAIL, Tuning.BASEMAP_RAIL_LINE_DP, LineDash.DASH)
         MapLayer.FERRY -> MapLayerStyle(Ink.MAP_FERRY, Tuning.BASEMAP_FERRY_LINE_DP, LineDash.LONG_DASH)
-        MapLayer.DAM_LINE -> MapLayerStyle(Ink.MAP_DAM, Tuning.BASEMAP_DAM_LINE_DP)
         MapLayer.AIRPORT -> MapLayerStyle(Ink.MAP_AIRPORT)
     }
 

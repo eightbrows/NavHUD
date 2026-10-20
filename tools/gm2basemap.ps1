@@ -13,10 +13,11 @@
 
   取り込むもの（SPEC.md §8。種類の番号はアプリの core/io/BaseMapFile.kt の MapLayer と同じ）:
     線  1 海岸線（coastl）  2 県境（polbndl の use = 26）  6 市区町村境（polbndl の use = 30）
-        3 河川（riverl）  4 道路（roadl）  5 鉄道（raill）  7 フェリーの航路（ferryl）  8 ダム・堰（miscl）
+        3 河川（riverl）  4 道路（roadl）  5 鉄道（raill）  7 フェリーの航路（ferryl）
     面  9 湖沼など（inwatera）  … 塗らずに、輪郭を線として入れる
     点  20 空港（airp） … 名前も入れる
-    入れないもの（20261020-D01）: 市街地の面（builtupa。前の 10）、港（portp。21）、駅（rstatp。22）、ダム・堰の点（miscp。23）、都市（builtupp。24）。
+    入れないもの: 市街地の面（builtupa。前の 10）、港（portp。21）、駅（rstatp。22）、ダム・堰の点（miscp。23）、都市（builtupp。24）（20261020-D01）、
+    ダム・堰の線（miscl。8。20261020-D02）。
     番号は使わずに空けておく（古いファイルを読むアプリは、知らない番号を飛ばす）。駅（rstatp）は、新幹線を見分ける手がかりにだけ使う。
     行政区域の面（polbnda）は、境の線と同じ形なので入れない。
     線・点ごとに「レイヤの中の種類」（0〜255）を持つ。道路は rtt、鉄道は fco（新幹線は 0x10・山形と秋田は 0x20 を足す）、空港は use、海岸線は acc。河川・湖沼などは大きさの段（下の「段」の説明）。
@@ -602,7 +603,6 @@ $Layers = @(
   @{ Code = 5;  Name = 'railway';        File = 'raill_jpn';    Keep = { param($r) $true };              Kind = { param($r) Num $r 'fco' } }
   @{ Code = 6;  Name = 'muni_boundary';  File = 'polbndl_jpn';  Keep = { param($r) $r['use'] -eq '30' };   Kind = { param($r) Num $r 'bst' } }
   @{ Code = 7;  Name = 'ferry';          File = 'ferryl_jpn';   Keep = { param($r) $true };              Kind = { param($r) 0 } }
-  @{ Code = 8;  Name = 'dam_line';       File = 'miscl_jpn';    Keep = { param($r) $true };              Kind = { param($r) 0 } }
   @{ Code = 9;  Name = 'inland_water';   File = 'inwatera_jpn'; Keep = { param($r) $true };              Kind = { param($r) 0 } }
   @{ Code = 20; Name = 'airport';        File = 'airp_jpn';     Keep = { param($r) $true };              Kind = { param($r) Num $r 'use' } }
 )

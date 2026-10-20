@@ -81,7 +81,6 @@
     <string name="settings_toc">Contents</string>
     <string name="back_to_toc">▲ Top</string>
     <string name="default_value">(Default: %1$s)</string>
-    <string name="note_with_default">%1$s %2$s</string>
     <string name="default_all">all</string>
     <string name="sec_display">Display</string>
     <string name="display_mode">Display mode</string>
@@ -158,7 +157,7 @@
     <string name="side_pass">Abeam pass</string>
     <string name="side_pass_note">While driving, reached when the WP is abeam or behind and you move away from the closest point</string>
     <string name="side_pass_max">Abeam: max distance to WP</string>
-    <string name="within_meters">within %1$s m</string>
+    <string name="within_meters">within %1$s</string>
     <string name="side_pass_depart">Abeam: moved away by</string>
     <string name="side_pass_depart_note">From the closest point</string>
     <string name="pass_detection">Pass detection (backup)</string>
@@ -185,9 +184,9 @@
     <string name="map_line_brightness">Line brightness</string>
     <string name="map_line_brightness_note">Brightness of all lines and symbols (1 is the darkest)</string>
     <string name="map_range_off">OFF</string>
-    <string name="map_range_10">≤10km</string>
-    <string name="map_range_25">≤25km</string>
-    <string name="map_range_50">≤50km</string>
+    <string name="map_range_10">≤10k</string>
+    <string name="map_range_25">≤25k</string>
+    <string name="map_range_50">≤50k</string>
     <string name="map_range_all">All</string>
     <string name="map_layer_coastline">Coastline</string>
     <string name="map_layer_pref_boundary">Prefecture borders</string>
@@ -200,7 +199,6 @@
     <string name="map_layer_railway">Railways</string>
     <string name="map_item_water">Rivers and lakes</string>
     <string name="map_layer_ferry">Ferry routes</string>
-    <string name="map_layer_dam_line">Dams and weirs (lines)</string>
     <string name="map_layer_airport">Airports</string>
     <string name="sec_other">Other</string>
     <string name="keep_screen_on">Keep screen on</string>

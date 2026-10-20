@@ -157,8 +157,8 @@ class BaseMapFileTest {
         assertEquals(4, map.points.single().kind)
         assertNull(MapLayer.of(99))
         assertEquals(MapLayer.AIRPORT, MapLayer.of(20))
-        // 20261020-D01 で入れなくなった市街地（10）・港・駅・ダムと堰の点・都市（21〜24）も、知らない番号として飛ばす
-        for (code in listOf(10, 21, 22, 23, 24)) assertNull(MapLayer.of(code))
+        // 入れなくなった市街地（10）・港・駅・ダムと堰の点・都市（21〜24。20261020-D01）、ダム・堰の線（8。20261020-D02）も、知らない番号として飛ばす
+        for (code in listOf(8, 10, 21, 22, 23, 24)) assertNull(MapLayer.of(code))
     }
 
     @Test
@@ -206,7 +206,7 @@ class BaseMapFileTest {
         // 変換のとき（20261017-D02。河川・湖沼などは 20261018-D05 で水系・幅のある川の線を入れた。鉄道は 20261019-D02 で新幹線の印が変わる所で切った）の数: 段 0 の線（64 点ずつに分けたあと）と点
         val expectLines = mapOf(
             MapLayer.COASTLINE to 1779, MapLayer.PREF_BOUNDARY to 278, MapLayer.RIVER to 764, MapLayer.ROAD to 31428,
-            MapLayer.RAILWAY to 3142, MapLayer.MUNI_BOUNDARY to 4220, MapLayer.FERRY to 540, MapLayer.DAM_LINE to 29,
+            MapLayer.RAILWAY to 3142, MapLayer.MUNI_BOUNDARY to 4220, MapLayer.FERRY to 540,
             MapLayer.INLAND_WATER to 899,
         )
         for ((layer, n) in expectLines) assertEquals(layer.name, n, map.countOf(layer))

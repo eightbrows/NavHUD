@@ -63,7 +63,11 @@ object HudColors {
      * 背景地図のほかのレイヤ（暗い色。レイヤどうしは色と線の種類で見分ける）。河川・湖沼だけは見やすいよう明るい水色
      * （20261018-D05。読み込んだ軌跡の色の水色・青と紛れないよう、その間の色にした）
      */
-    val MuniBoundary = Color(0xFF383838)
+    /**
+     * 市区町村境: 細かい点線で描くので、線より明るい灰色にした（20261020-D02。前の #383838 は黒の背景とほとんど同じで、見えなかった）。
+     * 県境（#4A4A4A の太めの点線）とは、明るさと点の細かさ・太さで見分ける
+     */
+    val MuniBoundary = Color(0xFF787878)
     val MapWater = Color(0xFF6AB0E8)
     val MapRoad = Color(0xFF5A4530)
     /** 道路の色分け（20261018-D06）: 高速道路は濃くはっきりした青、その他の自動車専用道路は同じ青の系統で暗め、国道は落ち着いた赤 */
@@ -75,7 +79,6 @@ object HudColors {
     /** 新幹線: 在来線（くすんだ紫）と同じ系統の、明るい紫（仮。ほかの地図・HUD の色との ΔE は 24.9 以上） */
     val MapShinkansen = Color(0xFF9B7BC8)
     val MapFerry = Color(0xFF22504F)
-    val MapDam = Color(0xFF2F5470)
     val MapAirport = Color(0xFF6A5A3A)
 
     /** 読み込んだ軌跡の色（設定 trackColor）。Compose の状態 */
@@ -177,7 +180,6 @@ object HudColors {
         Ink.MAP_RAIL -> MapRail
         Ink.MAP_SHINKANSEN -> MapShinkansen
         Ink.MAP_FERRY -> MapFerry
-        Ink.MAP_DAM -> MapDam
         Ink.MAP_AIRPORT -> MapAirport
     }
 }
