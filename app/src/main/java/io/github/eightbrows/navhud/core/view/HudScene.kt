@@ -65,30 +65,22 @@ enum class Ink {
     /** 背景地図のフェリーの航路（暗い青緑の長い破線） */
     MAP_FERRY,
 
-    /** 背景地図のダム・堰（線と点。暗い水色） */
+    /** 背景地図のダム・堰（線。暗い水色） */
     MAP_DAM,
 
-    /** 背景地図の市街地の輪郭（暗いオリーブ色） */
-    MAP_BUILT_UP,
 
-    /** 背景地図の点: 都市・駅・港・空港（ダムは MAP_DAM） */
-    MAP_CITY,
-    MAP_STATION,
-    MAP_PORT,
+    /** 背景地図の点: 空港（飛行機の記号） */
     MAP_AIRPORT,
 }
 
 /** 折れ線の線の種類（背景地図のレイヤの描き分け）。長さは Tuning.BASEMAP_*_DP */
 enum class LineDash { SOLID, DOT, FINE_DOT, DASH, LONG_DASH }
 
-/** 背景地図の点の記号の形。PLANE は上から見た飛行機（機首が上。向きは変えない） */
-enum class MarkShape { CIRCLE, SQUARE, DIAMOND, TRIANGLE, PLANE }
-
 /**
- * 背景地図の点（小さな記号。名前は描かない）。sizeDp は記号の半分の大きさ [dp]、filled は塗るか、
+ * 背景地図の点（空港。上から見た飛行機の塗った記号。機首が上で、向きは変えない。名前は描かない）。sizeDp は記号の半分の大きさ [dp]、
  * brightness は色の RGB に掛ける数（設定の明るさ。Tuning.BASEMAP_BRIGHTNESS_FACTORS）
  */
-data class MapMark(val at: P, val ink: Ink, val shape: MarkShape, val sizeDp: Float, val filled: Boolean, val brightness: Float = 1f)
+data class MapMark(val at: P, val ink: Ink, val sizeDp: Float, val brightness: Float = 1f)
 
 /** 線。dashed は無効 WP の破線、longDash は次の WP への方位線の長い破線（Tuning.ACTIVE_DASH_*）。 */
 data class Segment(val a: P, val b: P, val ink: Ink, val dashed: Boolean = false, val bold: Boolean = false, val longDash: Boolean = false)

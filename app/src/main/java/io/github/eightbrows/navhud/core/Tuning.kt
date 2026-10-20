@@ -176,7 +176,7 @@ object Tuning {
     /** LIVE の軌跡: 点の上限（超えたら古い方から捨てる） */
     const val LIVE_TRAIL_MAX_POINTS = 5_000
 
-    /** 背景地図（§8）の線の太さ [dp]: 海岸線 / 県境 / 市区町村境 / 河川 / 湖沼・市街地の輪郭 / 道路 / 鉄道 / フェリー / ダム・堰 */
+    /** 背景地図（§8）の線の太さ [dp]: 海岸線 / 県境 / 市区町村境 / 河川 / 湖沼などの輪郭 / 道路 / 鉄道 / フェリー / ダム・堰 */
     const val BASEMAP_COAST_LINE_DP = 1.2f
     const val BASEMAP_PREF_LINE_DP = 1.2f
     const val BASEMAP_MUNI_LINE_DP = 0.8f

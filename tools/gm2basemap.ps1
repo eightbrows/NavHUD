@@ -14,8 +14,10 @@
   取り込むもの（SPEC.md §8。種類の番号はアプリの core/io/BaseMapFile.kt の MapLayer と同じ）:
     線  1 海岸線（coastl）  2 県境（polbndl の use = 26）  6 市区町村境（polbndl の use = 30）
         3 河川（riverl）  4 道路（roadl）  5 鉄道（raill）  7 フェリーの航路（ferryl）  8 ダム・堰（miscl）
-    面  9 湖沼など（inwatera）  10 市街地（builtupa）     … 塗らずに、輪郭を線として入れる
-    点  20 空港（airp）  21 港（portp）  22 駅（rstatp）  23 ダム・堰（miscp）  24 都市（builtupp） … 名前も入れる
+    面  9 湖沼など（inwatera）  … 塗らずに、輪郭を線として入れる
+    点  20 空港（airp） … 名前も入れる
+    入れないもの（20261020-D01）: 市街地の面（builtupa。前の 10）、港（portp。21）、駅（rstatp。22）、ダム・堰の点（miscp。23）、都市（builtupp。24）。
+    番号は使わずに空けておく（古いファイルを読むアプリは、知らない番号を飛ばす）。駅（rstatp）は、新幹線を見分ける手がかりにだけ使う。
     行政区域の面（polbnda）は、境の線と同じ形なので入れない。
     線・点ごとに「レイヤの中の種類」（0〜255）を持つ。道路は rtt、鉄道は fco（新幹線は 0x10・山形と秋田は 0x20 を足す）、空港は use、海岸線は acc。河川・湖沼などは大きさの段（下の「段」の説明）。
     道路は rtt が 16（高速道路）・14（国道）・15（県道。主要地方道など）の線だけを入れる（データにはこの 3 つしかない）。
@@ -23,7 +25,7 @@
     アプリは種類ごと（高速道路・その他の自動車専用道路・国道・県道）に、設定の縮尺で描く。
     河川は、1 級河川を見分ける値がないので、名前のある川（nam の最後の語が G. / K. / KAWA / GAWA）の水系を入れる（下の「段」の説明）。
     名前のない線は、名前のある川どうしの切れ目をつなぐ区間だけを入れる（20261018-D05）。
-    鉄道は、新幹線・地下鉄を見分ける値がないので、全部入れる（20261018-D01 のレポート）。
+    鉄道は全部入れる。新幹線を見分ける値はないので、新幹線の駅（rstatp）どうしを結ぶカーブの少ない道から見分ける（20261019-D02。下の Rail）。
   座標系は緯度経度（ITRF94 / JGD2000）。GPS（WGS84）との差は 1/100万の地図の精度より十分小さいので、直さずに使う。
   ライブラリは使わない（PowerShell と、その中の .NET の標準の機能だけ。重い計算は下の C# で行う）。
 
@@ -602,12 +604,7 @@ $Layers = @(
   @{ Code = 7;  Name = 'ferry';          File = 'ferryl_jpn';   Keep = { param($r) $true };              Kind = { param($r) 0 } }
   @{ Code = 8;  Name = 'dam_line';       File = 'miscl_jpn';    Keep = { param($r) $true };              Kind = { param($r) 0 } }
   @{ Code = 9;  Name = 'inland_water';   File = 'inwatera_jpn'; Keep = { param($r) $true };              Kind = { param($r) 0 } }
-  @{ Code = 10; Name = 'built_up_area';  File = 'builtupa_jpn'; Keep = { param($r) $true };              Kind = { param($r) 0 } }
   @{ Code = 20; Name = 'airport';        File = 'airp_jpn';     Keep = { param($r) $true };              Kind = { param($r) Num $r 'use' } }
-  @{ Code = 21; Name = 'port';           File = 'portp_jpn';    Keep = { param($r) $true };              Kind = { param($r) 0 } }
-  @{ Code = 22; Name = 'station';        File = 'rstatp_jpn';   Keep = { param($r) $true };              Kind = { param($r) 0 } }
-  @{ Code = 23; Name = 'dam_point';      File = 'miscp_jpn';    Keep = { param($r) $true };              Kind = { param($r) 0 } }
-  @{ Code = 24; Name = 'city';           File = 'builtupp_jpn'; Keep = { param($r) $true };              Kind = { param($r) 0 } }
 )
 # 段（使う R1 の下限 [m]・許す差 [m]）
 $Levels = @(

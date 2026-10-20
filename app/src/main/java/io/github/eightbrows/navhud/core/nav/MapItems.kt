@@ -22,6 +22,7 @@ enum class MapRange(val maxR1Km: Double?) {
  * - 道路は種類（高速道路・その他の自動車専用道路・国道・県道）ごとに分ける（どれも ROAD のレイヤ。描くときにレイヤの中の種類で分ける）
  * - 鉄道は新幹線と在来線に分ける（どちらも RAILWAY のレイヤ。種類の印で分ける。山形・秋田新幹線は在来線に入れる）
  * - 河川・湖沼は 1 つの項目（河川の線と、湖沼などの面の輪郭）
+ * - 点は空港だけ（港・駅・ダムと堰の点・都市と、市街地の輪郭は 20261020-D01 でなくした。前の保存にある名前は読めない名前として飛ばす）
  */
 enum class MapItem(val layers: Set<MapLayer>) {
     COASTLINE(setOf(MapLayer.COASTLINE)),
@@ -36,10 +37,5 @@ enum class MapItem(val layers: Set<MapLayer>) {
     WATER(setOf(MapLayer.RIVER, MapLayer.INLAND_WATER)),
     FERRY(setOf(MapLayer.FERRY)),
     DAM_LINE(setOf(MapLayer.DAM_LINE)),
-    BUILT_UP_AREA(setOf(MapLayer.BUILT_UP_AREA)),
     AIRPORT(setOf(MapLayer.AIRPORT)),
-    PORT(setOf(MapLayer.PORT)),
-    STATION(setOf(MapLayer.STATION)),
-    DAM_POINT(setOf(MapLayer.DAM_POINT)),
-    CITY(setOf(MapLayer.CITY)),
 }

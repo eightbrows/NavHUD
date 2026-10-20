@@ -175,7 +175,7 @@
     <string name="no_fix_timeout">NO FIX とみなす時間</string>
     <string name="rate_window">RATE の窓</string>
     <string name="sec_map_layers">地図レイヤ</string>
-    <string name="map_layers_note">国土地理院「地球地図日本」（1/100万相当）の線と記号を、地図のいちばん下に暗く描きます。項目ごとに、どの縮尺まで描くかを選びます（R1 ＝ 自機から 1 つ目の距離環の距離が、その値以下のときに描く）。点の項目は小さな記号だけ（名前は出しません）。</string>
+    <string name="map_layers_note">国土地理院「地球地図日本」（1/100万相当）の線と記号を、地図のいちばん下に暗く描きます。項目ごとに、どの縮尺まで描くかを選びます（R1 ＝ 自機から 1 つ目の距離環の距離が、その値以下のときに描く）。空港は小さな飛行機の記号だけ（名前は出しません）。</string>
     <string name="base_map">背景地図</string>
     <string name="base_map_note">OFF にすると、下の項目をまとめて消す</string>
     <string name="map_line_width">線の太さ</string>
@@ -199,12 +199,7 @@
     <string name="map_item_water">河川・湖沼</string>
     <string name="map_layer_ferry">フェリーの航路</string>
     <string name="map_layer_dam_line">ダム・堰（線）</string>
-    <string name="map_layer_built_up_area">市街地（輪郭）</string>
     <string name="map_layer_airport">空港</string>
-    <string name="map_layer_port">港</string>
-    <string name="map_layer_station">駅</string>
-    <string name="map_layer_dam_point">ダム・堰（点）</string>
-    <string name="map_layer_city">都市</string>
     <string name="sec_other">その他</string>
     <string name="keep_screen_on">画面常時点灯</string>
     <string name="auto_open_last">前回の WP リストを自動で開く</string>

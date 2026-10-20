@@ -41,7 +41,6 @@ import io.github.eightbrows.navhud.core.io.BaseMap
 import io.github.eightbrows.navhud.core.view.HudScene
 import io.github.eightbrows.navhud.core.view.LineDash
 import io.github.eightbrows.navhud.core.view.MapMark
-import io.github.eightbrows.navhud.core.view.MarkShape
 import io.github.eightbrows.navhud.core.view.HudSceneBuilder
 import io.github.eightbrows.navhud.core.view.HudViewport
 import io.github.eightbrows.navhud.core.view.Ink
@@ -156,37 +155,27 @@ private val PLANE_OUTLINE: FloatArray = run {
 }
 
 /**
- * 背景地図の点の小さな記号（§8。名前は描かない）。記号はレイヤの描く順に並んでいるので、同じ見た目（色・明るさ・形・塗り）が
- * 続く記号を 1 つの Path にまとめて 1 回で描く（記号ごとに表を引いたり物を作ったりしない。記号が多いときに遅くなるため）
+ * 背景地図の点（空港）の飛行機の記号（§8。塗る。名前は描かない）。同じ見た目（色・明るさ）が続く記号を 1 つの Path にまとめて
+ * 1 回で描く（記号ごとに物を作らない。記号が多いときに遅くなるため）
  */
 private fun DrawScope.drawMapMarks(marks: List<MapMark>, density: Float) {
     var i0 = 0
     while (i0 < marks.size) {
         val first = marks[i0]
-        val shape = first.shape
         val path = Path()
         var i = i0
         while (i < marks.size) {
             val m = marks[i]
-            if (m.ink != first.ink || m.shape != shape || m.filled != first.filled || m.brightness != first.brightness) break
+            if (m.ink != first.ink || m.brightness != first.brightness) break
             i++
             val r = m.sizeDp * density
             val x = m.at.x
             val y = m.at.y
-            when (shape) {
-                MarkShape.CIRCLE -> path.addOval(androidx.compose.ui.geometry.Rect(x - r, y - r, x + r, y + r))
-                MarkShape.SQUARE -> path.addRect(androidx.compose.ui.geometry.Rect(x - r, y - r, x + r, y + r))
-                MarkShape.DIAMOND -> { path.moveTo(x, y - r * 1.3f); path.lineTo(x + r * 1.3f, y); path.lineTo(x, y + r * 1.3f); path.lineTo(x - r * 1.3f, y); path.close() }
-                MarkShape.TRIANGLE -> { path.moveTo(x, y - r * 1.3f); path.lineTo(x + r * 1.2f, y + r); path.lineTo(x - r * 1.2f, y + r); path.close() }
-                MarkShape.PLANE -> {
-                    path.moveTo(x + PLANE_OUTLINE[0] * r, y + PLANE_OUTLINE[1] * r)
-                    for (k in 2 until PLANE_OUTLINE.size step 2) path.lineTo(x + PLANE_OUTLINE[k] * r, y + PLANE_OUTLINE[k + 1] * r)
-                    path.close()
-                }
-            }
+            path.moveTo(x + PLANE_OUTLINE[0] * r, y + PLANE_OUTLINE[1] * r)
+            for (k in 2 until PLANE_OUTLINE.size step 2) path.lineTo(x + PLANE_OUTLINE[k] * r, y + PLANE_OUTLINE[k + 1] * r)
+            path.close()
         }
-        val style = if (first.filled) androidx.compose.ui.graphics.drawscope.Fill else Stroke(Tuning.BASEMAP_AREA_LINE_DP * density)
-        drawPath(path, HudColors.ofMap(first.ink, first.brightness), style = style)
+        drawPath(path, HudColors.ofMap(first.ink, first.brightness))
         i0 = i
     }
 }

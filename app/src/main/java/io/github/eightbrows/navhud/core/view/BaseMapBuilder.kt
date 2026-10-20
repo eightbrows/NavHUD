@@ -27,8 +27,8 @@ data class LatLonBox(val minLat: Double, val minLon: Double, val maxLat: Double,
 /** 背景地図の、画面に描くもの（線はレイヤの描く順に並んでいる）。 */
 data class BaseMapScene(val lines: List<Polyline>, val marks: List<MapMark>)
 
-/** 背景地図のレイヤの描き方（色の種類・太さ・線の種類）。点のレイヤは記号の形と塗り。 */
-data class MapLayerStyle(val ink: Ink, val widthDp: Float = 0f, val dash: LineDash = LineDash.SOLID, val shape: MarkShape = MarkShape.CIRCLE, val filled: Boolean = false)
+/** 背景地図のレイヤの描き方（色の種類・太さ・線の種類）。点のレイヤ（空港）は色だけ（記号は飛行機） */
+data class MapLayerStyle(val ink: Ink, val widthDp: Float = 0f, val dash: LineDash = LineDash.SOLID)
 
 /**
  * 背景地図（§8）: 画面に入る線・点だけを選び、地図（緯度・経度）から画面の位置に直す。Android に依存しない。
@@ -38,12 +38,12 @@ data class MapLayerStyle(val ink: Ink, val widthDp: Float = 0f, val dash: LineDa
  */
 object BaseMapBuilder {
 
-    /** 描く順番（下から上）。面の輪郭 → 水（河川・海岸線）→ 境 → 交通 → ダム。点は線の上 */
+    /** 描く順番（下から上）。湖沼などの輪郭 → 水（河川・海岸線）→ 境 → 交通 → ダム。点（空港）は線の上 */
     val DRAW_ORDER: List<MapLayer> = listOf(
-        MapLayer.BUILT_UP_AREA, MapLayer.INLAND_WATER, MapLayer.RIVER, MapLayer.COASTLINE,
+        MapLayer.INLAND_WATER, MapLayer.RIVER, MapLayer.COASTLINE,
         MapLayer.MUNI_BOUNDARY, MapLayer.PREF_BOUNDARY,
         MapLayer.ROAD, MapLayer.RAILWAY, MapLayer.FERRY, MapLayer.DAM_LINE,
-        MapLayer.CITY, MapLayer.STATION, MapLayer.PORT, MapLayer.AIRPORT, MapLayer.DAM_POINT,
+        MapLayer.AIRPORT,
     )
 
     /** レイヤの描き方。どれも HUD を邪魔しない暗い色（実際の色は ui/HudColors） */
@@ -53,16 +53,11 @@ object BaseMapBuilder {
         MapLayer.MUNI_BOUNDARY -> MapLayerStyle(Ink.MUNI_BOUNDARY, Tuning.BASEMAP_MUNI_LINE_DP, LineDash.FINE_DOT)
         MapLayer.RIVER -> MapLayerStyle(Ink.MAP_WATER, Tuning.BASEMAP_RIVER_LINE_DP)
         MapLayer.INLAND_WATER -> MapLayerStyle(Ink.MAP_WATER, Tuning.BASEMAP_AREA_LINE_DP)
-        MapLayer.BUILT_UP_AREA -> MapLayerStyle(Ink.MAP_BUILT_UP, Tuning.BASEMAP_AREA_LINE_DP)
         MapLayer.ROAD -> MapLayerStyle(Ink.MAP_ROAD, Tuning.BASEMAP_ROAD_LINE_DP)
         MapLayer.RAILWAY -> MapLayerStyle(Ink.MAP_RAIL, Tuning.BASEMAP_RAIL_LINE_DP, LineDash.DASH)
         MapLayer.FERRY -> MapLayerStyle(Ink.MAP_FERRY, Tuning.BASEMAP_FERRY_LINE_DP, LineDash.LONG_DASH)
         MapLayer.DAM_LINE -> MapLayerStyle(Ink.MAP_DAM, Tuning.BASEMAP_DAM_LINE_DP)
-        MapLayer.CITY -> MapLayerStyle(Ink.MAP_CITY, shape = MarkShape.CIRCLE)
-        MapLayer.STATION -> MapLayerStyle(Ink.MAP_STATION, shape = MarkShape.SQUARE, filled = true)
-        MapLayer.PORT -> MapLayerStyle(Ink.MAP_PORT, shape = MarkShape.CIRCLE, filled = true)
-        MapLayer.AIRPORT -> MapLayerStyle(Ink.MAP_AIRPORT, shape = MarkShape.PLANE, filled = true)
-        MapLayer.DAM_POINT -> MapLayerStyle(Ink.MAP_DAM, shape = MarkShape.DIAMOND, filled = true)
+        MapLayer.AIRPORT -> MapLayerStyle(Ink.MAP_AIRPORT)
     }
 
     /**
@@ -101,7 +96,7 @@ object BaseMapBuilder {
             if (layer.isPoint) {
                 for (p in map.points) {
                     if (p.layer != layer || !box.contains(p.lat, p.lon)) continue
-                    marks += MapMark(project(p.lat, p.lon, refLat, refLon, proj), style.ink, style.shape, Tuning.BASEMAP_MARK_DP, style.filled, k)
+                    marks += MapMark(project(p.lat, p.lon, refLat, refLon, proj), style.ink, Tuning.BASEMAP_MARK_DP, k)
                 }
             } else if (layer == MapLayer.ROAD) {
                 // 道路: 項目（高速道路・その他の自動車専用道路・国道・県道）ごとに、その縮尺で描く種類だけ。種類ごとに色と太さを変える。
@@ -116,7 +111,8 @@ object BaseMapBuilder {
                 }
                 for (item in ROAD_DRAW_ORDER) lines += byItem.getValue(item)
             } else if (layer == MapLayer.RAILWAY) {
-                // 鉄道: 項目（新幹線・在来線）ごとに、その縮尺で描く種類だけ。在来線 → 新幹線の順に並べる（新幹線が上）
+                // 鉄道: 項目（新幹線・在来線）ごとに、その縮尺で描く種類だけ。在来線 → 新幹線の順に並べる（新幹線が上）。
+                // 新幹線は実線、在来線は破線（20261020-D01）
                 val conventional = ArrayList<Polyline>()
                 val shinkansen = ArrayList<Polyline>()
                 for (line in level?.candidates(layer, box.minLat, box.minLon, box.maxLat, box.maxLon).orEmpty()) {
@@ -125,7 +121,7 @@ object BaseMapBuilder {
                     if (!box.intersects(line)) continue
                     val pts = projectThin(line, refLat, refLon, proj, minStepPx)
                     if (pts.size < 2) continue
-                    if (item == MapItem.SHINKANSEN) shinkansen += Polyline(pts, Ink.MAP_SHINKANSEN, Tuning.BASEMAP_SHINKANSEN_LINE_DP * wk, style.dash, k)
+                    if (item == MapItem.SHINKANSEN) shinkansen += Polyline(pts, Ink.MAP_SHINKANSEN, Tuning.BASEMAP_SHINKANSEN_LINE_DP * wk, LineDash.SOLID, k)
                     else conventional += Polyline(pts, style.ink, style.widthDp * wk, style.dash, k)
                 }
                 lines += conventional

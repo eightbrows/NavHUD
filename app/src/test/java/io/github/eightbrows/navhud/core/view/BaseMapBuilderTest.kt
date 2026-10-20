@@ -95,25 +95,25 @@ class BaseMapBuilderTest {
 
     @Test
     fun eachLayerHasItsOwnLookAndDrawOrder() {
-        // 地図の中の順番によらず、描く順（DRAW_ORDER）に並ぶ: 面の輪郭 → 水 → 境 → 交通 → ダム
+        // 地図の中の順番によらず、描く順（DRAW_ORDER）に並ぶ: 湖沼などの輪郭 → 水 → 境 → 交通 → ダム
         val layers = listOf(MapLayer.FERRY, MapLayer.ROAD, MapLayer.RAILWAY, MapLayer.PREF_BOUNDARY, MapLayer.MUNI_BOUNDARY,
-            MapLayer.COASTLINE, MapLayer.RIVER, MapLayer.INLAND_WATER, MapLayer.BUILT_UP_AREA, MapLayer.DAM_LINE)
+            MapLayer.COASTLINE, MapLayer.RIVER, MapLayer.INLAND_WATER, MapLayer.DAM_LINE)
         val out = build(BaseMap(layers.map { line(it, 0.0 to 0.0, 100.0 to 100.0) })).lines
         assertEquals(
-            listOf(Ink.MAP_BUILT_UP, Ink.MAP_WATER, Ink.MAP_WATER, Ink.COASTLINE, Ink.MUNI_BOUNDARY, Ink.PREF_BOUNDARY, Ink.MAP_NATIONAL_ROAD, Ink.MAP_RAIL, Ink.MAP_FERRY, Ink.MAP_DAM),
+            listOf(Ink.MAP_WATER, Ink.MAP_WATER, Ink.COASTLINE, Ink.MUNI_BOUNDARY, Ink.PREF_BOUNDARY, Ink.MAP_NATIONAL_ROAD, Ink.MAP_RAIL, Ink.MAP_FERRY, Ink.MAP_DAM),
             out.map { it.ink },
         )
-        // 線の種類: 県境は点線、市区町村境は細かい点線、鉄道は破線、フェリーは長い破線、ほかは実線
+        // 線の種類: 県境は点線、市区町村境は細かい点線、鉄道（在来線）は破線、フェリーは長い破線、ほかは実線
         assertEquals(
-            listOf(LineDash.SOLID, LineDash.SOLID, LineDash.SOLID, LineDash.SOLID, LineDash.FINE_DOT, LineDash.DOT, LineDash.SOLID, LineDash.DASH, LineDash.LONG_DASH, LineDash.SOLID),
+            listOf(LineDash.SOLID, LineDash.SOLID, LineDash.SOLID, LineDash.FINE_DOT, LineDash.DOT, LineDash.SOLID, LineDash.DASH, LineDash.LONG_DASH, LineDash.SOLID),
             out.map { it.dash },
         )
         // 線のレイヤどうしは、色か線の種類のどちらかで見分けられる（河川と湖沼の輪郭だけが同じ。どちらも水）
         val looks = layers.map { BaseMapBuilder.styleOf(it).let { s -> s.ink to s.dash } }
         assertEquals(layers.size - 1, looks.distinct().size)
-        // 点のレイヤも、色か記号の形で見分けられる
-        val marks = MapLayer.entries.filter { it.isPoint }.map { BaseMapBuilder.styleOf(it).let { s -> Triple(s.ink, s.shape, s.filled) } }
-        assertEquals(marks.size, marks.distinct().size)
+        // 点のレイヤは空港だけ（20261020-D01）
+        assertEquals(listOf(MapLayer.AIRPORT), MapLayer.entries.filter { it.isPoint })
+        assertEquals(listOf(MapLayer.AIRPORT), BaseMapBuilder.DRAW_ORDER.filter { it.isPoint })
     }
 
     @Test
@@ -130,12 +130,13 @@ class BaseMapBuilderTest {
         assertEquals(MapItem.SHINKANSEN, BaseMapBuilder.railItem(2 or RailKind.SHINKANSEN))
         assertEquals(MapItem.RAILWAY, BaseMapBuilder.railItem(3 or RailKind.MINI_SHINKANSEN))
         assertEquals(MapItem.RAILWAY, BaseMapBuilder.railItem(0))
-        // 両方: 在来線（山形・秋田を含む）→ 新幹線の順（新幹線が上）。新幹線は明るい紫で少し太い。どちらも破線
+        // 両方: 在来線（山形・秋田を含む）→ 新幹線の順（新幹線が上）。新幹線は明るい紫で少し太い
         val both = build(map, items(MapItem.SHINKANSEN, MapItem.RAILWAY)).lines
         assertEquals(listOf(Ink.MAP_RAIL, Ink.MAP_RAIL, Ink.MAP_SHINKANSEN, Ink.MAP_SHINKANSEN), both.map { it.ink })
         assertEquals(listOf(Tuning.BASEMAP_RAIL_LINE_DP, Tuning.BASEMAP_RAIL_LINE_DP, Tuning.BASEMAP_SHINKANSEN_LINE_DP, Tuning.BASEMAP_SHINKANSEN_LINE_DP), both.map { it.widthDp })
         assertTrue(Tuning.BASEMAP_SHINKANSEN_LINE_DP > Tuning.BASEMAP_RAIL_LINE_DP)
-        assertTrue(both.all { it.dash == LineDash.DASH })
+        // 線の種類: 新幹線は実線、在来線は破線（20261020-D01）
+        assertEquals(listOf(LineDash.DASH, LineDash.DASH, LineDash.SOLID, LineDash.SOLID), both.map { it.dash })
         // 片方だけ
         assertEquals(listOf(Ink.MAP_SHINKANSEN, Ink.MAP_SHINKANSEN), build(map, items(MapItem.SHINKANSEN)).lines.map { it.ink })
         assertEquals(listOf(Ink.MAP_RAIL, Ink.MAP_RAIL), build(map, items(MapItem.RAILWAY)).lines.map { it.ink })
@@ -150,21 +151,20 @@ class BaseMapBuilderTest {
     fun onlySelectedLayersAreDrawn() {
         val map = BaseMap(
             listOf(MapLevel(0.0, listOf(line(MapLayer.COASTLINE, 0.0 to 0.0, 100.0 to 100.0), line(MapLayer.ROAD, 0.0 to 0.0, -100.0 to 100.0)))),
-            listOf(point(MapLayer.STATION, 200.0, 200.0), point(MapLayer.CITY, -200.0, 200.0), point(MapLayer.AIRPORT, 50_000.0, 0.0)),
+            listOf(point(MapLayer.AIRPORT, 200.0, 200.0), point(MapLayer.AIRPORT, 50_000.0, 0.0)),
         )
         // 初期値（海岸線・県境・市区町村境・フェリー・河川・湖沼が「すべて」）: 道路と点は描かない
         val d = build(map, NavSettings.DEFAULT_MAP_ITEMS)
         assertEquals(listOf(Ink.COASTLINE), d.lines.map { it.ink })
         assertTrue(d.marks.isEmpty())
-        // 国道（種類の分からない道路も国道）と駅だけ
-        val r = build(map, items(MapItem.NATIONAL_ROAD, MapItem.STATION))
+        // 国道（種類の分からない道路も国道）だけ
+        val r = build(map, items(MapItem.NATIONAL_ROAD))
         assertEquals(listOf(Ink.MAP_NATIONAL_ROAD), r.lines.map { it.ink })
-        assertEquals(listOf(Ink.MAP_STATION), r.marks.map { it.ink })
-        assertEquals(MarkShape.SQUARE, r.marks.single().shape)
+        assertTrue(r.marks.isEmpty())
         // 全部: 画面の外の点（東 50 km の空港）は描かない
         val a = build(map, all)
-        assertEquals(setOf(Ink.MAP_STATION, Ink.MAP_CITY), a.marks.map { it.ink }.toSet())
-        assertEquals(380f, a.marks.first { it.ink == Ink.MAP_STATION }.at.x, 0.05f)   // 東 200 m = 右 20 px
+        assertEquals(listOf(Ink.MAP_AIRPORT), a.marks.map { it.ink })
+        assertEquals(380f, a.marks.single().at.x, 0.05f)   // 東 200 m = 右 20 px
         // 何も選ばなければ何も描かない
         assertTrue(build(map, emptyMap()).let { it.lines.isEmpty() && it.marks.isEmpty() })
         assertTrue(build(map, MapItem.entries.associateWith { MapRange.OFF }).let { it.lines.isEmpty() && it.marks.isEmpty() })
@@ -288,7 +288,7 @@ class BaseMapBuilderTest {
     fun lineWidthAndBrightnessApplyToTheWholeMapAndAirportIsAPlane() {
         val map = BaseMap(
             listOf(MapLevel(0.0, listOf(line(MapLayer.COASTLINE, 0.0 to 0.0, 100.0 to 100.0), line(MapLayer.RIVER, 0.0 to 0.0, -100.0 to 100.0)))),
-            listOf(point(MapLayer.AIRPORT, 200.0, 200.0), point(MapLayer.STATION, -200.0, 200.0)),
+            listOf(point(MapLayer.AIRPORT, 200.0, 200.0)),
         )
         // 初期値（太さ 4・明るさ 4）: 掛ける数は 1（今の太さ・色）
         val d = build(map)
@@ -312,11 +312,10 @@ class BaseMapBuilderTest {
             assertEquals(f.last(), BaseMapBuilder.factor(f, 9))
             assertEquals(f.first(), BaseMapBuilder.factor(f, 0))
         }
-        // 空港は飛行機の記号（塗り）。大きさはほかの記号と同じ
-        val plane = d.marks.first { it.ink == Ink.MAP_AIRPORT }
-        assertEquals(MarkShape.PLANE, plane.shape)
-        assertTrue(plane.filled)
-        assertEquals(d.marks.first { it.ink == Ink.MAP_STATION }.sizeDp, plane.sizeDp)
+        // 空港は飛行機の記号（塗り。形は Canvas が描く）。大きさは Tuning.BASEMAP_MARK_DP
+        val plane = d.marks.single()
+        assertEquals(Ink.MAP_AIRPORT, plane.ink)
+        assertEquals(Tuning.BASEMAP_MARK_DP, plane.sizeDp)
     }
 
     @Test
@@ -379,7 +378,7 @@ class BaseMapBuilderTest {
             line(MapLayer.PREF_BOUNDARY, 0.0 to -300.0, 0.0 to 300.0),
             line(MapLayer.ROAD, -300.0 to -300.0, 300.0 to 300.0),
         ))),
-        listOf(point(MapLayer.STATION, 100.0, 100.0)),
+        listOf(point(MapLayer.AIRPORT, 100.0, 100.0)),
     )
 
     @Test
@@ -388,8 +387,8 @@ class BaseMapBuilderTest {
         val on = HudSceneBuilder.build(state(), rect, baseMap = map)
         assertEquals(listOf(Ink.COASTLINE, Ink.PREF_BOUNDARY), on.baseMap.map { it.ink })
         assertTrue(on.baseMapMarks.isEmpty())
-        // 項目を足すと描く（国道と駅）
-        val more = HudSceneBuilder.build(state(NavSettings().withMapRange(MapItem.NATIONAL_ROAD, MapRange.ALL).withMapRange(MapItem.STATION, MapRange.UPTO_10KM)), rect, baseMap = map)
+        // 項目を足すと描く（国道と空港）
+        val more = HudSceneBuilder.build(state(NavSettings().withMapRange(MapItem.NATIONAL_ROAD, MapRange.ALL).withMapRange(MapItem.AIRPORT, MapRange.UPTO_10KM)), rect, baseMap = map)
         assertEquals(listOf(Ink.COASTLINE, Ink.PREF_BOUNDARY, Ink.MAP_NATIONAL_ROAD), more.baseMap.map { it.ink })
         assertEquals(1, more.baseMapMarks.size)
         // 背景地図を OFF にすると、選んだ項目によらず全部描かない。背景地図がまだ読めていない（null）ときも描かない

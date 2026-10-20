@@ -468,11 +468,10 @@ private const val REPO_URL = "https://github.com/eightbrows/NavHUD"
 /** 公式サイト（GpsLogger の「情報」の欄と同じ） */
 private const val WEBSITE_URL = "https://eightbrows.github.io/"
 
-/** 設定画面の地図レイヤの項目の並び: 線（海岸線・境・道路・鉄道・水・フェリー・ダム）→ 面の輪郭 → 点 */
+/** 設定画面の地図レイヤの項目の並び: 線（海岸線・境・道路・鉄道・水・フェリー・ダム）→ 点（空港） */
 private val MAP_ITEM_ORDER = listOf(
     MapItem.COASTLINE, MapItem.PREF_BOUNDARY, MapItem.MUNI_BOUNDARY, MapItem.MOTORWAY, MapItem.OTHER_MOTORWAY, MapItem.NATIONAL_ROAD, MapItem.PREF_ROAD,
-    MapItem.SHINKANSEN, MapItem.RAILWAY, MapItem.WATER, MapItem.FERRY, MapItem.DAM_LINE, MapItem.BUILT_UP_AREA,
-    MapItem.AIRPORT, MapItem.PORT, MapItem.STATION, MapItem.DAM_POINT, MapItem.CITY,
+    MapItem.SHINKANSEN, MapItem.RAILWAY, MapItem.WATER, MapItem.FERRY, MapItem.DAM_LINE, MapItem.AIRPORT,
 )
 
 private fun mapItemLabel(item: MapItem): Int = when (item) {
@@ -488,12 +487,7 @@ private fun mapItemLabel(item: MapItem): Int = when (item) {
     MapItem.WATER -> R.string.map_item_water
     MapItem.FERRY -> R.string.map_layer_ferry
     MapItem.DAM_LINE -> R.string.map_layer_dam_line
-    MapItem.BUILT_UP_AREA -> R.string.map_layer_built_up_area
     MapItem.AIRPORT -> R.string.map_layer_airport
-    MapItem.PORT -> R.string.map_layer_port
-    MapItem.STATION -> R.string.map_layer_station
-    MapItem.DAM_POINT -> R.string.map_layer_dam_point
-    MapItem.CITY -> R.string.map_layer_city
 }
 
 /** 背景地図の出典（国土地理院「地球地図日本」のページ） */

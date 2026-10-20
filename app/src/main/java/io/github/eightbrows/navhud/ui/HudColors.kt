@@ -76,10 +76,6 @@ object HudColors {
     val MapShinkansen = Color(0xFF9B7BC8)
     val MapFerry = Color(0xFF22504F)
     val MapDam = Color(0xFF2F5470)
-    val MapBuiltUp = Color(0xFF3D3A28)
-    val MapCity = Color(0xFF5A5A5A)
-    val MapStation = Color(0xFF5A5478)
-    val MapPort = Color(0xFF2A6060)
     val MapAirport = Color(0xFF6A5A3A)
 
     /** 読み込んだ軌跡の色（設定 trackColor）。Compose の状態 */
@@ -182,10 +178,6 @@ object HudColors {
         Ink.MAP_SHINKANSEN -> MapShinkansen
         Ink.MAP_FERRY -> MapFerry
         Ink.MAP_DAM -> MapDam
-        Ink.MAP_BUILT_UP -> MapBuiltUp
-        Ink.MAP_CITY -> MapCity
-        Ink.MAP_STATION -> MapStation
-        Ink.MAP_PORT -> MapPort
         Ink.MAP_AIRPORT -> MapAirport
     }
 }

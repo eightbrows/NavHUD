@@ -31,8 +31,8 @@ class BaseMapFileTest {
                 MapLevel(25_000.0, listOf(line(MapLayer.COASTLINE, 1, 33.4765, 133.0028, 33.4838, 132.8722))),
             ),
             listOf(
-                MapPoint(MapLayer.STATION, 0, 33.8392, 132.7511, "MATSUYAMA"),
-                MapPoint(MapLayer.CITY, 0, 33.5597, 133.5311, ""),
+                MapPoint(MapLayer.AIRPORT, 4, 33.8272, 132.6997, "MATSUYAMA"),
+                MapPoint(MapLayer.AIRPORT, 0, 33.5461, 133.6694, ""),
             ),
         )
         val back = BaseMapFile.decode(BaseMapFile.encode(map))
@@ -57,9 +57,10 @@ class BaseMapFileTest {
         assertEquals(133.0028, c.maxLon, 1e-9)
         // 点は名前ごと戻る
         assertEquals(listOf("MATSUYAMA", ""), back.points.map { it.name })
-        assertEquals(listOf(MapLayer.STATION, MapLayer.CITY), back.points.map { it.layer })
-        assertEquals(33.8392, back.points[0].lat, 0.5e-4)
-        assertEquals(1, back.countOf(MapLayer.STATION))
+        assertEquals(listOf(MapLayer.AIRPORT, MapLayer.AIRPORT), back.points.map { it.layer })
+        assertEquals(listOf(4, 0), back.points.map { it.kind })
+        assertEquals(33.8272, back.points[0].lat, 0.5e-4)
+        assertEquals(2, back.countOf(MapLayer.AIRPORT))
         assertEquals(2, back.countOf(MapLayer.COASTLINE) + back.countOf(MapLayer.ROAD))
     }
 
@@ -114,8 +115,8 @@ class BaseMapFileTest {
         h.u8(2); h.i32(2); h.i32(pref.o.size()); h.o.write(pref.o.toByteArray())
         h.i32(25_000); h.u8(0)                                      // 段 1: かたまりなし
         h.i32(2)                                                    // 点 2 つ
-        h.u8(22); h.u8(0); h.sv(338_392); h.sv(1_327_511); h.uv(1); h.u8('M'.code)
-        h.u8(24); h.u8(0); h.sv(-10); h.sv(10); h.uv(0)            // 前の点からの差
+        h.u8(20); h.u8(4); h.sv(338_392); h.sv(1_327_511); h.uv(1); h.u8('M'.code)   // 空港（use 4）
+        h.u8(20); h.u8(0); h.sv(-10); h.sv(10); h.uv(0)            // 前の点からの差
         val map = BaseMapFile.decode(h.o.toByteArray())
         assertEquals(listOf(0.0, 25_000.0), map.levels.map { it.minR1M })
         // かたまりは読む前でも、線の数は分かる
@@ -132,6 +133,7 @@ class BaseMapFileTest {
         assertEquals(33.42, p2.minLat, 1e-9)
         assertEquals(132.7, p2.minLon, 1e-9)
         assertEquals(listOf("M", ""), map.points.map { it.name })
+        assertEquals(listOf(4, 0), map.points.map { it.kind })
         assertEquals(33.8382, map.points[1].lat, 1e-9)
         assertEquals(132.7521, map.points[1].lon, 1e-9)
     }
@@ -154,7 +156,9 @@ class BaseMapFileTest {
         assertEquals(listOf(MapLayer.AIRPORT), map.points.map { it.layer })
         assertEquals(4, map.points.single().kind)
         assertNull(MapLayer.of(99))
-        assertEquals(MapLayer.CITY, MapLayer.of(24))
+        assertEquals(MapLayer.AIRPORT, MapLayer.of(20))
+        // 20261020-D01 で入れなくなった市街地（10）・港・駅・ダムと堰の点・都市（21〜24）も、知らない番号として飛ばす
+        for (code in listOf(10, 21, 22, 23, 24)) assertNull(MapLayer.of(code))
     }
 
     @Test
@@ -203,11 +207,13 @@ class BaseMapFileTest {
         val expectLines = mapOf(
             MapLayer.COASTLINE to 1779, MapLayer.PREF_BOUNDARY to 278, MapLayer.RIVER to 764, MapLayer.ROAD to 31428,
             MapLayer.RAILWAY to 3142, MapLayer.MUNI_BOUNDARY to 4220, MapLayer.FERRY to 540, MapLayer.DAM_LINE to 29,
-            MapLayer.INLAND_WATER to 899, MapLayer.BUILT_UP_AREA to 249,
+            MapLayer.INLAND_WATER to 899,
         )
         for ((layer, n) in expectLines) assertEquals(layer.name, n, map.countOf(layer))
-        val expectPoints = mapOf(MapLayer.AIRPORT to 92, MapLayer.PORT to 128, MapLayer.STATION to 108, MapLayer.DAM_POINT to 271, MapLayer.CITY to 1640)
-        for ((layer, n) in expectPoints) assertEquals(layer.name, n, map.countOf(layer))
+        // 点は空港だけ（港・駅・ダムと堰の点・都市と、市街地の輪郭は 20261020-D01 で入れなくなった）
+        assertEquals(92, map.countOf(MapLayer.AIRPORT))
+        assertTrue(map.points.all { it.layer == MapLayer.AIRPORT })
+        assertEquals(MapLayer.entries.toSet(), map.levels[0].byLayer.keys + MapLayer.AIRPORT)
         // 点の数は、間引いた段ほど少ない（どのレイヤでも）
         fun points(level: MapLevel, layer: MapLayer) = level.byLayer[layer].orEmpty().sumOf { it.size }
         for (layer in expectLines.keys) {
@@ -220,8 +226,8 @@ class BaseMapFileTest {
             assertTrue(l.minLat >= 20.0 && l.maxLat <= 46.0 && l.minLon >= 122.0 && l.maxLon <= 154.0)
         }
         assertTrue(map.points.all { it.lat in 20.0..46.0 && it.lon in 122.0..154.0 })
-        // 名前はローマ字（例: 駅に HAMAMATSU）
-        assertTrue(map.points.any { it.layer == MapLayer.STATION && it.name == "HAMAMATSU" })
+        // 名前はローマ字（例: 空港に WAKKANAI）
+        assertTrue(map.points.any { it.layer == MapLayer.AIRPORT && it.name == "WAKKANAI" })
         // サンプルの記録のあたり（高知県・愛媛県）に、海岸線・県境・道路がある
         fun near(lat: Double, lon: Double, layer: MapLayer, km: Double) = map.lines.any { l ->
             l.layer == layer && (0 until l.size).any { i -> Geo.distanceM(lat, lon, l.lat(i), l.lon(i)) < km * 1000 }
