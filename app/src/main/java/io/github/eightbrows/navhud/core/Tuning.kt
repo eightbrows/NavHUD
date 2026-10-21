@@ -202,11 +202,17 @@ object Tuning {
     const val BASEMAP_LONG_DASH_ON_DP = 8f
     const val BASEMAP_LONG_DASH_OFF_DP = 5f
 
-    /** 背景地図の点の記号の大きさ（半分）[dp] */
-    const val BASEMAP_MARK_DP = 2.5f
+    /**
+     * 背景地図の空港の記号の大きさ（翼の端から端まで。機首から尾までもほぼ同じ）[dp]。画面上の大きさは縮尺・線の太さの段によらず同じ
+     * （20261021-D01。前は 7.5dp。仮）
+     */
+    const val BASEMAP_AIRPORT_MARK_DP = 16f
+
+    /** 空港の記号の黒のふちの幅（記号の外側）[dp]。背景の線の上でも形が分かるように（20261021-D01。仮） */
+    const val BASEMAP_AIRPORT_OUTLINE_DP = 1.5f
 
     /**
-     * 背景地図の線の明るさ（設定。地図全体で 1〜6。1 がいちばん暗い）ごとに、線と記号の色の RGB に掛ける数（1 を超えた分は 255 で止まる）。
+     * 背景地図の線の明るさ（設定。地図全体で 1〜6。1 がいちばん暗い）ごとに、線の色の RGB に掛ける数（1 を超えた分は 255 で止まる）。
      * 段 4 = 1.0 が今の色（初期値）。項目どうしの比率は変わらない（仮の値）
      */
     val BASEMAP_BRIGHTNESS_FACTORS = listOf(0.4f, 0.6f, 0.8f, 1f, 1.3f, 1.6f)

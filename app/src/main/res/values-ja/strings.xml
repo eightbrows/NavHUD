@@ -77,7 +77,8 @@
     <string name="settings_title">設定</string>
     <string name="settings_note">変更はすぐ画面に反映され、保存されます。</string>
     <string name="settings_toc">目次</string>
-    <string name="settings_default_mark">水色の点・枠 ＝ 初期値</string>
+    <string name="settings_mark_default">塗り ＝ 初期値</string>
+    <string name="settings_mark_selected">水色の枠 ＝ 選んでいる値</string>
     <string name="back_to_toc">▲ 目次</string>
     <string name="default_value">（初期値：%1$s）</string>
     <string name="sec_display">表示</string>
@@ -174,13 +175,13 @@
     <string name="no_fix_timeout">NO FIX とみなす時間</string>
     <string name="rate_window">RATE の窓</string>
     <string name="sec_map_layers">地図レイヤ</string>
-    <string name="map_layers_note">国土地理院「地球地図日本」（1/100万相当）の線と記号を、地図のいちばん下に暗く描きます。項目ごとに、どの縮尺まで描くかを選びます（R1 ＝ 自機から 1 つ目の距離環の距離が、その値以下のときに描く）。空港は小さな飛行機の記号だけ（名前は出しません）。</string>
+    <string name="map_layers_note">国土地理院「地球地図日本」（1/100万相当）の線と記号を、地図のいちばん下に描きます（線は暗く）。項目ごとに、どの縮尺まで描くかを選びます（R1 ＝ 自機から 1 つ目の距離環の距離が、その値以下のときに描く）。空港は明るい飛行機の記号だけ（名前は出しません）。</string>
     <string name="base_map">背景地図</string>
     <string name="base_map_note">OFF にすると、下の項目をまとめて消す</string>
     <string name="map_line_width">線の太さ</string>
     <string name="map_line_width_note">全部の線の太さ（1 がいちばん細い。項目どうしの太さの比は変わらない）</string>
     <string name="map_line_brightness">線の明るさ</string>
-    <string name="map_line_brightness_note">全部の線と記号の明るさ（1 がいちばん暗い）</string>
+    <string name="map_line_brightness_note">全部の線の明るさ（1 がいちばん暗い。空港の記号は変わらない）</string>
     <string name="map_range_off">OFF</string>
     <string name="map_range_10">〜10k</string>
     <string name="map_range_25">〜25k</string>

@@ -75,10 +75,10 @@ enum class Ink {
 enum class LineDash { SOLID, DOT, FINE_DOT, DASH, LONG_DASH }
 
 /**
- * 背景地図の点（空港。上から見た飛行機の塗った記号。機首が上で、向きは変えない。名前は描かない）。sizeDp は記号の半分の大きさ [dp]、
- * brightness は色の RGB に掛ける数（設定の明るさ。Tuning.BASEMAP_BRIGHTNESS_FACTORS）
+ * 背景地図の点（空港。上から見た飛行機の塗った記号に黒のふち。機首が上で、向きは変えない。名前は描かない）。sizeDp は記号の幅（翼の端から端まで）[dp]。
+ * 色は線の明るさの段によらず、いつも同じ（20261021-D01）
  */
-data class MapMark(val at: P, val ink: Ink, val sizeDp: Float, val brightness: Float = 1f)
+data class MapMark(val at: P, val ink: Ink, val sizeDp: Float)
 
 /** 線。dashed は無効 WP の破線、longDash は次の WP への方位線の長い破線（Tuning.ACTIVE_DASH_*）。 */
 data class Segment(val a: P, val b: P, val ink: Ink, val dashed: Boolean = false, val bold: Boolean = false, val longDash: Boolean = false)

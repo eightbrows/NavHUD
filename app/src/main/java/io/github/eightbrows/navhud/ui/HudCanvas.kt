@@ -154,11 +154,16 @@ private val PLANE_OUTLINE: FloatArray = run {
     PLANE_RIGHT_HALF + left.toFloatArray()
 }
 
+/** 飛行機の記号の幅（翼の端から端まで）。PLANE_RIGHT_HALF の単位で 3（-1.5〜1.5） */
+private const val PLANE_SPAN = 3f
+
 /**
- * 背景地図の点（空港）の飛行機の記号（§8。塗る。名前は描かない）。同じ見た目（色・明るさ）が続く記号を 1 つの Path にまとめて
- * 1 回で描く（記号ごとに物を作らない。記号が多いときに遅くなるため）
+ * 背景地図の点（空港）の飛行機の記号（§8。塗る。名前は描かない）。背景の線の上でも形が分かるよう、先に黒のふち（太い線）を描いてから塗る
+ * （20261021-D01）。色は線の明るさの段によらない。同じ色が続く記号を 1 つの Path にまとめて 1 回で描く
+ * （記号ごとに物を作らない。記号が多いときに遅くなるため）
  */
 private fun DrawScope.drawMapMarks(marks: List<MapMark>, density: Float) {
+    val outline = Stroke(Tuning.BASEMAP_AIRPORT_OUTLINE_DP * 2 * density, join = StrokeJoin.Round)
     var i0 = 0
     while (i0 < marks.size) {
         val first = marks[i0]
@@ -166,16 +171,17 @@ private fun DrawScope.drawMapMarks(marks: List<MapMark>, density: Float) {
         var i = i0
         while (i < marks.size) {
             val m = marks[i]
-            if (m.ink != first.ink || m.brightness != first.brightness) break
+            if (m.ink != first.ink) break
             i++
-            val r = m.sizeDp * density
+            val r = m.sizeDp / PLANE_SPAN * density
             val x = m.at.x
             val y = m.at.y
             path.moveTo(x + PLANE_OUTLINE[0] * r, y + PLANE_OUTLINE[1] * r)
             for (k in 2 until PLANE_OUTLINE.size step 2) path.lineTo(x + PLANE_OUTLINE[k] * r, y + PLANE_OUTLINE[k + 1] * r)
             path.close()
         }
-        drawPath(path, HudColors.ofMap(first.ink, first.brightness))
+        drawPath(path, HudColors.Background, style = outline)
+        drawPath(path, HudColors.ofMap(first.ink))
         i0 = i
     }
 }

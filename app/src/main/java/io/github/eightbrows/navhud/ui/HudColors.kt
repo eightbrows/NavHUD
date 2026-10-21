@@ -55,9 +55,10 @@ object HudColors {
     /** 30° ごとの薄い方位線 */
     val BearingLine = Color(0xFF333333)
 
-    /** 背景地図（§8）: 海岸線（暗い灰色）と県境（さらに暗い。点線で描く）。HUD を邪魔しないよう、どのテーマでも同じ灰色 */
+    /** 背景地図（§8）: 海岸線（暗い灰色）と県境（明るめの灰色の太い点線）。HUD を邪魔しないよう、どのテーマでも同じ灰色 */
     val Coastline = Color(0xFF5C5C5C)
-    val PrefBoundary = Color(0xFF4A4A4A)
+    /** 県境: 市区町村境（#787878 の細かい点線）より明るくし、太さ（2.0dp）と合わせて境の重さの順が分かるようにした（20261021-D01。前は #4A4A4A） */
+    val PrefBoundary = Color(0xFF8A8A8A)
 
     /**
      * 背景地図のほかのレイヤ（暗い色。レイヤどうしは色と線の種類で見分ける）。河川・湖沼だけは見やすいよう明るい水色
@@ -65,7 +66,7 @@ object HudColors {
      */
     /**
      * 市区町村境: 細かい点線で描くので、線より明るい灰色にした（20261020-D02。前の #383838 は黒の背景とほとんど同じで、見えなかった）。
-     * 県境（#4A4A4A の太めの点線）とは、明るさと点の細かさ・太さで見分ける
+     * 県境（#8A8A8A の太い点線）とは、明るさと点の細かさ・太さで見分ける
      */
     val MuniBoundary = Color(0xFF787878)
     val MapWater = Color(0xFF6AB0E8)
@@ -79,10 +80,20 @@ object HudColors {
     /** 新幹線: 在来線（くすんだ紫）と同じ系統の、明るい紫（仮。ほかの地図・HUD の色との ΔE は 24.9 以上） */
     val MapShinkansen = Color(0xFF9B7BC8)
 
-    /** 設定画面: 選ぶボタンの初期値の印（枠と右上の点）。水色（仮。白・緑・琥珀のどのテーマの塗りと枠とも ΔE 40 以上離れる。20261020-D03） */
-    val SettingsDefault = Color(0xFF4FC3F7)
+    /**
+     * 設定画面: 選ぶボタンの、選んでいる値の印（太い枠と右上の点）。水色（仮。白・緑・琥珀のどのテーマの塗り（初期値）と枠とも ΔE 40 以上離れる。
+     * 20261020-D03 は初期値の印、20261021-D01 から選んでいる値の印）
+     */
+    val SettingsSelected = Color(0xFF4FC3F7)
+
+    /** 押せないボタンの、選んでいる値の印（SettingsSelected の RGB に 0.55 を掛けた暗い水色。押せないボタンのグレーの文字・塗りと同じくらい暗い） */
+    val SettingsSelectedDim = Color(0xFF2B6B88)
     val MapFerry = Color(0xFF22504F)
-    val MapAirport = Color(0xFF6A5A3A)
+    /**
+     * 空港の記号: 目立つ明るい黄緑（仮。20261021-D01）。距離環の緑・WP のマゼンタ・琥珀・白・警告の赤や、道路・鉄道・河川の色と ΔE 38 以上離れる
+     * （いちばん近いのは軌跡の黄で 38.6、距離環の緑で 48.7）。線の明るさの段では変えない
+     */
+    val MapAirport = Color(0xFFB8FF00)
 
     /** 読み込んだ軌跡の色（設定 trackColor）。Compose の状態 */
     var trackColor: TrackColor by mutableStateOf(TrackColor.WHITE)

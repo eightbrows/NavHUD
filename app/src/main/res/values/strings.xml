@@ -79,7 +79,8 @@
     <string name="settings_title">Settings</string>
     <string name="settings_note">Changes apply and are saved immediately.</string>
     <string name="settings_toc">Contents</string>
-    <string name="settings_default_mark">Blue dot/border = default</string>
+    <string name="settings_mark_default">Filled = default</string>
+    <string name="settings_mark_selected">Blue border = selected</string>
     <string name="back_to_toc">▲ Top</string>
     <string name="default_value">(Default: %1$s)</string>
     <string name="sec_display">Display</string>
@@ -176,13 +177,13 @@
     <string name="no_fix_timeout">NO FIX after</string>
     <string name="rate_window">RATE window</string>
     <string name="sec_map_layers">Map layers</string>
-    <string name="map_layers_note">Lines and symbols from Global Map Japan (about 1:1,000,000), drawn dark under the HUD. For each item, choose up to which scale it is drawn (it is drawn while R1, the distance to the first range ring, is at or below the value). Airports are small plane symbols only (no names).</string>
+    <string name="map_layers_note">Lines and symbols from Global Map Japan (about 1:1,000,000), drawn under the HUD (lines are dark). For each item, choose up to which scale it is drawn (it is drawn while R1, the distance to the first range ring, is at or below the value). Airports are bright plane symbols only (no names).</string>
     <string name="base_map">Base map</string>
     <string name="base_map_note">Turns all items below off at once</string>
     <string name="map_line_width">Line width</string>
     <string name="map_line_width_note">Width of all lines (1 is the thinnest; the ratio between items stays the same)</string>
     <string name="map_line_brightness">Line brightness</string>
-    <string name="map_line_brightness_note">Brightness of all lines and symbols (1 is the darkest)</string>
+    <string name="map_line_brightness_note">Brightness of all lines (1 is the darkest; airport symbols stay the same)</string>
     <string name="map_range_off">OFF</string>
     <string name="map_range_10">≤10k</string>
     <string name="map_range_25">≤25k</string>

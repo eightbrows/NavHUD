@@ -29,6 +29,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInParent
@@ -218,7 +219,7 @@ fun SettingsScreen(
         },
 
         SettingsSection(stringResource(R.string.sec_range)) {
-            // 初期値の段のボタンに、初期値の印（水色の枠と点）を付ける
+            // 初期値の段のボタンは塗り、使う段（選んでいる段）は水色の枠と点（20261021-D01）
             Label(stringResource(R.string.range_steps))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 for (km in RangeAuto.ALL_STEPS_KM) {
@@ -450,7 +451,7 @@ fun SettingsScreen(
             Text(stringResource(R.string.settings_title), style = SectionTitle.copy(fontSize = 18.sp))
         }
         Text(stringResource(R.string.settings_note), style = RowNote)
-        DefaultMarkLegend()
+        MarkLegend()
         Toc(sections.map { it.title }) { i -> tops[i]?.let { y -> scope.launch { scroll.animateScrollTo(y) } } }
         for ((i, sec) in sections.withIndex()) {
             Section(
@@ -630,7 +631,7 @@ private fun <T> Choice(
     selected: T?,
     note: String? = null,
     enabled: Boolean = true,
-    /** 初期値（選ぶ項目）。そのボタンに初期値の印（水色の枠と点）を付ける。null なら付けない */
+    /** 初期値（選ぶ項目）。そのボタンを塗る。null なら塗らない */
     default: T? = null,
     /** 小さな選択肢（地図レイヤの項目）。名前とボタンの列をいつも同じ行に置く（名前は左で折り返し、ボタンの列は右端に揃う） */
     compact: Boolean = false,
@@ -685,52 +686,68 @@ private fun NameAndButtons(name: @Composable () -> Unit, buttons: @Composable ()
     }
 }
 
-/** 初期値の印の点（水色。塗ったボタンの上でも見えるよう、背景の色のふちを付ける） */
+/** 選んでいる値の印の点（水色。塗ったボタンの上でも見えるよう、背景の色のふちを付ける） */
 @Composable
-private fun DefaultDot(modifier: Modifier = Modifier) {
+private fun SelectedDot(color: Color, modifier: Modifier = Modifier) {
     Box(
         modifier
             .size(8.dp)
             .background(HudColors.Background, CircleShape)
             .padding(1.5.dp)
-            .background(HudColors.SettingsDefault, CircleShape),
+            .background(color, CircleShape),
     )
 }
 
+/** 選んでいるボタンの水色の枠の太さ（仮。20261021-D01） */
+private val SelectedFrame = 2.5.dp
+
 /**
- * 選ぶボタン。on は今選んでいる（塗る）。isDefault は初期値（水色の枠と、右上の水色の点。20261020-D03）。
- * 初期値を選んでいるときは、塗り＋水色の枠＋点
+ * 選ぶボタン（20261021-D01 で初期値と選んでいる値の見た目を入れ替えた）。
+ * - isDefault（初期値）: テーマの色で塗る（反転表示）
+ * - on（今選んでいる）: 水色の太い枠と、右上の水色の点
+ * - 初期値を選んでいるとき: 塗り＋水色の太い枠＋点
+ * 押せないとき（自動車の固定値・背景地図が OFF）は、塗りと文字をグレー、水色を暗い水色にする
  */
 @Composable
 private fun Chip(text: String, on: Boolean, enabled: Boolean = true, compact: Boolean = false, isDefault: Boolean = false, onClick: () -> Unit) {
     val shape = RoundedCornerShape(4.dp)
-    // 押せないとき（自動車の固定値など）はグレー
     val c = if (enabled) HudColors.Scale else HudColors.WpReached
+    val mark = if (enabled) HudColors.SettingsSelected else HudColors.SettingsSelectedDim
     val frame = when {
-        isDefault -> HudColors.SettingsDefault
-        on -> c
+        on -> mark
+        isDefault -> c
         else -> HudColors.WpDisabled
     }
     Box {
         Box(
             Modifier
-                .border(if (isDefault) 1.5.dp else 1.dp, frame, shape)
-                .background(if (on) c else HudColors.Background, shape)
+                .border(if (on) SelectedFrame else 1.dp, frame, shape)
+                .background(if (isDefault) c else HudColors.Background, shape)
                 .clickable(enabled = enabled, onClick = onClick)
                 .padding(horizontal = if (compact) 7.dp else 9.dp, vertical = 4.dp),
         ) {
-            Text(text, style = ValueText.copy(color = if (on) HudColors.Background else c, fontSize = if (compact) 12.sp else 13.sp))
+            Text(text, style = ValueText.copy(color = if (isDefault) HudColors.Background else c, fontSize = if (compact) 12.sp else 13.sp))
         }
-        if (isDefault) DefaultDot(Modifier.align(Alignment.TopEnd).offset(x = 3.dp, y = (-3).dp))
+        if (on) SelectedDot(mark, Modifier.align(Alignment.TopEnd).offset(x = 3.dp, y = (-3).dp))
     }
 }
 
-/** 設定画面のいちばん上の、初期値の印の説明（「● 水色の点・枠 ＝ 初期値」） */
+/** 設定画面のいちばん上の、ボタンの見た目の説明（「■ 塗り ＝ 初期値　□● 水色の枠 ＝ 選んでいる値」）。見本はボタンと同じ描き方の小さな四角 */
 @Composable
-private fun DefaultMarkLegend() {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        DefaultDot()
-        Text(stringResource(R.string.settings_default_mark), style = RowNote)
+private fun MarkLegend() {
+    val shape = RoundedCornerShape(3.dp)
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            Box(Modifier.size(18.dp, 12.dp).background(HudColors.Scale, shape))
+            Text(stringResource(R.string.settings_mark_default), style = RowNote)
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            Box {
+                Box(Modifier.padding(top = 3.dp, end = 3.dp).size(18.dp, 12.dp).border(2.dp, HudColors.SettingsSelected, shape))
+                SelectedDot(HudColors.SettingsSelected, Modifier.align(Alignment.TopEnd))
+            }
+            Text(stringResource(R.string.settings_mark_selected), style = RowNote)
+        }
     }
 }
 

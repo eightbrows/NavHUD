@@ -65,7 +65,7 @@ object BaseMapBuilder {
      * @param rect 描画の枠。この枠に（marginPx だけ外まで）入る範囲の線・点を選ぶ
      * @param r1M 今の R1 [m]（縮尺の 1/2）。使う段と、描く項目を決める
      * @param widthLevel 線の太さの段（設定の 1〜6。全部の線の太さに Tuning.BASEMAP_WIDTH_FACTORS を掛ける）
-     * @param brightnessLevel 線の明るさの段（設定の 1〜6。全部の線と記号の色に Tuning.BASEMAP_BRIGHTNESS_FACTORS を掛ける）
+     * @param brightnessLevel 線の明るさの段（設定の 1〜6。全部の線の色に Tuning.BASEMAP_BRIGHTNESS_FACTORS を掛ける。空港の記号は掛けない）
      */
     fun build(
         map: BaseMap,
@@ -95,7 +95,7 @@ object BaseMapBuilder {
             if (layer.isPoint) {
                 for (p in map.points) {
                     if (p.layer != layer || !box.contains(p.lat, p.lon)) continue
-                    marks += MapMark(project(p.lat, p.lon, refLat, refLon, proj), style.ink, Tuning.BASEMAP_MARK_DP, k)
+                    marks += MapMark(project(p.lat, p.lon, refLat, refLon, proj), style.ink, Tuning.BASEMAP_AIRPORT_MARK_DP)
                 }
             } else if (layer == MapLayer.ROAD) {
                 // 道路: 項目（高速道路・その他の自動車専用道路・国道・県道）ごとに、その縮尺で描く種類だけ。種類ごとに色と太さを変える。
