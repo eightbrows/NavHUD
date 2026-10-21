@@ -2,6 +2,7 @@ package io.github.eightbrows.navhud.core.io
 
 import io.github.eightbrows.navhud.core.geo.Geo
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
@@ -210,10 +211,11 @@ class BaseMapFileTest {
             MapLayer.INLAND_WATER to 899,
         )
         for ((layer, n) in expectLines) assertEquals(layer.name, n, map.countOf(layer))
-        // 点は空港だけ（港・駅・ダムと堰の点・都市と、市街地の輪郭は 20261020-D01 で入れなくなった）
+        // 点は空港と山頂（港・駅・ダムと堰の点・都市と、市街地の輪郭は 20261020-D01 で入れなくなった。山頂は 20261021-D02）
         assertEquals(92, map.countOf(MapLayer.AIRPORT))
-        assertTrue(map.points.all { it.layer == MapLayer.AIRPORT })
-        assertEquals(MapLayer.entries.toSet(), map.levels[0].byLayer.keys + MapLayer.AIRPORT)
+        assertEquals(1059, map.countOf(MapLayer.PEAK))
+        assertTrue(map.points.all { it.layer == MapLayer.AIRPORT || it.layer == MapLayer.PEAK })
+        assertEquals(MapLayer.entries.toSet(), map.levels[0].byLayer.keys + MapLayer.AIRPORT + MapLayer.PEAK)
         // 点の数は、間引いた段ほど少ない（どのレイヤでも）
         fun points(level: MapLevel, layer: MapLayer) = level.byLayer[layer].orEmpty().sumOf { it.size }
         for (layer in expectLines.keys) {
@@ -308,5 +310,28 @@ class BaseMapFileTest {
         }
         // 道路は、広域の段でも短い線を捨てない（段 3 の線の数は、段 0 のつないだ線の数と同じ。20261018-D04 の変換のとき）
         assertEquals(30_251, map.levels[3].countOf(MapLayer.ROAD))
+    }
+
+    @Test
+    fun bundledAssetHasPeaksWithLandmarks() {
+        // 山頂（20261021-D02）: 国土地理院「日本の山岳標高一覧（1003山）」の 1,059 の山頂（枝番の山頂も 1 つの点）。名前は山名
+        val map = BaseMapFile.decode(asset.readBytes())
+        val peaks = map.points.filter { it.layer == MapLayer.PEAK }
+        assertEquals(1059, peaks.size)
+        fun peak(name: String) = peaks.single { it.name == name }
+        // 種類の下の 7 ビットは標高 ÷ 50 m（切り捨て）。富士山 3,776 m → 3,750 m
+        val fuji = peak("富士山＜剣ヶ峯＞")
+        assertEquals(3750, PeakKind.elevationM(fuji.kind))
+        assertEquals(35.3606, fuji.lat, 0.001)
+        assertEquals(138.7274, fuji.lon, 0.001)
+        // 目印になる山（標高 800 m 以上、かつ自分より高い山頂まで 15 km 以上）: 263
+        assertEquals(263, peaks.count { PeakKind.isLandmark(it.kind) })
+        assertTrue(peaks.filter { PeakKind.isLandmark(it.kind) }.all { PeakKind.elevationM(it.kind) >= 800 - 50 })
+        // 富士山（いちばん高い）・筑波山（877 m、68 km）・雌阿寒岳（1,499 m、64 km）・奥穂高岳（3,190 m、87 km）は目印になる
+        for (n in listOf("富士山＜剣ヶ峯＞", "筑波山", "雌阿寒岳", "奥穂高岳")) assertTrue(n, PeakKind.isLandmark(peak(n).kind))
+        // 阿寒富士（雌阿寒岳から 1.4 km）・槍ヶ岳（奥穂高岳から 5.9 km）・剱岳（立山から 5.3 km）は目印になりにくい
+        for (n in listOf("雌阿寒岳＜阿寒富士＞", "槍ヶ岳", "剱岳")) assertFalse(n, PeakKind.isLandmark(peak(n).kind))
+        // 低い山は孤立していても目印にしない（例: 標高 800 m 未満）
+        assertTrue(peaks.filter { PeakKind.elevationM(it.kind) < 750 }.none { PeakKind.isLandmark(it.kind) })
     }
 }

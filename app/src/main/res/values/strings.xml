@@ -177,13 +177,13 @@
     <string name="no_fix_timeout">NO FIX after</string>
     <string name="rate_window">RATE window</string>
     <string name="sec_map_layers">Map layers</string>
-    <string name="map_layers_note">Lines and symbols from Global Map Japan (about 1:1,000,000), drawn under the HUD (lines are dark). For each item, choose up to which scale it is drawn (it is drawn while R1, the distance to the first range ring, is at or below the value). Airports are bright plane symbols only (no names).</string>
+    <string name="map_layers_note">Lines and symbols from Global Map Japan (about 1:1,000,000; peaks from the GSI list of mountain elevations), drawn under the HUD (lines are dark). For each item, choose up to which scale it is drawn (it is drawn while R1, the distance to the first range ring, is at or below the value). Landmark peaks are triangles, other peaks faint circles, and airports plane symbols (no names).</string>
     <string name="base_map">Base map</string>
     <string name="base_map_note">Turns all items below off at once</string>
     <string name="map_line_width">Line width</string>
     <string name="map_line_width_note">Width of all lines (1 is the thinnest; the ratio between items stays the same)</string>
     <string name="map_line_brightness">Line brightness</string>
-    <string name="map_line_brightness_note">Brightness of all lines (1 is the darkest; airport symbols stay the same)</string>
+    <string name="map_line_brightness_note">Brightness of all lines (1 is the darkest; peak and airport symbols stay the same)</string>
     <string name="map_range_off">OFF</string>
     <string name="map_range_10">≤10k</string>
     <string name="map_range_25">≤25k</string>
@@ -200,6 +200,7 @@
     <string name="map_layer_railway">Railways</string>
     <string name="map_item_water">Rivers and lakes</string>
     <string name="map_layer_ferry">Ferry routes</string>
+    <string name="map_item_peak">Peaks</string>
     <string name="map_layer_airport">Airports</string>
     <string name="sec_other">Other</string>
     <string name="keep_screen_on">Keep screen on</string>
@@ -230,6 +231,7 @@
     <string name="about_website">Website</string>
     <string name="about_cheatsheet">Cheat sheet (PDF, Japanese)</string>
     <string name="about_basemap_source">Base map: Created from “Global Map Japan” (Geospatial Information Authority of Japan) (%1$s)</string>
+    <string name="about_peak_source">Peaks: Created from “Elevations of 1003 Mountains in Japan” (Geospatial Information Authority of Japan)</string>
     <string name="about_formats">File formats (PDF, Japanese)</string>
     <string name="about_links_note">Underlined items open in your browser (this app itself does not use the network).</string>
 

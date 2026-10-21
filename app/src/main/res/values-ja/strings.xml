@@ -175,13 +175,13 @@
     <string name="no_fix_timeout">NO FIX とみなす時間</string>
     <string name="rate_window">RATE の窓</string>
     <string name="sec_map_layers">地図レイヤ</string>
-    <string name="map_layers_note">国土地理院「地球地図日本」（1/100万相当）の線と記号を、地図のいちばん下に描きます（線は暗く）。項目ごとに、どの縮尺まで描くかを選びます（R1 ＝ 自機から 1 つ目の距離環の距離が、その値以下のときに描く）。空港は明るい飛行機の記号だけ（名前は出しません）。</string>
+    <string name="map_layers_note">国土地理院「地球地図日本」（1/100万相当）の線と記号（山頂は「日本の山岳標高一覧」）を、地図のいちばん下に描きます（線は暗く）。項目ごとに、どの縮尺まで描くかを選びます（R1 ＝ 自機から 1 つ目の距離環の距離が、その値以下のときに描く）。山頂は目印になる山を三角、ほかの山を薄い丸で、空港は飛行機の記号で描きます（名前は出しません）。</string>
     <string name="base_map">背景地図</string>
     <string name="base_map_note">OFF にすると、下の項目をまとめて消す</string>
     <string name="map_line_width">線の太さ</string>
     <string name="map_line_width_note">全部の線の太さ（1 がいちばん細い。項目どうしの太さの比は変わらない）</string>
     <string name="map_line_brightness">線の明るさ</string>
-    <string name="map_line_brightness_note">全部の線の明るさ（1 がいちばん暗い。空港の記号は変わらない）</string>
+    <string name="map_line_brightness_note">全部の線の明るさ（1 がいちばん暗い。山頂・空港の記号は変わらない）</string>
     <string name="map_range_off">OFF</string>
     <string name="map_range_10">〜10k</string>
     <string name="map_range_25">〜25k</string>
@@ -198,6 +198,7 @@
     <string name="map_layer_railway">在来線</string>
     <string name="map_item_water">河川・湖沼</string>
     <string name="map_layer_ferry">フェリーの航路</string>
+    <string name="map_item_peak">山頂</string>
     <string name="map_layer_airport">空港</string>
     <string name="sec_other">その他</string>
     <string name="keep_screen_on">画面常時点灯</string>
@@ -228,6 +229,7 @@
     <string name="about_website">公式サイト</string>
     <string name="about_cheatsheet">チートシート（PDF）</string>
     <string name="about_basemap_source">背景地図：「地球地図日本」（国土地理院）（%1$s）をもとに作成</string>
+    <string name="about_peak_source">山頂：「日本の山岳標高一覧（1003山）」（国土地理院）をもとに作成</string>
     <string name="about_formats">ファイル形式の説明（PDF）</string>
     <string name="about_links_note">下線の項目は、押すとブラウザで開きます（このアプリ自身は通信しません）。</string>
 

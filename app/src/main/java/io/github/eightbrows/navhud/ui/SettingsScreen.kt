@@ -431,6 +431,8 @@ fun SettingsScreen(
             InfoRow(stringResource(R.string.about_formats), "docs/formats.pdf", "$REPO_URL/blob/main/docs/formats.pdf")
             // 背景地図の出典（§8）
             SourceNote(stringResource(R.string.about_basemap_source, BASEMAP_SOURCE_URL), BASEMAP_SOURCE_URL)
+            // 山頂の出典（20261021-D02）
+            Text(stringResource(R.string.about_peak_source), style = RowLabel.copy(fontSize = 13.sp))
             Text(stringResource(R.string.about_links_note), style = RowNote)
         },
     )
@@ -470,10 +472,10 @@ private const val REPO_URL = "https://github.com/eightbrows/NavHUD"
 /** 公式サイト（GpsLogger の「情報」の欄と同じ） */
 private const val WEBSITE_URL = "https://eightbrows.github.io/"
 
-/** 設定画面の地図レイヤの項目の並び: 線（海岸線・境・道路・鉄道・水・フェリー）→ 点（空港） */
+/** 設定画面の地図レイヤの項目の並び: 線（海岸線・境・道路・鉄道・水・フェリー）→ 点（山頂・空港） */
 private val MAP_ITEM_ORDER = listOf(
     MapItem.COASTLINE, MapItem.PREF_BOUNDARY, MapItem.MUNI_BOUNDARY, MapItem.MOTORWAY, MapItem.OTHER_MOTORWAY, MapItem.NATIONAL_ROAD, MapItem.PREF_ROAD,
-    MapItem.SHINKANSEN, MapItem.RAILWAY, MapItem.WATER, MapItem.FERRY, MapItem.AIRPORT,
+    MapItem.SHINKANSEN, MapItem.RAILWAY, MapItem.WATER, MapItem.FERRY, MapItem.PEAK, MapItem.AIRPORT,
 )
 
 private fun mapItemLabel(item: MapItem): Int = when (item) {
@@ -488,6 +490,7 @@ private fun mapItemLabel(item: MapItem): Int = when (item) {
     MapItem.RAILWAY -> R.string.map_layer_railway
     MapItem.WATER -> R.string.map_item_water
     MapItem.FERRY -> R.string.map_layer_ferry
+    MapItem.PEAK -> R.string.map_item_peak
     MapItem.AIRPORT -> R.string.map_layer_airport
 }
 

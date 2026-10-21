@@ -69,16 +69,30 @@ enum class Ink {
 
     /** 背景地図の点: 空港（飛行機の記号） */
     MAP_AIRPORT,
+
+    /** 背景地図の点: 目印になる山の山頂（三角の記号）。標高の段ごとに明るさを変える（低い・中くらい・高い。20261021-D02） */
+    MAP_PEAK_LOW,
+    MAP_PEAK_MID,
+    MAP_PEAK_HIGH,
+
+    /** 背景地図の点: 目印になりにくい山の山頂のまわり（半透明の丸） */
+    MAP_PEAK_AREA,
 }
 
 /** 折れ線の線の種類（背景地図のレイヤの描き分け）。長さは Tuning.BASEMAP_*_DP */
 enum class LineDash { SOLID, DOT, FINE_DOT, DASH, LONG_DASH }
 
+/** 背景地図の点の記号の形: 飛行機（空港）・三角（目印になる山の山頂）・丸（目印になりにくい山の山頂のまわり。半透明） */
+enum class MarkShape { PLANE, TRIANGLE, DISC }
+
 /**
- * 背景地図の点（空港。上から見た飛行機の塗った記号に黒のふち。機首が上で、向きは変えない。名前は描かない）。sizeDp は記号の幅（翼の端から端まで）[dp]。
- * 色は線の明るさの段によらず、いつも同じ（20261021-D01）
+ * 背景地図の点（名前は描かない）。sizeDp は記号の幅 [dp]（飛行機は翼の端から端まで、三角は底辺、丸は直径）。
+ * 画面上の大きさは縮尺・線の太さの段によらず同じ。色は線の明るさの段によらず、いつも同じ（20261021-D01）。
+ * - 飛行機: 上から見た塗った記号に黒のふち。機首が上で、向きは変えない
+ * - 三角: 頂点が上の塗った三角に黒のふち。at は三角の中心（高さの真ん中）
+ * - 丸: 半透明の色で塗る（ふちなし）
  */
-data class MapMark(val at: P, val ink: Ink, val sizeDp: Float)
+data class MapMark(val at: P, val ink: Ink, val sizeDp: Float, val shape: MarkShape = MarkShape.PLANE)
 
 /** 線。dashed は無効 WP の破線、longDash は次の WP への方位線の長い破線（Tuning.ACTIVE_DASH_*）。 */
 data class Segment(val a: P, val b: P, val ink: Ink, val dashed: Boolean = false, val bold: Boolean = false, val longDash: Boolean = false)

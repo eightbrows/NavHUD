@@ -13,6 +13,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -41,6 +42,7 @@ import io.github.eightbrows.navhud.core.io.BaseMap
 import io.github.eightbrows.navhud.core.view.HudScene
 import io.github.eightbrows.navhud.core.view.LineDash
 import io.github.eightbrows.navhud.core.view.MapMark
+import io.github.eightbrows.navhud.core.view.MarkShape
 import io.github.eightbrows.navhud.core.view.HudSceneBuilder
 import io.github.eightbrows.navhud.core.view.HudViewport
 import io.github.eightbrows.navhud.core.view.Ink
@@ -157,13 +159,16 @@ private val PLANE_OUTLINE: FloatArray = run {
 /** 飛行機の記号の幅（翼の端から端まで）。PLANE_RIGHT_HALF の単位で 3（-1.5〜1.5） */
 private const val PLANE_SPAN = 3f
 
+/** 正三角形の高さ ÷ 底辺 */
+private const val TRIANGLE_HEIGHT = 0.866f
+
 /**
- * 背景地図の点（空港）の飛行機の記号（§8。塗る。名前は描かない）。背景の線の上でも形が分かるよう、先に黒のふち（太い線）を描いてから塗る
- * （20261021-D01）。色は線の明るさの段によらない。同じ色が続く記号を 1 つの Path にまとめて 1 回で描く
- * （記号ごとに物を作らない。記号が多いときに遅くなるため）
+ * 背景地図の点（§8。塗る。名前は描かない）: 空港の飛行機・山頂の三角・山頂のまわりの半透明の丸（20261021-D02）。
+ * 飛行機と三角は、背景の線の上でも形が分かるよう、先に黒のふち（太い線）を描いてから塗る（20261021-D01）。丸はふちなし。
+ * 色は線の明るさの段によらない。同じ色・形が続く記号を 1 つの Path にまとめて 1 回で描く（記号ごとに物を作らない。記号が多いときに遅くなるため。
+ * 重なった丸も 1 つの Path なので、半透明が重ねて濃くならない）
  */
 private fun DrawScope.drawMapMarks(marks: List<MapMark>, density: Float) {
-    val outline = Stroke(Tuning.BASEMAP_AIRPORT_OUTLINE_DP * 2 * density, join = StrokeJoin.Round)
     var i0 = 0
     while (i0 < marks.size) {
         val first = marks[i0]
@@ -171,16 +176,38 @@ private fun DrawScope.drawMapMarks(marks: List<MapMark>, density: Float) {
         var i = i0
         while (i < marks.size) {
             val m = marks[i]
-            if (m.ink != first.ink) break
+            if (m.ink != first.ink || m.shape != first.shape) break
             i++
-            val r = m.sizeDp / PLANE_SPAN * density
             val x = m.at.x
             val y = m.at.y
-            path.moveTo(x + PLANE_OUTLINE[0] * r, y + PLANE_OUTLINE[1] * r)
-            for (k in 2 until PLANE_OUTLINE.size step 2) path.lineTo(x + PLANE_OUTLINE[k] * r, y + PLANE_OUTLINE[k + 1] * r)
-            path.close()
+            when (m.shape) {
+                MarkShape.PLANE -> {
+                    val r = m.sizeDp / PLANE_SPAN * density
+                    path.moveTo(x + PLANE_OUTLINE[0] * r, y + PLANE_OUTLINE[1] * r)
+                    for (k in 2 until PLANE_OUTLINE.size step 2) path.lineTo(x + PLANE_OUTLINE[k] * r, y + PLANE_OUTLINE[k + 1] * r)
+                    path.close()
+                }
+                MarkShape.TRIANGLE -> {
+                    // 頂点が上。at は高さの真ん中
+                    val half = m.sizeDp / 2 * density
+                    val h = m.sizeDp * TRIANGLE_HEIGHT * density
+                    path.moveTo(x, y - h / 2)
+                    path.lineTo(x + half, y + h / 2)
+                    path.lineTo(x - half, y + h / 2)
+                    path.close()
+                }
+                MarkShape.DISC -> {
+                    val r = m.sizeDp / 2 * density
+                    path.addOval(Rect(x - r, y - r, x + r, y + r))
+                }
+            }
         }
-        drawPath(path, HudColors.Background, style = outline)
+        val outlineDp = when (first.shape) {
+            MarkShape.PLANE -> Tuning.BASEMAP_AIRPORT_OUTLINE_DP
+            MarkShape.TRIANGLE -> Tuning.BASEMAP_PEAK_OUTLINE_DP
+            MarkShape.DISC -> 0f
+        }
+        if (outlineDp > 0f) drawPath(path, HudColors.Background, style = Stroke(outlineDp * 2 * density, join = StrokeJoin.Round))
         drawPath(path, HudColors.ofMap(first.ink))
         i0 = i
     }

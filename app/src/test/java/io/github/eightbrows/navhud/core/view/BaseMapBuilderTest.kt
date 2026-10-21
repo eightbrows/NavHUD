@@ -9,6 +9,7 @@ import io.github.eightbrows.navhud.core.io.MapLayer
 import io.github.eightbrows.navhud.core.io.MapLevel
 import io.github.eightbrows.navhud.core.io.MapLine
 import io.github.eightbrows.navhud.core.io.MapPoint
+import io.github.eightbrows.navhud.core.io.PeakKind
 import io.github.eightbrows.navhud.core.io.RailKind
 import io.github.eightbrows.navhud.core.io.RoadKind
 import io.github.eightbrows.navhud.core.io.WaterKind
@@ -111,9 +112,44 @@ class BaseMapBuilderTest {
         // 線のレイヤどうしは、色か線の種類のどちらかで見分けられる（河川と湖沼の輪郭だけが同じ。どちらも水）
         val looks = layers.map { BaseMapBuilder.styleOf(it).let { s -> s.ink to s.dash } }
         assertEquals(layers.size - 1, looks.distinct().size)
-        // 点のレイヤは空港だけ（20261020-D01）
-        assertEquals(listOf(MapLayer.AIRPORT), MapLayer.entries.filter { it.isPoint })
-        assertEquals(listOf(MapLayer.AIRPORT), BaseMapBuilder.DRAW_ORDER.filter { it.isPoint })
+        // 点のレイヤは空港と山頂（20261021-D02）。山頂は線より上、空港より下
+        assertEquals(listOf(MapLayer.AIRPORT, MapLayer.PEAK), MapLayer.entries.filter { it.isPoint })
+        assertEquals(listOf(MapLayer.PEAK, MapLayer.AIRPORT), BaseMapBuilder.DRAW_ORDER.takeLast(2))
+        assertTrue(BaseMapBuilder.DRAW_ORDER.dropLast(2).none { it.isPoint })
+    }
+
+    @Test
+    fun peaksAreTrianglesOrFaintDiscsBelowAirports() {
+        // 山頂（20261021-D02）: 目印になる山は三角（標高の段で明るさが変わる）、目印になりにくい山は半透明の丸
+        fun peak(e: Double, n: Double, elevM: Int, landmark: Boolean) =
+            MapPoint(MapLayer.PEAK, (elevM / PeakKind.ELEVATION_STEP_M) or (if (landmark) PeakKind.LANDMARK else 0), TestGeo.lat(n), TestGeo.lon(e), "")
+        val map = BaseMap(
+            listOf(MapLevel(0.0, listOf(line(MapLayer.COASTLINE, 0.0 to 0.0, 100.0 to 100.0)))),
+            listOf(
+                point(MapLayer.AIRPORT, 300.0, 0.0),
+                peak(100.0, 0.0, 3776, true), peak(0.0, 100.0, 877, true), peak(-100.0, 0.0, 2236, true),
+                peak(0.0, -100.0, 1476, false), peak(50.0, -50.0, 3180, false),
+            ),
+        )
+        val d = build(map)
+        // 丸（目印になりにくい山）→ 三角（暗い段 → 明るい段）→ 空港の順（下から上）
+        assertEquals(
+            listOf(MarkShape.DISC, MarkShape.DISC, MarkShape.TRIANGLE, MarkShape.TRIANGLE, MarkShape.TRIANGLE, MarkShape.PLANE),
+            d.marks.map { it.shape },
+        )
+        assertEquals(
+            listOf(Ink.MAP_PEAK_AREA, Ink.MAP_PEAK_AREA, Ink.MAP_PEAK_LOW, Ink.MAP_PEAK_MID, Ink.MAP_PEAK_HIGH, Ink.MAP_AIRPORT),
+            d.marks.map { it.ink },
+        )
+        // 標高の段: 1,500 m 未満は暗い、2,500 m 未満は中くらい、それ以上は明るい
+        assertEquals(listOf(Ink.MAP_PEAK_LOW, Ink.MAP_PEAK_MID, Ink.MAP_PEAK_MID, Ink.MAP_PEAK_HIGH), listOf(1499, 1500, 2499, 2500).map { BaseMapBuilder.peakInk(it) })
+        assertEquals(listOf(Tuning.BASEMAP_PEAK_AREA_DP, Tuning.BASEMAP_PEAK_AREA_DP, Tuning.BASEMAP_PEAK_MARK_DP, Tuning.BASEMAP_PEAK_MARK_DP, Tuning.BASEMAP_PEAK_MARK_DP), d.marks.dropLast(1).map { it.sizeDp })
+        // 大きさと色は、縮尺・線の太さ・明るさの段で変わらない
+        assertEquals(d.marks.map { it.sizeDp to it.ink }, build(map, r1M = 100_000.0, width = 6, brightness = 1).marks.map { it.sizeDp to it.ink })
+        assertEquals(d.marks.map { it.sizeDp to it.ink }, build(map, r1M = 250.0, width = 1, brightness = 6).marks.map { it.sizeDp to it.ink })
+        // 山頂の項目が OFF なら描かない（空港だけ）
+        assertEquals(listOf(MarkShape.PLANE), build(map, items(MapItem.AIRPORT, MapItem.COASTLINE)).marks.map { it.shape })
+        assertEquals(5, build(map, items(MapItem.PEAK)).marks.size)
     }
 
     @Test

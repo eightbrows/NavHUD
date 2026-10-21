@@ -79,6 +79,8 @@
 
 背景地図：「地球地図日本」（国土地理院）（https://www.gsi.go.jp/kankyochiri/gm_jpn.html）をもとに作成
 
+山頂：「日本の山岳標高一覧（1003山）」（国土地理院）をもとに作成
+
 ## ライセンス
 
 Apache License 2.0 の下で公開しています。詳細は [LICENSE](LICENSE) を参照してください。

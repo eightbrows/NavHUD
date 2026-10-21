@@ -6,6 +6,7 @@ import io.github.eightbrows.navhud.core.geo.Screen
 import io.github.eightbrows.navhud.core.io.BaseMap
 import io.github.eightbrows.navhud.core.io.MapLayer
 import io.github.eightbrows.navhud.core.io.MapLine
+import io.github.eightbrows.navhud.core.io.PeakKind
 import io.github.eightbrows.navhud.core.io.RailKind
 import io.github.eightbrows.navhud.core.io.RoadKind
 import io.github.eightbrows.navhud.core.io.WaterKind
@@ -38,12 +39,12 @@ data class MapLayerStyle(val ink: Ink, val widthDp: Float = 0f, val dash: LineDa
  */
 object BaseMapBuilder {
 
-    /** 描く順番（下から上）。湖沼などの輪郭 → 水（河川・海岸線）→ 境 → 交通。点（空港）は線の上 */
+    /** 描く順番（下から上）。湖沼などの輪郭 → 水（河川・海岸線）→ 境 → 交通。点は線の上で、山頂 → 空港（空港がいちばん上） */
     val DRAW_ORDER: List<MapLayer> = listOf(
         MapLayer.INLAND_WATER, MapLayer.RIVER, MapLayer.COASTLINE,
         MapLayer.MUNI_BOUNDARY, MapLayer.PREF_BOUNDARY,
         MapLayer.ROAD, MapLayer.RAILWAY, MapLayer.FERRY,
-        MapLayer.AIRPORT,
+        MapLayer.PEAK, MapLayer.AIRPORT,
     )
 
     /** レイヤの描き方。どれも HUD を邪魔しない暗い色（実際の色は ui/HudColors） */
@@ -57,6 +58,14 @@ object BaseMapBuilder {
         MapLayer.RAILWAY -> MapLayerStyle(Ink.MAP_RAIL, Tuning.BASEMAP_RAIL_LINE_DP, LineDash.DASH)
         MapLayer.FERRY -> MapLayerStyle(Ink.MAP_FERRY, Tuning.BASEMAP_FERRY_LINE_DP, LineDash.LONG_DASH)
         MapLayer.AIRPORT -> MapLayerStyle(Ink.MAP_AIRPORT)
+        MapLayer.PEAK -> MapLayerStyle(Ink.MAP_PEAK_HIGH)
+    }
+
+    /** 目印になる山の三角の色: 標高の段（Tuning.BASEMAP_PEAK_TIER_M）が高いほど明るい */
+    fun peakInk(elevationM: Int): Ink = when {
+        elevationM < Tuning.BASEMAP_PEAK_TIER_M[0] -> Ink.MAP_PEAK_LOW
+        elevationM < Tuning.BASEMAP_PEAK_TIER_M[1] -> Ink.MAP_PEAK_MID
+        else -> Ink.MAP_PEAK_HIGH
     }
 
     /**
@@ -92,7 +101,20 @@ object BaseMapBuilder {
         for (layer in DRAW_ORDER) {
             if (layer !in layers) continue
             val style = styleOf(layer)
-            if (layer.isPoint) {
+            if (layer == MapLayer.PEAK) {
+                // 山頂（20261021-D02）: 目印になりにくい山は半透明の丸、目印になる山は三角。丸 → 三角（暗い段 → 明るい段）の順に並べる
+                // （三角が丸より上、明るい三角が上。同じ見た目が続くので、Canvas はまとめて描ける）
+                val areas = ArrayList<MapMark>()
+                val peaks = ArrayList<MapMark>()
+                for (p in map.points) {
+                    if (p.layer != layer || !box.contains(p.lat, p.lon)) continue
+                    val at = project(p.lat, p.lon, refLat, refLon, proj)
+                    if (PeakKind.isLandmark(p.kind)) peaks += MapMark(at, peakInk(PeakKind.elevationM(p.kind)), Tuning.BASEMAP_PEAK_MARK_DP, MarkShape.TRIANGLE)
+                    else areas += MapMark(at, Ink.MAP_PEAK_AREA, Tuning.BASEMAP_PEAK_AREA_DP, MarkShape.DISC)
+                }
+                marks += areas
+                marks += peaks.sortedBy { it.ink.ordinal }
+            } else if (layer.isPoint) {
                 for (p in map.points) {
                     if (p.layer != layer || !box.contains(p.lat, p.lon)) continue
                     marks += MapMark(project(p.lat, p.lon, refLat, refLon, proj), style.ink, Tuning.BASEMAP_AIRPORT_MARK_DP)

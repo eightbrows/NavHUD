@@ -7,6 +7,8 @@
     1. 「地球地図日本」第2.2版の全レイヤの zip を取ってきて、mapdata/ に展開する（mapdata/ は git 管理外）。
          https://www1.gsi.go.jp/geowww/globalmap-gsi/download/data/gm-japan/gm-jpn-all_u_2_2.zip
          → mapdata/gm-jpn-all_u_2_2/coastl_jpn.shp など
+       山頂は、国土地理院「日本の山岳標高一覧（1003山）」の CSV を mapdata/1003zan20260331.csv に置く（列: 連番, 索引番号, 山名,
+       山名よみ, 標高値(m), 種別, 都道府県, 緯度, 経度。Shift_JIS）
     2. リポジトリの一番上で実行する:
          pwsh tools/gm2basemap.ps1            （変換して app/src/main/assets/basemap.bin を書く。レイヤごとの大きさも出す）
          pwsh tools/gm2basemap.ps1 -List      （入っているレイヤの一覧を出すだけ。書かない）
@@ -16,6 +18,8 @@
         3 河川（riverl）  4 道路（roadl）  5 鉄道（raill）  7 フェリーの航路（ferryl）
     面  9 湖沼など（inwatera）  … 塗らずに、輪郭を線として入れる
     点  20 空港（airp） … 名前も入れる
+        25 山頂（地球地図ではなく、国土地理院「日本の山岳標高一覧（1003山）」の CSV。20261021-D02）… 名前（山名）も入れる。
+           種類 = 標高 ÷ 50 m（下の 7 ビット）＋ 目印になる山の印 0x80（下の $PeakLandmarkMinM・$PeakLandmarkMinIsoKm）
     入れないもの: 市街地の面（builtupa。前の 10）、港（portp。21）、駅（rstatp。22）、ダム・堰の点（miscp。23）、都市（builtupp。24）（20261020-D01）、
     ダム・堰の線（miscl。8。20261020-D02）。
     番号は使わずに空けておく（古いファイルを読むアプリは、知らない番号を飛ばす）。駅（rstatp）は、新幹線を見分ける手がかりにだけ使う。
@@ -64,6 +68,8 @@
   展開したフォルダ。既定は mapdata/gm-jpn-all_u_2_2
 .PARAMETER Out
   出力のファイル。既定は app/src/main/assets/basemap.bin
+.PARAMETER PeakCsv
+  山頂の CSV（国土地理院「日本の山岳標高一覧（1003山）」。Shift_JIS）。既定は mapdata/1003zan20260331.csv
 .PARAMETER ChunkPoints
   1 本の線の点の数の上限。既定は 64
 .PARAMETER List
@@ -73,6 +79,7 @@ param(
   [string]$Src = 'mapdata/gm-jpn-all_u_2_2',
   [string]$Out = 'app/src/main/assets/basemap.bin',
   [int]$ChunkPoints = 64,
+  [string]$PeakCsv = 'mapdata/1003zan20260331.csv',
   [switch]$List
 )
 $ErrorActionPreference = 'Stop'
@@ -464,6 +471,23 @@ public static class Gm {
   public static long Deflated(byte[] b) {
     var ms = new MemoryStream(); using (var z = new System.IO.Compression.DeflateStream(ms, System.IO.Compression.CompressionLevel.Optimal, true)) z.Write(b, 0, b.Length); return ms.Length;
   }
+
+  // 山頂の孤立度（20261021-D02）: 自分より標高の大きい山頂（一覧の中）までの大円距離 [km]。いちばん高い山は正の無限大
+  public static double[] Isolation(double[] lat, double[] lon, double[] elev) {
+    int n = lat.Length; var r = new double[n]; double k = Math.PI / 180;
+    for (int i = 0; i < n; i++) {
+      double best = double.PositiveInfinity;
+      for (int j = 0; j < n; j++) {
+        if (elev[j] <= elev[i]) continue;
+        double dl = (lat[j] - lat[i]) * k, dn = (lon[j] - lon[i]) * k;
+        double h = Math.Sin(dl / 2) * Math.Sin(dl / 2) + Math.Cos(lat[i] * k) * Math.Cos(lat[j] * k) * Math.Sin(dn / 2) * Math.Sin(dn / 2);
+        double d = 2 * 6371.0088 * Math.Asin(Math.Sqrt(h));
+        if (d < best) best = d;
+      }
+      r[i] = best;
+    }
+    return r;
+  }
 }
 
 // 新幹線を見分ける（20261019-D02）。地球地図の鉄道には新幹線の区分がないので、新幹線の駅（rstatp）を手がかりにする。
@@ -638,6 +662,9 @@ $BranchMinKm = 2; $BranchMaxKm = 100; $BranchDegPerKm = 100   # 網の枝: 長�
 # 鉄道: 新幹線を見分ける（Rail の説明）。種類の 0x10 = 新幹線、0x20 = 在来線の線路を走る新幹線（山形・秋田。アプリは在来線として描く）
 $RailCurvK = 50; $RailGapM = 300; $StationSnapM = 1000; $StationPairKm = 150; $MiniShinkansenDeg = 15; $RailHalf = 0.5; $RailMinRunKm = 2
 $ShinkansenFlag = 0x10; $MiniShinkansenFlag = 0x20
+# 山頂（20261021-D02）: 種類の下の 7 ビット = 標高 ÷ PeakElevStepM（切り捨て）、0x80 = 目印になる山
+#   目印になる山 = 標高が PeakLandmarkMinM 以上、かつ孤立度（一覧の中で自分より高い山頂までの距離）が PeakLandmarkMinIsoKm 以上（仮）
+$PeakElevStepM = 50; $PeakLandmarkMinM = 800; $PeakLandmarkMinIsoKm = 15; $PeakLandmarkFlag = 0x80
 $MinSizeClass = @(1, 1, 2, 3)   # 段ごとに入れる大きさの段の下限
 function SizeClass($v, $edges) { if ($v -ge $edges[1]) { 3 } elseif ($v -ge $edges[0]) { 2 } else { 1 } }
 
@@ -745,6 +772,31 @@ $data = foreach ($layer in $Layers) {
   @{ Layer = $layer; Lines = $lineObjs; Sorted = @($sorted); Points = $points; Kept = $kept; Parts = $lines.Count }
 }
 
+# 山頂（20261021-D02）: 国土地理院「日本の山岳標高一覧（1003山）」の CSV（Shift_JIS）。枝番の山頂（14-1・14-2 など）も 1 つの点にする
+$peakLayer = @{ Code = 25; Name = 'peak' }
+$pkLines = [System.IO.File]::ReadAllLines((Join-Path (Get-Location) $PeakCsv), [System.Text.Encoding]::GetEncoding(932))
+$pkFields = for ($k = 1; $k -lt $pkLines.Count; $k++) {
+  if (-not $pkLines[$k]) { continue }
+  $f = $pkLines[$k] -split ','
+  if ($f.Count -ne 9) { throw "${PeakCsv}: 列の数が 9 でない行がある: $($pkLines[$k])" }
+  , $f
+}
+$pkN = @($pkFields).Count
+$pkLat = [double[]]::new($pkN); $pkLon = [double[]]::new($pkN); $pkElev = [double[]]::new($pkN)
+for ($k = 0; $k -lt $pkN; $k++) { $pkElev[$k] = [double]$pkFields[$k][4]; $pkLat[$k] = [double]$pkFields[$k][7]; $pkLon[$k] = [double]$pkFields[$k][8] }
+$pkIso = [Gm]::Isolation($pkLat, $pkLon, $pkElev)
+$pkPoints = [System.Collections.Generic.List[object]]::new()
+$pkReport = for ($k = 0; $k -lt $pkN; $k++) {
+  $kind = [math]::Min(0x7F, [int][math]::Floor($pkElev[$k] / $PeakElevStepM))
+  $mark = $pkElev[$k] -ge $PeakLandmarkMinM -and $pkIso[$k] -ge $PeakLandmarkMinIsoKm
+  if ($mark) { $kind = $kind -bor $PeakLandmarkFlag }
+  $pkPoints.Add(@{ Kind = $kind; Lat = [int][math]::Round($pkLat[$k] * $Unit); Lon = [int][math]::Round($pkLon[$k] * $Unit); Name = $pkFields[$k][2] })
+  [pscustomobject]@{ idx = $pkFields[$k][1]; name = $pkFields[$k][2]; elev = $pkElev[$k]; type = $pkFields[$k][5]; pref = $pkFields[$k][6]; lat = $pkLat[$k]; lon = $pkLon[$k]; isoKm = $pkIso[$k]; landmark = $mark; kind = $kind }
+}
+$data = @($data) + @(@{ Layer = $peakLayer; Lines = @(); Sorted = @(); Points = $pkPoints; Kept = $pkN; Parts = 0 })
+$Layers = @($Layers) + @($peakLayer)
+"山頂: $pkN 点（目印になる山 $(@($pkReport | Where-Object landmark).Count)）" | Write-Host
+
 $buf = [System.IO.MemoryStream]::new()
 function Write-Bytes([byte[]]$bytes) { $buf.Write($bytes, 0, $bytes.Length) }
 Write-Bytes ([System.Text.Encoding]::ASCII.GetBytes('NHBM'))
@@ -849,4 +901,6 @@ $riverRows = for ($k = 0; $k -lt $rs.Rows.Count; $k++) {
   [pscustomobject]@{ idx = $k; lit = $rs.Lit[$k]; nam = $rs.Rows[$k]['nam']; named = $rs.Named[$k]; cont = $rs.Cont[$k]; systemKm = [math]::Round($rs.Km[$k], 2) }
 }
 $riverRows | ConvertTo-Csv -NoTypeInformation | Set-Content -Encoding utf8 (Join-Path ([System.IO.Path]::GetTempPath()) 'gm2basemap_rivers.csv')
+# 山頂ごと（索引番号・名前・標高・孤立度・目印になるか・種類）（レポート用）
+$pkReport | ConvertTo-Csv -NoTypeInformation | Set-Content -Encoding utf8 (Join-Path ([System.IO.Path]::GetTempPath()) 'gm2basemap_peaks.csv')
 "書いた: $Out（$($buf.Length) バイト、圧縮の目安 $([Gm]::Deflated($buf.ToArray())) バイト）"

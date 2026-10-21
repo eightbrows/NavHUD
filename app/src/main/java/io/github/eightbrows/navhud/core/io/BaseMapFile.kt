@@ -4,7 +4,8 @@ import java.io.ByteArrayOutputStream
 
 /**
  * 背景地図のレイヤ（§8）。番号はファイルに書く値で、tools/gm2basemap.ps1 と同じ。
- * 線（1〜7・9。面は輪郭の線として入れる）と点（20 = 空港）。元のデータは国土地理院「地球地図日本」第2.2版。
+ * 線（1〜7・9。面は輪郭の線として入れる）と点（20 = 空港、25 = 山頂）。元のデータは国土地理院「地球地図日本」第2.2版
+ * （山頂だけは国土地理院「日本の山岳標高一覧（1003山）」。20261021-D02）。
  * 10（市街地）・21〜24（港・駅・ダムと堰の点・都市）は 20261020-D01、8（ダム・堰の線）は 20261020-D02 で入れなくなった
  * （番号は空けておく。古いファイルにあれば飛ばす）。
  */
@@ -17,7 +18,8 @@ enum class MapLayer(val code: Int, val isPoint: Boolean = false) {
     MUNI_BOUNDARY(6),
     FERRY(7),
     INLAND_WATER(9),
-    AIRPORT(20, isPoint = true);
+    AIRPORT(20, isPoint = true),
+    PEAK(25, isPoint = true);
 
     companion object {
         /** 知らない番号は null（新しい版のファイルを古いアプリで読んでも、その線・点を飛ばすだけにする） */
@@ -66,6 +68,20 @@ object RailKind {
 }
 
 /**
+ * 山頂のレイヤの中の種類（20261021-D02）: 下の 7 ビットが標高 ÷ 50 m（切り捨て）、LANDMARK（0x80）が「目印になる山」の印。
+ * 目印になる山は変換で決める（標高 800 m 以上、かつ孤立度 = 一覧の中で自分より高い山頂までの距離が 15 km 以上。仮。tools/gm2basemap.ps1）
+ */
+object PeakKind {
+    const val LANDMARK = 0x80
+    const val ELEVATION_STEP_M = 50
+
+    fun isLandmark(kind: Int): Boolean = kind and LANDMARK != 0
+
+    /** 標高 [m]（50 m 単位に切り捨てた値） */
+    fun elevationM(kind: Int): Int = (kind and 0x7F) * ELEVATION_STEP_M
+}
+
+/**
  * 背景地図の線 1 本（緯度・経度の折れ線）。メモリを節約するため、座標は「度 × unit」の整数で持つ。
  * 範囲（最小・最大）を持つので、画面の外の線はすぐ飛ばせる。長い線は変換のときに短く分けてある。
  * @param kind レイヤの中の種類（道路の rtt、鉄道の fco など。0〜255）
@@ -97,7 +113,7 @@ class MapLine(
     }
 }
 
-/** 背景地図の点（空港）。名前はローマ字（元のデータのまま。今は描かない）。 */
+/** 背景地図の点（空港・山頂）。名前は空港はローマ字、山頂は山名（元のデータのまま。今は描かない）。 */
 class MapPoint(val layer: MapLayer, val kind: Int, val lat: Double, val lon: Double, val name: String)
 
 

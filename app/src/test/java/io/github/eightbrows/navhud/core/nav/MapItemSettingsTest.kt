@@ -17,16 +17,16 @@ class MapItemSettingsTest {
         val d = NavSettings()
         assertTrue(d.baseMap)
         // 高速道路・国道・空港は「すべて」、ほかは OFF（20261021-D01）
-        val all = setOf(MapItem.MOTORWAY, MapItem.NATIONAL_ROAD, MapItem.AIRPORT)
+        val all = setOf(MapItem.MOTORWAY, MapItem.NATIONAL_ROAD, MapItem.PEAK, MapItem.AIRPORT)
         for (item in MapItem.entries) assertEquals(item.name, if (item in all) MapRange.ALL else MapRange.OFF, d.mapRangeOf(item))
         // 線の太さ・明るさは 4（今の太さ・色）。選べるのは 1〜6
         assertEquals(4, d.mapLineWidth)
         assertEquals(4, d.mapLineBrightness)
         assertEquals(1..6, NavSettings.MAP_LINE_LEVELS)
         // 使うレイヤ（開くレイヤ）は、OFF でない項目のレイヤ
-        assertEquals(setOf(MapLayer.ROAD, MapLayer.AIRPORT), d.mapLayersInUse())
+        assertEquals(setOf(MapLayer.ROAD, MapLayer.PEAK, MapLayer.AIRPORT), d.mapLayersInUse())
         // 河川・湖沼は 2 つのレイヤ
-        assertEquals(setOf(MapLayer.ROAD, MapLayer.AIRPORT, MapLayer.RIVER, MapLayer.INLAND_WATER), d.withMapRange(MapItem.WATER, MapRange.ALL).mapLayersInUse())
+        assertEquals(setOf(MapLayer.ROAD, MapLayer.PEAK, MapLayer.AIRPORT, MapLayer.RIVER, MapLayer.INLAND_WATER), d.withMapRange(MapItem.WATER, MapRange.ALL).mapLayersInUse())
         // 道路の項目は、どれか 1 つでも OFF でなければ道路のレイヤを使う
         val noRoads = d.withMapRange(MapItem.MOTORWAY, MapRange.OFF).withMapRange(MapItem.NATIONAL_ROAD, MapRange.OFF)
         assertFalse(MapLayer.ROAD in noRoads.mapLayersInUse())

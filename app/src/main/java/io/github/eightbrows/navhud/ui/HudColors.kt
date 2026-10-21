@@ -95,6 +95,15 @@ object HudColors {
      */
     val MapAirport = Color(0xFFB8FF00)
 
+    /**
+     * 山頂（20261021-D02。仮）: 淡い桃色。目印になる山の三角は標高の段ごとに明るさを変える（低い段 = RGB × 0.7、中くらい = × 0.85、高い = そのまま）。
+     * いちばん明るい段は新幹線・国道と ΔE 41。目印になりにくい山は、同じ桃色の半透明（不透明度 30%）の丸
+     */
+    val MapPeakHigh = Color(0xFFFF99BB)
+    val MapPeakMid = Color(0xFFD9829F)
+    val MapPeakLow = Color(0xFFB36B83)
+    val MapPeakArea = Color(0x4DFF99BB)
+
     /** 読み込んだ軌跡の色（設定 trackColor）。Compose の状態 */
     var trackColor: TrackColor by mutableStateOf(TrackColor.WHITE)
 
@@ -195,5 +204,9 @@ object HudColors {
         Ink.MAP_SHINKANSEN -> MapShinkansen
         Ink.MAP_FERRY -> MapFerry
         Ink.MAP_AIRPORT -> MapAirport
+        Ink.MAP_PEAK_LOW -> MapPeakLow
+        Ink.MAP_PEAK_MID -> MapPeakMid
+        Ink.MAP_PEAK_HIGH -> MapPeakHigh
+        Ink.MAP_PEAK_AREA -> MapPeakArea
     }
 }

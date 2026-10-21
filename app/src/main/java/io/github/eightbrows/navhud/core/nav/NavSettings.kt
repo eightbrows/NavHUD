@@ -172,9 +172,9 @@ data class NavSettings(
     fun mapLayersInUse(): Set<MapLayer> = MapItem.entries.filter { mapRangeOf(it) != MapRange.OFF }.flatMap { it.layers }.toSet()
 
     companion object {
-        /** 背景地図の項目の初期値（仮）: 高速道路・国道・空港は「すべて」、ほかは OFF（20261021-D01） */
+        /** 背景地図の項目の初期値（仮）: 高速道路・国道・山頂・空港は「すべて」、ほかは OFF（20261021-D01。山頂は 20261021-D02） */
         val DEFAULT_MAP_ITEMS: Map<MapItem, MapRange> = MapItem.entries.associateWith {
-            if (it in setOf(MapItem.MOTORWAY, MapItem.NATIONAL_ROAD, MapItem.AIRPORT)) MapRange.ALL else MapRange.OFF
+            if (it in setOf(MapItem.MOTORWAY, MapItem.NATIONAL_ROAD, MapItem.PEAK, MapItem.AIRPORT)) MapRange.ALL else MapRange.OFF
         }
         /** 背景地図の線の太さ・明るさの段（1〜6。1 がいちばん細い・暗い） */
         val MAP_LINE_LEVELS = 1..Tuning.BASEMAP_WIDTH_FACTORS.size
