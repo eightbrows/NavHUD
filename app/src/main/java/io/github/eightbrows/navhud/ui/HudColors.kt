@@ -96,14 +96,14 @@ object HudColors {
     val MapAirport = Color(0xFFB8FF00)
 
     /**
-     * 山頂（20261021-D02。仮）: 淡い桃色。目印になる山の三角は標高の段ごとに明るさを変える（低い段 = RGB × 0.8、中くらい = × 0.9、高い = そのまま）。
+     * 山頂（20261021-D02。仮）: 淡い桃色。目印になる山は、濃い三角（標高 1,500 m 以上）と薄い三角（未満。濃い三角の RGB × 0.7）。
      * 目印になりにくい山は、同じ桃色の半透明（不透明度 20%。黒の上では #332228）の丸。
-     * 20261021-D03: 三角を明るく（#FF99BB → #FFA8C6、段の掛ける数 0.85・0.7 → 0.9・0.8）、丸を暗く（30% → 20%）した。
-     * いちばん明るい段は白のテーマの距離環と ΔE 38.4、新幹線と 40.2。隣の段どうしは ΔE 7.6・8.0
+     * 20261021-D03: 三角を明るく（#FF99BB → #FFA8C6）、丸を暗く（30% → 20%）した。20261021-D04: 三角を 3 段から 2 段にした（中くらいの段をなくした）。
+     * 濃い三角は白のテーマの距離環と ΔE 38.4、新幹線と 40.2。薄い三角は、× 0.8（#CC869E。濃い三角と ΔE 15.6）では小さな三角で差が分かりにくかったので、
+     * × 0.7（#B3768B。ΔE 23.4）にした
      */
     val MapPeakHigh = Color(0xFFFFA8C6)
-    val MapPeakMid = Color(0xFFE697B2)
-    val MapPeakLow = Color(0xFFCC869E)
+    val MapPeakLow = Color(0xFFB3768B)
     val MapPeakArea = Color(0x33FFA8C6)
 
     /** 読み込んだ軌跡の色（設定 trackColor）。Compose の状態 */
@@ -207,7 +207,7 @@ object HudColors {
         Ink.MAP_FERRY -> MapFerry
         Ink.MAP_AIRPORT -> MapAirport
         Ink.MAP_PEAK_LOW -> MapPeakLow
-        Ink.MAP_PEAK_MID -> MapPeakMid
+
         Ink.MAP_PEAK_HIGH -> MapPeakHigh
         Ink.MAP_PEAK_AREA -> MapPeakArea
     }

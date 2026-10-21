@@ -34,7 +34,10 @@ object HudSceneBuilder {
         reserved: HudInsets = HudInsets(),
         numberBands: List<ClosedFloatingPointRange<Float>> = emptyList(),
         buttonBoxes: List<HudRect> = emptyList(),
-        /** 背景地図（§8）。null なら描かない。設定（NavSettings.baseMap）が OFF でも描かない。描くレイヤは NavSettings.mapLayers */
+        /**
+         * 背景地図（§8）。null なら描かない。線は設定（NavSettings.baseMap）が OFF なら描かない。描く線は NavSettings.mapItems。
+         * ランドマーク（空港・山頂の記号。NavSettings.landmarks）は baseMap によらず描く（20261021-D04）
+         */
         baseMap: BaseMap? = null,
     ): HudScene {
         val avoid = avoidFrame(rect, reserved)
@@ -93,7 +96,9 @@ object HudSceneBuilder {
         )
 
         // 背景地図: 今の R1（縮尺の 1/2）に合う、間引いた段を使う
-        val map = if (baseMap != null && s.baseMap && ref != null) BaseMapBuilder.build(baseMap, s.mapItems, ref.first, ref.second, proj, rect, range / 2, s.mapLineWidth, s.mapLineBrightness) else null
+        val map = if (baseMap != null && ref != null) {
+            BaseMapBuilder.build(baseMap, if (s.baseMap) s.mapItems else emptyMap(), s.landmarks, ref.first, ref.second, proj, rect, range / 2, s.mapLineWidth, s.mapLineBrightness)
+        } else null
         val scene = HudScene(
             rect = rect,
             arcs = arcs,

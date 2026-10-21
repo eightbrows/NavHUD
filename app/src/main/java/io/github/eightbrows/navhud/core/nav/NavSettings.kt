@@ -143,13 +143,15 @@ data class NavSettings(
     val panReturnSec: Int = 30,
     /** 画面常時点灯（§6.8） */
     val keepScreenOn: Boolean = true,
-    /** 背景地図（§8）を描く。OFF なら、mapItems によらず全部描かない */
+    /** 背景地図（§8）の線を描く。OFF なら、mapItems によらず線を全部描かない（ランドマーク landmarks は別。20261021-D04） */
     val baseMap: Boolean = true,
     /** 背景地図の項目ごとの、どの縮尺まで描くか（§8）。表にない項目は OFF（mapRangeOf で読む）。初期値は DEFAULT_MAP_ITEMS */
     val mapItems: Map<MapItem, MapRange> = DEFAULT_MAP_ITEMS,
+    /** ランドマーク（空港・山頂の記号）の項目ごとの、どの縮尺まで描くか（20261021-D04）。baseMap によらない。初期値は DEFAULT_LANDMARKS */
+    val landmarks: Map<LandmarkItem, MapRange> = DEFAULT_LANDMARKS,
     /** 背景地図の線の太さの段（1〜6。Tuning.BASEMAP_WIDTH_FACTORS を全部の線の太さに掛ける） */
     val mapLineWidth: Int = MAP_LINE_DEFAULT_LEVEL,
-    /** 背景地図の線の明るさの段（1〜6。Tuning.BASEMAP_BRIGHTNESS_FACTORS を全部の線と記号の色に掛ける） */
+    /** 背景地図の線の明るさの段（1〜6。Tuning.BASEMAP_BRIGHTNESS_FACTORS を全部の線の色に掛ける。ランドマークの記号には掛けない） */
     val mapLineBrightness: Int = MAP_LINE_DEFAULT_LEVEL,
     /** 地図に重ねるボタン（上部バー・操作列・WP ボタン列・再生の操作列）の不透明度 [%]。20〜100、10 刻み */
     val buttonOpacityPct: Int = Tuning.BUTTON_OPACITY_DEFAULT_PCT,
@@ -168,14 +170,22 @@ data class NavSettings(
     /** その項目の描く縮尺を変えた設定 */
     fun withMapRange(item: MapItem, range: MapRange): NavSettings = copy(mapItems = mapItems + (item to range))
 
+    /** そのランドマークの項目をどの縮尺まで描くか */
+    fun landmarkRangeOf(item: LandmarkItem): MapRange = landmarks[item] ?: MapRange.OFF
+
+    /** そのランドマークの項目の描く縮尺を変えた設定 */
+    fun withLandmarkRange(item: LandmarkItem, range: MapRange): NavSettings = copy(landmarks = landmarks + (item to range))
+
     /** OFF でない項目が使うファイルのレイヤ（使うときに開くレイヤ。BaseMap.preload） */
     fun mapLayersInUse(): Set<MapLayer> = MapItem.entries.filter { mapRangeOf(it) != MapRange.OFF }.flatMap { it.layers }.toSet()
 
     companion object {
-        /** 背景地図の項目の初期値（仮）: 高速道路・国道・山頂・空港は「すべて」、ほかは OFF（20261021-D01。山頂は 20261021-D02） */
+        /** 背景地図の項目の初期値（仮）: 高速道路・国道は「すべて」、ほかは OFF（20261021-D01） */
         val DEFAULT_MAP_ITEMS: Map<MapItem, MapRange> = MapItem.entries.associateWith {
-            if (it in setOf(MapItem.MOTORWAY, MapItem.NATIONAL_ROAD, MapItem.PEAK, MapItem.AIRPORT)) MapRange.ALL else MapRange.OFF
+            if (it in setOf(MapItem.MOTORWAY, MapItem.NATIONAL_ROAD)) MapRange.ALL else MapRange.OFF
         }
+        /** ランドマークの初期値（仮）: 4 項目とも「すべて」（20261021-D04） */
+        val DEFAULT_LANDMARKS: Map<LandmarkItem, MapRange> = LandmarkItem.entries.associateWith { MapRange.ALL }
         /** 背景地図の線の太さ・明るさの段（1〜6。1 がいちばん細い・暗い） */
         val MAP_LINE_LEVELS = 1..Tuning.BASEMAP_WIDTH_FACTORS.size
         /** 背景地図の線の太さ・明るさの段の初期値（仮）。この段の掛ける数が 1（今の太さ・色） */

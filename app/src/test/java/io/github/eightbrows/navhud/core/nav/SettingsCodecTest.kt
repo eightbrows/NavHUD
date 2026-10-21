@@ -38,6 +38,7 @@ class SettingsCodecTest {
             keepScreenOn = false,
             baseMap = false,
             mapItems = NavSettings.DEFAULT_MAP_ITEMS + mapOf(MapItem.MOTORWAY to MapRange.ALL, MapItem.WATER to MapRange.UPTO_25KM),
+            landmarks = NavSettings.DEFAULT_LANDMARKS + mapOf(LandmarkItem.PEAK_LOW to MapRange.OFF, LandmarkItem.AIRPORT to MapRange.UPTO_50KM),
             mapLineWidth = 3,
             mapLineBrightness = 2,
             buttonOpacityPct = 40,

@@ -1,6 +1,9 @@
 package io.github.eightbrows.navhud.core.nav
 
+import io.github.eightbrows.navhud.core.Tuning
 import io.github.eightbrows.navhud.core.io.MapLayer
+import io.github.eightbrows.navhud.core.io.MapPoint
+import io.github.eightbrows.navhud.core.io.PeakKind
 
 /**
  * 背景地図（§8）の項目を、どの縮尺まで描くか。R1（自機から 1 つ目の距離環の距離）がこの値以下のときに描く。
@@ -22,8 +25,8 @@ enum class MapRange(val maxR1Km: Double?) {
  * - 道路は種類（高速道路・その他の自動車専用道路・国道・県道）ごとに分ける（どれも ROAD のレイヤ。描くときにレイヤの中の種類で分ける）
  * - 鉄道は新幹線と在来線に分ける（どちらも RAILWAY のレイヤ。種類の印で分ける。山形・秋田新幹線は在来線に入れる）
  * - 河川・湖沼は 1 つの項目（河川の線と、湖沼などの面の輪郭）
- * - 点は山頂と空港（港・駅・ダムと堰の点・都市と、市街地の輪郭は 20261020-D01、ダム・堰の線は 20261020-D02 でなくした。
- *   前の保存にある名前は読めない名前として飛ばす）。山頂は 20261021-D02 で足した（前の保存にない項目なので、初期値になる）
+ * - 線だけ（港・駅・ダムと堰の点・都市と、市街地の輪郭は 20261020-D01、ダム・堰の線は 20261020-D02 でなくした。
+ *   空港・山頂は 20261021-D04 でランドマーク（[LandmarkItem]）に移した。前の保存にある名前は読めない名前として飛ばす）
  */
 enum class MapItem(val layers: Set<MapLayer>) {
     COASTLINE(setOf(MapLayer.COASTLINE)),
@@ -37,6 +40,32 @@ enum class MapItem(val layers: Set<MapLayer>) {
     RAILWAY(setOf(MapLayer.RAILWAY)),
     WATER(setOf(MapLayer.RIVER, MapLayer.INLAND_WATER)),
     FERRY(setOf(MapLayer.FERRY)),
-    PEAK(setOf(MapLayer.PEAK)),
-    AIRPORT(setOf(MapLayer.AIRPORT)),
+}
+
+/**
+ * 設定画面の「ランドマーク」の項目（20261021-D04）。背景地図の点（空港・山頂）を、どの縮尺まで描くか。
+ * 背景地図のスイッチ（NavSettings.baseMap）と線の太さ・明るさの段は効かない。
+ * - 空港: 飛行機の記号
+ * - 山頂（濃い三角）: 目印になる山（PeakKind.isLandmark）のうち、標高 Tuning.BASEMAP_PEAK_HIGH_M（1,500 m）以上
+ * - 山頂（薄い三角）: 目印になる山のうち、それ未満
+ * - 山頂（その他）: 目印になりにくい山（薄い丸）
+ */
+enum class LandmarkItem(val layer: MapLayer) {
+    AIRPORT(MapLayer.AIRPORT),
+    PEAK_HIGH(MapLayer.PEAK),
+    PEAK_LOW(MapLayer.PEAK),
+    PEAK_OTHER(MapLayer.PEAK);
+
+    companion object {
+        /** 点がどの項目に入るか。点のレイヤでないものは null */
+        fun of(p: MapPoint): LandmarkItem? = when (p.layer) {
+            MapLayer.AIRPORT -> AIRPORT
+            MapLayer.PEAK -> when {
+                !PeakKind.isLandmark(p.kind) -> PEAK_OTHER
+                PeakKind.elevationM(p.kind) >= Tuning.BASEMAP_PEAK_HIGH_M -> PEAK_HIGH
+                else -> PEAK_LOW
+            }
+            else -> null
+        }
+    }
 }

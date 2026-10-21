@@ -6,10 +6,10 @@ import io.github.eightbrows.navhud.core.geo.Screen
 import io.github.eightbrows.navhud.core.io.BaseMap
 import io.github.eightbrows.navhud.core.io.MapLayer
 import io.github.eightbrows.navhud.core.io.MapLine
-import io.github.eightbrows.navhud.core.io.PeakKind
 import io.github.eightbrows.navhud.core.io.RailKind
 import io.github.eightbrows.navhud.core.io.RoadKind
 import io.github.eightbrows.navhud.core.io.WaterKind
+import io.github.eightbrows.navhud.core.nav.LandmarkItem
 import io.github.eightbrows.navhud.core.nav.MapItem
 import io.github.eightbrows.navhud.core.nav.MapRange
 import io.github.eightbrows.navhud.core.nav.NavSettings
@@ -39,13 +39,18 @@ data class MapLayerStyle(val ink: Ink, val widthDp: Float = 0f, val dash: LineDa
  */
 object BaseMapBuilder {
 
-    /** 描く順番（下から上）。湖沼などの輪郭 → 水（河川・海岸線）→ 境 → 交通。点は線の上で、山頂 → 空港（空港がいちばん上） */
+    /** 線のレイヤの描く順番（下から上）。湖沼などの輪郭 → 水（河川・海岸線）→ 境 → 交通。点（ランドマーク）は線の全部より上（LANDMARK_DRAW_ORDER） */
     val DRAW_ORDER: List<MapLayer> = listOf(
         MapLayer.INLAND_WATER, MapLayer.RIVER, MapLayer.COASTLINE,
         MapLayer.MUNI_BOUNDARY, MapLayer.PREF_BOUNDARY,
         MapLayer.ROAD, MapLayer.RAILWAY, MapLayer.FERRY,
-        MapLayer.PEAK, MapLayer.AIRPORT,
     )
+
+    /**
+     * ランドマークの描く順番（下から上。20261021-D04）: 山頂の丸 → 薄い三角 → 濃い三角 → 空港。
+     * 同じ見た目が続くので、Canvas はまとめて描ける
+     */
+    val LANDMARK_DRAW_ORDER: List<LandmarkItem> = listOf(LandmarkItem.PEAK_OTHER, LandmarkItem.PEAK_LOW, LandmarkItem.PEAK_HIGH, LandmarkItem.AIRPORT)
 
     /** レイヤの描き方。どれも HUD を邪魔しない暗い色（実際の色は ui/HudColors） */
     fun styleOf(layer: MapLayer): MapLayerStyle = when (layer) {
@@ -61,24 +66,28 @@ object BaseMapBuilder {
         MapLayer.PEAK -> MapLayerStyle(Ink.MAP_PEAK_HIGH)
     }
 
-    /** 目印になる山の三角の色: 標高の段（Tuning.BASEMAP_PEAK_TIER_M）が高いほど明るい */
-    fun peakInk(elevationM: Int): Ink = when {
-        elevationM < Tuning.BASEMAP_PEAK_TIER_M[0] -> Ink.MAP_PEAK_LOW
-        elevationM < Tuning.BASEMAP_PEAK_TIER_M[1] -> Ink.MAP_PEAK_MID
-        else -> Ink.MAP_PEAK_HIGH
+    /** ランドマークの記号（色・大きさ・形）。大きさと色は、縮尺・線の太さ・明るさの段によらない */
+    fun landmarkMark(item: LandmarkItem, at: P): MapMark = when (item) {
+        LandmarkItem.AIRPORT -> MapMark(at, Ink.MAP_AIRPORT, Tuning.BASEMAP_AIRPORT_MARK_DP, MarkShape.PLANE)
+        LandmarkItem.PEAK_HIGH -> MapMark(at, Ink.MAP_PEAK_HIGH, Tuning.BASEMAP_PEAK_MARK_DP, MarkShape.TRIANGLE)
+        LandmarkItem.PEAK_LOW -> MapMark(at, Ink.MAP_PEAK_LOW, Tuning.BASEMAP_PEAK_MARK_DP, MarkShape.TRIANGLE)
+        LandmarkItem.PEAK_OTHER -> MapMark(at, Ink.MAP_PEAK_AREA, Tuning.BASEMAP_PEAK_AREA_DP, MarkShape.DISC)
     }
 
     /**
-     * @param items 項目ごとの、どの縮尺まで描くか（設定の NavSettings.mapItems）。R1 がその値以下の項目だけを描く
+     * @param items 線の項目ごとの、どの縮尺まで描くか（設定の NavSettings.mapItems。背景地図のスイッチが OFF なら、呼ぶ側が空にする）。
+     *   R1 がその値以下の項目だけを描く
+     * @param landmarks ランドマーク（空港・山頂の記号）の項目ごとの、どの縮尺まで描くか（NavSettings.landmarks。背景地図のスイッチによらない）
      * @param refLat 基準の地点（通常は自機、PAN は PAN の中心。proj の EN の原点）
      * @param rect 描画の枠。この枠に（marginPx だけ外まで）入る範囲の線・点を選ぶ
      * @param r1M 今の R1 [m]（縮尺の 1/2）。使う段と、描く項目を決める
      * @param widthLevel 線の太さの段（設定の 1〜6。全部の線の太さに Tuning.BASEMAP_WIDTH_FACTORS を掛ける）
-     * @param brightnessLevel 線の明るさの段（設定の 1〜6。全部の線の色に Tuning.BASEMAP_BRIGHTNESS_FACTORS を掛ける。空港の記号は掛けない）
+     * @param brightnessLevel 線の明るさの段（設定の 1〜6。全部の線の色に Tuning.BASEMAP_BRIGHTNESS_FACTORS を掛ける。ランドマークの記号は掛けない）
      */
     fun build(
         map: BaseMap,
         items: Map<MapItem, MapRange>,
+        landmarks: Map<LandmarkItem, MapRange>,
         refLat: Double,
         refLon: Double,
         proj: HudProjection,
@@ -90,7 +99,8 @@ object BaseMapBuilder {
         marginPx: Float = Tuning.BASEMAP_MARGIN_PX,
     ): BaseMapScene {
         val shown = items.filter { it.value.shows(r1M) }.keys
-        if (shown.isEmpty()) return BaseMapScene(emptyList(), emptyList())
+        val shownMarks = landmarks.filter { it.value.shows(r1M) }.keys
+        if (shown.isEmpty() && shownMarks.isEmpty()) return BaseMapScene(emptyList(), emptyList())
         val layers = shown.flatMap { it.layers }.toSet()
         val box = visibleBox(refLat, refLon, proj, rect, marginPx)
         val level = map.levelFor(r1M)
@@ -101,25 +111,7 @@ object BaseMapBuilder {
         for (layer in DRAW_ORDER) {
             if (layer !in layers) continue
             val style = styleOf(layer)
-            if (layer == MapLayer.PEAK) {
-                // 山頂（20261021-D02）: 目印になりにくい山は半透明の丸、目印になる山は三角。丸 → 三角（暗い段 → 明るい段）の順に並べる
-                // （三角が丸より上、明るい三角が上。同じ見た目が続くので、Canvas はまとめて描ける）
-                val areas = ArrayList<MapMark>()
-                val peaks = ArrayList<MapMark>()
-                for (p in map.points) {
-                    if (p.layer != layer || !box.contains(p.lat, p.lon)) continue
-                    val at = project(p.lat, p.lon, refLat, refLon, proj)
-                    if (PeakKind.isLandmark(p.kind)) peaks += MapMark(at, peakInk(PeakKind.elevationM(p.kind)), Tuning.BASEMAP_PEAK_MARK_DP, MarkShape.TRIANGLE)
-                    else areas += MapMark(at, Ink.MAP_PEAK_AREA, Tuning.BASEMAP_PEAK_AREA_DP, MarkShape.DISC)
-                }
-                marks += areas
-                marks += peaks.sortedBy { it.ink.ordinal }
-            } else if (layer.isPoint) {
-                for (p in map.points) {
-                    if (p.layer != layer || !box.contains(p.lat, p.lon)) continue
-                    marks += MapMark(project(p.lat, p.lon, refLat, refLon, proj), style.ink, Tuning.BASEMAP_AIRPORT_MARK_DP)
-                }
-            } else if (layer == MapLayer.ROAD) {
+            if (layer == MapLayer.ROAD) {
                 // 道路: 項目（高速道路・その他の自動車専用道路・国道・県道）ごとに、その縮尺で描く種類だけ。種類ごとに色と太さを変える。
                 // 県道 → 国道 → その他の自動車専用道路 → 高速道路の順に並べる（太い線が上。同じ見た目が続くので、Canvas はまとめて描ける）
                 val byItem = ROAD_DRAW_ORDER.associateWith { ArrayList<Polyline>() }
@@ -158,6 +150,16 @@ object BaseMapBuilder {
                     if (pts.size >= 2) lines += Polyline(pts, style.ink, style.widthDp * wk, style.dash, k)
                 }
             }
+        }
+        // ランドマーク（空港・山頂。20261021-D04）: 線の全部より上。LANDMARK_DRAW_ORDER の順に並べる
+        if (shownMarks.isNotEmpty()) {
+            val byItem = LANDMARK_DRAW_ORDER.associateWith { ArrayList<MapMark>() }
+            for (p in map.points) {
+                val item = LandmarkItem.of(p) ?: continue
+                if (item !in shownMarks || !box.contains(p.lat, p.lon)) continue
+                byItem.getValue(item) += landmarkMark(item, project(p.lat, p.lon, refLat, refLon, proj))
+            }
+            for (item in LANDMARK_DRAW_ORDER) marks += byItem.getValue(item)
         }
         return BaseMapScene(lines, marks)
     }

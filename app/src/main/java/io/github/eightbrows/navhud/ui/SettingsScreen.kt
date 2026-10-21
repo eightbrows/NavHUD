@@ -48,6 +48,7 @@ import io.github.eightbrows.navhud.core.model.SourceMode
 import io.github.eightbrows.navhud.core.nav.ColorTheme
 import io.github.eightbrows.navhud.core.nav.DisplayMode
 import io.github.eightbrows.navhud.core.nav.LanguageMode
+import io.github.eightbrows.navhud.core.nav.LandmarkItem
 import io.github.eightbrows.navhud.core.nav.MapItem
 import io.github.eightbrows.navhud.core.nav.MapRange
 import io.github.eightbrows.navhud.core.nav.NavSettings
@@ -372,16 +373,21 @@ fun SettingsScreen(
             Choice(stringResource(R.string.map_line_brightness), levels, s.mapLineBrightness, note = stringResource(R.string.map_line_brightness_note), enabled = s.baseMap, default = def.mapLineBrightness) { v ->
                 onChange { it.copy(mapLineBrightness = v) }
             }
-            val ranges = listOf(
-                stringResource(R.string.map_range_off) to MapRange.OFF,
-                stringResource(R.string.map_range_10) to MapRange.UPTO_10KM,
-                stringResource(R.string.map_range_25) to MapRange.UPTO_25KM,
-                stringResource(R.string.map_range_50) to MapRange.UPTO_50KM,
-                stringResource(R.string.map_range_all) to MapRange.ALL,
-            )
+            val ranges = mapRangeChoices()
             for (item in MAP_ITEM_ORDER) {
                 Choice(stringResource(mapItemLabel(item)), ranges, s.mapRangeOf(item), enabled = s.baseMap, default = def.mapRangeOf(item), compact = true) { v ->
                     onChange { it.withMapRange(item, v) }
+                }
+            }
+        },
+
+        SettingsSection(stringResource(R.string.sec_landmarks)) {
+            // ランドマーク（20261021-D04）: 空港・山頂の記号を、項目ごとに「どの縮尺まで描くか」。背景地図のスイッチによらず押せて、描く
+            Text(stringResource(R.string.landmarks_note), style = RowNote)
+            val ranges = mapRangeChoices()
+            for (item in LandmarkItem.entries) {
+                Choice(stringResource(landmarkLabel(item)), ranges, s.landmarkRangeOf(item), default = def.landmarkRangeOf(item), compact = true) { v ->
+                    onChange { it.withLandmarkRange(item, v) }
                 }
             }
         },
@@ -472,11 +478,28 @@ private const val REPO_URL = "https://github.com/eightbrows/NavHUD"
 /** 公式サイト（GpsLogger の「情報」の欄と同じ） */
 private const val WEBSITE_URL = "https://eightbrows.github.io/"
 
-/** 設定画面の地図レイヤの項目の並び: 線（海岸線・境・道路・鉄道・水・フェリー）→ 点（山頂・空港） */
+/** 設定画面の地図レイヤの項目の並び: 海岸線・境・道路・鉄道・水・フェリー（空港・山頂は 20261021-D04 でランドマークの欄に移した） */
 private val MAP_ITEM_ORDER = listOf(
     MapItem.COASTLINE, MapItem.PREF_BOUNDARY, MapItem.MUNI_BOUNDARY, MapItem.MOTORWAY, MapItem.OTHER_MOTORWAY, MapItem.NATIONAL_ROAD, MapItem.PREF_ROAD,
-    MapItem.SHINKANSEN, MapItem.RAILWAY, MapItem.WATER, MapItem.FERRY, MapItem.PEAK, MapItem.AIRPORT,
+    MapItem.SHINKANSEN, MapItem.RAILWAY, MapItem.WATER, MapItem.FERRY,
 )
+
+/** 地図レイヤ・ランドマークの項目の選択肢: OFF ／ 〜10k ／ 〜25k ／ 〜50k ／ すべて */
+@Composable
+private fun mapRangeChoices(): List<Pair<String, MapRange>> = listOf(
+    stringResource(R.string.map_range_off) to MapRange.OFF,
+    stringResource(R.string.map_range_10) to MapRange.UPTO_10KM,
+    stringResource(R.string.map_range_25) to MapRange.UPTO_25KM,
+    stringResource(R.string.map_range_50) to MapRange.UPTO_50KM,
+    stringResource(R.string.map_range_all) to MapRange.ALL,
+)
+
+private fun landmarkLabel(item: LandmarkItem): Int = when (item) {
+    LandmarkItem.AIRPORT -> R.string.map_layer_airport
+    LandmarkItem.PEAK_HIGH -> R.string.landmark_peak_high
+    LandmarkItem.PEAK_LOW -> R.string.landmark_peak_low
+    LandmarkItem.PEAK_OTHER -> R.string.landmark_peak_other
+}
 
 private fun mapItemLabel(item: MapItem): Int = when (item) {
     MapItem.COASTLINE -> R.string.map_layer_coastline
@@ -490,8 +513,6 @@ private fun mapItemLabel(item: MapItem): Int = when (item) {
     MapItem.RAILWAY -> R.string.map_layer_railway
     MapItem.WATER -> R.string.map_item_water
     MapItem.FERRY -> R.string.map_layer_ferry
-    MapItem.PEAK -> R.string.map_item_peak
-    MapItem.AIRPORT -> R.string.map_layer_airport
 }
 
 /** 背景地図の出典（国土地理院「地球地図日本」のページ） */

@@ -61,7 +61,7 @@ class BaseMapSampleTest {
                         val avoid = HudSceneBuilder.avoidFrame(MeasuredScreen.RECT, MeasuredScreen.REPLAY)
                         val proj = HudSceneBuilder.projection(s.settings, MeasuredScreen.RECT, avoid, r1 * 2, s.heading.deg?.toDouble(), metrics)
                         val t0 = System.nanoTime()
-                        val scene = BaseMapBuilder.build(map, layers, f.lat, f.lon, proj, MeasuredScreen.RECT, r1)
+                        val scene = BaseMapBuilder.build(map, layers, NavSettings.DEFAULT_LANDMARKS, f.lat, f.lon, proj, MeasuredScreen.RECT, r1)
                         val ms = (System.nanoTime() - t0) / 1e6
                         if (round > 0) {   // 1 回目は JVM の準備の分が入るので数えない
                             times += ms

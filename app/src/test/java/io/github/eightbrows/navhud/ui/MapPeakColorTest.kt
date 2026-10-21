@@ -18,19 +18,17 @@ class MapPeakColorTest {
 
     @Test
     fun peakTiersGetBrighterWithElevationAndKeepTheHue() {
-        val tiers = listOf(Ink.MAP_PEAK_LOW, Ink.MAP_PEAK_MID, Ink.MAP_PEAK_HIGH).map { HudColors.ofMap(it) }
+        val tiers = listOf(Ink.MAP_PEAK_LOW, Ink.MAP_PEAK_HIGH).map { HudColors.ofMap(it) }
         // 高い段ほど明るい。どの段も同じ色の系統（RGB の比がほぼ同じ）
         assertTrue(tiers.zipWithNext().all { (a, b) -> a.luminance() < b.luminance() })
         for (c in tiers) {
             assertEquals(HudColors.MapPeakHigh.green / HudColors.MapPeakHigh.red, c.green / c.red, 0.02f)
             assertEquals(HudColors.MapPeakHigh.blue / HudColors.MapPeakHigh.red, c.blue / c.red, 0.02f)
         }
-        // 段の掛ける数は 1・0.9・0.8（20261021-D03。前は 1・0.85・0.7）
-        val (low, mid, high) = tiers
-        for (ch in listOf<(Color) -> Float>({ it.red }, { it.green }, { it.blue })) {
-            assertEquals(0.9f, ch(mid) / ch(high), 0.01f)
-            assertEquals(0.8f, ch(low) / ch(high), 0.01f)
-        }
+        // 2 段（20261021-D04）: 濃い三角 #FFA8C6、薄い三角はその RGB × 0.7（#B3768B）
+        val (low, high) = tiers
+        assertEquals(Color(0xFFFFA8C6), high)
+        for (ch in listOf<(Color) -> Float>({ it.red }, { it.green }, { it.blue })) assertEquals(0.7f, ch(low) / ch(high), 0.01f)
         // 目印になりにくい山の丸は、同じ桃色の半透明（20%。20261021-D03 で 30% から暗くした）
         val area = HudColors.ofMap(Ink.MAP_PEAK_AREA)
         assertEquals(0.2f, area.alpha, 0.01f)
