@@ -324,8 +324,11 @@ class BaseMapFileTest {
         assertEquals(3750, PeakKind.elevationM(fuji.kind))
         assertEquals(35.3606, fuji.lat, 0.001)
         assertEquals(138.7274, fuji.lon, 0.001)
-        // 目印になる山（標高 800 m 以上、かつ自分より高い山頂まで 15 km 以上）: 263
-        assertEquals(263, peaks.count { PeakKind.isLandmark(it.kind) })
+        // 目印になる山（標高 800 m 以上、かつ自分より高い山頂まで 10 km 以上。20261021-D03 で 15 km から変えた）: 397（前は 263）
+        assertEquals(397, peaks.count { PeakKind.isLandmark(it.kind) })
+        // 10〜15 km で新しく目印になった山: 雄阿寒岳（14.7 km）・男体山（日光。10.9 km）
+        assertTrue(PeakKind.isLandmark(peak("雄阿寒岳").kind))
+        assertTrue(peaks.filter { it.name == "男体山" }.any { PeakKind.isLandmark(it.kind) && PeakKind.elevationM(it.kind) == 2450 })
         assertTrue(peaks.filter { PeakKind.isLandmark(it.kind) }.all { PeakKind.elevationM(it.kind) >= 800 - 50 })
         // 富士山（いちばん高い）・筑波山（877 m、68 km）・雌阿寒岳（1,499 m、64 km）・奥穂高岳（3,190 m、87 km）は目印になる
         for (n in listOf("富士山＜剣ヶ峯＞", "筑波山", "雌阿寒岳", "奥穂高岳")) assertTrue(n, PeakKind.isLandmark(peak(n).kind))

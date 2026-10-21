@@ -25,9 +25,15 @@ class MapPeakColorTest {
             assertEquals(HudColors.MapPeakHigh.green / HudColors.MapPeakHigh.red, c.green / c.red, 0.02f)
             assertEquals(HudColors.MapPeakHigh.blue / HudColors.MapPeakHigh.red, c.blue / c.red, 0.02f)
         }
-        // 目印になりにくい山の丸は、同じ桃色の半透明（30%）
+        // 段の掛ける数は 1・0.9・0.8（20261021-D03。前は 1・0.85・0.7）
+        val (low, mid, high) = tiers
+        for (ch in listOf<(Color) -> Float>({ it.red }, { it.green }, { it.blue })) {
+            assertEquals(0.9f, ch(mid) / ch(high), 0.01f)
+            assertEquals(0.8f, ch(low) / ch(high), 0.01f)
+        }
+        // 目印になりにくい山の丸は、同じ桃色の半透明（20%。20261021-D03 で 30% から暗くした）
         val area = HudColors.ofMap(Ink.MAP_PEAK_AREA)
-        assertEquals(0.3f, area.alpha, 0.01f)
+        assertEquals(0.2f, area.alpha, 0.01f)
         assertEquals(HudColors.MapPeakHigh.copy(alpha = area.alpha), area)
     }
 

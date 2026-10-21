@@ -96,13 +96,15 @@ object HudColors {
     val MapAirport = Color(0xFFB8FF00)
 
     /**
-     * 山頂（20261021-D02。仮）: 淡い桃色。目印になる山の三角は標高の段ごとに明るさを変える（低い段 = RGB × 0.7、中くらい = × 0.85、高い = そのまま）。
-     * いちばん明るい段は新幹線・国道と ΔE 41。目印になりにくい山は、同じ桃色の半透明（不透明度 30%）の丸
+     * 山頂（20261021-D02。仮）: 淡い桃色。目印になる山の三角は標高の段ごとに明るさを変える（低い段 = RGB × 0.8、中くらい = × 0.9、高い = そのまま）。
+     * 目印になりにくい山は、同じ桃色の半透明（不透明度 20%。黒の上では #332228）の丸。
+     * 20261021-D03: 三角を明るく（#FF99BB → #FFA8C6、段の掛ける数 0.85・0.7 → 0.9・0.8）、丸を暗く（30% → 20%）した。
+     * いちばん明るい段は白のテーマの距離環と ΔE 38.4、新幹線と 40.2。隣の段どうしは ΔE 7.6・8.0
      */
-    val MapPeakHigh = Color(0xFFFF99BB)
-    val MapPeakMid = Color(0xFFD9829F)
-    val MapPeakLow = Color(0xFFB36B83)
-    val MapPeakArea = Color(0x4DFF99BB)
+    val MapPeakHigh = Color(0xFFFFA8C6)
+    val MapPeakMid = Color(0xFFE697B2)
+    val MapPeakLow = Color(0xFFCC869E)
+    val MapPeakArea = Color(0x33FFA8C6)
 
     /** 読み込んだ軌跡の色（設定 trackColor）。Compose の状態 */
     var trackColor: TrackColor by mutableStateOf(TrackColor.WHITE)

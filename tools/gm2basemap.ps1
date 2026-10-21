@@ -663,8 +663,8 @@ $BranchMinKm = 2; $BranchMaxKm = 100; $BranchDegPerKm = 100   # 網の枝: 長�
 $RailCurvK = 50; $RailGapM = 300; $StationSnapM = 1000; $StationPairKm = 150; $MiniShinkansenDeg = 15; $RailHalf = 0.5; $RailMinRunKm = 2
 $ShinkansenFlag = 0x10; $MiniShinkansenFlag = 0x20
 # 山頂（20261021-D02）: 種類の下の 7 ビット = 標高 ÷ PeakElevStepM（切り捨て）、0x80 = 目印になる山
-#   目印になる山 = 標高が PeakLandmarkMinM 以上、かつ孤立度（一覧の中で自分より高い山頂までの距離）が PeakLandmarkMinIsoKm 以上（仮）
-$PeakElevStepM = 50; $PeakLandmarkMinM = 800; $PeakLandmarkMinIsoKm = 15; $PeakLandmarkFlag = 0x80
+#   目印になる山 = 標高が PeakLandmarkMinM 以上、かつ孤立度（一覧の中で自分より高い山頂までの距離）が PeakLandmarkMinIsoKm 以上（仮。20261021-D03 で 15 km → 10 km）
+$PeakElevStepM = 50; $PeakLandmarkMinM = 800; $PeakLandmarkMinIsoKm = 10; $PeakLandmarkFlag = 0x80
 $MinSizeClass = @(1, 1, 2, 3)   # 段ごとに入れる大きさの段の下限
 function SizeClass($v, $edges) { if ($v -ge $edges[1]) { 3 } elseif ($v -ge $edges[0]) { 2 } else { 1 } }
 
