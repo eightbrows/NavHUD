@@ -199,11 +199,16 @@
     <string name="map_item_water">河川・湖沼</string>
     <string name="map_layer_ferry">フェリーの航路</string>
     <string name="sec_landmarks">ランドマーク</string>
-    <string name="landmarks_note">空港と山頂の記号（名前は出しません）。背景地図の ON・OFF とは別に選べ、線の太さ・明るさの段は効きません。目印になる山は三角（標高 1,500 m 以上は濃い三角、未満は薄い三角）、ほかの山は薄い丸。</string>
-    <string name="landmark_peak_high">山頂（濃い三角）</string>
-    <string name="landmark_peak_low">山頂（薄い三角）</string>
-    <string name="landmark_peak_other">山頂（その他）</string>
-    <string name="map_layer_airport">空港</string>
+    <string name="landmarks_note">空港と山頂の記号（名前は出さず、空港は ICAO の略号だけ）。背景地図の ON・OFF とは別に選べ、線の太さ・明るさの段は効きません。空港の大は、いちばん長い滑走路が 2,000 m 以上。山頂の高・中は目印になる山（標高 1,500 m 以上が高）、低はほかの山。</string>
+    <string name="landmark_brightness">明るさ</string>
+    <string name="landmark_brightness_note">ランドマークの記号・敷地・略号の明るさ（1 がいちばん暗い。項目どうしの差は変わらない）</string>
+    <string name="landmark_airport_large">空港（大）</string>
+    <string name="landmark_airport_small">空港（小）</string>
+    <string name="landmark_airport_area">空港の敷地</string>
+    <string name="landmark_airport_code">空港の略号</string>
+    <string name="landmark_peak_high">山頂（高）</string>
+    <string name="landmark_peak_mid">山頂（中）</string>
+    <string name="landmark_peak_low">山頂（低）</string>
     <string name="sec_other">その他</string>
     <string name="keep_screen_on">画面常時点灯</string>
     <string name="auto_open_last">前回の WP リストを自動で開く</string>
@@ -234,6 +239,7 @@
     <string name="about_cheatsheet">チートシート（PDF）</string>
     <string name="about_basemap_source">背景地図：「地球地図日本」（国土地理院）（%1$s）をもとに作成</string>
     <string name="about_peak_source">山頂：「日本の山岳標高一覧（1003山）」（国土地理院）をもとに作成</string>
+    <string name="about_airport_source">空港：「国土数値情報（空港データ）」（国土交通省）（%1$s）をもとに作成</string>
     <string name="about_formats">ファイル形式の説明（PDF）</string>
     <string name="about_links_note">下線の項目は、押すとブラウザで開きます（このアプリ自身は通信しません）。</string>
 

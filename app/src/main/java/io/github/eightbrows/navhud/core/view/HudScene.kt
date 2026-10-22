@@ -70,28 +70,39 @@ enum class Ink {
     /** 背景地図の点: 空港（飛行機の記号） */
     MAP_AIRPORT,
 
-    /** 背景地図の点: 目印になる山の山頂（三角の記号）。薄い三角（標高 1,500 m 未満）と濃い三角（以上）（20261021-D04 で 3 段から 2 段） */
-    MAP_PEAK_LOW,
-    MAP_PEAK_HIGH,
+    /** 背景地図の空港の敷地（半透明で塗る面）と、空港の ICAO の略号の文字（20261022-D01） */
+    MAP_AIRPORT_AREA,
+    MAP_AIRPORT_CODE,
 
-    /** 背景地図の点: 目印になりにくい山の山頂のまわり（半透明の丸） */
-    MAP_PEAK_AREA,
+    /**
+     * 背景地図の点: 山頂の三角の記号（20261022-D01 で 3 段とも三角）。高（目印になる山、1,500 m 以上）がいちばん明るく、
+     * 中（目印になる山、1,500 m 未満）、低（目印になりにくい山）の順に暗い
+     */
+    MAP_PEAK_LOW,
+    MAP_PEAK_MID,
+    MAP_PEAK_HIGH,
 }
 
 /** 折れ線の線の種類（背景地図のレイヤの描き分け）。長さは Tuning.BASEMAP_*_DP */
 enum class LineDash { SOLID, DOT, FINE_DOT, DASH, LONG_DASH }
 
-/** 背景地図の点の記号の形: 飛行機（空港）・三角（目印になる山の山頂）・丸（目印になりにくい山の山頂のまわり。半透明） */
-enum class MarkShape { PLANE, TRIANGLE, DISC }
+/** 背景地図の点の記号の形: 飛行機（空港）・三角（山頂） */
+enum class MarkShape { PLANE, TRIANGLE }
 
 /**
- * 背景地図の点（名前は描かない）。sizeDp は記号の幅 [dp]（飛行機は翼の端から端まで、三角は底辺、丸は直径）。
- * 画面上の大きさは縮尺・線の太さの段によらず同じ。色は線の明るさの段によらず、いつも同じ（20261021-D01）。
+ * 背景地図の点（ランドマークの記号）。sizeDp は記号の幅 [dp]（飛行機は翼の端から端まで、三角は底辺）。
+ * 画面上の大きさは縮尺・線の太さの段によらず同じ。色は線の明るさの段によらず、ランドマークの明るさの段（brightness。
+ * Tuning.BASEMAP_BRIGHTNESS_FACTORS の値。HudColors.landmark で色に掛ける）だけで変わる（20261022-D01）。
  * - 飛行機: 上から見た塗った記号に黒のふち。機首が上で、向きは変えない
  * - 三角: 頂点が上の塗った三角に黒のふち。at は三角の中心（高さの真ん中）
- * - 丸: 半透明の色で塗る（ふちなし）
  */
-data class MapMark(val at: P, val ink: Ink, val sizeDp: Float, val shape: MarkShape = MarkShape.PLANE)
+data class MapMark(val at: P, val ink: Ink, val sizeDp: Float, val shape: MarkShape = MarkShape.PLANE, val brightness: Float = 1f)
+
+/**
+ * 背景地図の文字（空港の ICAO の略号。20261022-D01）。at は空港の位置、offsetDp だけ右上にずらして、文字の左下を置く。
+ * 黒のふちを付けて描く。大きさ（Tuning.BASEMAP_AIRPORT_CODE_SP）は縮尺によらず同じ。brightness はランドマークの明るさの段
+ */
+data class MapLabel(val text: String, val at: P, val offsetDp: Float, val ink: Ink, val brightness: Float = 1f)
 
 /** 線。dashed は無効 WP の破線、longDash は次の WP への方位線の長い破線（Tuning.ACTIVE_DASH_*）。 */
 data class Segment(val a: P, val b: P, val ink: Ink, val dashed: Boolean = false, val bold: Boolean = false, val longDash: Boolean = false)
@@ -154,8 +165,12 @@ data class HudScene(
     val trails: List<Polyline> = emptyList(),
     /** 背景地図の線（いちばん下に描く。レイヤの描く順に並んでいる。§8） */
     val baseMap: List<Polyline> = emptyList(),
-    /** 背景地図の点（線の上、距離環より下に描く） */
+    /** 背景地図の空港の敷地（線の上、記号の下に塗る。輪の折れ線。20261022-D01） */
+    val baseMapAreas: List<Polyline> = emptyList(),
+    /** 背景地図の点（ランドマークの記号。敷地の上、距離環より下に描く） */
     val baseMapMarks: List<MapMark> = emptyList(),
+    /** 背景地図の文字（空港の略号。記号の上、距離環より下に描く。20261022-D01） */
+    val baseMapLabels: List<MapLabel> = emptyList(),
 ) {
     // 描く順番（§6.1。下から）: 背景地図（線 → 点）→ 距離環 → 軌跡 → baseSegments → labels（方位目盛りの文字・距離環の数字）→ otherWpMarks
     // → pointers（方位の三角）→ nextWpSegments → nextWpMarks → arrows（画面外の次の WP の文字）→ 自機。

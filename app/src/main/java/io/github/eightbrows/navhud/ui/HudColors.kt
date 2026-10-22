@@ -95,16 +95,20 @@ object HudColors {
      */
     val MapAirport = Color(0xFFB8FF00)
 
+    /** 空港の敷地: 空港と同じ黄緑の半透明（不透明度 20%。黒の上では #253300。仮。20261022-D01） */
+    val MapAirportArea = Color(0x33B8FF00)
+
+    /** 空港の ICAO の略号の文字: 空港と同じ黄緑（黒のふちを付けて描く。20261022-D01） */
+    val MapAirportCode = Color(0xFFB8FF00)
+
     /**
-     * 山頂（20261021-D02。仮）: 淡い桃色。目印になる山は、濃い三角（標高 1,500 m 以上）と薄い三角（未満。濃い三角の RGB × 0.7）。
-     * 目印になりにくい山は、同じ桃色の半透明（不透明度 20%。黒の上では #332228）の丸。
-     * 20261021-D03: 三角を明るく（#FF99BB → #FFA8C6）、丸を暗く（30% → 20%）した。20261021-D04: 三角を 3 段から 2 段にした（中くらいの段をなくした）。
-     * 濃い三角は白のテーマの距離環と ΔE 38.4、新幹線と 40.2。薄い三角は、× 0.8（#CC869E。濃い三角と ΔE 15.6）では小さな三角で差が分かりにくかったので、
-     * × 0.7（#B3768B。ΔE 23.4）にした
+     * 山頂（20261021-D02。仮）: 淡い桃色の三角（20261022-D01 で 3 段とも塗った三角にし、丸をなくした）。
+     * 高（目印になる山、1,500 m 以上）#FFA8C6、中（目印になる山、1,500 m 未満）は RGB × 0.7（#B3768B）、低（目印になりにくい山）は × 0.5（#805463）。
+     * 大きさも 12・10・8dp で変える。高は白のテーマの距離環と ΔE 38.4、新幹線と 40.2。高と中は ΔE 23.4、中と低は 16.8
      */
     val MapPeakHigh = Color(0xFFFFA8C6)
-    val MapPeakLow = Color(0xFFB3768B)
-    val MapPeakArea = Color(0x33FFA8C6)
+    val MapPeakMid = Color(0xFFB3768B)
+    val MapPeakLow = Color(0xFF805463)
 
     /** 読み込んだ軌跡の色（設定 trackColor）。Compose の状態 */
     var trackColor: TrackColor by mutableStateOf(TrackColor.WHITE)
@@ -178,6 +182,18 @@ object HudColors {
         return Color(red = (c.red * brightness).coerceIn(0f, 1f), green = (c.green * brightness).coerceIn(0f, 1f), blue = (c.blue * brightness).coerceIn(0f, 1f), alpha = c.alpha)
     }
 
+    /**
+     * ランドマーク（空港・山頂）の色に、ランドマークの明るさの段の掛ける数 k（Tuning.BASEMAP_BRIGHTNESS_FACTORS）を掛けた色（20261022-D01）。
+     * k ≤ 1 は RGB に k を掛ける（暗くする）。k > 1 は白に近づける（1 − (1 − c) ÷ k）。RGB に掛けると明るい色が 255 で止まり、
+     * 山頂の 3 段の差がなくなるため。どちらも明るさの順（高 > 中 > 低）は変わらない。不透明度はそのまま
+     */
+    fun landmark(ink: Ink, k: Float): Color {
+        val c = ofMap(ink)
+        if (k == 1f) return c
+        fun f(v: Float) = if (k <= 1f) v * k else 1f - (1f - v) / k
+        return Color(red = f(c.red).coerceIn(0f, 1f), green = f(c.green).coerceIn(0f, 1f), blue = f(c.blue).coerceIn(0f, 1f), alpha = c.alpha)
+    }
+
     private fun gray(v: Int): Color = Color(red = v, green = v, blue = v)
 
     private fun of(ink: Ink, p: HudPalette, map: Boolean): Color = when (ink) {
@@ -206,9 +222,10 @@ object HudColors {
         Ink.MAP_SHINKANSEN -> MapShinkansen
         Ink.MAP_FERRY -> MapFerry
         Ink.MAP_AIRPORT -> MapAirport
+        Ink.MAP_AIRPORT_AREA -> MapAirportArea
+        Ink.MAP_AIRPORT_CODE -> MapAirportCode
         Ink.MAP_PEAK_LOW -> MapPeakLow
-
+        Ink.MAP_PEAK_MID -> MapPeakMid
         Ink.MAP_PEAK_HIGH -> MapPeakHigh
-        Ink.MAP_PEAK_AREA -> MapPeakArea
     }
 }

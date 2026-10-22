@@ -81,6 +81,8 @@
 
 山頂：「日本の山岳標高一覧（1003山）」（国土地理院）をもとに作成
 
+空港：「国土数値情報（空港データ）」（国土交通省）（https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-C28-2021.html）をもとに作成
+
 ## ライセンス
 
 Apache License 2.0 の下で公開しています。詳細は [LICENSE](LICENSE) を参照してください。

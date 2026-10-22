@@ -18,21 +18,39 @@ class MapPeakColorTest {
 
     @Test
     fun peakTiersGetBrighterWithElevationAndKeepTheHue() {
-        val tiers = listOf(Ink.MAP_PEAK_LOW, Ink.MAP_PEAK_HIGH).map { HudColors.ofMap(it) }
+        val tiers = listOf(Ink.MAP_PEAK_LOW, Ink.MAP_PEAK_MID, Ink.MAP_PEAK_HIGH).map { HudColors.ofMap(it) }
         // 高い段ほど明るい。どの段も同じ色の系統（RGB の比がほぼ同じ）
         assertTrue(tiers.zipWithNext().all { (a, b) -> a.luminance() < b.luminance() })
         for (c in tiers) {
             assertEquals(HudColors.MapPeakHigh.green / HudColors.MapPeakHigh.red, c.green / c.red, 0.02f)
             assertEquals(HudColors.MapPeakHigh.blue / HudColors.MapPeakHigh.red, c.blue / c.red, 0.02f)
         }
-        // 2 段（20261021-D04）: 濃い三角 #FFA8C6、薄い三角はその RGB × 0.7（#B3768B）
-        val (low, high) = tiers
+        // 3 段（20261022-D01）: 高 #FFA8C6、中はその RGB × 0.7（#B3768B）、低は × 0.5（#805463）。どれも塗りつぶし（不透明）
+        val (low, mid, high) = tiers
         assertEquals(Color(0xFFFFA8C6), high)
-        for (ch in listOf<(Color) -> Float>({ it.red }, { it.green }, { it.blue })) assertEquals(0.7f, ch(low) / ch(high), 0.01f)
-        // 目印になりにくい山の丸は、同じ桃色の半透明（20%。20261021-D03 で 30% から暗くした）
-        val area = HudColors.ofMap(Ink.MAP_PEAK_AREA)
-        assertEquals(0.2f, area.alpha, 0.01f)
-        assertEquals(HudColors.MapPeakHigh.copy(alpha = area.alpha), area)
+        for (ch in listOf<(Color) -> Float>({ it.red }, { it.green }, { it.blue })) {
+            assertEquals(0.7f, ch(mid) / ch(high), 0.01f)
+            assertEquals(0.5f, ch(low) / ch(high), 0.01f)
+        }
+        assertTrue(tiers.all { it.alpha == 1f })
+    }
+
+    @Test
+    fun landmarkBrightnessKeepsTheOrderOfTheTiers() {
+        // ランドマークの明るさの段（20261022-D01）: 段 4（1.0）は今の色。どの段でも、山頂の高 > 中 > 低の明るさの順と、3 段の差が残る
+        // （明るくする方は白に近づけるので、高が 255 で止まって中と同じになることがない）
+        val inks = listOf(Ink.MAP_PEAK_LOW, Ink.MAP_PEAK_MID, Ink.MAP_PEAK_HIGH)
+        assertEquals(inks.map { HudColors.ofMap(it) }, inks.map { HudColors.landmark(it, 1f) })
+        for (k in io.github.eightbrows.navhud.core.Tuning.BASEMAP_BRIGHTNESS_FACTORS) {
+            val c = inks.map { HudColors.landmark(it, k) }
+            assertTrue("段 $k", c.zipWithNext().all { (a, b) -> b.luminance() > a.luminance() * 1.2f })
+        }
+        // 暗くする方は RGB に掛ける、明るくする方は 1 −（1 − 色）÷ 掛ける数
+        assertEquals(HudColors.MapPeakHigh.green * 0.4f, HudColors.landmark(Ink.MAP_PEAK_HIGH, 0.4f).green, 0.01f)
+        assertEquals(1f - (1f - HudColors.MapPeakHigh.green) / 1.6f, HudColors.landmark(Ink.MAP_PEAK_HIGH, 1.6f).green, 0.01f)
+        // 空港の敷地は半透明（20%）のまま、明るさの段で不透明度は変わらない
+        assertEquals(0.2f, HudColors.landmark(Ink.MAP_AIRPORT_AREA, 1.6f).alpha, 0.01f)
+        assertEquals(0.2f, HudColors.landmark(Ink.MAP_AIRPORT_AREA, 0.4f).alpha, 0.01f)
     }
 
     @Test

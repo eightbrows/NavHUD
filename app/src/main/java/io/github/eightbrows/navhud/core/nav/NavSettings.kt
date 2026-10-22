@@ -149,6 +149,11 @@ data class NavSettings(
     val mapItems: Map<MapItem, MapRange> = DEFAULT_MAP_ITEMS,
     /** ランドマーク（空港・山頂の記号）の項目ごとの、どの縮尺まで描くか（20261021-D04）。baseMap によらない。初期値は DEFAULT_LANDMARKS */
     val landmarks: Map<LandmarkItem, MapRange> = DEFAULT_LANDMARKS,
+    /**
+     * ランドマークの明るさの段（1〜6。20261022-D01）。段 4 が今の見え方。空港の記号・敷地・略号・山頂の三角の全部に効く
+     * （掛ける数は線の明るさと同じ Tuning.BASEMAP_BRIGHTNESS_FACTORS。明るくする方は白に近づける。HudColors.landmark）
+     */
+    val landmarkBrightness: Int = MAP_LINE_DEFAULT_LEVEL,
     /** 背景地図の線の太さの段（1〜6。Tuning.BASEMAP_WIDTH_FACTORS を全部の線の太さに掛ける） */
     val mapLineWidth: Int = MAP_LINE_DEFAULT_LEVEL,
     /** 背景地図の線の明るさの段（1〜6。Tuning.BASEMAP_BRIGHTNESS_FACTORS を全部の線の色に掛ける。ランドマークの記号には掛けない） */
@@ -176,8 +181,13 @@ data class NavSettings(
     /** そのランドマークの項目の描く縮尺を変えた設定 */
     fun withLandmarkRange(item: LandmarkItem, range: MapRange): NavSettings = copy(landmarks = landmarks + (item to range))
 
-    /** OFF でない項目が使うファイルのレイヤ（使うときに開くレイヤ。BaseMap.preload） */
-    fun mapLayersInUse(): Set<MapLayer> = MapItem.entries.filter { mapRangeOf(it) != MapRange.OFF }.flatMap { it.layers }.toSet()
+    /**
+     * OFF でない項目が使うファイルのレイヤ（使うときに開くレイヤ。BaseMap.preload）。点のレイヤは読み込みのときに全部読むので入れない。
+     * 空港の敷地（線のレイヤ）は、ランドマークの「空港の敷地」が OFF でなければ入れる（背景地図のスイッチによらない。20261022-D01）
+     */
+    fun mapLayersInUse(): Set<MapLayer> =
+        MapItem.entries.filter { mapRangeOf(it) != MapRange.OFF }.flatMap { it.layers }.toSet() +
+            (if (landmarkRangeOf(LandmarkItem.AIRPORT_AREA) != MapRange.OFF) setOf(MapLayer.AIRPORT_AREA) else emptySet())
 
     companion object {
         /** 背景地図の項目の初期値（仮）: 高速道路・国道は「すべて」、ほかは OFF（20261021-D01） */
@@ -185,7 +195,14 @@ data class NavSettings(
             if (it in setOf(MapItem.MOTORWAY, MapItem.NATIONAL_ROAD)) MapRange.ALL else MapRange.OFF
         }
         /** ランドマークの初期値（仮）: 4 項目とも「すべて」（20261021-D04） */
-        val DEFAULT_LANDMARKS: Map<LandmarkItem, MapRange> = LandmarkItem.entries.associateWith { MapRange.ALL }
+        val DEFAULT_LANDMARKS: Map<LandmarkItem, MapRange> = LandmarkItem.entries.associateWith {
+            // 20261022-D01: 空港の敷地は「〜10k」、空港の略号は「〜25k」、ほかは「すべて」（仮）
+            when (it) {
+                LandmarkItem.AIRPORT_AREA -> MapRange.UPTO_10KM
+                LandmarkItem.AIRPORT_CODE -> MapRange.UPTO_25KM
+                else -> MapRange.ALL
+            }
+        }
         /** 背景地図の線の太さ・明るさの段（1〜6。1 がいちばん細い・暗い） */
         val MAP_LINE_LEVELS = 1..Tuning.BASEMAP_WIDTH_FACTORS.size
         /** 背景地図の線の太さ・明るさの段の初期値（仮）。この段の掛ける数が 1（今の太さ・色） */

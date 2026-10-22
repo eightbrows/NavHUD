@@ -26,7 +26,14 @@ data class LatLonBox(val minLat: Double, val minLon: Double, val maxLat: Double,
 }
 
 /** 背景地図の、画面に描くもの（線はレイヤの描く順に並んでいる）。 */
-data class BaseMapScene(val lines: List<Polyline>, val marks: List<MapMark>)
+data class BaseMapScene(
+    val lines: List<Polyline>,
+    val marks: List<MapMark>,
+    /** 空港の敷地（塗る面の輪。20261022-D01） */
+    val areas: List<Polyline> = emptyList(),
+    /** 空港の略号の文字（20261022-D01） */
+    val labels: List<MapLabel> = emptyList(),
+)
 
 /** 背景地図のレイヤの描き方（色の種類・太さ・線の種類）。点のレイヤ（空港）は色だけ（記号は飛行機） */
 data class MapLayerStyle(val ink: Ink, val widthDp: Float = 0f, val dash: LineDash = LineDash.SOLID)
@@ -47,10 +54,12 @@ object BaseMapBuilder {
     )
 
     /**
-     * ランドマークの描く順番（下から上。20261021-D04）: 山頂の丸 → 薄い三角 → 濃い三角 → 空港。
-     * 同じ見た目が続くので、Canvas はまとめて描ける
+     * ランドマークの記号の描く順番（下から上。20261021-D04。20261022-D01 で作り直した）: 山頂（低）→（中）→（高）→ 空港（小）→（大）。
+     * 空港の敷地はこれより下（線の上）、空港の略号はこれより上に描く。同じ見た目が続くので、Canvas はまとめて描ける
      */
-    val LANDMARK_DRAW_ORDER: List<LandmarkItem> = listOf(LandmarkItem.PEAK_OTHER, LandmarkItem.PEAK_LOW, LandmarkItem.PEAK_HIGH, LandmarkItem.AIRPORT)
+    val LANDMARK_DRAW_ORDER: List<LandmarkItem> = listOf(
+        LandmarkItem.PEAK_LOW, LandmarkItem.PEAK_MID, LandmarkItem.PEAK_HIGH, LandmarkItem.AIRPORT_SMALL, LandmarkItem.AIRPORT_LARGE,
+    )
 
     /** レイヤの描き方。どれも HUD を邪魔しない暗い色（実際の色は ui/HudColors） */
     fun styleOf(layer: MapLayer): MapLayerStyle = when (layer) {
@@ -64,14 +73,33 @@ object BaseMapBuilder {
         MapLayer.FERRY -> MapLayerStyle(Ink.MAP_FERRY, Tuning.BASEMAP_FERRY_LINE_DP, LineDash.LONG_DASH)
         MapLayer.AIRPORT -> MapLayerStyle(Ink.MAP_AIRPORT)
         MapLayer.PEAK -> MapLayerStyle(Ink.MAP_PEAK_HIGH)
+        MapLayer.AIRPORT_AREA -> MapLayerStyle(Ink.MAP_AIRPORT_AREA)
     }
 
-    /** ランドマークの記号（色・大きさ・形）。大きさと色は、縮尺・線の太さ・明るさの段によらない */
-    fun landmarkMark(item: LandmarkItem, at: P): MapMark = when (item) {
-        LandmarkItem.AIRPORT -> MapMark(at, Ink.MAP_AIRPORT, Tuning.BASEMAP_AIRPORT_MARK_DP, MarkShape.PLANE)
-        LandmarkItem.PEAK_HIGH -> MapMark(at, Ink.MAP_PEAK_HIGH, Tuning.BASEMAP_PEAK_MARK_DP, MarkShape.TRIANGLE)
-        LandmarkItem.PEAK_LOW -> MapMark(at, Ink.MAP_PEAK_LOW, Tuning.BASEMAP_PEAK_MARK_DP, MarkShape.TRIANGLE)
-        LandmarkItem.PEAK_OTHER -> MapMark(at, Ink.MAP_PEAK_AREA, Tuning.BASEMAP_PEAK_AREA_DP, MarkShape.DISC)
+    /** 記号の幅 [dp]（空港の大小・山頂の高中低）。記号のない項目（敷地・略号）は 0 */
+    fun landmarkSizeDp(item: LandmarkItem): Float = when (item) {
+        LandmarkItem.AIRPORT_LARGE -> Tuning.BASEMAP_AIRPORT_MARK_DP
+        LandmarkItem.AIRPORT_SMALL -> Tuning.BASEMAP_AIRPORT_SMALL_MARK_DP
+        LandmarkItem.PEAK_HIGH -> Tuning.BASEMAP_PEAK_HIGH_MARK_DP
+        LandmarkItem.PEAK_MID -> Tuning.BASEMAP_PEAK_MID_MARK_DP
+        LandmarkItem.PEAK_LOW -> Tuning.BASEMAP_PEAK_LOW_MARK_DP
+        LandmarkItem.AIRPORT_AREA, LandmarkItem.AIRPORT_CODE -> 0f
+    }
+
+    /**
+     * ランドマークの記号（色・大きさ・形）。大きさと色は、縮尺・線の太さ・明るさの段によらない。
+     * brightness はランドマークの明るさの段の掛ける数（Canvas が HudColors.landmark で色に掛ける）
+     */
+    fun landmarkMark(item: LandmarkItem, at: P, brightness: Float = 1f): MapMark {
+        val shape = if (item == LandmarkItem.AIRPORT_LARGE || item == LandmarkItem.AIRPORT_SMALL) MarkShape.PLANE else MarkShape.TRIANGLE
+        val ink = when (item) {
+            LandmarkItem.AIRPORT_LARGE, LandmarkItem.AIRPORT_SMALL -> Ink.MAP_AIRPORT
+            LandmarkItem.PEAK_HIGH -> Ink.MAP_PEAK_HIGH
+            LandmarkItem.PEAK_MID -> Ink.MAP_PEAK_MID
+            LandmarkItem.PEAK_LOW -> Ink.MAP_PEAK_LOW
+            LandmarkItem.AIRPORT_AREA, LandmarkItem.AIRPORT_CODE -> throw IllegalArgumentException("記号のない項目: $item")
+        }
+        return MapMark(at, ink, landmarkSizeDp(item), shape, brightness)
     }
 
     /**
@@ -83,6 +111,7 @@ object BaseMapBuilder {
      * @param r1M 今の R1 [m]（縮尺の 1/2）。使う段と、描く項目を決める
      * @param widthLevel 線の太さの段（設定の 1〜6。全部の線の太さに Tuning.BASEMAP_WIDTH_FACTORS を掛ける）
      * @param brightnessLevel 線の明るさの段（設定の 1〜6。全部の線の色に Tuning.BASEMAP_BRIGHTNESS_FACTORS を掛ける。ランドマークの記号は掛けない）
+     * @param landmarkBrightnessLevel ランドマークの明るさの段（設定の 1〜6。空港の記号・敷地・略号・山頂の三角の全部。20261022-D01）
      */
     fun build(
         map: BaseMap,
@@ -95,6 +124,7 @@ object BaseMapBuilder {
         r1M: Double,
         widthLevel: Int = NavSettings.MAP_LINE_DEFAULT_LEVEL,
         brightnessLevel: Int = NavSettings.MAP_LINE_DEFAULT_LEVEL,
+        landmarkBrightnessLevel: Int = NavSettings.MAP_LINE_DEFAULT_LEVEL,
         minStepPx: Float = Tuning.BASEMAP_MIN_STEP_PX,
         marginPx: Float = Tuning.BASEMAP_MARGIN_PX,
     ): BaseMapScene {
@@ -151,17 +181,34 @@ object BaseMapBuilder {
                 }
             }
         }
-        // ランドマーク（空港・山頂。20261021-D04）: 線の全部より上。LANDMARK_DRAW_ORDER の順に並べる
+        // ランドマーク（空港・山頂。20261021-D04。20261022-D01 で空港の敷地・略号と明るさの段を足した）: 線の全部より上。
+        // 空港の敷地 → 記号（LANDMARK_DRAW_ORDER の順）→ 空港の略号
+        val areas = ArrayList<Polyline>()
+        val labels = ArrayList<MapLabel>()
         if (shownMarks.isNotEmpty()) {
+            val lk = factor(Tuning.BASEMAP_BRIGHTNESS_FACTORS, landmarkBrightnessLevel)
+            if (LandmarkItem.AIRPORT_AREA in shownMarks) {
+                for (line in level?.candidates(MapLayer.AIRPORT_AREA, box.minLat, box.minLon, box.maxLat, box.maxLon).orEmpty()) {
+                    if (!box.intersects(line)) continue
+                    val pts = projectThin(line, refLat, refLon, proj, minStepPx)
+                    if (pts.size >= 3) areas += Polyline(pts, Ink.MAP_AIRPORT_AREA, 0f, LineDash.SOLID, lk)
+                }
+            }
+            val showCode = LandmarkItem.AIRPORT_CODE in shownMarks
             val byItem = LANDMARK_DRAW_ORDER.associateWith { ArrayList<MapMark>() }
             for (p in map.points) {
                 val item = LandmarkItem.of(p) ?: continue
-                if (item !in shownMarks || !box.contains(p.lat, p.lon)) continue
-                byItem.getValue(item) += landmarkMark(item, project(p.lat, p.lon, refLat, refLon, proj))
+                val mark = item in shownMarks
+                val code = showCode && p.layer == MapLayer.AIRPORT && p.name.isNotEmpty()
+                if ((!mark && !code) || !box.contains(p.lat, p.lon)) continue
+                val at = project(p.lat, p.lon, refLat, refLon, proj)
+                if (mark) byItem.getValue(item) += landmarkMark(item, at, lk)
+                // 略号は記号の右上（記号の項目が OFF でも、同じ所に出す）
+                if (code) labels += MapLabel(p.name, at, landmarkSizeDp(item) / 2, Ink.MAP_AIRPORT_CODE, lk)
             }
             for (item in LANDMARK_DRAW_ORDER) marks += byItem.getValue(item)
         }
-        return BaseMapScene(lines, marks)
+        return BaseMapScene(lines, marks, areas, labels)
     }
 
     /** 道路の線がどの項目に入るか: 高速道路・その他の自動車専用道路・国道・県道（種類の分からない道路は国道） */

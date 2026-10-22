@@ -9,6 +9,8 @@
          → mapdata/gm-jpn-all_u_2_2/coastl_jpn.shp など
        山頂は、国土地理院「日本の山岳標高一覧（1003山）」の CSV を mapdata/1003zan20260331.csv に置く（列: 連番, 索引番号, 山名,
        山名よみ, 標高値(m), 種別, 都道府県, 緯度, 経度。Shift_JIS）
+       空港は、国土数値情報「空港データ」（C28、2020 年版）の zip（C28-20_GML.zip）を mapdata/C28-20_GML/ に展開する
+         https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-C28-2021.html → mapdata/C28-20_GML/C28-20_Airport.shp など（20261022-D01）
     2. リポジトリの一番上で実行する:
          pwsh tools/gm2basemap.ps1            （変換して app/src/main/assets/basemap.bin を書く。レイヤごとの大きさも出す）
          pwsh tools/gm2basemap.ps1 -List      （入っているレイヤの一覧を出すだけ。書かない）
@@ -17,7 +19,11 @@
     線  1 海岸線（coastl）  2 県境（polbndl の use = 26）  6 市区町村境（polbndl の use = 30）
         3 河川（riverl）  4 道路（roadl）  5 鉄道（raill）  7 フェリーの航路（ferryl）
     面  9 湖沼など（inwatera）  … 塗らずに、輪郭を線として入れる
-    点  20 空港（airp） … 名前も入れる
+    点  20 空港（20261022-D01 から国土数値情報 C28 の標点。供用中だけ）… 種類 = 0x01（いちばん長い滑走路が $AirportLargeRunwayM 以上 = 大）、
+           名前 = ICAO の略号（地球地図の空港 airp の iko を、標点から $AirportIcaoMaxKm 以内のいちばん近いものから付ける。なければ空）。
+           地球地図の空港（airp）は、略号を突き合わせるのにだけ使い、点としては入れない。
+           「○○空港（△△地区）」のように、ほかの空港の一部の地区の面（滑走路の長さもその空港と同じ）は、記号は入れない（面は入れる）
+    線  26 空港の敷地（国土数値情報 C28 の空港の面。供用中だけ。20261022-D01）… 塗るので、外の輪と穴を線として入れ、64 点ずつに分けない
         25 山頂（地球地図ではなく、国土地理院「日本の山岳標高一覧（1003山）」の CSV。20261021-D02）… 名前（山名）も入れる。
            種類 = 標高 ÷ 50 m（下の 7 ビット）＋ 目印になる山の印 0x80（下の $PeakLandmarkMinM・$PeakLandmarkMinIsoKm）
     入れないもの: 市街地の面（builtupa。前の 10）、港（portp。21）、駅（rstatp。22）、ダム・堰の点（miscp。23）、都市（builtupp。24）（20261020-D01）、
@@ -70,6 +76,8 @@
   出力のファイル。既定は app/src/main/assets/basemap.bin
 .PARAMETER PeakCsv
   山頂の CSV（国土地理院「日本の山岳標高一覧（1003山）」。Shift_JIS）。既定は mapdata/1003zan20260331.csv
+.PARAMETER C28
+  国土数値情報「空港データ」（C28、2020 年版）を展開したフォルダ。既定は mapdata/C28-20_GML
 .PARAMETER ChunkPoints
   1 本の線の点の数の上限。既定は 64
 .PARAMETER List
@@ -80,6 +88,7 @@ param(
   [string]$Out = 'app/src/main/assets/basemap.bin',
   [int]$ChunkPoints = 64,
   [string]$PeakCsv = 'mapdata/1003zan20260331.csv',
+  [string]$C28 = 'mapdata/C28-20_GML',
   [switch]$List
 )
 $ErrorActionPreference = 'Stop'
@@ -91,13 +100,15 @@ using System; using System.IO; using System.Collections.Generic; using System.Te
 public class ShpRecord { public int Type; public List<double[]> Parts = new List<double[]>(); public double X, Y; }
 
 public static class Gm {
-  // 点（1）・線（3, 13, 23）・面（5, 15, 25）。部分ごとの点は [x0, y0, x1, y1, ...]（x = 経度、y = 緯度）
+  // 点（1・複数の点 8）・線（3, 13, 23）・面（5, 15, 25）。部分ごとの点は [x0, y0, x1, y1, ...]（x = 経度、y = 緯度）
   public static List<ShpRecord> ReadShp(string path) {
     var b = File.ReadAllBytes(path); var list = new List<ShpRecord>(); int pos = 100;
     while (pos < b.Length) {
       int len = (b[pos+4] << 24) | (b[pos+5] << 16) | (b[pos+6] << 8) | b[pos+7]; int c = pos + 8;
       var r = new ShpRecord { Type = BitConverter.ToInt32(b, c) };
       if (r.Type == 1 || r.Type == 11 || r.Type == 21) { r.X = BitConverter.ToDouble(b, c + 4); r.Y = BitConverter.ToDouble(b, c + 12); }
+      // 複数の点（8, 18, 28）: 最初の点を使う（国土数値情報の空港の標点。1 つの標点が 1 点の複数の点になっている。20261022-D01）
+      else if ((r.Type == 8 || r.Type == 18 || r.Type == 28) && BitConverter.ToInt32(b, c + 36) > 0) { r.X = BitConverter.ToDouble(b, c + 40); r.Y = BitConverter.ToDouble(b, c + 48); }
       else if (r.Type == 3 || r.Type == 13 || r.Type == 23 || r.Type == 5 || r.Type == 15 || r.Type == 25) {
         int np = BitConverter.ToInt32(b, c + 36), n = BitConverter.ToInt32(b, c + 40); int p0 = c + 44 + 4 * np;
         for (int i = 0; i < np; i++) {
@@ -628,7 +639,7 @@ $Layers = @(
   @{ Code = 6;  Name = 'muni_boundary';  File = 'polbndl_jpn';  Keep = { param($r) $r['use'] -eq '30' };   Kind = { param($r) Num $r 'bst' } }
   @{ Code = 7;  Name = 'ferry';          File = 'ferryl_jpn';   Keep = { param($r) $true };              Kind = { param($r) 0 } }
   @{ Code = 9;  Name = 'inland_water';   File = 'inwatera_jpn'; Keep = { param($r) $true };              Kind = { param($r) 0 } }
-  @{ Code = 20; Name = 'airport';        File = 'airp_jpn';     Keep = { param($r) $true };              Kind = { param($r) Num $r 'use' } }
+  @{ Code = 26; Name = 'airport_area';   File = 'C28-20_Airport'; Dir = 'C28'; Keep = { param($r) $r['C28_004'] -eq '供用中' }; Kind = { param($r) 0 } }
 )
 # 段（使う R1 の下限 [m]・許す差 [m]）
 $Levels = @(
@@ -639,7 +650,9 @@ $Levels = @(
 )
 $Unit = 10000
 # 短い線を捨てる決まり（段 2・3 の MinExtent / DenseMinExtent）から外すレイヤ: 道路（線が途切れて見えるため）・河川・湖沼など（大きさの段で絞るため）
-$NoExtentRule = @(3, 4, 9)
+$NoExtentRule = @(3, 4, 9, 26)
+# 塗る面のレイヤ（空港の敷地）: 輪が切れないよう、ChunkPoints 点ずつに分けない
+$FillLayers = @(26)
 # 点の多いレイヤ（段 2・3 で DenseMinExtent を使う）: 鉄道・市区町村境
 $DenseLayers = @(5, 6)
 
@@ -665,13 +678,16 @@ $ShinkansenFlag = 0x10; $MiniShinkansenFlag = 0x20
 # 山頂（20261021-D02）: 種類の下の 7 ビット = 標高 ÷ PeakElevStepM（切り捨て）、0x80 = 目印になる山
 #   目印になる山 = 標高が PeakLandmarkMinM 以上、かつ孤立度（一覧の中で自分より高い山頂までの距離）が PeakLandmarkMinIsoKm 以上（仮。20261021-D03 で 15 km → 10 km）
 $PeakElevStepM = 50; $PeakLandmarkMinM = 800; $PeakLandmarkMinIsoKm = 10; $PeakLandmarkFlag = 0x80
+# 空港（20261022-D01）: 種類の 0x01 = 大（いちばん長い滑走路が AirportLargeRunwayM 以上）。略号は AirportIcaoMaxKm 以内の地球地図の空港から（仮）
+$AirportLargeRunwayM = 2000; $AirportLargeFlag = 0x01; $AirportIcaoMaxKm = 5
 $MinSizeClass = @(1, 1, 2, 3)   # 段ごとに入れる大きさの段の下限
 function SizeClass($v, $edges) { if ($v -ge $edges[1]) { 3 } elseif ($v -ge $edges[0]) { 2 } else { 1 } }
 
 # 読む（レイヤごとに、線の部分（単位の整数）と点）
 $data = foreach ($layer in $Layers) {
-  $recs = [Gm]::ReadShp((Join-Path $Src "$($layer.File).shp"))
-  $rows = [Gm]::ReadDbf((Join-Path $Src "$($layer.File).dbf"))
+  $dir = if ($layer.Dir -eq 'C28') { $C28 } else { $Src }
+  $recs = [Gm]::ReadShp((Join-Path $dir "$($layer.File).shp"))
+  $rows = [Gm]::ReadDbf((Join-Path $dir "$($layer.File).dbf"))
   if ($recs.Count -ne $rows.Count) { throw "$($layer.File): .shp と .dbf の件数が違う" }
   # 河川: 水系の長さと、線がどの面（湖沼など）の中にあるか
   $riverKm = $null; $riverCont = $null
@@ -797,6 +813,43 @@ $data = @($data) + @(@{ Layer = $peakLayer; Lines = @(); Sorted = @(); Points = 
 $Layers = @($Layers) + @($peakLayer)
 "山頂: $pkN 点（目印になる山 $(@($pkReport | Where-Object landmark).Count)）" | Write-Host
 
+# 空港（20261022-D01）: 国土数値情報「空港データ」（C28、2020 年版）の標点。空港の面（C28_101 で標点につながる）の属性から、供用中だけ。
+# 大小 = いちばん長い滑走路（C28_012。「3000,2500」のように複数のことがある）が $AirportLargeRunwayM 以上か。
+# ICAO の略号 = 地球地図の空港（airp）の iko のうち、標点から $AirportIcaoMaxKm 以内でいちばん近いもの
+$apLayer = @{ Code = 20; Name = 'airport' }
+$apRefRecs = [Gm]::ReadShp((Join-Path $C28 'C28-20_AirportReferencePoint.shp'))
+$apRefRows = [Gm]::ReadDbf((Join-Path $C28 'C28-20_AirportReferencePoint.dbf'))
+$apRows = [Gm]::ReadDbf((Join-Path $C28 'C28-20_Airport.dbf'))
+$gmRecs = [Gm]::ReadShp((Join-Path $Src 'airp_jpn.shp'))
+$gmRows = [Gm]::ReadDbf((Join-Path $Src 'airp_jpn.dbf'))
+function KmBetween($la1, $lo1, $la2, $lo2) {
+  $r = [math]::PI / 180; $dl = ($la2 - $la1) * $r; $dn = ($lo2 - $lo1) * $r
+  $h = [math]::Sin($dl / 2) * [math]::Sin($dl / 2) + [math]::Cos($la1 * $r) * [math]::Cos($la2 * $r) * [math]::Sin($dn / 2) * [math]::Sin($dn / 2)
+  2 * 6371.0088 * [math]::Asin([math]::Min(1.0, [math]::Sqrt($h)))
+}
+$apPoints = [System.Collections.Generic.List[object]]::new()
+$apReport = for ($k = 0; $k -lt $apRefRows.Count; $k++) {
+  $id = '#' + $apRefRows[$k]['C28_000']
+  $polys = @($apRows | Where-Object { $_['C28_101'] -eq $id })
+  if ($polys.Count -eq 0) { continue }
+  $a = $polys[0]; $lat = $apRefRecs[$k].Y; $lon = $apRefRecs[$k].X
+  $runway = (("$($a['C28_012'])" -split ',') | Where-Object { $_ -match '^\d+$' } | ForEach-Object { [int]$_ } | Measure-Object -Maximum).Maximum
+  $large = $runway -ge $AirportLargeRunwayM
+  $best = $null; $bestKm = [double]::PositiveInfinity
+  for ($g = 0; $g -lt $gmRows.Count; $g++) { $d = KmBetween $lat $lon $gmRecs[$g].Y $gmRecs[$g].X; if ($d -lt $bestKm) { $bestKm = $d; $best = $g } }
+  $icao = if ($bestKm -le $AirportIcaoMaxKm) { $gmRows[$best]['iko'] } else { '' }
+  $operating = $a['C28_004'] -eq '供用中'
+  # ほかの空港の一部の地区（「○○空港（△△地区）」）: 記号は入れない（面は空港の敷地のレイヤに入る）
+  $district = $a['C28_005'] -match '（.+地区）$'
+  if ($operating -and -not $district) {
+    $apPoints.Add(@{ Kind = $(if ($large) { $AirportLargeFlag } else { 0 }); Lat = [int][math]::Round($lat * $Unit); Lon = [int][math]::Round($lon * $Unit); Name = $icao })
+  }
+  [pscustomobject]@{ name = $a['C28_005']; status = $a['C28_004']; polygons = $polys.Count; runwayM = $runway; large = $large; icao = $icao; gmIcao = $gmRows[$best]['iko']; gmIata = $gmRows[$best]['ita']; gmName = $gmRows[$best]['nam']; gmKm = [math]::Round($bestKm, 2); lat = $lat; lon = $lon; symbol = ($operating -and -not $district) }
+}
+$data = @($data) + @(@{ Layer = $apLayer; Lines = @(); Sorted = @(); Points = $apPoints; Kept = $apPoints.Count; Parts = 0 })
+$Layers = @($Layers) + @($apLayer)
+"空港: $($apPoints.Count) 点（大 $(@($apReport | Where-Object { $_.symbol -and $_.large }).Count)・略号あり $(@($apReport | Where-Object { $_.symbol -and $_.icao }).Count)）" | Write-Host
+
 $buf = [System.IO.MemoryStream]::new()
 function Write-Bytes([byte[]]$bytes) { $buf.Write($bytes, 0, $bytes.Length) }
 Write-Bytes ([System.Text.Encoding]::ASCII.GetBytes('NHBM'))
@@ -830,8 +883,9 @@ for ($lv = 0; $lv -lt $Levels.Count; $lv++) {
       }
       $pts += $lat.Length
       $before = $segBuf.Length
-      for ($s = 0; $s -lt $lat.Length - 1; $s += $ChunkPoints - 1) {
-        $e = [math]::Min($s + $ChunkPoints, $lat.Length)
+      $cp = if ($d.Layer.Code -in $FillLayers) { $lat.Length } else { $ChunkPoints }
+      for ($s = 0; $s -lt $lat.Length - 1; $s += $cp - 1) {
+        $e = [math]::Min($s + $cp, $lat.Length)
         [Gm]::WriteLine($segBuf, $d.Layer.Code, $ln.Kind, $lat, $lon, $s, $e, $prev); $count++
       }
       # レイヤの中の種類ごとの線の数・点の数・バイト数（レポート用）
@@ -901,6 +955,8 @@ $riverRows = for ($k = 0; $k -lt $rs.Rows.Count; $k++) {
   [pscustomobject]@{ idx = $k; lit = $rs.Lit[$k]; nam = $rs.Rows[$k]['nam']; named = $rs.Named[$k]; cont = $rs.Cont[$k]; systemKm = [math]::Round($rs.Km[$k], 2) }
 }
 $riverRows | ConvertTo-Csv -NoTypeInformation | Set-Content -Encoding utf8 (Join-Path ([System.IO.Path]::GetTempPath()) 'gm2basemap_rivers.csv')
+# 空港ごと（名前・供用・面の数・いちばん長い滑走路・大か・略号・いちばん近い地球地図の空港・距離・記号を入れたか）（レポート用）
+$apReport | ConvertTo-Csv -NoTypeInformation | Set-Content -Encoding utf8 (Join-Path ([System.IO.Path]::GetTempPath()) 'gm2basemap_airports.csv')
 # 山頂ごと（索引番号・名前・標高・孤立度・目印になるか・種類）（レポート用）
 $pkReport | ConvertTo-Csv -NoTypeInformation | Set-Content -Encoding utf8 (Join-Path ([System.IO.Path]::GetTempPath()) 'gm2basemap_peaks.csv')
 "書いた: $Out（$($buf.Length) バイト、圧縮の目安 $([Gm]::Deflated($buf.ToArray())) バイト）"

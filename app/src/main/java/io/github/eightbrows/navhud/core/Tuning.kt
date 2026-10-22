@@ -208,19 +208,27 @@ object Tuning {
      */
     const val BASEMAP_AIRPORT_MARK_DP = 16f
 
+    /** 小さい空港（いちばん長い滑走路が 2,000 m 未満）の飛行機の記号の大きさ [dp]（20261022-D01。仮） */
+    const val BASEMAP_AIRPORT_SMALL_MARK_DP = 11f
+
+    /** 空港の ICAO の略号の文字の大きさ [sp]。画面上の大きさは縮尺によらず同じ（20261022-D01。仮） */
+    const val BASEMAP_AIRPORT_CODE_SP = 10f
+
     /** 空港の記号の黒のふちの幅（記号の外側）[dp]。背景の線の上でも形が分かるように（20261021-D01。仮） */
     const val BASEMAP_AIRPORT_OUTLINE_DP = 1.5f
 
-    /** 目印になる山の山頂の三角の記号の幅（底辺。高さは正三角形の高さ）[dp]。縮尺・線の太さの段によらず同じ（20261021-D02。仮） */
-    const val BASEMAP_PEAK_MARK_DP = 10f
+    /**
+     * 山頂の三角の記号の幅（底辺。高さは正三角形の高さ）[dp]。山頂（高）・（中）・（低）。縮尺・線の太さの段によらず同じ
+     * （20261022-D01 で 3 段とも三角にした。前は 10dp と丸。仮）
+     */
+    const val BASEMAP_PEAK_HIGH_MARK_DP = 12f
+    const val BASEMAP_PEAK_MID_MARK_DP = 10f
+    const val BASEMAP_PEAK_LOW_MARK_DP = 8f
 
     /** 山頂の三角の記号の黒のふちの幅（記号の外側）[dp]（仮） */
     const val BASEMAP_PEAK_OUTLINE_DP = 1f
 
-    /** 目印になりにくい山の山頂のまわりを薄く塗る丸の直径 [dp]（仮） */
-    const val BASEMAP_PEAK_AREA_DP = 12f
-
-    /** 目印になる山の、濃い三角と薄い三角の境の標高 [m]: これ以上が濃い三角、未満が薄い三角（20261021-D04 で 3 段から 2 段にした。仮） */
+    /** 目印になる山の、山頂（高）と山頂（中）の境の標高 [m]: これ以上が高、未満が中（20261021-D04。仮） */
     const val BASEMAP_PEAK_HIGH_M = 1500
 
     /**

@@ -48,7 +48,9 @@ object SettingsCodec {
         "baseMap" to s.baseMap.toString(),
         // 背景地図の項目: 全部の項目を「名前:縮尺」でカンマでつなぐ（例 COASTLINE:ALL,MOTORWAY:UPTO_50KM）
         "mapItems" to MapItem.entries.joinToString(",") { "${it.name}:${s.mapRangeOf(it).name}" },
-        "landmarks" to LandmarkItem.entries.joinToString(",") { "${it.name}:${s.landmarkRangeOf(it).name}" },
+        // 20261022-D01 で項目を作り直したので、保存の名前も変えた（前の「landmarks」は読まない）
+        "landmarkItems" to LandmarkItem.entries.joinToString(",") { "${it.name}:${s.landmarkRangeOf(it).name}" },
+        "landmarkBrightnessLevel" to s.landmarkBrightness.toString(),
         // 線の太さ・明るさの段（1〜6）。20261018-D07 で 3 段から 6 段にしたので名前を変えた（前の mapLineWidth・mapLineBrightness は読まない）
         "mapLineWidthLevel" to s.mapLineWidth.toString(),
         "mapLineBrightnessLevel" to s.mapLineBrightness.toString(),
@@ -187,13 +189,15 @@ object SettingsCodec {
                 val range = MapRange.entries.firstOrNull { it.name == v.trim() } ?: return@mapNotNull null
                 item to range
             }.orEmpty(),
-            // ランドマーク: 「名前:縮尺」（20261021-D04）。保存にない項目・読めない名前や縮尺は初期値。前の mapItems の AIRPORT・PEAK は引き継がない
-            landmarks = d.landmarks + str("landmarks")?.split(',')?.mapNotNull { e ->
+            // ランドマーク: 「名前:縮尺」（20261021-D04。20261022-D01 で項目を作り直し、保存の名前を landmarkItems にした）。
+            // 保存にない項目・読めない名前や縮尺は初期値。前の mapItems の AIRPORT・PEAK、前の landmarks は引き継がない
+            landmarks = d.landmarks + str("landmarkItems")?.split(',')?.mapNotNull { e ->
                 val (n, v) = e.split(':').takeIf { it.size == 2 } ?: return@mapNotNull null
                 val item = LandmarkItem.entries.firstOrNull { it.name == n.trim() } ?: return@mapNotNull null
                 val range = MapRange.entries.firstOrNull { it.name == v.trim() } ?: return@mapNotNull null
                 item to range
             }.orEmpty(),
+            landmarkBrightness = int("landmarkBrightnessLevel", d.landmarkBrightness).takeIf { it in NavSettings.MAP_LINE_LEVELS } ?: d.landmarkBrightness,
             mapLineWidth = int("mapLineWidthLevel", d.mapLineWidth).takeIf { it in NavSettings.MAP_LINE_LEVELS } ?: d.mapLineWidth,
             mapLineBrightness = int("mapLineBrightnessLevel", d.mapLineBrightness).takeIf { it in NavSettings.MAP_LINE_LEVELS } ?: d.mapLineBrightness,
             // 不透明度: 20〜100 の 10 刻み以外は既定値

@@ -4,8 +4,8 @@ import java.io.ByteArrayOutputStream
 
 /**
  * 背景地図のレイヤ（§8）。番号はファイルに書く値で、tools/gm2basemap.ps1 と同じ。
- * 線（1〜7・9。面は輪郭の線として入れる）と点（20 = 空港、25 = 山頂）。元のデータは国土地理院「地球地図日本」第2.2版
- * （山頂だけは国土地理院「日本の山岳標高一覧（1003山）」。20261021-D02）。
+ * 線（1〜7・9。面は輪郭の線として入れる。26 = 空港の敷地は塗る面の輪）と点（20 = 空港、25 = 山頂）。元のデータは国土地理院「地球地図日本」第2.2版
+ * （山頂は国土地理院「日本の山岳標高一覧（1003山）」（20261021-D02）、空港と空港の敷地は国土数値情報「空港データ」（C28、2020 年版。20261022-D01））。
  * 10（市街地）・21〜24（港・駅・ダムと堰の点・都市）は 20261020-D01、8（ダム・堰の線）は 20261020-D02 で入れなくなった
  * （番号は空けておく。古いファイルにあれば飛ばす）。
  */
@@ -19,7 +19,8 @@ enum class MapLayer(val code: Int, val isPoint: Boolean = false) {
     FERRY(7),
     INLAND_WATER(9),
     AIRPORT(20, isPoint = true),
-    PEAK(25, isPoint = true);
+    PEAK(25, isPoint = true),
+    AIRPORT_AREA(26);
 
     companion object {
         /** 知らない番号は null（新しい版のファイルを古いアプリで読んでも、その線・点を飛ばすだけにする） */
@@ -65,6 +66,16 @@ object RailKind {
     const val MINI_SHINKANSEN = 0x20
 
     fun isShinkansen(kind: Int): Boolean = kind and SHINKANSEN != 0
+}
+
+/**
+ * 空港のレイヤの中の種類（20261022-D01）: LARGE（0x01）が大きい空港の印（いちばん長い滑走路が 2,000 m 以上。変換で決める。仮）。
+ * 点の名前は ICAO の略号（突き合わせられなかった空港は空）
+ */
+object AirportKind {
+    const val LARGE = 0x01
+
+    fun isLarge(kind: Int): Boolean = kind and LARGE != 0
 }
 
 /**

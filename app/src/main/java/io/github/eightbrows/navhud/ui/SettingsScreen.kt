@@ -382,8 +382,13 @@ fun SettingsScreen(
         },
 
         SettingsSection(stringResource(R.string.sec_landmarks)) {
-            // ランドマーク（20261021-D04）: 空港・山頂の記号を、項目ごとに「どの縮尺まで描くか」。背景地図のスイッチによらず押せて、描く
+            // ランドマーク（20261021-D04）: 空港・山頂の記号を、項目ごとに「どの縮尺まで描くか」。背景地図のスイッチによらず押せて、描く。
+            // 20261022-D01: 明るさの段（1〜6）と、空港の大小・敷地・略号、山頂の高中低の 7 項目
             Text(stringResource(R.string.landmarks_note), style = RowNote)
+            val levels = NavSettings.MAP_LINE_LEVELS.map { it.toString() to it }
+            Choice(stringResource(R.string.landmark_brightness), levels, s.landmarkBrightness, note = stringResource(R.string.landmark_brightness_note), default = def.landmarkBrightness) { v ->
+                onChange { it.copy(landmarkBrightness = v) }
+            }
             val ranges = mapRangeChoices()
             for (item in LandmarkItem.entries) {
                 Choice(stringResource(landmarkLabel(item)), ranges, s.landmarkRangeOf(item), default = def.landmarkRangeOf(item), compact = true) { v ->
@@ -439,6 +444,8 @@ fun SettingsScreen(
             SourceNote(stringResource(R.string.about_basemap_source, BASEMAP_SOURCE_URL), BASEMAP_SOURCE_URL)
             // 山頂の出典（20261021-D02）
             Text(stringResource(R.string.about_peak_source), style = RowLabel.copy(fontSize = 13.sp))
+            // 空港の出典（国土数値情報。利用規約に合わせ、データの名前・国土交通省・ページのアドレスと、加工したこと（をもとに作成）を書く。20261022-D01）
+            SourceNote(stringResource(R.string.about_airport_source, AIRPORT_SOURCE_URL), AIRPORT_SOURCE_URL)
             Text(stringResource(R.string.about_links_note), style = RowNote)
         },
     )
@@ -495,10 +502,13 @@ private fun mapRangeChoices(): List<Pair<String, MapRange>> = listOf(
 )
 
 private fun landmarkLabel(item: LandmarkItem): Int = when (item) {
-    LandmarkItem.AIRPORT -> R.string.map_layer_airport
+    LandmarkItem.AIRPORT_LARGE -> R.string.landmark_airport_large
+    LandmarkItem.AIRPORT_SMALL -> R.string.landmark_airport_small
+    LandmarkItem.AIRPORT_AREA -> R.string.landmark_airport_area
+    LandmarkItem.AIRPORT_CODE -> R.string.landmark_airport_code
     LandmarkItem.PEAK_HIGH -> R.string.landmark_peak_high
+    LandmarkItem.PEAK_MID -> R.string.landmark_peak_mid
     LandmarkItem.PEAK_LOW -> R.string.landmark_peak_low
-    LandmarkItem.PEAK_OTHER -> R.string.landmark_peak_other
 }
 
 private fun mapItemLabel(item: MapItem): Int = when (item) {
@@ -514,6 +524,9 @@ private fun mapItemLabel(item: MapItem): Int = when (item) {
     MapItem.WATER -> R.string.map_item_water
     MapItem.FERRY -> R.string.map_layer_ferry
 }
+
+/** 空港の出典（国土数値情報「空港データ」のページ。2020 年版もこのページから取る） */
+private const val AIRPORT_SOURCE_URL = "https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-C28-2021.html"
 
 /** 背景地図の出典（国土地理院「地球地図日本」のページ） */
 private const val BASEMAP_SOURCE_URL = "https://www.gsi.go.jp/kankyochiri/gm_jpn.html"

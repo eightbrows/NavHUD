@@ -4,6 +4,7 @@ import io.github.eightbrows.navhud.core.TestGeo
 import io.github.eightbrows.navhud.core.Tuning
 import io.github.eightbrows.navhud.core.geo.EN
 import io.github.eightbrows.navhud.core.geo.Geo
+import io.github.eightbrows.navhud.core.io.AirportKind
 import io.github.eightbrows.navhud.core.io.BaseMap
 import io.github.eightbrows.navhud.core.io.MapLayer
 import io.github.eightbrows.navhud.core.io.MapLevel
@@ -65,7 +66,8 @@ class BaseMapBuilderTest {
         width: Int = 4,
         brightness: Int = 4,
         landmarks: Map<LandmarkItem, MapRange> = emptyMap(),
-    ) = BaseMapBuilder.build(map, items, landmarks, TestGeo.LAT0, TestGeo.LON0, p, rect, r1M, width, brightness, minStepPx = minStepPx, marginPx = 0f)
+        landmarkBrightness: Int = 4,
+    ) = BaseMapBuilder.build(map, items, landmarks, TestGeo.LAT0, TestGeo.LON0, p, rect, r1M, width, brightness, landmarkBrightness, minStepPx = minStepPx, marginPx = 0f)
 
     @Test
     fun visibleBoxCoversTheWholeFrame() {
@@ -121,56 +123,74 @@ class BaseMapBuilderTest {
         assertEquals(listOf(MapLayer.AIRPORT, MapLayer.PEAK), MapLayer.entries.filter { it.isPoint })
         assertTrue(BaseMapBuilder.DRAW_ORDER.none { it.isPoint })
         assertEquals(
-            listOf(LandmarkItem.PEAK_OTHER, LandmarkItem.PEAK_LOW, LandmarkItem.PEAK_HIGH, LandmarkItem.AIRPORT),
+            listOf(LandmarkItem.PEAK_LOW, LandmarkItem.PEAK_MID, LandmarkItem.PEAK_HIGH, LandmarkItem.AIRPORT_SMALL, LandmarkItem.AIRPORT_LARGE),
             BaseMapBuilder.LANDMARK_DRAW_ORDER,
         )
     }
 
     @Test
-    fun peaksAreTrianglesOrFaintDiscsBelowAirports() {
-        // 山頂（20261021-D02）: 目印になる山は三角（標高の段で明るさが変わる）、目印になりにくい山は半透明の丸
+    fun landmarksAreAirportsAreasCodesAndThreePeakTiers() {
+        // ランドマーク（20261022-D01）: 空港（大・小）・空港の敷地・空港の略号・山頂（高・中・低）。山頂は 3 段とも三角
         fun peak(e: Double, n: Double, elevM: Int, landmark: Boolean) =
             MapPoint(MapLayer.PEAK, (elevM / PeakKind.ELEVATION_STEP_M) or (if (landmark) PeakKind.LANDMARK else 0), TestGeo.lat(n), TestGeo.lon(e), "")
+        fun airport(e: Double, n: Double, large: Boolean, code: String) =
+            MapPoint(MapLayer.AIRPORT, if (large) AirportKind.LARGE else 0, TestGeo.lat(n), TestGeo.lon(e), code)
+        val ring = line(MapLayer.AIRPORT_AREA, 250.0 to -50.0, 350.0 to -50.0, 350.0 to 50.0, 250.0 to 50.0, 250.0 to -50.0)
         val map = BaseMap(
-            listOf(MapLevel(0.0, listOf(line(MapLayer.COASTLINE, 0.0 to 0.0, 100.0 to 100.0)))),
+            listOf(MapLevel(0.0, listOf(line(MapLayer.COASTLINE, 0.0 to 0.0, 100.0 to 100.0), ring))),
             listOf(
-                point(MapLayer.AIRPORT, 300.0, 0.0),
+                airport(300.0, 0.0, true, "RJTT"), airport(-300.0, 0.0, false, ""), airport(0.0, 300.0, false, "RJTF"),
                 peak(100.0, 0.0, 3776, true), peak(0.0, 100.0, 877, true), peak(-100.0, 0.0, 2236, true),
                 peak(0.0, -100.0, 1476, false), peak(50.0, -50.0, 3180, false),
             ),
         )
         val d = build(map, landmarks = allMarks)
-        // 丸（目印になりにくい山）→ 薄い三角 → 濃い三角 → 空港の順（下から上。20261021-D04）
+        // 記号の順（下から上）: 山頂（低）→（中）→（高）→ 空港（小）→（大）。山頂は 3 段とも三角
+        assertEquals(List(5) { MarkShape.TRIANGLE } + List(3) { MarkShape.PLANE }, d.marks.map { it.shape })
         assertEquals(
-            listOf(MarkShape.DISC, MarkShape.DISC, MarkShape.TRIANGLE, MarkShape.TRIANGLE, MarkShape.TRIANGLE, MarkShape.PLANE),
-            d.marks.map { it.shape },
-        )
-        assertEquals(
-            listOf(Ink.MAP_PEAK_AREA, Ink.MAP_PEAK_AREA, Ink.MAP_PEAK_LOW, Ink.MAP_PEAK_HIGH, Ink.MAP_PEAK_HIGH, Ink.MAP_AIRPORT),
+            listOf(Ink.MAP_PEAK_LOW, Ink.MAP_PEAK_LOW, Ink.MAP_PEAK_MID, Ink.MAP_PEAK_HIGH, Ink.MAP_PEAK_HIGH, Ink.MAP_AIRPORT, Ink.MAP_AIRPORT, Ink.MAP_AIRPORT),
             d.marks.map { it.ink },
         )
-        // 項目: 標高 1,500 m 以上は濃い三角、未満は薄い三角（2 段。20261021-D04）
+        // 大きさ: 山頂 低 8・中 10・高 12dp、空港 小 11・大 16dp
+        assertEquals(listOf(8f, 8f, 10f, 12f, 12f, 11f, 11f, 16f), d.marks.map { it.sizeDp })
+        // 項目の分け方: 山頂は目印になる山で 1,500 m 以上が高、未満が中、目印になりにくい山が低。空港は滑走路 2,000 m 以上（変換の印）が大
         fun item(elevM: Int, landmark: Boolean) = LandmarkItem.of(peak(0.0, 0.0, elevM, landmark))
-        assertEquals(listOf(LandmarkItem.PEAK_LOW, LandmarkItem.PEAK_HIGH, LandmarkItem.PEAK_HIGH), listOf(1450, 1500, 3750).map { item(it, true) })
-        assertEquals(LandmarkItem.PEAK_OTHER, item(3750, false))
-        assertEquals(LandmarkItem.AIRPORT, LandmarkItem.of(point(MapLayer.AIRPORT, 0.0, 0.0)))
-        assertEquals(listOf(Tuning.BASEMAP_PEAK_AREA_DP, Tuning.BASEMAP_PEAK_AREA_DP, Tuning.BASEMAP_PEAK_MARK_DP, Tuning.BASEMAP_PEAK_MARK_DP, Tuning.BASEMAP_PEAK_MARK_DP), d.marks.dropLast(1).map { it.sizeDp })
-        // 大きさと色は、縮尺・線の太さ・明るさの段で変わらない
-        assertEquals(d.marks.map { it.sizeDp to it.ink }, build(map, r1M = 100_000.0, width = 6, brightness = 1, landmarks = allMarks).marks.map { it.sizeDp to it.ink })
-        assertEquals(d.marks.map { it.sizeDp to it.ink }, build(map, r1M = 250.0, width = 1, brightness = 6, landmarks = allMarks).marks.map { it.sizeDp to it.ink })
-        // 項目ごとに選べる: 濃い三角と空港だけ
-        val highAndAirport = mapOf(LandmarkItem.PEAK_HIGH to MapRange.ALL, LandmarkItem.AIRPORT to MapRange.ALL)
-        assertEquals(listOf(Ink.MAP_PEAK_HIGH, Ink.MAP_PEAK_HIGH, Ink.MAP_AIRPORT), build(map, landmarks = highAndAirport).marks.map { it.ink })
-        // 縮尺も項目ごと（この試験の R1 は 500 m）: 〜10k は描き、R1 25 km では描かない
-        val low10 = mapOf(LandmarkItem.PEAK_LOW to MapRange.UPTO_10KM)
-        assertEquals(1, build(map, landmarks = low10).marks.size)
-        assertTrue(build(map, r1M = 25_000.0, landmarks = low10).marks.isEmpty())
+        assertEquals(listOf(LandmarkItem.PEAK_MID, LandmarkItem.PEAK_HIGH, LandmarkItem.PEAK_HIGH), listOf(1450, 1500, 3750).map { item(it, true) })
+        assertEquals(LandmarkItem.PEAK_LOW, item(3750, false))
+        assertEquals(LandmarkItem.AIRPORT_LARGE, LandmarkItem.of(airport(0.0, 0.0, true, "")))
+        assertEquals(LandmarkItem.AIRPORT_SMALL, LandmarkItem.of(airport(0.0, 0.0, false, "")))
+        // 空港の敷地: 1 つの輪を塗る（記号より下に描く）
+        assertEquals(listOf(Ink.MAP_AIRPORT_AREA), d.areas.map { it.ink })
+        assertEquals(5, d.areas.single().points.size)
+        // 空港の略号: 略号のある空港だけ。記号の右上（記号の幅の半分だけずらす）
+        assertEquals(listOf("RJTT" to 8f, "RJTF" to 5.5f), d.labels.map { it.text to it.offsetDp })
+        assertEquals(d.marks.last().at, d.labels.first().at)
+        // 記号を OFF にしても、略号だけ出せる
+        val codeOnly = build(map, landmarks = mapOf(LandmarkItem.AIRPORT_CODE to MapRange.ALL))
+        assertTrue(codeOnly.marks.isEmpty() && codeOnly.areas.isEmpty())
+        assertEquals(d.labels, codeOnly.labels)
+        // 項目ごとに選べる: 山頂（高）と空港（大）だけ
+        val highAndLarge = mapOf(LandmarkItem.PEAK_HIGH to MapRange.ALL, LandmarkItem.AIRPORT_LARGE to MapRange.ALL)
+        assertEquals(listOf(Ink.MAP_PEAK_HIGH, Ink.MAP_PEAK_HIGH, Ink.MAP_AIRPORT), build(map, landmarks = highAndLarge).marks.map { it.ink })
+        // 初期値: 敷地は〜10k、略号は〜25k。R1 25 km では敷地を描かず略号は描く、R1 50 km では略号も描かない
+        val r25 = build(map, r1M = 25_000.0, landmarks = NavSettings.DEFAULT_LANDMARKS)
+        assertTrue(r25.areas.isEmpty())
+        assertEquals(2, r25.labels.size)
+        assertTrue(build(map, r1M = 50_000.0, landmarks = NavSettings.DEFAULT_LANDMARKS).labels.isEmpty())
+        // ランドマークの明るさの段: 段 4 は 1。段 6 は 1.6 を、記号・敷地・略号の全部に。大きさ・色の種類は変わらない
+        assertTrue(d.marks.all { it.brightness == 1f } && d.areas.all { it.brightness == 1f } && d.labels.all { it.brightness == 1f })
+        val lit = build(map, landmarks = allMarks, landmarkBrightness = 6)
+        val k6 = Tuning.BASEMAP_BRIGHTNESS_FACTORS[5]
+        assertTrue(lit.marks.all { it.brightness == k6 } && lit.areas.all { it.brightness == k6 } && lit.labels.all { it.brightness == k6 })
+        assertEquals(d.marks.map { it.sizeDp to it.ink }, lit.marks.map { it.sizeDp to it.ink })
+        // 線の太さ・明るさの段は、ランドマークに効かない
+        assertEquals(d.marks, build(map, r1M = 500.0, width = 6, brightness = 1, landmarks = allMarks).marks)
         // 線の項目がなくても、ランドマークだけ描ける（背景地図のスイッチが OFF のとき）
         val only = build(map, emptyMap(), landmarks = allMarks)
         assertTrue(only.lines.isEmpty())
         assertEquals(d.marks, only.marks)
-        // ランドマークが全部 OFF なら記号は描かない
-        assertTrue(build(map, landmarks = LandmarkItem.entries.associateWith { MapRange.OFF }).marks.isEmpty())
+        // ランドマークが全部 OFF なら何も描かない
+        assertTrue(build(map, landmarks = LandmarkItem.entries.associateWith { MapRange.OFF }).let { it.marks.isEmpty() && it.areas.isEmpty() && it.labels.isEmpty() })
     }
 
     @Test
@@ -374,11 +394,12 @@ class BaseMapBuilderTest {
             assertEquals(f.last(), BaseMapBuilder.factor(f, 9))
             assertEquals(f.first(), BaseMapBuilder.factor(f, 0))
         }
-        // 空港は飛行機の記号（塗りと黒のふち。形は Canvas が描く）。大きさは Tuning.BASEMAP_AIRPORT_MARK_DP（16dp。縮尺によらない）
+        // 空港は飛行機の記号（塗りと黒のふち。形は Canvas が描く）。この空港は小さい空港（種類 0）なので Tuning.BASEMAP_AIRPORT_SMALL_MARK_DP（11dp。大は 16dp。縮尺によらない）
         val plane = d.marks.single()
         assertEquals(Ink.MAP_AIRPORT, plane.ink)
         assertEquals(16f, Tuning.BASEMAP_AIRPORT_MARK_DP)
-        assertEquals(Tuning.BASEMAP_AIRPORT_MARK_DP, plane.sizeDp)
+        assertEquals(11f, Tuning.BASEMAP_AIRPORT_SMALL_MARK_DP)
+        assertEquals(Tuning.BASEMAP_AIRPORT_SMALL_MARK_DP, plane.sizeDp)
         assertEquals(plane.sizeDp, build(map, r1M = 100_000.0, landmarks = allMarks).marks.single().sizeDp)
         assertEquals(plane.sizeDp, build(map, r1M = 250.0, landmarks = allMarks).marks.single().sizeDp)
     }
@@ -455,7 +476,7 @@ class BaseMapBuilderTest {
         // 項目を足すと描く（海岸線と県境）。空港を OFF にすると描かない
         val more = HudSceneBuilder.build(state(NavSettings().withMapRange(MapItem.COASTLINE, MapRange.ALL).withMapRange(MapItem.PREF_BOUNDARY, MapRange.UPTO_10KM)), rect, baseMap = map)
         assertEquals(listOf(Ink.COASTLINE, Ink.PREF_BOUNDARY, Ink.MAP_NATIONAL_ROAD), more.baseMap.map { it.ink })
-        assertTrue(HudSceneBuilder.build(state(NavSettings().withLandmarkRange(LandmarkItem.AIRPORT, MapRange.OFF)), rect, baseMap = map).baseMapMarks.isEmpty())
+        assertTrue(HudSceneBuilder.build(state(NavSettings().withLandmarkRange(LandmarkItem.AIRPORT_SMALL, MapRange.OFF)), rect, baseMap = map).baseMapMarks.isEmpty())
         // 背景地図を OFF にすると、選んだ線の項目によらず線は全部描かない。ランドマークは描く（20261021-D04）
         val off = HudSceneBuilder.build(state(NavSettings(baseMap = false, mapItems = all)), rect, baseMap = map)
         assertTrue(off.baseMap.isEmpty())

@@ -97,7 +97,7 @@ object HudSceneBuilder {
 
         // 背景地図: 今の R1（縮尺の 1/2）に合う、間引いた段を使う
         val map = if (baseMap != null && ref != null) {
-            BaseMapBuilder.build(baseMap, if (s.baseMap) s.mapItems else emptyMap(), s.landmarks, ref.first, ref.second, proj, rect, range / 2, s.mapLineWidth, s.mapLineBrightness)
+            BaseMapBuilder.build(baseMap, if (s.baseMap) s.mapItems else emptyMap(), s.landmarks, ref.first, ref.second, proj, rect, range / 2, s.mapLineWidth, s.mapLineBrightness, s.landmarkBrightness)
         } else null
         val scene = HudScene(
             rect = rect,
@@ -110,7 +110,9 @@ object HudSceneBuilder {
             ownShip = ownAt?.let { OwnShip(it, ownShipAngle, Ink.OWNSHIP) },
             trails = buildTrails(state, proj, ref, ownAt),
             baseMap = map?.lines.orEmpty(),
+            baseMapAreas = map?.areas.orEmpty(),
             baseMapMarks = map?.marks.orEmpty(),
+            baseMapLabels = map?.labels.orEmpty(),
         )
         return if (noFix) scene.stale() else scene
     }

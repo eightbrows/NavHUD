@@ -13,13 +13,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -41,12 +42,14 @@ import io.github.eightbrows.navhud.core.view.HudRect
 import io.github.eightbrows.navhud.core.io.BaseMap
 import io.github.eightbrows.navhud.core.view.HudScene
 import io.github.eightbrows.navhud.core.view.LineDash
+import io.github.eightbrows.navhud.core.view.MapLabel
 import io.github.eightbrows.navhud.core.view.MapMark
 import io.github.eightbrows.navhud.core.view.MarkShape
 import io.github.eightbrows.navhud.core.view.HudSceneBuilder
 import io.github.eightbrows.navhud.core.view.HudViewport
 import io.github.eightbrows.navhud.core.view.Ink
 import io.github.eightbrows.navhud.core.view.P
+import io.github.eightbrows.navhud.core.view.Polyline
 import io.github.eightbrows.navhud.core.view.PinchSteps
 import io.github.eightbrows.navhud.core.view.Segment
 import io.github.eightbrows.navhud.core.view.WpMark
@@ -163,10 +166,49 @@ private const val PLANE_SPAN = 3f
 private const val TRIANGLE_HEIGHT = 0.866f
 
 /**
- * 背景地図の点（§8。塗る。名前は描かない）: 空港の飛行機・山頂の三角・山頂のまわりの半透明の丸（20261021-D02）。
- * 飛行機と三角は、背景の線の上でも形が分かるよう、先に黒のふち（太い線）を描いてから塗る（20261021-D01）。丸はふちなし。
- * 色は線の明るさの段によらない。同じ色・形が続く記号を 1 つの Path にまとめて 1 回で描く（記号ごとに物を作らない。記号が多いときに遅くなるため。
- * 重なった丸も 1 つの Path なので、半透明が重ねて濃くならない）
+ * 背景地図の空港の敷地（20261022-D01）: 輪を 1 つの Path にまとめ、半透明で 1 回で塗る（重なっても濃くならない。穴は偶奇の規則で抜ける）。
+ * 色はランドマークの明るさの段（brightness）を HudColors.landmark で掛ける
+ */
+private fun DrawScope.drawMapAreas(areas: List<Polyline>) {
+    var i0 = 0
+    while (i0 < areas.size) {
+        val first = areas[i0]
+        val path = Path().apply { fillType = PathFillType.EvenOdd }
+        var i = i0
+        while (i < areas.size && areas[i].ink == first.ink && areas[i].brightness == first.brightness) {
+            val pts = areas[i].points
+            path.moveTo(pts[0].x, pts[0].y)
+            for (k in 1 until pts.size) path.lineTo(pts[k].x, pts[k].y)
+            path.close()
+            i++
+        }
+        drawPath(path, HudColors.landmark(first.ink, first.brightness))
+        i0 = i
+    }
+}
+
+/** 空港の略号の文字（20261022-D01）: 記号の右上に、黒のふち（HUD の文字と同じ Tuning.TEXT_OUTLINE_DP）を付けて描く */
+private fun DrawScope.drawMapLabels(labels: List<MapLabel>, tm: TextMeasurer, density: Float) {
+    if (labels.isEmpty()) return
+    val outline = Stroke(Tuning.TEXT_OUTLINE_DP * density, join = StrokeJoin.Round)
+    for (l in labels) {
+        val layout = tm.measure(l.text, MapCodeStyle)
+        val off = l.offsetDp * density
+        val topLeft = Offset(l.at.x + off, l.at.y - off - layout.size.height)
+        drawText(layout, color = HudColors.Background, topLeft = topLeft, drawStyle = outline)
+        // 塗りは Fill を明示する（省くと、前の呼び出しの線の描き方が残って、文字が太い線になる）
+        drawText(layout, color = HudColors.landmark(l.ink, l.brightness), topLeft = topLeft, drawStyle = Fill)
+    }
+}
+
+/** 空港の略号の文字 */
+private val MapCodeStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = Tuning.BASEMAP_AIRPORT_CODE_SP.sp)
+
+/**
+ * 背景地図の点（§8。ランドマークの記号。名前は描かない）: 空港の飛行機・山頂の三角（20261022-D01 で丸をなくした）。
+ * 背景の線の上でも形が分かるよう、先に黒のふち（太い線）を描いてから塗る（20261021-D01）。
+ * 色は線の明るさの段によらず、ランドマークの明るさの段（brightness）だけで変わる。同じ色・形・明るさが続く記号を 1 つの Path にまとめて 1 回で描く
+ * （記号ごとに物を作らない。記号が多いときに遅くなるため）
  */
 private fun DrawScope.drawMapMarks(marks: List<MapMark>, density: Float) {
     var i0 = 0
@@ -176,7 +218,7 @@ private fun DrawScope.drawMapMarks(marks: List<MapMark>, density: Float) {
         var i = i0
         while (i < marks.size) {
             val m = marks[i]
-            if (m.ink != first.ink || m.shape != first.shape) break
+            if (m.ink != first.ink || m.shape != first.shape || m.brightness != first.brightness) break
             i++
             val x = m.at.x
             val y = m.at.y
@@ -196,19 +238,14 @@ private fun DrawScope.drawMapMarks(marks: List<MapMark>, density: Float) {
                     path.lineTo(x - half, y + h / 2)
                     path.close()
                 }
-                MarkShape.DISC -> {
-                    val r = m.sizeDp / 2 * density
-                    path.addOval(Rect(x - r, y - r, x + r, y + r))
-                }
             }
         }
         val outlineDp = when (first.shape) {
             MarkShape.PLANE -> Tuning.BASEMAP_AIRPORT_OUTLINE_DP
             MarkShape.TRIANGLE -> Tuning.BASEMAP_PEAK_OUTLINE_DP
-            MarkShape.DISC -> 0f
         }
-        if (outlineDp > 0f) drawPath(path, HudColors.Background, style = Stroke(outlineDp * 2 * density, join = StrokeJoin.Round))
-        drawPath(path, HudColors.ofMap(first.ink))
+        drawPath(path, HudColors.Background, style = Stroke(outlineDp * 2 * density, join = StrokeJoin.Round))
+        drawPath(path, HudColors.landmark(first.ink, first.brightness))
         i0 = i
     }
 }
@@ -244,7 +281,10 @@ private fun DrawScope.drawScene(scene: HudScene, tm: TextMeasurer, density: Floa
         drawPath(path, HudColors.ofMap(first.ink, first.brightness), style = Stroke(first.widthDp * density, join = StrokeJoin.Round, pathEffect = dashes[first.dash]))
         i0 = i
     }
+    // ランドマーク（線の上）: 空港の敷地 → 記号 → 空港の略号（20261022-D01）
+    drawMapAreas(scene.baseMapAreas)
     drawMapMarks(scene.baseMapMarks, density)
+    drawMapLabels(scene.baseMapLabels, tm, density)
 
     for (a in scene.arcs) {
         drawArc(
