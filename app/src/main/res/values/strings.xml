@@ -201,7 +201,7 @@
     <string name="map_item_water">Rivers and lakes</string>
     <string name="map_layer_ferry">Ferry routes</string>
     <string name="sec_landmarks">Landmarks</string>
-    <string name="landmarks_note">Airport and peak symbols (no names; airports show only their ICAO codes). Chosen separately from the base map switch; line width and brightness do not apply. Large airports have a runway of 2,000 m or longer. High and mid peaks are landmark peaks (high at 1,500 m or higher), low peaks are the others.</string>
+    <string name="landmarks_note">Airport and peak symbols (no names; airports show only their ICAO codes). Chosen separately from the base map switch; line width and brightness do not apply. Large airports have a longest runway of 2,000 m or more, small ones 600 m or more (shorter ones are not drawn). High and mid peaks are landmark peaks (high at 1,500 m or higher), low peaks are the others.</string>
     <string name="landmark_brightness">Brightness</string>
     <string name="landmark_brightness_note">Brightness of landmark symbols, areas and codes (1 is the darkest; the differences between items stay)</string>
     <string name="landmark_airport_large">Airports (large)</string>
@@ -242,6 +242,16 @@
     <string name="about_basemap_source">Base map: Created from “Global Map Japan” (Geospatial Information Authority of Japan) (%1$s)</string>
     <string name="about_peak_source">Peaks: Created from “Elevations of 1003 Mountains in Japan” (Geospatial Information Authority of Japan)</string>
     <string name="about_airport_source">Airports: Created from “National Land Numerical Information (Airport Data)” (Ministry of Land, Infrastructure, Transport and Tourism) (%1$s)</string>
+    <string name="sec_sources">Data sources</string>
+    <string name="sources_note">Data used for the base map and landmarks. Tap an address to open it in your browser.</string>
+    <string name="src_use_basemap">Base map lines</string>
+    <string name="src_name_basemap">“Global Map Japan” (Geospatial Information Authority of Japan)</string>
+    <string name="src_use_peak">Peaks</string>
+    <string name="src_name_peak">“Elevations of 1003 Mountains in Japan” (Geospatial Information Authority of Japan)</string>
+    <string name="src_use_airport">Airports and airport areas</string>
+    <string name="src_name_airport">“National Land Numerical Information (Airport Data)” (Ministry of Land, Infrastructure, Transport and Tourism)</string>
+    <string name="src_use_ourairports">Airport codes, and SDF and US military airfields</string>
+    <string name="src_name_ourairports">OurAirports (public domain)</string>
     <string name="about_formats">File formats (PDF, Japanese)</string>
     <string name="about_links_note">Underlined items open in your browser (this app itself does not use the network).</string>
 

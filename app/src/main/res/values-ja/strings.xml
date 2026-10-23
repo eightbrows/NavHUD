@@ -199,7 +199,7 @@
     <string name="map_item_water">河川・湖沼</string>
     <string name="map_layer_ferry">フェリーの航路</string>
     <string name="sec_landmarks">ランドマーク</string>
-    <string name="landmarks_note">空港と山頂の記号（名前は出さず、空港は ICAO の略号だけ）。背景地図の ON・OFF とは別に選べ、線の太さ・明るさの段は効きません。空港の大は、いちばん長い滑走路が 2,000 m 以上。山頂の高・中は目印になる山（標高 1,500 m 以上が高）、低はほかの山。</string>
+    <string name="landmarks_note">空港と山頂の記号（名前は出さず、空港は ICAO の略号だけ）。背景地図の ON・OFF とは別に選べ、線の太さ・明るさの段は効きません。空港の大はいちばん長い滑走路が 2,000 m 以上、小は 600 m 以上（600 m 未満は描きません）。山頂の高・中は目印になる山（標高 1,500 m 以上が高）、低はほかの山。</string>
     <string name="landmark_brightness">明るさ</string>
     <string name="landmark_brightness_note">ランドマークの記号・敷地・略号の明るさ（1 がいちばん暗い。項目どうしの差は変わらない）</string>
     <string name="landmark_airport_large">空港（大）</string>
@@ -240,6 +240,16 @@
     <string name="about_basemap_source">背景地図：「地球地図日本」（国土地理院）（%1$s）をもとに作成</string>
     <string name="about_peak_source">山頂：「日本の山岳標高一覧（1003山）」（国土地理院）をもとに作成</string>
     <string name="about_airport_source">空港：「国土数値情報（空港データ）」（国土交通省）（%1$s）をもとに作成</string>
+    <string name="sec_sources">データの出典</string>
+    <string name="sources_note">背景地図とランドマークに使っているデータ。アドレスを押すとブラウザで開きます。</string>
+    <string name="src_use_basemap">背景地図の線</string>
+    <string name="src_name_basemap">「地球地図日本」（国土地理院）</string>
+    <string name="src_use_peak">山頂</string>
+    <string name="src_name_peak">「日本の山岳標高一覧（1003山）」（国土地理院）</string>
+    <string name="src_use_airport">空港・空港の敷地</string>
+    <string name="src_name_airport">「国土数値情報（空港データ）」（国土交通省）</string>
+    <string name="src_use_ourairports">空港の略号と自衛隊・米軍の飛行場</string>
+    <string name="src_name_ourairports">OurAirports（パブリックドメイン）</string>
     <string name="about_formats">ファイル形式の説明（PDF）</string>
     <string name="about_links_note">下線の項目は、押すとブラウザで開きます（このアプリ自身は通信しません）。</string>
 

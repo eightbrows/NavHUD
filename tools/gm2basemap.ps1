@@ -78,6 +78,10 @@
   山頂の CSV（国土地理院「日本の山岳標高一覧（1003山）」。Shift_JIS）。既定は mapdata/1003zan20260331.csv
 .PARAMETER C28
   国土数値情報「空港データ」（C28、2020 年版）を展開したフォルダ。既定は mapdata/C28-20_GML
+.PARAMETER OaAirports
+  OurAirports の airports.csv（日本の分）。既定は mapdata/airports.csv
+.PARAMETER OaRunways
+  OurAirports の runways.csv（全部。airports.csv の id で日本の分に絞る）。既定は mapdata/runways.csv
 .PARAMETER ChunkPoints
   1 本の線の点の数の上限。既定は 64
 .PARAMETER List
@@ -89,6 +93,8 @@ param(
   [int]$ChunkPoints = 64,
   [string]$PeakCsv = 'mapdata/1003zan20260331.csv',
   [string]$C28 = 'mapdata/C28-20_GML',
+  [string]$OaAirports = 'mapdata/airports.csv',
+  [string]$OaRunways = 'mapdata/runways.csv',
   [switch]$List
 )
 $ErrorActionPreference = 'Stop'
@@ -639,7 +645,7 @@ $Layers = @(
   @{ Code = 6;  Name = 'muni_boundary';  File = 'polbndl_jpn';  Keep = { param($r) $r['use'] -eq '30' };   Kind = { param($r) Num $r 'bst' } }
   @{ Code = 7;  Name = 'ferry';          File = 'ferryl_jpn';   Keep = { param($r) $true };              Kind = { param($r) 0 } }
   @{ Code = 9;  Name = 'inland_water';   File = 'inwatera_jpn'; Keep = { param($r) $true };              Kind = { param($r) 0 } }
-  @{ Code = 26; Name = 'airport_area';   File = 'C28-20_Airport'; Dir = 'C28'; Keep = { param($r) $r['C28_004'] -eq '供用中' }; Kind = { param($r) 0 } }
+  @{ Code = 26; Name = 'airport_area';   File = 'C28-20_Airport'; Dir = 'C28'; Keep = { param($r) $r['C28_004'] -eq '供用中' -and $apAreaIds.Contains($r['C28_101']) }; Kind = { param($r) 0 } }
 )
 # 段（使う R1 の下限 [m]・許す差 [m]）
 $Levels = @(
@@ -678,10 +684,84 @@ $ShinkansenFlag = 0x10; $MiniShinkansenFlag = 0x20
 # 山頂（20261021-D02）: 種類の下の 7 ビット = 標高 ÷ PeakElevStepM（切り捨て）、0x80 = 目印になる山
 #   目印になる山 = 標高が PeakLandmarkMinM 以上、かつ孤立度（一覧の中で自分より高い山頂までの距離）が PeakLandmarkMinIsoKm 以上（仮。20261021-D03 で 15 km → 10 km）
 $PeakElevStepM = 50; $PeakLandmarkMinM = 800; $PeakLandmarkMinIsoKm = 10; $PeakLandmarkFlag = 0x80
-# 空港（20261022-D01）: 種類の 0x01 = 大（いちばん長い滑走路が AirportLargeRunwayM 以上）。略号は AirportIcaoMaxKm 以内の地球地図の空港から（仮）
-$AirportLargeRunwayM = 2000; $AirportLargeFlag = 0x01; $AirportIcaoMaxKm = 5
+# 空港（20261022-D01。20261023-D01 で略号と国土数値情報にない飛行場を OurAirports からにした）:
+#   種類の 0x01 = 大（いちばん長い滑走路が AirportLargeRunwayM 以上）、0x02 = OurAirports だけにある飛行場（敷地の面はない）。
+#   小 = AirportMinRunwayM 以上、それ未満（極小）と長さの分からない飛行場は入れない。略号は AirportIcaoMaxKm 以内で突き合わせる（仮）
+$AirportLargeRunwayM = 2000; $AirportMinRunwayM = 600; $AirportLargeFlag = 0x01; $AirportOaFlag = 0x02; $AirportIcaoMaxKm = 5
+$OaTypes = @('large_airport', 'medium_airport', 'small_airport', 'seaplane_base')
+$OaRoMaxLat = 28   # 「RO」で始まる略号は、北緯 28 度より南の飛行場だけ認める
 $MinSizeClass = @(1, 1, 2, 3)   # 段ごとに入れる大きさの段の下限
 function SizeClass($v, $edges) { if ($v -ge $edges[1]) { 3 } elseif ($v -ge $edges[0]) { 2 } else { 1 } }
+function KmBetween($la1, $lo1, $la2, $lo2) {
+  $rr = [math]::PI / 180; $dl = ($la2 - $la1) * $rr; $dn = ($lo2 - $lo1) * $rr
+  $hh = [math]::Sin($dl / 2) * [math]::Sin($dl / 2) + [math]::Cos($la1 * $rr) * [math]::Cos($la2 * $rr) * [math]::Sin($dn / 2) * [math]::Sin($dn / 2)
+  2 * 6371.0088 * [math]::Asin([math]::Min(1.0, [math]::Sqrt($hh)))
+}
+function AirportClass($m) { if ($null -eq $m) { 'unknown' } elseif ($m -ge $AirportLargeRunwayM) { 'large' } elseif ($m -ge $AirportMinRunwayM) { 'small' } else { 'tiny' } }
+
+# 空港（20261023-D01）: 線のレイヤ（空港の敷地）を読む前に、どの空港を入れるかを決める
+#   国土数値情報「空港データ」（C28、2020 年版）の標点（空港の面と C28_101 でつながる）と、OurAirports の飛行場
+#   （type が OaTypes、略号 = icao_code → gps_code → ident が「RJ」か「RO」＋英字 2 文字。RO は北緯 OaRoMaxLat 度より南だけ）を、
+#   AirportIcaoMaxKm 以内の近い組から 1 対 1 で突き合わせ、OurAirports の略号を付ける。
+#   - 国土数値情報の空港: 供用中で略号が付いたものだけ（記号・敷地・略号）。ほかの空港の一部の地区（「○○空港（△△地区）」）は敷地だけ。
+#     区分は国土数値情報の滑走路延長（C28_012。「3000,2500」のように複数のことがある）のいちばん長いもの
+#   - 国土数値情報にない OurAirports の飛行場（主に自衛隊・米軍）: 記号と略号（敷地はない）。区分は runways.csv（閉じた滑走路は除く）の
+#     いちばん長い length_ft × 0.3048
+$apRefRecs = [Gm]::ReadShp((Join-Path $C28 'C28-20_AirportReferencePoint.shp'))
+$apRefRows = [Gm]::ReadDbf((Join-Path $C28 'C28-20_AirportReferencePoint.dbf'))
+$apRows = [Gm]::ReadDbf((Join-Path $C28 'C28-20_Airport.dbf'))
+$oaCand = foreach ($x in (Import-Csv (Join-Path (Get-Location) $OaAirports) -Encoding utf8)) {
+  if ($x.type -notin $OaTypes) { continue }
+  $code = if ($x.icao_code) { $x.icao_code } elseif ($x.gps_code) { $x.gps_code } else { $x.ident }
+  $la = [double]$x.latitude_deg
+  if (-not (($code -cmatch '^RJ[A-Z]{2}$') -or (($code -cmatch '^RO[A-Z]{2}$') -and $la -lt $OaRoMaxLat))) { continue }
+  [pscustomobject]@{ Id = $x.id; Code = $code; Name = $x.name; Type = $x.type; Lat = $la; Lon = [double]$x.longitude_deg; RunwayM = $null; Used = $false }
+}
+$oaById = @{}; foreach ($o in $oaCand) { $oaById[$o.Id] = $o }
+foreach ($rw in (Import-Csv (Join-Path (Get-Location) $OaRunways) -Encoding utf8)) {
+  if (-not $oaById.ContainsKey($rw.airport_ref) -or $rw.closed -eq '1' -or -not $rw.length_ft) { continue }
+  $o = $oaById[$rw.airport_ref]; $m = [double]$rw.length_ft * 0.3048
+  if ($null -eq $o.RunwayM -or $m -gt $o.RunwayM) { $o.RunwayM = $m }
+}
+$ksj = for ($k = 0; $k -lt $apRefRows.Count; $k++) {
+  $id = '#' + $apRefRows[$k]['C28_000']
+  $polys = @($apRows | Where-Object { $_['C28_101'] -eq $id })
+  if ($polys.Count -eq 0) { continue }
+  $a = $polys[0]
+  $runway = (("$($a['C28_012'])" -split ',') | Where-Object { $_ -match '^\d+$' } | ForEach-Object { [int]$_ } | Measure-Object -Maximum).Maximum
+  [pscustomobject]@{ Id = $id; Name = $a['C28_005']; Status = $a['C28_004']; Polygons = $polys.Count; RunwayM = $runway; Lat = $apRefRecs[$k].Y; Lon = $apRefRecs[$k].X
+    Operating = ($a['C28_004'] -eq '供用中'); District = ($a['C28_005'] -match '（.+地区）$'); Oa = $null; Km = $null; NearOa = $null; NearKm = [double]::PositiveInfinity }
+}
+$apPairs = [System.Collections.Generic.List[object]]::new()
+foreach ($s in $ksj) {
+  foreach ($o in $oaCand) {
+    $d = KmBetween $s.Lat $s.Lon $o.Lat $o.Lon
+    if ($d -lt $s.NearKm) { $s.NearKm = $d; $s.NearOa = $o }
+    if ($d -le $AirportIcaoMaxKm) { $apPairs.Add([pscustomobject]@{ S = $s; O = $o; D = $d }) }
+  }
+}
+foreach ($p in ($apPairs | Sort-Object D)) { if ($null -eq $p.S.Oa -and -not $p.O.Used) { $p.S.Oa = $p.O; $p.S.Km = $p.D; $p.O.Used = $true } }
+# 敷地を入れる面（C28_101）: 供用中で略号が付いた空港と、ほかの空港の一部の地区
+$apAreaIds = [System.Collections.Generic.HashSet[string]]::new()
+foreach ($s in $ksj) { if ($s.Operating -and ($s.Oa -or $s.District)) { [void]$apAreaIds.Add($s.Id) } }
+$apPoints = [System.Collections.Generic.List[object]]::new()
+$apReport = [System.Collections.Generic.List[object]]::new()
+foreach ($s in $ksj) {
+  $cls = AirportClass $s.RunwayM
+  $sym = $s.Operating -and -not $s.District -and $s.Oa -and $cls -in 'large', 'small'
+  if ($sym) { $apPoints.Add(@{ Kind = $(if ($cls -eq 'large') { $AirportLargeFlag } else { 0 }); Lat = [int][math]::Round($s.Lat * $Unit); Lon = [int][math]::Round($s.Lon * $Unit); Name = $s.Oa.Code }) }
+  $apReport.Add([pscustomobject]@{ src = 'KSJ'; name = $s.Name; status = $s.Status; runwayM = $s.RunwayM; cls = $cls; code = $(if ($s.Oa) { $s.Oa.Code } else { '' })
+    oaName = $(if ($s.Oa) { $s.Oa.Name } else { $s.NearOa.Name }); oaCode = $(if ($s.Oa) { $s.Oa.Code } else { $s.NearOa.Code }); oaRunwayM = $(if ($s.Oa -and $null -ne $s.Oa.RunwayM) { [math]::Round($s.Oa.RunwayM) } else { '' })
+    km = $(if ($s.Oa) { [math]::Round($s.Km, 2) } else { [math]::Round($s.NearKm, 2) }); symbol = $sym; area = $apAreaIds.Contains($s.Id); oaType = ''; lat = $s.Lat; lon = $s.Lon })
+}
+foreach ($o in $oaCand) {
+  if ($o.Used) { continue }
+  $m = if ($null -eq $o.RunwayM) { $null } else { [math]::Round($o.RunwayM) }
+  $cls = AirportClass $m
+  $sym = $cls -in 'large', 'small'
+  if ($sym) { $apPoints.Add(@{ Kind = $(if ($cls -eq 'large') { $AirportLargeFlag -bor $AirportOaFlag } else { $AirportOaFlag }); Lat = [int][math]::Round($o.Lat * $Unit); Lon = [int][math]::Round($o.Lon * $Unit); Name = $o.Code }) }
+  $apReport.Add([pscustomobject]@{ src = 'OA'; name = $o.Name; status = ''; runwayM = $m; cls = $cls; code = $o.Code; oaName = $o.Name; oaCode = $o.Code; oaRunwayM = $m; km = ''; symbol = $sym; area = $false; oaType = $o.Type; lat = $o.Lat; lon = $o.Lon })
+}
 
 # 読む（レイヤごとに、線の部分（単位の整数）と点）
 $data = foreach ($layer in $Layers) {
@@ -813,42 +893,11 @@ $data = @($data) + @(@{ Layer = $peakLayer; Lines = @(); Sorted = @(); Points = 
 $Layers = @($Layers) + @($peakLayer)
 "山頂: $pkN 点（目印になる山 $(@($pkReport | Where-Object landmark).Count)）" | Write-Host
 
-# 空港（20261022-D01）: 国土数値情報「空港データ」（C28、2020 年版）の標点。空港の面（C28_101 で標点につながる）の属性から、供用中だけ。
-# 大小 = いちばん長い滑走路（C28_012。「3000,2500」のように複数のことがある）が $AirportLargeRunwayM 以上か。
-# ICAO の略号 = 地球地図の空港（airp）の iko のうち、標点から $AirportIcaoMaxKm 以内でいちばん近いもの
+# 空港（点）: 入れる空港は線のレイヤを読む前に決めてある（$apPoints）
 $apLayer = @{ Code = 20; Name = 'airport' }
-$apRefRecs = [Gm]::ReadShp((Join-Path $C28 'C28-20_AirportReferencePoint.shp'))
-$apRefRows = [Gm]::ReadDbf((Join-Path $C28 'C28-20_AirportReferencePoint.dbf'))
-$apRows = [Gm]::ReadDbf((Join-Path $C28 'C28-20_Airport.dbf'))
-$gmRecs = [Gm]::ReadShp((Join-Path $Src 'airp_jpn.shp'))
-$gmRows = [Gm]::ReadDbf((Join-Path $Src 'airp_jpn.dbf'))
-function KmBetween($la1, $lo1, $la2, $lo2) {
-  $r = [math]::PI / 180; $dl = ($la2 - $la1) * $r; $dn = ($lo2 - $lo1) * $r
-  $h = [math]::Sin($dl / 2) * [math]::Sin($dl / 2) + [math]::Cos($la1 * $r) * [math]::Cos($la2 * $r) * [math]::Sin($dn / 2) * [math]::Sin($dn / 2)
-  2 * 6371.0088 * [math]::Asin([math]::Min(1.0, [math]::Sqrt($h)))
-}
-$apPoints = [System.Collections.Generic.List[object]]::new()
-$apReport = for ($k = 0; $k -lt $apRefRows.Count; $k++) {
-  $id = '#' + $apRefRows[$k]['C28_000']
-  $polys = @($apRows | Where-Object { $_['C28_101'] -eq $id })
-  if ($polys.Count -eq 0) { continue }
-  $a = $polys[0]; $lat = $apRefRecs[$k].Y; $lon = $apRefRecs[$k].X
-  $runway = (("$($a['C28_012'])" -split ',') | Where-Object { $_ -match '^\d+$' } | ForEach-Object { [int]$_ } | Measure-Object -Maximum).Maximum
-  $large = $runway -ge $AirportLargeRunwayM
-  $best = $null; $bestKm = [double]::PositiveInfinity
-  for ($g = 0; $g -lt $gmRows.Count; $g++) { $d = KmBetween $lat $lon $gmRecs[$g].Y $gmRecs[$g].X; if ($d -lt $bestKm) { $bestKm = $d; $best = $g } }
-  $icao = if ($bestKm -le $AirportIcaoMaxKm) { $gmRows[$best]['iko'] } else { '' }
-  $operating = $a['C28_004'] -eq '供用中'
-  # ほかの空港の一部の地区（「○○空港（△△地区）」）: 記号は入れない（面は空港の敷地のレイヤに入る）
-  $district = $a['C28_005'] -match '（.+地区）$'
-  if ($operating -and -not $district) {
-    $apPoints.Add(@{ Kind = $(if ($large) { $AirportLargeFlag } else { 0 }); Lat = [int][math]::Round($lat * $Unit); Lon = [int][math]::Round($lon * $Unit); Name = $icao })
-  }
-  [pscustomobject]@{ name = $a['C28_005']; status = $a['C28_004']; polygons = $polys.Count; runwayM = $runway; large = $large; icao = $icao; gmIcao = $gmRows[$best]['iko']; gmIata = $gmRows[$best]['ita']; gmName = $gmRows[$best]['nam']; gmKm = [math]::Round($bestKm, 2); lat = $lat; lon = $lon; symbol = ($operating -and -not $district) }
-}
 $data = @($data) + @(@{ Layer = $apLayer; Lines = @(); Sorted = @(); Points = $apPoints; Kept = $apPoints.Count; Parts = 0 })
 $Layers = @($Layers) + @($apLayer)
-"空港: $($apPoints.Count) 点（大 $(@($apReport | Where-Object { $_.symbol -and $_.large }).Count)・略号あり $(@($apReport | Where-Object { $_.symbol -and $_.icao }).Count)）" | Write-Host
+"空港: $($apPoints.Count) 点（国土数値情報 $(@($apReport | Where-Object { $_.symbol -and $_.src -eq 'KSJ' }).Count)・OurAirports $(@($apReport | Where-Object { $_.symbol -and $_.src -eq 'OA' }).Count)）" | Write-Host
 
 $buf = [System.IO.MemoryStream]::new()
 function Write-Bytes([byte[]]$bytes) { $buf.Write($bytes, 0, $bytes.Length) }

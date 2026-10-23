@@ -25,6 +25,11 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -35,9 +40,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
@@ -66,6 +69,7 @@ import io.github.eightbrows.navhud.source.AppPermission
 import io.github.eightbrows.navhud.source.PermissionStatus
 import java.util.Locale
 import kotlin.math.roundToInt
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 
 private val SectionTitle get() = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 15.sp, color = HudColors.Scale)
@@ -99,6 +103,10 @@ fun SettingsScreen(
     onOpenAppSettings: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    /** 前に閉じたときのスクロール位置 [px]（20261023-D01。SettingsStore に保存。「設定を初期値に戻す」では戻さない） */
+    initialScrollY: Int = 0,
+    /** スクロールが止まったとき・画面を閉じたときに、今のスクロール位置を渡す（保存する） */
+    onScrollY: (Int) -> Unit = {},
 ) {
     val s = settings
     // 数値を設定する項目の補足文の最後に書く初期値（NavSettings の既定値。到達の判定は自動車の値）
@@ -440,16 +448,35 @@ fun SettingsScreen(
             InfoRow(stringResource(R.string.about_website), "eightbrows.github.io", WEBSITE_URL)
             InfoRow(stringResource(R.string.about_cheatsheet), "docs/cheatsheet.pdf", "$REPO_URL/blob/main/docs/cheatsheet.pdf")
             InfoRow(stringResource(R.string.about_formats), "docs/formats.pdf", "$REPO_URL/blob/main/docs/formats.pdf")
-            // 背景地図の出典（§8）
-            SourceNote(stringResource(R.string.about_basemap_source, BASEMAP_SOURCE_URL), BASEMAP_SOURCE_URL)
-            // 山頂の出典（20261021-D02）
-            Text(stringResource(R.string.about_peak_source), style = RowLabel.copy(fontSize = 13.sp))
-            // 空港の出典（国土数値情報。利用規約に合わせ、データの名前・国土交通省・ページのアドレスと、加工したこと（をもとに作成）を書く。20261022-D01）
-            SourceNote(stringResource(R.string.about_airport_source, AIRPORT_SOURCE_URL), AIRPORT_SOURCE_URL)
             Text(stringResource(R.string.about_links_note), style = RowNote)
         },
+
+        // データの出典（20261023-D01。前は情報の欄に並べていた）: データごとに、使っている所・データの名前と作成者・ページのアドレス・
+        // 「〜をもとに作成」の文（決められた書き方のまま）。OurAirports はパブリックドメインなので、名前とアドレスだけ
+        SettingsSection(stringResource(R.string.sec_sources)) {
+            Text(stringResource(R.string.sources_note), style = RowNote)
+            SourceBlock(
+                stringResource(R.string.src_use_basemap), stringResource(R.string.src_name_basemap), BASEMAP_SOURCE_URL,
+                stringResource(R.string.about_basemap_source, BASEMAP_SOURCE_URL),
+            )
+            SourceBlock(
+                stringResource(R.string.src_use_peak), stringResource(R.string.src_name_peak), PEAK_SOURCE_URL,
+                stringResource(R.string.about_peak_source),
+            )
+            SourceBlock(
+                stringResource(R.string.src_use_airport), stringResource(R.string.src_name_airport), AIRPORT_SOURCE_URL,
+                stringResource(R.string.about_airport_source, AIRPORT_SOURCE_URL),
+            )
+            SourceBlock(stringResource(R.string.src_use_ourairports), stringResource(R.string.src_name_ourairports), OURAIRPORTS_URL, null)
+        },
     )
-    val scroll = rememberScrollState()
+    // スクロール位置は、前に閉じたときの位置から始め、止まったとき・閉じたときに保存する（目次で飛んだあとも、止まったときに保存される）
+    val scroll = rememberScrollState(initialScrollY)
+    val latestOnScrollY by rememberUpdatedState(onScrollY)
+    LaunchedEffect(scroll) {
+        snapshotFlow { scroll.isScrollInProgress }.filter { !it }.collect { latestOnScrollY(scroll.value) }
+    }
+    DisposableEffect(scroll) { onDispose { latestOnScrollY(scroll.value) } }
     val scope = rememberCoroutineScope()
     // セクションの見出しの位置（Column の中の y [px]）。目次を押したら、そこまでスクロールする
     val tops = remember { mutableMapOf<Int, Int>() }
@@ -524,6 +551,12 @@ private fun mapItemLabel(item: MapItem): Int = when (item) {
     MapItem.WATER -> R.string.map_item_water
     MapItem.FERRY -> R.string.map_layer_ferry
 }
+
+/** 山頂の出典（国土地理院「日本の主な山岳標高（1003山）」のページ。CSV はこのページから取る） */
+private const val PEAK_SOURCE_URL = "https://www.gsi.go.jp/kihonjohochousa/kihonjohochousa41139.html"
+
+/** 空港の略号と自衛隊・米軍の飛行場の出典（OurAirports のデータのページ。パブリックドメイン） */
+private const val OURAIRPORTS_URL = "https://ourairports.com/data/"
 
 /** 空港の出典（国土数値情報「空港データ」のページ。2020 年版もこのページから取る） */
 private const val AIRPORT_SOURCE_URL = "https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-C28-2021.html"
@@ -649,16 +682,23 @@ private fun InfoRow(label: String, value: String, url: String? = null) {
     }
 }
 
-/** 出典の文（§8）。文の中のアドレスに下線を付け、押すとブラウザで開く。 */
+/**
+ * データの出典の 1 つ分（20261023-D01）: 使っている所（見出し）・データの名前と作成者・ページのアドレス（下線。押すとブラウザで開く）・
+ * 「〜をもとに作成」の文（attribution。なければ書かない）
+ */
 @Composable
-private fun SourceNote(text: String, url: String) {
+private fun SourceBlock(use: String, name: String, url: String, attribution: String?) {
     val uriHandler = LocalUriHandler.current
-    val at = text.indexOf(url)
-    val annotated = buildAnnotatedString {
-        append(text)
-        if (at >= 0) addStyle(SpanStyle(textDecoration = TextDecoration.Underline), at, at + url.length)
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(use, style = RowLabel)
+        Text(name, style = RowLabel.copy(fontSize = 13.sp))
+        Text(
+            "$url ↗",
+            style = RowLabel.copy(fontSize = 13.sp, textDecoration = TextDecoration.Underline),
+            modifier = Modifier.clickable { runCatching { uriHandler.openUri(url) } },
+        )
+        attribution?.let { Text(it, style = RowNote) }
     }
-    Text(annotated, style = RowLabel.copy(fontSize = 13.sp), modifier = Modifier.fillMaxWidth().clickable { runCatching { uriHandler.openUri(url) } })
 }
 
 @Composable

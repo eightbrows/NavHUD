@@ -83,6 +83,8 @@
 
 空港：「国土数値情報（空港データ）」（国土交通省）（https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-C28-2021.html）をもとに作成
 
+空港の略号と自衛隊・米軍の飛行場：OurAirports（https://ourairports.com/data/）（パブリックドメイン）
+
 ## ライセンス
 
 Apache License 2.0 の下で公開しています。詳細は [LICENSE](LICENSE) を参照してください。

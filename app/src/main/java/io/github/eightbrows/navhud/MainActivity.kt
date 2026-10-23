@@ -210,6 +210,9 @@ class MainActivity : ComponentActivity() {
                             onOpenAppSettings = ::openAppSettings,
                             onBack = { screen = Screen.MAIN },
                             modifier = modifier,
+                            // 前に閉じたときのスクロール位置から出す（20261023-D01）
+                            initialScrollY = remember { vm.settingsScrollY },
+                            onScrollY = { vm.settingsScrollY = it },
                         )
                         Screen.DEBUG -> DebugScreen(
                             state = state,

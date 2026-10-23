@@ -17,6 +17,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathFillType
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -350,6 +351,9 @@ private fun DrawScope.drawScene(scene: HudScene, tm: TextMeasurer, density: Floa
     for (w in scene.nextWpMarks) wpMark(w)
     for (a in scene.arrows) drawLines(tm, a.lines, a.textAt, a.linePx, HudColors.ofMap(a.ink), WpArrowLabelStyle)
 
+    // PAN のときの地図の中心の十字（20261023-D01）: 自機より下、ほかの全部より上
+    scene.crosshair?.let { drawCrosshair(it, density) }
+
     val own = scene.ownShip ?: return
     val oc = HudColors.ofMap(own.ink)
     if (own.angleDeg == null) {
@@ -368,6 +372,25 @@ private fun DrawScope.drawScene(scene: HudScene, tm: TextMeasurer, density: Floa
             drawPath(path, oc, style = Stroke(bold))
         }
     }
+}
+
+/**
+ * PAN のときの地図の中心の十字（20261023-D01）。中心を Tuning.CROSSHAIR_GAP_DP だけあけた 4 本の細い線（腕の外の端は中心から
+ * Tuning.CROSSHAIR_ARM_DP）。色は UI の色（テーマの基本色）、背景の線の上でも見えるよう、先に黒のふちを描く。
+ * 自機（三角・丸）・WP の印（丸・ひし形）と違い、線だけで、中心が抜けている
+ */
+private fun DrawScope.drawCrosshair(at: P, density: Float) {
+    val gap = Tuning.CROSSHAIR_GAP_DP * density
+    val arm = Tuning.CROSSHAIR_ARM_DP * density
+    val path = Path().apply {
+        moveTo(at.x - arm, at.y); lineTo(at.x - gap, at.y)
+        moveTo(at.x + gap, at.y); lineTo(at.x + arm, at.y)
+        moveTo(at.x, at.y - arm); lineTo(at.x, at.y - gap)
+        moveTo(at.x, at.y + gap); lineTo(at.x, at.y + arm)
+    }
+    val w = Tuning.CROSSHAIR_LINE_DP * density
+    drawPath(path, HudColors.Background, style = Stroke(w + 2 * Tuning.CROSSHAIR_OUTLINE_DP * density, cap = StrokeCap.Round))
+    drawPath(path, HudColors.Scale, style = Stroke(w, cap = StrokeCap.Butt))
 }
 
 /** 先端 tip が angleDeg（上が 0、時計回り）を向く三角形。 */

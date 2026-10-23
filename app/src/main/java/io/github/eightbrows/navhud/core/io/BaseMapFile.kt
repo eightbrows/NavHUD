@@ -69,13 +69,18 @@ object RailKind {
 }
 
 /**
- * 空港のレイヤの中の種類（20261022-D01）: LARGE（0x01）が大きい空港の印（いちばん長い滑走路が 2,000 m 以上。変換で決める。仮）。
- * 点の名前は ICAO の略号（突き合わせられなかった空港は空）
+ * 空港のレイヤの中の種類（20261022-D01。20261023-D01 で OURAIRPORTS を足した）: LARGE（0x01）が大きい空港の印（いちばん長い滑走路が
+ * 2,000 m 以上。ないのは小 = 600 m 以上 2,000 m 未満。600 m 未満と長さの分からない飛行場はファイルに入れない。変換で決める。仮）。
+ * OURAIRPORTS（0x02）は国土数値情報になく OurAirports だけにある飛行場（主に自衛隊・米軍。敷地の面はない）。
+ * 点の名前は ICAO の略号（OurAirports から。20261023-D01 からどの空港にも付いている）
  */
 object AirportKind {
     const val LARGE = 0x01
+    const val OURAIRPORTS = 0x02
 
     fun isLarge(kind: Int): Boolean = kind and LARGE != 0
+
+    fun isOurAirportsOnly(kind: Int): Boolean = kind and OURAIRPORTS != 0
 }
 
 /**

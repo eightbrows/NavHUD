@@ -22,9 +22,18 @@ class SettingsStore(context: Context) {
         get() = SourceKind.entries.firstOrNull { it.name == prefs.getString(KEY_INPUT, null) } ?: SourceKind.LIVE
         set(v) = prefs.edit { putString(KEY_INPUT, v.name) }
 
+    /**
+     * 設定画面のスクロール位置 [px]（20261023-D01）。閉じたときの位置を覚え、次に開いたときにその位置から出す。
+     * NavSettings の外なので、「設定を初期値に戻す」では変わらない
+     */
+    var settingsScrollY: Int
+        get() = runCatching { prefs.getInt(KEY_SETTINGS_SCROLL, 0) }.getOrDefault(0)
+        set(v) = prefs.edit { putInt(KEY_SETTINGS_SCROLL, v.coerceAtLeast(0)) }
+
     internal companion object {
         /** 設定のファイル名。表示言語の選択（AppLanguage。Android 12 以前）もここに置く */
         const val PREFS = "settings"
         private const val KEY_INPUT = "input"
+        private const val KEY_SETTINGS_SCROLL = "settingsScrollY"
     }
 }

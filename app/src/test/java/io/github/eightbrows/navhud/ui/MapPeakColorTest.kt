@@ -48,9 +48,9 @@ class MapPeakColorTest {
         // 暗くする方は RGB に掛ける、明るくする方は 1 −（1 − 色）÷ 掛ける数
         assertEquals(HudColors.MapPeakHigh.green * 0.4f, HudColors.landmark(Ink.MAP_PEAK_HIGH, 0.4f).green, 0.01f)
         assertEquals(1f - (1f - HudColors.MapPeakHigh.green) / 1.6f, HudColors.landmark(Ink.MAP_PEAK_HIGH, 1.6f).green, 0.01f)
-        // 空港の敷地は半透明（20%）のまま、明るさの段で不透明度は変わらない
-        assertEquals(0.2f, HudColors.landmark(Ink.MAP_AIRPORT_AREA, 1.6f).alpha, 0.01f)
-        assertEquals(0.2f, HudColors.landmark(Ink.MAP_AIRPORT_AREA, 0.4f).alpha, 0.01f)
+        // 空港の敷地は半透明（30%。20261023-D01 で 20% から濃くした）のまま、明るさの段で不透明度は変わらない
+        assertEquals(0.3f, HudColors.landmark(Ink.MAP_AIRPORT_AREA, 1.6f).alpha, 0.01f)
+        assertEquals(0.3f, HudColors.landmark(Ink.MAP_AIRPORT_AREA, 0.4f).alpha, 0.01f)
     }
 
     @Test

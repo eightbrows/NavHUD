@@ -95,8 +95,8 @@ object HudColors {
      */
     val MapAirport = Color(0xFFB8FF00)
 
-    /** 空港の敷地: 空港と同じ黄緑の半透明（不透明度 20%。黒の上では #253300。仮。20261022-D01） */
-    val MapAirportArea = Color(0x33B8FF00)
+    /** 空港の敷地: 空港と同じ黄緑の半透明（不透明度 30%。黒の上では #374D00。仮。20261022-D01。20261023-D01 で 20% から濃くした） */
+    val MapAirportArea = Color(0x4DB8FF00)
 
     /** 空港の ICAO の略号の文字: 空港と同じ黄緑（黒のふちを付けて描く。20261022-D01） */
     val MapAirportCode = Color(0xFFB8FF00)

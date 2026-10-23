@@ -212,8 +212,8 @@ class BaseMapFileTest {
         )
         for ((layer, n) in expectLines) assertEquals(layer.name, n, map.countOf(layer))
         // 点は空港と山頂（港・駅・ダムと堰の点・都市と、市街地の輪郭は 20261020-D01 で入れなくなった。山頂は 20261021-D02）
-        // 空港は国土数値情報 C28（2020 年版）の標点のうち、供用中で、ほかの空港の一部の地区でないもの（20261022-D01。前は地球地図の 92）
-        assertEquals(95, map.countOf(MapLayer.AIRPORT))
+        // 空港は、国土数値情報 C28（2020 年版）の供用中で略号の付いた 94 と、OurAirports だけにある飛行場 26（20261023-D01）
+        assertEquals(120, map.countOf(MapLayer.AIRPORT))
         assertEquals(1059, map.countOf(MapLayer.PEAK))
         assertTrue(map.points.all { it.layer == MapLayer.AIRPORT || it.layer == MapLayer.PEAK })
         assertEquals(MapLayer.entries.toSet(), map.levels[0].byLayer.keys + MapLayer.AIRPORT + MapLayer.PEAK)
@@ -233,15 +233,25 @@ class BaseMapFileTest {
 
     @Test
     fun bundledAssetHasAirportsFromKsjWithIcaoCodesAndAreas() {
-        // 空港（20261022-D01）: 国土数値情報「空港データ」（C28、2020 年版）。点の名前は ICAO の略号（地球地図の空港から突き合わせ。なければ空）
+        // 空港（20261022-D01。20261023-D01 で略号と国土数値情報にない飛行場を OurAirports からにした）:
+        // 国土数値情報「空港データ」（C28、2020 年版）と OurAirports。点の名前は ICAO の略号
         val map = BaseMapFile.decode(asset.readBytes())
         val airports = map.points.filter { it.layer == MapLayer.AIRPORT }
-        assertEquals(95, airports.size)
-        // 大（いちばん長い滑走路が 2,000 m 以上）が 65、小が 30
-        assertEquals(65, airports.count { AirportKind.isLarge(it.kind) })
-        // 略号が付いたのは 89（調布・天草・種子島・大分県央・但馬・岩国は付かない）
-        assertEquals(89, airports.count { it.name.isNotEmpty() })
-        assertTrue(airports.filter { it.name.isNotEmpty() }.all { it.name.matches(Regex("R[JO][A-Z]{2}")) })
+        assertEquals(120, airports.size)
+        // 国土数値情報の空港 94（大 65・小 29）、OurAirports だけの飛行場 26（大 15・小 11）
+        assertEquals(26, airports.count { AirportKind.isOurAirportsOnly(it.kind) })
+        assertEquals(80, airports.count { AirportKind.isLarge(it.kind) })
+        assertEquals(15, airports.count { AirportKind.isLarge(it.kind) && AirportKind.isOurAirportsOnly(it.kind) })
+        // どの空港にも略号（RJ か RO ＋英字 2 文字。RO は北緯 28 度より南）が付く
+        assertTrue(airports.all { it.name.matches(Regex("R[JO][A-Z]{2}")) })
+        assertTrue(airports.filter { it.name.startsWith("RO") }.all { it.lat < 28.0 })
+        // 前は付かなかった調布・天草・種子島・但馬・岩国にも付く。大分県央（ROIT。北緯 33 度）は外れたので、入れない
+        for (c in listOf("RJTF", "RJDA", "RJFG", "RJBT", "RJOI")) assertTrue(c, airports.any { it.name == c && !AirportKind.isOurAirportsOnly(it.kind) })
+        assertFalse(airports.any { it.name == "ROIT" })
+        // 自衛隊・米軍の飛行場（OurAirports だけ）: 横田・厚木・嘉手納・普天間は大
+        for (c in listOf("RJTY", "RJTA", "RODN", "ROTM")) assertTrue(c, airports.single { it.name == c }.let { AirportKind.isOurAirportsOnly(it.kind) && AirportKind.isLarge(it.kind) })
+        // 600 m 未満（館山 300 m）と、滑走路の長さが分からない飛行場（霞ヶ浦など）は入れない
+        assertFalse(airports.any { it.name == "RJTE" || it.name == "RJAK" })
         // 羽田（RJTT）は大きい空港で、標点は羽田の空港の中（北緯 35.55・東経 139.78 のあたり）
         val hnd = airports.single { it.name == "RJTT" }
         assertTrue(AirportKind.isLarge(hnd.kind))
@@ -252,8 +262,8 @@ class BaseMapFileTest {
         // 略号は 1 つの空港に 1 つ（同じ略号が 2 つの空港に付かない）
         val codes = airports.map { it.name }.filter { it.isNotEmpty() }
         assertEquals(codes.size, codes.toSet().size)
-        // 空港の敷地: 供用中の空港の面（109 の輪。穴を含む）。輪は閉じている（最初と最後の点が同じ）
-        assertEquals(109, map.countOf(MapLayer.AIRPORT_AREA))
+        // 空港の敷地: 供用中で略号の付いた空港と、福岡空港の奈多地区の面（108 の輪。穴を含む。大分県央はなくした）。輪は閉じている
+        assertEquals(108, map.countOf(MapLayer.AIRPORT_AREA))
         val rings = map.levels[0].byLayer.getValue(MapLayer.AIRPORT_AREA)
         assertTrue(rings.all { it.lat(0) == it.lat(it.size - 1) && it.lon(0) == it.lon(it.size - 1) && it.size >= 4 })
         // サンプルの記録のあたり（高知県・愛媛県）に、海岸線・県境・道路がある

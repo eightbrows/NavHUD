@@ -339,6 +339,15 @@ object Tuning {
     /** 数値の表示の文字の黒の縁取りの太さ [dp] */
     const val TEXT_OUTLINE_DP = 2.5f
 
+    /**
+     * PAN のときの地図の中心の十字（20261023-D01。仮）: 腕の外の端までの長さ（中心から）・中心のすき間（中心から）・線の太さ・黒のふちの幅 [dp]。
+     * 十字の全体の長さは 2 × CROSSHAIR_ARM_DP = 14dp
+     */
+    const val CROSSHAIR_ARM_DP = 7f
+    const val CROSSHAIR_GAP_DP = 2.5f
+    const val CROSSHAIR_LINE_DP = 1f
+    const val CROSSHAIR_OUTLINE_DP = 1f
+
     /** 縮尺のボタン（操作列の真ん中）: 距離の文字の大きさの上限 [sp]（ボタンの幅に収まるよう縮める）と、文字の左右の余白 [dp] */
     const val RANGE_BUTTON_MAX_SP = 22f
     const val RANGE_BUTTON_TEXT_PAD_DP = 4f

@@ -113,6 +113,8 @@ object HudSceneBuilder {
             baseMapAreas = map?.areas.orEmpty(),
             baseMapMarks = map?.marks.orEmpty(),
             baseMapLabels = map?.labels.orEmpty(),
+            // PAN のときだけ、地図の中心（PAN の中心 = 投影の原点）に十字（20261023-D01）
+            crosshair = if (pan != null) proj.origin else null,
         )
         return if (noFix) scene.stale() else scene
     }

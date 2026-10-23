@@ -171,6 +171,8 @@ data class HudScene(
     val baseMapMarks: List<MapMark> = emptyList(),
     /** 背景地図の文字（空港の略号。記号の上、距離環より下に描く。20261022-D01） */
     val baseMapLabels: List<MapLabel> = emptyList(),
+    /** PAN のときだけ、地図の中心（PAN の中心を描く点）に出す細い十字。PAN でなければ null（20261023-D01） */
+    val crosshair: P? = null,
 ) {
     // 描く順番（§6.1。下から）: 背景地図（線 → 点）→ 距離環 → 軌跡 → baseSegments → labels（方位目盛りの文字・距離環の数字）→ otherWpMarks
     // → pointers（方位の三角）→ nextWpSegments → nextWpMarks → arrows（画面外の次の WP の文字）→ 自機。

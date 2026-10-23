@@ -490,6 +490,9 @@ class BaseMapBuilderTest {
         val pan = HudSceneBuilder.build(state(pan = PanView(TestGeo.lat(200.0), TestGeo.LON0, 0.0)), rect, baseMap = map)
         assertEquals(1, pan.baseMap.size)
         assertFalse(pan.baseMap == on.baseMap)
+        // PAN のときだけ、地図の中心（PAN の中心を描く点 = 画面の横の中央）に十字。PAN でなければ出さない（20261023-D01）
+        assertEquals(rect.centerX, pan.crosshair!!.x, 0.01f)
+        assertEquals(null, on.crosshair)
         // 背景地図は軌跡とは別のリスト（Canvas がいちばん下に描く）
         assertTrue(on.trails.none { it.ink == Ink.MAP_NATIONAL_ROAD })
         // 設定の線の太さ・明るさが届く

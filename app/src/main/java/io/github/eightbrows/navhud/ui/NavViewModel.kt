@@ -230,6 +230,11 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
         if (map != null && next.mapLayersInUse() != before) viewModelScope.launch(Dispatchers.IO) { map.preload(next.mapLayersInUse()) }
     }
 
+    /** 設定画面のスクロール位置（20261023-D01。閉じたときの位置を覚える。設定を初期値に戻しても変わらない） */
+    var settingsScrollY: Int
+        get() = settingsStore.settingsScrollY
+        set(v) { settingsStore.settingsScrollY = v }
+
     /** 設定を初期値に戻す。カスタム1〜3 の値は残す（移動手段は自動車に戻る）。 */
     fun resetSettings() = updateSettings { it.resetKeepingCustomReach() }
 
