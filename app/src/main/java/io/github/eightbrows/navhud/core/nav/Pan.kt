@@ -27,4 +27,20 @@ object Pan {
         val (lat, lon) = Geo.fromEN(p.lat, p.lon, move)
         return p.copy(lat = lat, lon = lon)
     }
+
+    /**
+     * ダブルタップで詳細にしたとき（20261023-D02）: PAN の中心から (dxPx, dyPx) の所（タップした所）にある地点が、
+     * 縮尺を変えたあとも同じ画面の位置に残るよう、PAN の中心をタップした所の方へ寄せる。
+     * 地点は中心から (dx, dy) / before [m] の所にあり、変えたあとは (dx, dy) / after [m] の所に見えるので、差だけ中心を動かす。
+     * 画面の上の方位（upDeg）はそのまま（ARC も North Up も、画面の上で見た向きで計算する）
+     * @param before 変える前の 1 m あたりの画面の長さ [px]
+     * @param after 変えたあとの 1 m あたりの画面の長さ [px]
+     */
+    fun zoomAbout(p: PanView, dxPx: Float, dyPx: Float, before: Double, after: Double): PanView {
+        if (before <= 0 || after <= 0) return p
+        val k = 1 / before - 1 / after
+        val move = Geo.fromScreen(Screen(right = dxPx * k, fwd = -dyPx * k), p.upDeg)
+        val (lat, lon) = Geo.fromEN(p.lat, p.lon, move)
+        return p.copy(lat = lat, lon = lon)
+    }
 }

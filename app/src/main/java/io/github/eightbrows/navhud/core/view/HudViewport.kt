@@ -49,4 +49,7 @@ data class HudViewport(
     }
 
     override fun pxPerM(rangeM: Double, settings: NavSettings): Double = projection(rangeM, null, settings).pxPerM
+
+    /** PAN の中心を描く位置（HudSceneBuilder.projection の PAN のときの原点と同じ） */
+    override fun panCenterPx(): Pair<Float, Float> = rect.centerX to avoid.centerY
 }

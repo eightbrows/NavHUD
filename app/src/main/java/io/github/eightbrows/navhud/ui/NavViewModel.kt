@@ -264,6 +264,12 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
         restartPanTimer()
     }
 
+    /** 地図のダブルタップ（20261023-D02）: タップした所を基準に 1段詳細にして PAN にする。現在地に戻る時間は PAN と同じ。 */
+    fun zoomInAt(xPx: Float, yPx: Float) {
+        publish(engine.zoomInAt(xPx, yPx))
+        restartPanTimer()
+    }
+
     fun toggleAutoRange() = publish(engine.toggleAutoRange())
 
     /** HUD の描画領域が変わったとき（AUTO 縮尺は、次の WP がこの表示枠に収まる最小の段を選ぶ）。 */

@@ -221,12 +221,14 @@ data class HudMetrics(
     val compassLabelHalf: Float = Tuning.HUD_COMPASS_LABEL_HALF_DP,
     /** AUTO: 見えている隣り合う目標どうしの、画面上の最小の間隔 */
     val wpMinSep: Float = Tuning.AUTO_WP_MIN_SEP_DP,
+    /** 1dp の画面の長さ [px]（dp で決めた大きさを px に直す。20261023-D02 で空港の略号の重なりの判定に足した） */
+    val density: Float = 1f,
 ) {
     fun scaled(k: Float) = HudMetrics(
         tickMinor * k, tickMajor * k, labelGap * k, edgeInset * k, arrowTextGap * k,
         arcOriginFromBottom * k, arcOriginFromBottomHigh * k, arcOriginFromBottomHigher * k, northUpEdgeMargin * k, pointerSize * k,
         arrowLabelLine * k, labelCharWidth * k, fitMargin * k, ownShipClear * k, wpNameOffset * k, compassLabelHalf * k,
-        wpMinSep * k,
+        wpMinSep * k, density * k,
     )
 }
 

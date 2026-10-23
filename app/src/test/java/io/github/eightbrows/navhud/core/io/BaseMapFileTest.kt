@@ -350,7 +350,7 @@ class BaseMapFileTest {
 
     @Test
     fun bundledAssetHasPeaksWithLandmarks() {
-        // 山頂（20261021-D02）: 国土地理院「日本の山岳標高一覧（1003山）」の 1,059 の山頂（枝番の山頂も 1 つの点）。名前は山名
+        // 山頂（20261021-D02）: 国土地理院「日本の主な山岳標高一覧（1003山）」の 1,059 の山頂（枝番の山頂も 1 つの点）。名前は山名
         val map = BaseMapFile.decode(asset.readBytes())
         val peaks = map.points.filter { it.layer == MapLayer.PEAK }
         assertEquals(1059, peaks.size)

@@ -131,6 +131,8 @@ fun MainScreen(
     modifier: Modifier = Modifier,
     /** 背景地図（§8）。読み終わるまでは null */
     baseMap: BaseMap? = null,
+    /** 地図のダブルタップ（20261023-D02）: タップした所 [px] を基準に 1段詳細にする */
+    onDoubleTap: (Float, Float) -> Unit = { _, _ -> },
 ) {
     val zone = ZoneId.systemDefault()
     // NO FIX 中は最後の値をグレーで出し続ける
@@ -173,7 +175,7 @@ fun MainScreen(
     )
 
     Box(modifier.fillMaxSize().background(HudColors.Background).onSizeChanged { boxW = it.width; boxPx = it.height }) {
-        HudCanvas(state, Modifier.fillMaxSize(), reserved, onViewport, onPan, onPinch, numberBands, buttonBoxes, baseMap)
+        HudCanvas(state, Modifier.fillMaxSize(), reserved, onViewport, onPan, onPinch, numberBands, buttonBoxes, baseMap, onDoubleTap = onDoubleTap)
         // 上: 上部バーと数値（4行）
         Column(Modifier.align(Alignment.TopStart).fillMaxWidth().onSizeChanged { topPx = it.height }) {
             Box(Modifier.onSizeChanged { topBarPx = it.height }) {

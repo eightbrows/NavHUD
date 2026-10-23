@@ -238,14 +238,14 @@
     <string name="about_website">公式サイト</string>
     <string name="about_cheatsheet">チートシート（PDF）</string>
     <string name="about_basemap_source">背景地図：「地球地図日本」（国土地理院）（%1$s）をもとに作成</string>
-    <string name="about_peak_source">山頂：「日本の山岳標高一覧（1003山）」（国土地理院）をもとに作成</string>
+    <string name="about_peak_source">山頂：「日本の主な山岳標高一覧（1003山）」（国土地理院）をもとに作成</string>
     <string name="about_airport_source">空港：「国土数値情報（空港データ）」（国土交通省）（%1$s）をもとに作成</string>
     <string name="sec_sources">データの出典</string>
     <string name="sources_note">背景地図とランドマークに使っているデータ。アドレスを押すとブラウザで開きます。</string>
     <string name="src_use_basemap">背景地図の線</string>
     <string name="src_name_basemap">「地球地図日本」（国土地理院）</string>
     <string name="src_use_peak">山頂</string>
-    <string name="src_name_peak">「日本の山岳標高一覧（1003山）」（国土地理院）</string>
+    <string name="src_name_peak">「日本の主な山岳標高一覧（1003山）」（国土地理院）</string>
     <string name="src_use_airport">空港・空港の敷地</string>
     <string name="src_name_airport">「国土数値情報（空港データ）」（国土交通省）</string>
     <string name="src_use_ourairports">空港の略号と自衛隊・米軍の飛行場</string>

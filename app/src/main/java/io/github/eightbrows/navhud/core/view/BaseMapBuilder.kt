@@ -3,6 +3,7 @@ package io.github.eightbrows.navhud.core.view
 import io.github.eightbrows.navhud.core.Tuning
 import io.github.eightbrows.navhud.core.geo.Geo
 import io.github.eightbrows.navhud.core.geo.Screen
+import io.github.eightbrows.navhud.core.io.AirportKind
 import io.github.eightbrows.navhud.core.io.BaseMap
 import io.github.eightbrows.navhud.core.io.MapLayer
 import io.github.eightbrows.navhud.core.io.MapLine
@@ -112,6 +113,7 @@ object BaseMapBuilder {
      * @param widthLevel 線の太さの段（設定の 1〜6。全部の線の太さに Tuning.BASEMAP_WIDTH_FACTORS を掛ける）
      * @param brightnessLevel 線の明るさの段（設定の 1〜6。全部の線の色に Tuning.BASEMAP_BRIGHTNESS_FACTORS を掛ける。ランドマークの記号は掛けない）
      * @param landmarkBrightnessLevel ランドマークの明るさの段（設定の 1〜6。空港の記号・敷地・略号・山頂の三角の全部。20261022-D01）
+     * @param m 描画の寸法（空港の略号の重なりの判定に、文字の大きさの目安と dp → px の倍率を使う。20261023-D02）
      */
     fun build(
         map: BaseMap,
@@ -125,6 +127,7 @@ object BaseMapBuilder {
         widthLevel: Int = NavSettings.MAP_LINE_DEFAULT_LEVEL,
         brightnessLevel: Int = NavSettings.MAP_LINE_DEFAULT_LEVEL,
         landmarkBrightnessLevel: Int = NavSettings.MAP_LINE_DEFAULT_LEVEL,
+        m: HudMetrics = HudMetrics(),
         minStepPx: Float = Tuning.BASEMAP_MIN_STEP_PX,
         marginPx: Float = Tuning.BASEMAP_MARGIN_PX,
     ): BaseMapScene {
@@ -196,6 +199,7 @@ object BaseMapBuilder {
             }
             val showCode = LandmarkItem.AIRPORT_CODE in shownMarks
             val byItem = LANDMARK_DRAW_ORDER.associateWith { ArrayList<MapMark>() }
+            val codes = ArrayList<Pair<MapLabel, Int>>()
             for (p in map.points) {
                 val item = LandmarkItem.of(p) ?: continue
                 val mark = item in shownMarks
@@ -204,11 +208,45 @@ object BaseMapBuilder {
                 val at = project(p.lat, p.lon, refLat, refLon, proj)
                 if (mark) byItem.getValue(item) += landmarkMark(item, at, lk)
                 // 略号は記号の右上（記号の項目が OFF でも、同じ所に出す）
-                if (code) labels += MapLabel(p.name, at, landmarkSizeDp(item) / 2, Ink.MAP_AIRPORT_CODE, lk)
+                if (code) codes += MapLabel(p.name, at, landmarkSizeDp(item) / 2, Ink.MAP_AIRPORT_CODE, lk) to codePriority(p.kind)
             }
             for (item in LANDMARK_DRAW_ORDER) marks += byItem.getValue(item)
+            labels += pickCodeLabels(codes, m)
         }
         return BaseMapScene(lines, marks, areas, labels)
+    }
+
+    /** 空港の略号の優先の順位（大きいほど優先。20261023-D02）: 大 > 小、同じ区分なら国土数値情報の空港 > OurAirports だけの飛行場 */
+    internal fun codePriority(kind: Int): Int =
+        (if (AirportKind.isLarge(kind)) 2 else 0) + (if (AirportKind.isOurAirportsOnly(kind)) 0 else 1)
+
+    /**
+     * 空港の略号の重なり（20261023-D02）: 画面の上で文字の枠が重なるときは、優先の順位（codePriority）の高い方だけを残す
+     * （記号は両方描く）。順位が同じなら前の点（ファイルの順）。残す順に 1 つずつ見て、残したどれかと重なるものは捨てる。
+     * 枠は記号の右上（描く所と同じ）に、文字の幅の目安（等幅。HudMetrics.labelCharWidth を Tuning.BASEMAP_AIRPORT_CODE_SP に合わせる）×
+     * 文字数と 1 行の高さ（HudMetrics.arrowLabelLine を同じく合わせる）、まわりに黒のふちの分（Tuning.TEXT_OUTLINE_DP の線の外側の半分）を足す。
+     * 縮尺・向き・PAN が変わるたびに描く絵を作り直すので、離れれば両方出る。返す並びは元の順
+     */
+    internal fun pickCodeLabels(cands: List<Pair<MapLabel, Int>>, m: HudMetrics): List<MapLabel> {
+        if (cands.size < 2) return cands.map { it.first }
+        val k = Tuning.BASEMAP_AIRPORT_CODE_SP / Tuning.HUD_TEXT_METRICS_SP
+        val charW = m.labelCharWidth * k
+        val lineH = m.arrowLabelLine * k
+        val pad = Tuning.TEXT_OUTLINE_DP / 2 * m.density
+        // 文字の枠（左・上・右・下）[px]
+        fun box(l: MapLabel): FloatArray {
+            val off = l.offsetDp * m.density
+            val left = l.at.x + off
+            val bottom = l.at.y - off
+            return floatArrayOf(left - pad, bottom - lineH - pad, left + l.text.length * charW + pad, bottom + pad)
+        }
+        val boxes = cands.map { box(it.first) }
+        val kept = ArrayList<Int>()
+        for (i in cands.indices.sortedByDescending { cands[it].second }) {
+            val b = boxes[i]
+            if (kept.none { j -> val o = boxes[j]; b[0] < o[2] && o[0] < b[2] && b[1] < o[3] && o[1] < b[3] }) kept += i
+        }
+        return kept.sorted().map { cands[it].first }
     }
 
     /** 道路の線がどの項目に入るか: 高速道路・その他の自動車専用道路・国道・県道（種類の分からない道路は国道） */

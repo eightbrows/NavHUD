@@ -3,6 +3,7 @@ package io.github.eightbrows.navhud.ui
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -71,6 +72,8 @@ fun HudCanvas(
     buttonBoxes: List<HudRect> = emptyList(),
     /** 背景地図（§8）。null なら描かない */
     baseMap: BaseMap? = null,
+    /** 地図のダブルタップ（20261023-D02）: タップした所 [px]。そこを基準に 1段詳細にする */
+    onDoubleTap: (Float, Float) -> Unit = { _, _ -> },
 ) {
     val density = LocalDensity.current.density
     val metrics = remember(density) { HudMetrics().scaled(density) }
@@ -88,6 +91,7 @@ fun HudCanvas(
     val textMeasurer = rememberTextMeasurer()
     val panHandler by rememberUpdatedState(onPan)
     val pinchHandler by rememberUpdatedState(onPinch)
+    val doubleTapHandler by rememberUpdatedState(onDoubleTap)
     // 今のタッチ（最初の指を置いてから全部離すまで）で指が2本以上になったか。なったら、そのタッチの間はドラッグで PAN しない
     val touch = remember { TouchState() }
     Canvas(
@@ -122,6 +126,11 @@ fun HudCanvas(
                     change.consume()
                     if (!touch.pinched) panHandler(drag.x, drag.y)
                 }
+            }
+            // ダブルタップ（20261023-D02）: 1本指で 2 回タップ。ドラッグ（PAN）・ピンチで指が動いた・2本になったタッチは、
+            // 上の 2 つがその動きを消費するので、タップにならない（途中で取り消される）。1 回のタップには何も割り当てていない
+            .pointerInput(Unit) {
+                detectTapGestures(onDoubleTap = { if (!touch.pinched) doubleTapHandler(it.x, it.y) })
             },
     ) {
         scene?.let { drawScene(it, textMeasurer, density, state.settings.buttonOpacityPct / 100f, ringLabelStyle(state.settings.ringLabelScalePct)) }

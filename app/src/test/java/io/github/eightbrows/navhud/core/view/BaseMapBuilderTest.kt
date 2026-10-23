@@ -129,6 +129,35 @@ class BaseMapBuilderTest {
     }
 
     @Test
+    fun overlappingAirportCodesKeepOnlyTheHigherPriority() {
+        // 空港の略号の重なり（20261023-D02）: 文字が重なるときは、大 > 小、同じ区分なら国土数値情報 > OurAirports だけの 1 つだけ。記号は両方描く
+        fun airport(e: Double, n: Double, kind: Int, code: String) = MapPoint(MapLayer.AIRPORT, kind, TestGeo.lat(n), TestGeo.lon(e), code)
+        val oa = AirportKind.OURAIRPORTS
+        val map = BaseMap(
+            listOf(MapLevel(0.0, emptyList<MapLine>())),
+            listOf(
+                // 伊江島: 米軍の補助飛行場（OurAirports だけ・小）が先、伊江島空港（国土数値情報・小）があと。東西に 100 m
+                airport(0.0, 0.0, oa, "RODE"), airport(100.0, 0.0, 0, "RORE"),
+                // 北 2 km: 調布（国土数値情報・小）と横田（OurAirports だけ・大）。東西に 100 m
+                airport(0.0, 2_000.0, 0, "RJTF"), airport(100.0, 2_000.0, AirportKind.LARGE or oa, "RJTY"),
+                // 南 2 km: 離れた 1 つ（重ならないので出す）
+                airport(0.0, -2_000.0, oa, "RJTC"),
+            ),
+        )
+        // 1 px = 10 m: 100 m は 10 px で、4 文字（約 25 px）の文字が重なる
+        val wide = build(map, landmarks = allMarks)
+        assertEquals(5, wide.marks.size)
+        assertEquals(listOf("RORE", "RJTY", "RJTC"), wide.labels.map { it.text })
+        // 1 px = 1 m（詳細）: 100 px 離れるので両方出す。並びは元の順
+        val detail = build(map, p = proj(pxPerM = 1.0), landmarks = allMarks)
+        assertEquals(listOf("RODE", "RORE"), detail.labels.map { it.text })
+        // 優先の順位: 大で国土数値情報 3 > 大で OurAirports だけ 2 > 小で国土数値情報 1 > 小で OurAirports だけ 0
+        assertEquals(listOf(3, 2, 1, 0), listOf(AirportKind.LARGE, AirportKind.LARGE or oa, 0, oa).map { BaseMapBuilder.codePriority(it) })
+        // 画面密度: 文字の枠は dp で決めるので、密度 2 の画面では 1 px = 5 m でも重なる
+        assertEquals(listOf("RORE", "RJTY", "RJTC"), BaseMapBuilder.build(map, emptyMap(), allMarks, TestGeo.LAT0, TestGeo.LON0, proj(pxPerM = 0.2), rect, 500.0, m = HudMetrics().scaled(2f), marginPx = 0f).labels.map { it.text })
+    }
+
+    @Test
     fun landmarksAreAirportsAreasCodesAndThreePeakTiers() {
         // ランドマーク（20261022-D01）: 空港（大・小）・空港の敷地・空港の略号・山頂（高・中・低）。山頂は 3 段とも三角
         fun peak(e: Double, n: Double, elevM: Int, landmark: Boolean) =

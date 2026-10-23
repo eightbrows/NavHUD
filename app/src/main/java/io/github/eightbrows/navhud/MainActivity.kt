@@ -169,6 +169,7 @@ class MainActivity : ComponentActivity() {
                             onViewport = vm::setViewport,
                             onPan = vm::panBy,
                             onPinch = vm::zoomBy,
+                            onDoubleTap = vm::zoomInAt,
                             onEndPan = vm::endPan,
                             onSlower = vm::slowerReplay,
                             onFaster = vm::fasterReplay,

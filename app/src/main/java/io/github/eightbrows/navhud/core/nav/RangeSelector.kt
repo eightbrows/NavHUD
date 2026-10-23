@@ -47,6 +47,9 @@ interface MapViewport {
 
     /** 縮尺 rangeM での 1 m あたりの画面の長さ [px]。 */
     fun pxPerM(rangeM: Double, settings: NavSettings): Double
+
+    /** PAN の中心を描く画面の位置 [px]（x, y。横は画面の中央、縦は回避枠の中央）。ダブルタップの位置を中心からの差にするのに使う（20261023-D02） */
+    fun panCenterPx(): Pair<Float, Float>
 }
 
 /** AUTO の判定に使う、段ごとの問い（§6.1）。NavEngine が次の WP と画面（MapViewport）から作る。 */
@@ -141,6 +144,9 @@ class RangeSelector(
             val (lo, hi) = RangeAuto.limitsKm(stepsKm, minKm, maxKm)
             return steps.filter { it >= lo * 1000 - EPS && it <= hi * 1000 + EPS }.ifEmpty { listOf(steps.first()) }
         }
+
+    /** 今より詳細な段があるか（いちばん詳細な段でなければ true。ダブルタップで使う。20261023-D02） */
+    val canZoomIn: Boolean get() = steps.any { it < rangeM }
 
     /** ＋: 1段詳細へ。AUTO は OFF（keepAuto なら AUTO はそのまま。PAN 中）。 */
     fun zoomIn(keepAuto: Boolean = false) {

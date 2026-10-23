@@ -197,6 +197,27 @@ class NavEngine(
         return recompute()
     }
 
+    /**
+     * 地図のダブルタップ（20261023-D02）: 画面の (xPx, yPx) を基準に 1段詳細にする。タップした地点が指の下に残るよう、PAN にして中心を寄せる。
+     * AUTO の扱いは ＋ と同じ（PAN でなければ OFF、PAN 中はそのまま）。いちばん詳細な段なら何もしない（PAN にもしない）。
+     * PAN でなく、画面の大きさが分からない・Fix がないときも何もしない（panBy と同じ）
+     */
+    fun zoomInAt(xPx: Float, yPx: Float): NavState {
+        if (!rangeSelector.canZoomIn) return state
+        val vp = viewport ?: return state
+        val current = pan ?: run {
+            val fix = lastFix ?: return state
+            val offset = vp.frameCenterOffset(rangeSelector.rangeM, state.heading.deg?.toDouble(), settings)
+            Pan.start(fix.lat, fix.lon, offset, panUpDeg())
+        }
+        val before = vp.pxPerM(rangeSelector.rangeM, settings)
+        rangeSelector.zoomIn(keepAuto = pan != null)
+        val after = vp.pxPerM(rangeSelector.rangeM, settings)
+        val (cx, cy) = vp.panCenterPx()
+        pan = Pan.zoomAbout(current, xPx - cx, yPx - cy, before, after)
+        return recompute()
+    }
+
     /** 縮尺の −（1段広域へ）。AUTO は OFF（PAN 中は ＋ と同じ）。 */
     fun zoomOut(): NavState {
         rangeSelector.zoomOut(keepAuto = pan != null)

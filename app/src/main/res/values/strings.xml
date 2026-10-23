@@ -240,14 +240,14 @@
     <string name="about_website">Website</string>
     <string name="about_cheatsheet">Cheat sheet (PDF, Japanese)</string>
     <string name="about_basemap_source">Base map: Created from “Global Map Japan” (Geospatial Information Authority of Japan) (%1$s)</string>
-    <string name="about_peak_source">Peaks: Created from “Elevations of 1003 Mountains in Japan” (Geospatial Information Authority of Japan)</string>
+    <string name="about_peak_source">Peaks: Created from “List of Elevations of Major Mountains in Japan (1003 Mountains)” (Geospatial Information Authority of Japan)</string>
     <string name="about_airport_source">Airports: Created from “National Land Numerical Information (Airport Data)” (Ministry of Land, Infrastructure, Transport and Tourism) (%1$s)</string>
     <string name="sec_sources">Data sources</string>
     <string name="sources_note">Data used for the base map and landmarks. Tap an address to open it in your browser.</string>
     <string name="src_use_basemap">Base map lines</string>
     <string name="src_name_basemap">“Global Map Japan” (Geospatial Information Authority of Japan)</string>
     <string name="src_use_peak">Peaks</string>
-    <string name="src_name_peak">“Elevations of 1003 Mountains in Japan” (Geospatial Information Authority of Japan)</string>
+    <string name="src_name_peak">“List of Elevations of Major Mountains in Japan (1003 Mountains)” (Geospatial Information Authority of Japan)</string>
     <string name="src_use_airport">Airports and airport areas</string>
     <string name="src_name_airport">“National Land Numerical Information (Airport Data)” (Ministry of Land, Infrastructure, Transport and Tourism)</string>
     <string name="src_use_ourairports">Airport codes, and SDF and US military airfields</string>

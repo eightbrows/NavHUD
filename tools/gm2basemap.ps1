@@ -7,7 +7,7 @@
     1. 「地球地図日本」第2.2版の全レイヤの zip を取ってきて、mapdata/ に展開する（mapdata/ は git 管理外）。
          https://www1.gsi.go.jp/geowww/globalmap-gsi/download/data/gm-japan/gm-jpn-all_u_2_2.zip
          → mapdata/gm-jpn-all_u_2_2/coastl_jpn.shp など
-       山頂は、国土地理院「日本の山岳標高一覧（1003山）」の CSV を mapdata/1003zan20260331.csv に置く（列: 連番, 索引番号, 山名,
+       山頂は、国土地理院「日本の主な山岳標高一覧（1003山）」の CSV を mapdata/1003zan20260331.csv に置く（列: 連番, 索引番号, 山名,
        山名よみ, 標高値(m), 種別, 都道府県, 緯度, 経度。Shift_JIS）
        空港は、国土数値情報「空港データ」（C28、2020 年版）の zip（C28-20_GML.zip）を mapdata/C28-20_GML/ に展開する
          https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-C28-2021.html → mapdata/C28-20_GML/C28-20_Airport.shp など（20261022-D01）
@@ -24,7 +24,7 @@
            地球地図の空港（airp）は、略号を突き合わせるのにだけ使い、点としては入れない。
            「○○空港（△△地区）」のように、ほかの空港の一部の地区の面（滑走路の長さもその空港と同じ）は、記号は入れない（面は入れる）
     線  26 空港の敷地（国土数値情報 C28 の空港の面。供用中だけ。20261022-D01）… 塗るので、外の輪と穴を線として入れ、64 点ずつに分けない
-        25 山頂（地球地図ではなく、国土地理院「日本の山岳標高一覧（1003山）」の CSV。20261021-D02）… 名前（山名）も入れる。
+        25 山頂（地球地図ではなく、国土地理院「日本の主な山岳標高一覧（1003山）」の CSV。20261021-D02）… 名前（山名）も入れる。
            種類 = 標高 ÷ 50 m（下の 7 ビット）＋ 目印になる山の印 0x80（下の $PeakLandmarkMinM・$PeakLandmarkMinIsoKm）
     入れないもの: 市街地の面（builtupa。前の 10）、港（portp。21）、駅（rstatp。22）、ダム・堰の点（miscp。23）、都市（builtupp。24）（20261020-D01）、
     ダム・堰の線（miscl。8。20261020-D02）。
@@ -75,7 +75,7 @@
 .PARAMETER Out
   出力のファイル。既定は app/src/main/assets/basemap.bin
 .PARAMETER PeakCsv
-  山頂の CSV（国土地理院「日本の山岳標高一覧（1003山）」。Shift_JIS）。既定は mapdata/1003zan20260331.csv
+  山頂の CSV（国土地理院「日本の主な山岳標高一覧（1003山）」。Shift_JIS）。既定は mapdata/1003zan20260331.csv
 .PARAMETER C28
   国土数値情報「空港データ」（C28、2020 年版）を展開したフォルダ。既定は mapdata/C28-20_GML
 .PARAMETER OaAirports
@@ -868,7 +868,7 @@ $data = foreach ($layer in $Layers) {
   @{ Layer = $layer; Lines = $lineObjs; Sorted = @($sorted); Points = $points; Kept = $kept; Parts = $lines.Count }
 }
 
-# 山頂（20261021-D02）: 国土地理院「日本の山岳標高一覧（1003山）」の CSV（Shift_JIS）。枝番の山頂（14-1・14-2 など）も 1 つの点にする
+# 山頂（20261021-D02）: 国土地理院「日本の主な山岳標高一覧（1003山）」の CSV（Shift_JIS）。枝番の山頂（14-1・14-2 など）も 1 つの点にする
 $peakLayer = @{ Code = 25; Name = 'peak' }
 $pkLines = [System.IO.File]::ReadAllLines((Join-Path (Get-Location) $PeakCsv), [System.Text.Encoding]::GetEncoding(932))
 $pkFields = for ($k = 1; $k -lt $pkLines.Count; $k++) {
