@@ -88,20 +88,27 @@ object AirportKind {
 
 /**
  * 滑走路のレイヤの中の種類（20261024-D04）: 下の 2 ビットがその滑走路の空港の種類（AirportKind の LARGE・OURAIRPORTS と同じ）、
- * 上の 6 ビットが幅の段（幅 [m] ÷ WIDTH_STEP_M を四捨五入。0 は幅が分からない）。変換（tools/gm2basemap.ps1）で決める
+ * その上の 5 ビットが幅の段（幅 [m] ÷ WIDTH_STEP_M を四捨五入。0 は幅が分からない）、いちばん上の ESTIMATED（0x80）が「推定した滑走路」の印
+ * （両端の座標がないので、標点・長さ・向きから両端を推定した。20261024-D06。描き方は同じ）。変換（tools/gm2basemap.ps1）で決める
  */
 object RunwayKind {
     const val AIRPORT_MASK = 0x03
     const val WIDTH_STEP_M = 5
+    const val ESTIMATED = 0x80
+    private const val WIDTH_MASK = 0x1F
 
     /** その滑走路の空港の種類（AirportKind の値） */
     fun airportKind(kind: Int): Int = kind and AIRPORT_MASK
 
     /** 滑走路の幅 [m]（5 m 単位。分からなければ 0） */
-    fun widthM(kind: Int): Int = (kind shr 2) * WIDTH_STEP_M
+    fun widthM(kind: Int): Int = ((kind shr 2) and WIDTH_MASK) * WIDTH_STEP_M
+
+    /** 推定した滑走路か（20261024-D06） */
+    fun isEstimated(kind: Int): Boolean = kind and ESTIMATED != 0
 
     /** 種類の値を作る（テスト・書き出し用） */
-    fun of(airportKind: Int, widthM: Int): Int = ((Math.round(widthM.toFloat() / WIDTH_STEP_M)).coerceIn(0, 63) shl 2) or (airportKind and AIRPORT_MASK)
+    fun of(airportKind: Int, widthM: Int, estimated: Boolean = false): Int =
+        ((Math.round(widthM.toFloat() / WIDTH_STEP_M)).coerceIn(0, WIDTH_MASK) shl 2) or (airportKind and AIRPORT_MASK) or (if (estimated) ESTIMATED else 0)
 }
 
 /**

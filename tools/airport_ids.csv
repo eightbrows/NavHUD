@@ -1,0 +1,149 @@
+no,src,ksj_name,ksj_code,oa_id,memo
+A001,KSJ,礼文空港,01517,,RJCR 礼文空港
+A002,KSJ,稚内空港,01214,,RJCW 稚内空港
+A003,KSJ,利尻空港,01519,,RJER 利尻空港
+A004,KSJ,紋別空港,01219,,RJEB 紋別空港
+A005,KSJ,女満別空港,01564,,RJCM 女満別空港
+A006,OA,,,5542,RJCA JGSDF Camp Asahikawa Airfield
+A007,KSJ,旭川空港,01453,,RJEC 旭川空港
+A008,KSJ,中標津空港,01692,,RJCN 中標津空港
+A009,OA,,,323825,RJCS JASDF Kenebetsu Airfield
+A010,KSJ,札幌飛行場,01103,,RJCO 札幌飛行場
+A011,KSJ,釧路空港,01206,,RJCK 釧路空港
+A012,OA,,,5551,RJCT Tokachi Airport
+A013,OA,,,5546,RJCJ JASDF Chitose Air Base
+A014,KSJ,新千歳空港,01224,,RJCC 新千歳空港
+A015,KSJ,帯広空港,01207,,RJCB 帯広空港
+A016,OA,,,323826,RJCY JASDF Yakumo Airbase
+A017,KSJ,奥尻空港,01367,,RJEO 奥尻空港
+A018,OA,,,3355,RJ04 Shikabe Airfield
+A019,KSJ,函館空港,01202,,RJCH 函館空港
+A020,OA,,,32216,RJSO JMSDF Ōminato Base
+A021,KSJ,青森空港,02201,,RJSA 青森空港
+A022,KSJ,三沢飛行場,02207,,RJSM 三沢飛行場
+A023,OA,,,5609,RJSH JMSDF Hachinohe Air Base / Hachinohe Airport
+A024,KSJ,花巻空港,03205,,RJSI 花巻空港
+A025,OA,,,5616,RJST JASDF Matsushima Air Base
+A026,OA,,,30406,RJSU JGSDF Kasuminome Airfield
+A027,KSJ,仙台空港,04207,,RJSS 仙台空港
+A028,KSJ,大館能代空港,05213,,RJSR 大館能代空港
+A029,KSJ,秋田空港,05201,,RJSK 秋田空港
+A030,KSJ,庄内空港,06204,,RJSY 庄内空港
+A031,KSJ,山形空港,06211,,RJSC 山形空港
+A032,KSJ,福島空港,07502,,RJSF 福島空港
+A033,KSJ,百里飛行場,08236,,RJAH 百里飛行場
+A034,OA,,,30016,RJAK JGSDF Kasumigaura Airfield
+A035,OA,,,334418,RJA3 Ryugasaki Airfield
+A036,OA,,,334417,RJA2 Otone Airfield
+A037,OA,,,5628,RJTU Utsunomiya Air Field
+A038,OA,,,309675,RJTS JGSDF Somagahara Heliport
+A039,OA,,,5623,RJTL JMSDF Shimofusa Air Base
+A040,KSJ,成田国際空港,12211,,RJAA 成田国際空港
+A041,OA,,,5622,RJTK JGSDF Kisarazu Airfield
+A042,OA,,,5619,RJTE JMSDF Tateyama Air Base
+A043,OA,,,5621,RJTJ Iruma Air Base
+A044,OA,,,5629,RJTY Yokota Air Base
+A045,OA,,,30460,RJTC Tachikawa Airfield
+A046,KSJ,調布飛行場,13208,,RJTF 調布飛行場
+A047,OA,,,300123,RJ01 Akasaka Press Center (Hardy Barracks) Heliport
+A048,OA,,,309673,RJTI Tokyo Heliport
+A049,KSJ,東京国際空港,13111,,RJTT 東京国際空港
+A050,KSJ,大島空港,13361,,RJTO 大島空港
+A051,KSJ,新島空港,13363,,RJAN 新島空港
+A052,KSJ,神津島空港,13364,,RJAZ 神津島空港
+A053,KSJ,三宅島空港,13381,,RJTQ 三宅島空港
+A054,KSJ,八丈島空港,13401,,RJTH 八丈島空港
+A055,OA,,,41849,RJAO JMSDF Chichijima Airfield
+A056,OA,,,5535,RJAW Ioto (Iwo Jima) Airbase
+A057,OA,,,5534,RJAM JMSDF Minami Torishima Air Base
+A058,OA,,,300118,RJ03 Sagami Depot Heliport
+A059,OA,,,5626,RJTR Camp Zama Kastner Army Heliport
+A060,OA,,,320815,RJ02 North Pier Yokohama Heliport / Sankan Heliport
+A061,OA,,,5618,RJTA JMSDF Atsugi Air Base / Naval Air Facility Atsugi
+A062,OA,,,41850,RJTX Yokosuka Heliport
+A063,KSJ,佐渡空港,15224,,RJSD 佐渡空港
+A064,KSJ,新潟空港,15102,,RJSN 新潟空港
+A065,KSJ,富山空港,16201,,RJNT 富山空港
+A066,KSJ,能登空港,17204,,RJNW 能登空港
+A067,KSJ,小松飛行場,17203,,RJNK 小松飛行場
+A068,KSJ,福井空港,18210,,RJNF 福井空港
+A069,KSJ,松本空港,20202,,RJAF 松本空港
+A070,OA,,,5583,RJNG Gifu Airport
+A071,OA,,,299572,RJAT JGSDF Camp Fuji Heliport / Fuji Army Heliport
+A072,OA,,,334435,RJT2 Miho Airfield
+A073,OA,,,5589,RJNY JASDF Shizuhama Air Base
+A074,KSJ,静岡空港,22226,,RJNS 静岡空港
+A075,OA,,,5584,RJNH JASDF Hamamatsu Air Base
+A076,KSJ,名古屋飛行場,23342,,RJNA 名古屋飛行場
+A077,KSJ,中部国際空港,23216,,RJGG 中部国際空港
+A078,OA,,,29649,RJOE JGSDF Akeno Airfield
+A079,OA,,,309674,RJBM JMSDF Maizuru Heliport
+A080,KSJ,大阪国際空港,27203,,RJOO 大阪国際空港
+A081,KSJ,八尾空港,27212,,RJOY 八尾空港
+A082,KSJ,関西国際空港,27362,,RJBB 関西国際空港
+A083,KSJ,但馬飛行場,28209,,RJBT 但馬飛行場
+A084,KSJ,神戸空港,28110,,RJBE 神戸空港
+A085,KSJ,南紀白浜空港,30401,,RJBD 南紀白浜空港
+A086,KSJ,鳥取空港,31201,,RJOR 鳥取空港
+A087,KSJ,美保飛行場,31204,,RJOH 美保飛行場
+A088,KSJ,隠岐空港,32528,,RJNO 隠岐空港
+A089,KSJ,出雲空港,32401,,RJOC 出雲空港
+A090,KSJ,石見空港,32204,,RJOW 石見空港
+A091,KSJ,岡山空港,33201,,RJOB 岡山空港
+A092,KSJ,岡南飛行場,33201,,RJBK 岡南飛行場
+A093,KSJ,広島空港,34204,,RJOA 広島空港
+A094,OA,,,5539,RJBH Hiroshima Heliport
+A095,KSJ,岩国飛行場,35208,,RJOI 岩国飛行場
+A096,OA,,,5604,RJOZ Ozuki Airfield
+A097,OA,,,5593,RJOF JASDF Hofu Airfield
+A098,KSJ,山口宇部空港,35202,,RJDC 山口宇部空港
+A099,KSJ,徳島飛行場,36401,,RJOS 徳島飛行場
+A100,OA,,,309676,RJOP JMSDF Komatsushima Heliport
+A101,KSJ,高松空港,37201,,RJOT 高松空港
+A102,KSJ,松山空港,38201,,RJOM 松山空港
+A103,KSJ,高知空港,39204,,RJOK 高知空港
+A104,OA,,,5561,RJFA JASDF Ashiya Air Base
+A105,KSJ,北九州空港,40107,,RJFR 北九州空港
+A106,OA,,,5575,RJFZ JASDF Tsuiki Air Base
+A107,KSJ,福岡空港（奈多地区）,40132,,福岡空港（奈多地区）
+A108,KSJ,福岡空港,40132,,RJFF 福岡空港
+A109,OA,,,30134,RJDM JGSDF Metabaru Airfield
+A110,KSJ,佐賀空港,41302,,RJFS 佐賀空港
+A111,KSJ,対馬空港,42209,,RJDT 対馬空港
+A112,KSJ,壱岐空港,42210,,RJDB 壱岐空港
+A113,KSJ,小値賀空港,42383,,RJDO 小値賀空港
+A114,KSJ,上五島空港,42411,,RJDK 上五島空港
+A115,OA,,,340867,RJDU JMSDF Omura Air Base
+A116,KSJ,長崎空港,42205,,RJFU 長崎空港
+A117,KSJ,福江空港,42211,,RJFE 福江空港
+A118,KSJ,熊本空港,43443,,RJFT 熊本空港
+A119,KSJ,天草飛行場,43215,,RJDA 天草飛行場
+A120,KSJ,大分空港,44214,,RJFO 大分空港
+A121,KSJ,大分県央飛行場,44212,,大分県央飛行場
+A122,OA,,,5568,RJFN JASDF Nyūtabaru Air Base
+A123,KSJ,宮崎空港,45201,,RJFM 宮崎空港
+A124,KSJ,鹿児島空港,46218,,RJFK 鹿児島空港
+A125,OA,,,5574,RJFY JMSDF Kanoya Air Base
+A126,KSJ,種子島空港,46501,,RJFG 種子島空港
+A127,KSJ,屋久島空港,46503,,RJFC 屋久島空港
+A128,KSJ,奄美空港,46222,,RJKA 奄美空港
+A129,KSJ,喜界空港,46529,,RJKI 喜界空港
+A130,KSJ,徳之島空港,46531,,RJKN 徳之島空港
+A131,KSJ,沖永良部空港,46533,,RJKB 沖永良部空港
+A132,KSJ,与論空港,46535,,RORY 与論空港
+A133,OA,,,5672,RODE Iejima Auxiliary Air Base
+A134,KSJ,伊江島空港,47315,,RORE 伊江島空港
+A135,KSJ,粟国空港,47355,,RORA 粟国空港
+A136,KSJ,久米島空港,47361,,ROKJ 久米島空港
+A137,OA,,,5673,RODN Kadena Air Base
+A138,OA,,,5683,ROTM Futenma Marine Corps Air Station
+A139,KSJ,那覇空港,47201,,ROAH 那覇空港
+A140,KSJ,慶良間空港,47354,,ROKR 慶良間空港
+A141,KSJ,北大東空港,47358,,RORK 北大東空港
+A142,KSJ,南大東空港,47357,,ROMD 南大東空港
+A143,KSJ,下地島空港,47214,,RORS 下地島空港
+A144,KSJ,宮古空港,47214,,ROMY 宮古空港
+A145,KSJ,多良間空港,47375,,RORT 多良間空港
+A146,KSJ,与那国空港,47382,,ROYN 与那国空港
+A147,KSJ,新石垣空港,47207,,ROIG 新石垣空港
+A148,KSJ,波照間空港,47381,,RORH 波照間空港

@@ -16,7 +16,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 
-/** 滑走路と延長線（20261024-D04。D05 で延長線を 40dp にし、項目を分けた）: ファイルの滑走路のレイヤ、種類の読み方、描く線（太さ・延長線・項目）。 */
+/** 滑走路と延長線（20261024-D04。D05 で延長線を 40dp にし、項目を分けた。D06 で推定した滑走路の印を足した。D07 で推定の向きを 2 通り試す）: ファイルの滑走路のレイヤ、種類の読み方、描く線（太さ・延長線・項目）。 */
 class RunwayTest {
 
     private val rect = HudRect(0f, 0f, 720f, 1200f)
@@ -42,7 +42,27 @@ class RunwayTest {
         // 幅は 5 m 単位（46 m → 45 m）。分からなければ 0
         assertEquals(45, RunwayKind.widthM(k))
         assertEquals(0, RunwayKind.widthM(RunwayKind.of(0, 0)))
-        assertEquals(315, RunwayKind.widthM(RunwayKind.of(0, 999)))
+        // 幅の段は 5 ビット（20261024-D06。0x80 を推定の印にしたので、上限は 31 × 5 m = 155 m）
+        assertEquals(155, RunwayKind.widthM(RunwayKind.of(0, 999)))
+        assertEquals(false, RunwayKind.isEstimated(k))
+        // 推定した滑走路の印（20261024-D06）: 幅・空港の種類はそのまま読める
+        val e = RunwayKind.of(AirportKind.LARGE, 60, estimated = true)
+        assertEquals(true, RunwayKind.isEstimated(e))
+        assertEquals(RunwayKind.ESTIMATED, e and 0x80)
+        assertEquals(60, RunwayKind.widthM(e))
+        assertEquals(AirportKind.LARGE, RunwayKind.airportKind(e))
+    }
+
+    @Test
+    fun estimatedRunwayIsDrawnTheSameWay() {
+        // 推定した滑走路も、見た目は同じ（滑走路と延長線。太さは幅から）
+        val real = build(BaseMap(listOf(MapLevel(0.0, listOf(runway(AirportKind.LARGE, 60))))), 0.1).runways
+        val est = MapLine.of(
+            MapLayer.RUNWAY, doubleArrayOf(TestGeo.LAT0, TestGeo.LAT0), doubleArrayOf(TestGeo.lon(-1500.0), TestGeo.lon(1500.0)),
+            RunwayKind.of(AirportKind.LARGE, 60, estimated = true), unit = 10_000_000,
+        )
+        val drawn = build(BaseMap(listOf(MapLevel(0.0, listOf(est)))), 0.1).runways
+        assertEquals(real.map { Triple(it.points, it.widthDp, it.dash) }, drawn.map { Triple(it.points, it.widthDp, it.dash) })
     }
 
     @Test
@@ -119,26 +139,42 @@ class RunwayTest {
         val asset = File("src/main/assets/basemap.bin")
         assertTrue("assets/basemap.bin がない", asset.isFile)
         val map = BaseMapFile.decode(asset.readBytes())
-        // 地図に出す 120 の空港の、閉じていない滑走路 145 本のうち、両端の座標がある 132 本から、端が国土数値情報の敷地の面から
-        // 50 m より外にある 4 本（岩国 02R/20L・北大東 03/21・隠岐 08/26・喜界 07/25）を除いた 128 本（20261024-D05。どの段にも同じだけ入れる）
-        assertEquals(128, map.countOf(MapLayer.RUNWAY))
+        // 地図に出す 120 の空港の、閉じていない滑走路 144 本（長さのない行は数えない。20261024-D07）のうち、両端の座標があり、端が国土数値情報の敷地の面から 100 m 以内の 130 本
+        // （20261024-D06 で 50 m → 100 m。隠岐 08/26（98 m）・喜界 07/25（89 m）が戻り、岩国 02R/20L・北大東 03/21 は外れたまま）と、
+        // 両端を推定した 12 本（滑走路が 1 本だけの空港。静岡は真方位では敷地から外れるので、番号から求めた向きで推定。20261024-D07）の 142 本。どの段にも同じだけ入れる
+        assertEquals(142, map.countOf(MapLayer.RUNWAY))
         // かたまりは読んでから使う（画面と同じ）
         map.preload(setOf(MapLayer.RUNWAY))
+        fun near(level: MapLevel, lat: Double, lon: Double) = level.candidates(MapLayer.RUNWAY, lat - 0.05, lon - 0.05, lat + 0.05, lon + 0.05)
+            .filter { it.maxLat > lat - 0.05 && it.minLat < lat + 0.05 && it.maxLon > lon - 0.05 && it.minLon < lon + 0.05 }
         for (level in map.levels) {
             val lines = level.candidates(MapLayer.RUNWAY, 20.0, 120.0, 50.0, 150.0)
-            assertEquals(128, lines.size)
+            assertEquals(142, lines.size)
             for (l in lines) {
                 assertEquals(2, l.size)
                 // 日本の中（南鳥島の東経 154 度まで）、幅は 0〜100 m
                 assertTrue(l.minLat > 20.0 && l.maxLat < 46.0 && l.minLon > 122.0 && l.maxLon < 154.5)
                 assertTrue(RunwayKind.widthM(l.kind) in 0..100)
             }
-            // 滑走路が 1 本だけで、その端が敷地から外れている空港（北大東・喜界・隠岐）には滑走路がない
-            for ((lat, lon) in listOf(25.9447 to 131.3268, 28.3213 to 129.9281, 36.1781 to 133.3250)) {
-                val near = level.candidates(MapLayer.RUNWAY, lat - 0.05, lon - 0.05, lat + 0.05, lon + 0.05)
-                    .filter { it.maxLat > lat - 0.05 && it.minLat < lat + 0.05 && it.maxLon > lon - 0.05 && it.minLon < lon + 0.05 }
-                assertTrue("$lat,$lon", near.isEmpty())
+            assertEquals(12, lines.count { RunwayKind.isEstimated(it.kind) })
+            // 隠岐・喜界: 基準を 100 m にして戻った滑走路（実際の座標。推定ではない）
+            for ((lat, lon) in listOf(36.1781 to 133.3250, 28.3213 to 129.9281)) {
+                val rw = near(level, lat, lon)
+                assertEquals("$lat,$lon", 1, rw.size)
+                assertTrue(rw.none { RunwayKind.isEstimated(it.kind) })
             }
+            // 北大東（座標が敷地から外れる）・新石垣・調布・静岡（両端の座標がない）: 推定した滑走路
+            for ((lat, lon) in listOf(25.9447 to 131.3268, 24.3964 to 124.2450, 35.6717 to 139.5281, 34.7961 to 138.1894)) {
+                val rw = near(level, lat, lon)
+                assertEquals("$lat,$lon", 1, rw.size)
+                assertTrue(RunwayKind.isEstimated(rw[0].kind))
+            }
+            // 静岡の推定した滑走路は、番号 12 から求めた向き（120° − 偏角 7.6° ≒ 112.4°）。真方位のデータ（128°）ではない（20261024-D07）
+            val nns = near(level, 34.7961, 138.1894).single()
+            val k = Math.cos(Math.toRadians(34.7961))
+            // 1 点目（12 の側）から 2 点目（30 の側）への向き
+            val bearing = (Math.toDegrees(Math.atan2((nns.lon(1) - nns.lon(0)) * k, nns.lat(1) - nns.lat(0))) + 360) % 360
+            assertEquals(112.4, bearing, 1.0)
         }
     }
 }

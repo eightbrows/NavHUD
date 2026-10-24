@@ -13,6 +13,8 @@
          https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-C28-2021.html → mapdata/C28-20_GML/C28-20_Airport.shp など（20261022-D01）
     2. リポジトリの一番上で実行する:
          pwsh tools/gm2basemap.ps1            （変換して app/src/main/assets/basemap.bin を書く。レイヤごとの大きさも出す）
+                                              （飛行場の一覧の資料 docs/airports.html も毎回書き、飛行場の番号の対応表 tools/airport_ids.csv に
+                                               新しい飛行場を足す。tools/gm2basemap_airportlist.ps1。20261024-D06）
          pwsh tools/gm2basemap.ps1 -List      （入っているレイヤの一覧を出すだけ。書かない）
 
   取り込むもの（SPEC.md §8。種類の番号はアプリの core/io/BaseMapFile.kt の MapLayer と同じ）:
@@ -25,7 +27,9 @@
            「○○空港（△△地区）」のように、ほかの空港の一部の地区の面（滑走路の長さもその空港と同じ）は、記号は入れない（面は入れる）
     線  26 空港の敷地（国土数値情報 C28 の空港の面。供用中だけ。20261022-D01）… 塗るので、外の輪と穴を線として入れ、64 点ずつに分けない
     線  27 滑走路（OurAirports の runways.csv。地図に出す空港の、両端の座標がある閉じていない滑走路を 2 点の線で。段の全部に入れる。20261024-D04）
-           … 端が国土数値情報の敷地の面から $RunwayMaxOutsideM より外にある滑走路は入れない（20261024-D05）
+           … 端が国土数値情報の敷地の面から $RunwayMaxOutsideM より外にある滑走路は入れない（20261024-D05）。D06 で 50 m → 100 m
+           … 閉じていない滑走路が 1 本だけの空港で、両端の座標がないか端が敷地から外れている滑走路は、標点・長さ・向きから推定して入れる（種類に 0x80。20261024-D06）
+           … 推定が外れたら、向きのもう一方の求め方でもう一度推定する。長さのない滑走路の行は数えない（20261024-D07）
            … 種類 = 幅の段（幅 ÷ 5 m）× 4 ＋ 空港の種類（0x01 = 大、0x02 = OurAirports だけ）
         25 山頂（地球地図ではなく、国土地理院「日本の主な山岳標高一覧（1003山）」の CSV。20261021-D02）… 名前（山名）も入れる。
            種類 = 標高 ÷ 50 m（下の 7 ビット）＋ 目印になる山の印 0x80（下の $PeakLandmarkMinM・$PeakLandmarkMinIsoKm）
@@ -85,6 +89,10 @@
   OurAirports の airports.csv（日本の分）。既定は mapdata/airports.csv
 .PARAMETER OaRunways
   OurAirports の runways.csv（全部。airports.csv の id で日本の分に絞る）。既定は mapdata/runways.csv
+.PARAMETER AirportDoc
+  飛行場の一覧の資料（basemap.bin と一緒に毎回書き出す。tools/gm2basemap_airportlist.ps1）。既定は docs/airports.html（20261024-D06）
+.PARAMETER AirportIds
+  飛行場の番号の対応表（A001 など。ない飛行場に番号を付けて足す）。既定は tools/airport_ids.csv（20261024-D06）
 .PARAMETER ChunkPoints
   1 本の線の点の数の上限。既定は 64
 .PARAMETER List
@@ -98,6 +106,8 @@ param(
   [string]$C28 = 'mapdata/C28-20_GML',
   [string]$OaAirports = 'mapdata/airports.csv',
   [string]$OaRunways = 'mapdata/runways.csv',
+  [string]$AirportDoc = 'docs/airports.html',
+  [string]$AirportIds = 'tools/airport_ids.csv',
   [switch]$List
 )
 $ErrorActionPreference = 'Stop'
@@ -741,6 +751,7 @@ $ksj = for ($k = 0; $k -lt $apRefRows.Count; $k++) {
   $a = $polys[0]
   $runway = (("$($a['C28_012'])" -split ',') | Where-Object { $_ -match '^\d+$' } | ForEach-Object { [int]$_ } | Measure-Object -Maximum).Maximum
   [pscustomobject]@{ Id = $id; Name = $a['C28_005']; Status = $a['C28_004']; Polygons = $polys.Count; RunwayM = $runway; Lat = $apRefRecs[$k].Y; Lon = $apRefRecs[$k].X
+    LocCode = $a['C28_001']; Cat = $a['C28_003']; Lens = @(("$($a['C28_012'])" -split ',') | Where-Object { $_ -match '^\d+$' } | ForEach-Object { [int]$_ })
     Operating = ($a['C28_004'] -eq '供用中'); District = ($a['C28_005'] -match '（.+地区）$'); Oa = $null; Km = $null; NearOa = $null; NearKm = [double]::PositiveInfinity }
 }
 $apPairs = [System.Collections.Generic.List[object]]::new()
@@ -763,7 +774,8 @@ foreach ($s in $ksj) {
   if ($sym) { $apPoints.Add(@{ Kind = $(if ($cls -eq 'large') { $AirportLargeFlag } else { 0 }); Lat = [int][math]::Round($s.Lat * $Unit); Lon = [int][math]::Round($s.Lon * $Unit); Name = $s.Oa.Code }) }
   $apReport.Add([pscustomobject]@{ src = 'KSJ'; name = $s.Name; status = $s.Status; runwayM = $s.RunwayM; cls = $cls; code = $(if ($s.Oa) { $s.Oa.Code } else { '' })
     oaName = $(if ($s.Oa) { $s.Oa.Name } else { $s.NearOa.Name }); oaCode = $(if ($s.Oa) { $s.Oa.Code } else { $s.NearOa.Code }); oaRunwayM = $(if ($s.Oa -and $null -ne $s.Oa.RunwayM) { [math]::Round($s.Oa.RunwayM) } else { '' })
-    km = $(if ($s.Oa) { [math]::Round($s.Km, 2) } else { [math]::Round($s.NearKm, 2) }); symbol = $sym; area = $apAreaIds.Contains($s.Id); oaType = ''; lat = $s.Lat; lon = $s.Lon })
+    km = $(if ($s.Oa) { [math]::Round($s.Km, 2) } else { [math]::Round($s.NearKm, 2) }); symbol = $sym; area = $apAreaIds.Contains($s.Id); oaType = ''; lat = $s.Lat; lon = $s.Lon
+    ksjId = $s.Id; locCode = $s.LocCode; cat = $s.Cat; ksjLens = ($s.Lens -join ','); oaId = $(if ($s.Oa) { $s.Oa.Id } else { '' }) })
 }
 foreach ($o in $oaCand) {
   if ($o.Used) { continue }
@@ -771,21 +783,22 @@ foreach ($o in $oaCand) {
   $cls = AirportClass $m
   $sym = $cls -in 'large', 'small'
   if ($sym) { $apPoints.Add(@{ Kind = $(if ($cls -eq 'large') { $AirportLargeFlag -bor $AirportOaFlag } else { $AirportOaFlag }); Lat = [int][math]::Round($o.Lat * $Unit); Lon = [int][math]::Round($o.Lon * $Unit); Name = $o.Code }) }
-  $apReport.Add([pscustomobject]@{ src = 'OA'; name = $o.Name; status = ''; runwayM = $m; cls = $cls; code = $o.Code; oaName = $o.Name; oaCode = $o.Code; oaRunwayM = $m; km = ''; symbol = $sym; area = $false; oaType = $o.Type; lat = $o.Lat; lon = $o.Lon })
+  $apReport.Add([pscustomobject]@{ src = 'OA'; name = $o.Name; status = ''; runwayM = $m; cls = $cls; code = $o.Code; oaName = $o.Name; oaCode = $o.Code; oaRunwayM = $m; km = ''; symbol = $sym; area = $false; oaType = $o.Type; lat = $o.Lat; lon = $o.Lon
+    ksjId = ''; locCode = ''; cat = ''; ksjLens = ''; oaId = $o.Id })
 }
 
 # 滑走路（20261024-D04）: 地図に記号を出す空港（民間・軍用）の、OurAirports の runways.csv の滑走路（閉じた滑走路は除く）。
 #   両端の座標（le_ / he_latitude_deg・longitude_deg）がそろっているものだけ、両端を結ぶ 2 点の線として入れる（レイヤ 27。段の全部に入れる）。
-#   種類 = 幅の段（幅 [m] ÷ RunwayWidthStepM を四捨五入。0〜63。幅が分からなければ 0）× 4 ＋ 空港の種類（0x01 = 大、0x02 = OurAirports だけ）。
+#   種類 = 幅の段（幅 [m] ÷ RunwayWidthStepM を四捨五入。0〜31。幅が分からなければ 0）× 4 ＋ 空港の種類（0x01 = 大、0x02 = OurAirports だけ） ＋ 推定の印（0x80。20261024-D06）。
 #   国土数値情報の空港は、両端が敷地の面（C28 の面。同じ C28_101）の中にあるかを調べる。20261024-D05 から、どちらかの端が面から
-#   RunwayMaxOutsideM より外にある滑走路は、座標が怪しいので入れない（敷地の面がない軍用の飛行場は調べずに入れる。長さが合わないだけなら入れる）
+#   RunwayMaxOutsideM より外にある滑走路は、座標が怪しいので入れない（敷地の面がない軍用の飛行場は調べずに入れる。長さが合わないだけなら入れる）。D06 で 50 m → 100 m
 $RunwayWidthStepM = 5
-$RunwayMaxOutsideM = 50
+$RunwayMaxOutsideM = 100
 $rwAirports = [System.Collections.Generic.List[object]]::new()
 foreach ($s in $ksj) {
   $cls = AirportClass $s.RunwayM
   if ($s.Operating -and -not $s.District -and $s.Oa -and $cls -in 'large', 'small') {
-    $rwAirports.Add([pscustomobject]@{ OaId = $s.Oa.Id; Code = $s.Oa.Code; Name = $s.Name; KsjId = $s.Id; Kind = $(if ($cls -eq 'large') { $AirportLargeFlag } else { 0 }); Lat = $s.Lat; Lon = $s.Lon })
+    $rwAirports.Add([pscustomobject]@{ OaId = $s.Oa.Id; Code = $s.Oa.Code; Name = $s.Name; KsjId = $s.Id; Kind = $(if ($cls -eq 'large') { $AirportLargeFlag } else { 0 }); Lat = $s.Lat; Lon = $s.Lon; LenM = $s.RunwayM; LenSrc = 'KSJ' })
   }
 }
 foreach ($o in $oaCand) {
@@ -793,12 +806,15 @@ foreach ($o in $oaCand) {
   $m = if ($null -eq $o.RunwayM) { $null } else { [math]::Round($o.RunwayM) }
   $cls = AirportClass $m
   if ($cls -in 'large', 'small') {
-    $rwAirports.Add([pscustomobject]@{ OaId = $o.Id; Code = $o.Code; Name = $o.Name; KsjId = $null; Kind = $(if ($cls -eq 'large') { $AirportLargeFlag -bor $AirportOaFlag } else { $AirportOaFlag }); Lat = $o.Lat; Lon = $o.Lon })
+    $rwAirports.Add([pscustomobject]@{ OaId = $o.Id; Code = $o.Code; Name = $o.Name; KsjId = $null; Kind = $(if ($cls -eq 'large') { $AirportLargeFlag -bor $AirportOaFlag } else { $AirportOaFlag }); Lat = $o.Lat; Lon = $o.Lon; LenM = $o.RunwayM; LenSrc = 'OA' })
   }
 }
+# 長さ（length_ft）のない滑走路の行は、ないものとして扱う（本数にも問題にも数えない。隠岐の 07/25 など。20261024-D07）
+$rwNoLen = [System.Collections.Generic.List[object]]::new()
 $rwByAp = @{}
 foreach ($rw in (Import-Csv (Join-Path (Get-Location) $OaRunways) -Encoding utf8)) {
   if ($rw.closed -eq '1') { continue }
+  if ($rw.length_ft -notmatch '^\d+(\.\d+)?$') { $rwNoLen.Add($rw); continue }
   if (-not $rwByAp.ContainsKey($rw.airport_ref)) { $rwByAp[$rw.airport_ref] = [System.Collections.Generic.List[object]]::new() }
   $rwByAp[$rw.airport_ref].Add($rw)
 }
@@ -809,37 +825,143 @@ for ($k = 0; $k -lt $apPolyRecs.Count; $k++) {
   if (-not $apPolys.ContainsKey($polyId)) { $apPolys[$polyId] = [System.Collections.Generic.List[ShpRecord]]::new() }
   $apPolys[$polyId].Add($apPolyRecs[$k])
 }
+# 両端の座標がない滑走路の推定（20261024-D06）: 閉じていない滑走路が 1 本だけの空港で、その滑走路の両端の座標がないか、
+#   端が敷地の面から RunwayMaxOutsideM より外にあるとき（北大東）は、中心・長さ・向きから両端を推定する。
+#   中心 = 国土数値情報の標点（なければ OurAirports の空港の位置）、長さ = 国土数値情報の滑走路延長（なければ OurAirports の長さ）、
+#   向き = OurAirports の真方位（le_heading_degT。なければ he_heading_degT − 180°）。どちらもなければ滑走路の番号（04 → 磁方位 40°）を
+#   その場所の偏角（DeclWestDeg）で真方位に直す。推定した両端のどちらかが敷地の面から RunwayMaxOutsideM より外なら、推定が外れたと見なして入れない
+#   （敷地の面がない軍用の飛行場は調べずに入れる）。推定した滑走路は種類に RunwayEstimatedFlag（0x80）を足す（見た目は同じ。アプリは区別できる）
+#   20261024-D07: 推定した端が外れたら、向きのもう一方の求め方（真方位 ⇔ 番号から偏角で直した向き）でもう一度推定し、収まった方を使う（どちらも外れたら入れない）。
+#   runways.csv の長さ（length_ft）のない滑走路の行は、ないものとして扱う（本数にも数えない）
+$RunwayEstimatedFlag = 0x80
+$RunwayMaxWidthStep = 31   # 幅の段は 5 ビット（0x80 を推定の印に使うので。31 × 5 m = 155 m）
+# 磁気の偏角 [度]（西偏を正）。国土地理院の近似式（2020.0 年値）:
+#   D = 8°15.822′ + 18.462′Δφ − 7.726′Δλ + 0.007′Δφ² − 0.007′ΔφΔλ − 0.655′Δλ²、Δφ = 緯度 − 37°、Δλ = 経度 − 138°
+#   （https://vldb.gsi.go.jp/sokuchi/geomag/menu_04/index.html の「近似式から求める」）。真方位 = 磁方位 − D
+function DeclWestDeg($lat, $lon) { $dp = $lat - 37; $dl = $lon - 138; (8 * 60 + 15.822 + 18.462 * $dp - 7.726 * $dl + 0.007 * $dp * $dp - 0.007 * $dp * $dl - 0.655 * $dl * $dl) / 60 }
+# 2 点の向き（真方位 [度]。1 点目から 2 点目へ。東西は 2 点の中ほどの緯度で縮める）
+function BearingDeg($la1, $lo1, $la2, $lo2) { $k = [math]::Cos(($la1 + $la2) / 2 * [math]::PI / 180); (([math]::Atan2(($lo2 - $lo1) * $k, $la2 - $la1) * 180 / [math]::PI) + 360) % 360 }
+# 角度の差（−180〜180）
+function AngDiff($a, $b) { $d = ($a - $b) % 360; if ($d -gt 180) { $d -= 360 } elseif ($d -lt -180) { $d += 360 }; $d }
+# 点から向き [度]・距離 [m] の先の点 @(緯度, 経度)
+function OffsetLL($lat, $lon, $hdg, $m) { $r = 6371008.8 * [math]::PI / 180; $h = $hdg * [math]::PI / 180
+  @(($lat + [math]::Cos($h) * $m / $r), ($lon + [math]::Sin($h) * $m / ($r * [math]::Cos($lat * [math]::PI / 180)))) }
+# 滑走路の番号から求めた向き（真方位 [度]。le 側から he 側へ）@(向き, 偏角)。番号が読めなければ $null
+function NumberHeading($rw, $lat, $lon) {
+  $d = DeclWestDeg $lat $lon
+  if ($rw.le_ident -match '^(\d{1,2})[LRC]?$' -and [int]$Matches[1] -ge 1 -and [int]$Matches[1] -le 36) { return @(((([int]$Matches[1] * 10) - $d + 720) % 360), $d) }
+  if ($rw.he_ident -match '^(\d{1,2})[LRC]?$' -and [int]$Matches[1] -ge 1 -and [int]$Matches[1] -le 36) { return @(((([int]$Matches[1] * 10) + 180 - $d + 720) % 360), $d) }
+  $null
+}
+# OurAirports の真方位（le 側から he 側へ）。なければ $null（20261024-D07）
+function DegTHeading($rw) {
+  if ($rw.le_heading_degT -match '^-?\d+(\.\d+)?$') { return [double]$rw.le_heading_degT % 360 }
+  if ($rw.he_heading_degT -match '^-?\d+(\.\d+)?$') { return ([double]$rw.he_heading_degT + 180) % 360 }
+  $null
+}
+# 推定に使う向き @(向き, 出どころ 'degT' / 'number', 偏角)。分からなければ $null
+function RunwayHeading($rw, $lat, $lon) {
+  if ($rw.le_heading_degT -match '^-?\d+(\.\d+)?$') { return @(([double]$rw.le_heading_degT % 360), 'degT', '') }
+  if ($rw.he_heading_degT -match '^-?\d+(\.\d+)?$') { return @((([double]$rw.he_heading_degT + 180) % 360), 'degT', '') }
+  $n = NumberHeading $rw $lat $lon
+  if ($n) { return @($n[0], 'number', $n[1]) }
+  $null
+}
+# 推定した両端 @(le の緯度, le の経度, he の緯度, he の経度)
+function EstimateEnds($lat, $lon, $hdg, $lenM) { $p1 = OffsetLL $lat $lon (($hdg + 180) % 360) ($lenM / 2); $p2 = OffsetLL $lat $lon $hdg ($lenM / 2); @($p1[0], $p1[1], $p2[0], $p2[1]) }
+function Rnd1($v) { if ($null -eq $v -or "$v" -eq '') { '' } else { [math]::Round([double]$v, 1) } }
+
 $rwLineObjs = [System.Collections.Generic.List[object]]::new()
 $rwReport = [System.Collections.Generic.List[object]]::new()
+# 推定の確かめ（実際の座標がある滑走路で同じ推定をしたときのずれ。レポート用）
+$rwCheck = [System.Collections.Generic.List[object]]::new()
+function AddRunwayLine($la1, $lo1, $la2, $lo2, $kind) {
+  $rwLineObjs.Add(@{ Lat = [int[]]@([int][math]::Round($la1 * $Unit), [int][math]::Round($la2 * $Unit)); Lon = [int[]]@([int][math]::Round($lo1 * $Unit), [int][math]::Round($lo2 * $Unit)); Kind = [int]$kind })
+}
 foreach ($a in $rwAirports) {
-  $rwList = if ($rwByAp.ContainsKey($a.OaId)) { $rwByAp[$a.OaId] } else { @() }
-  if (@($rwList).Count -eq 0) {
-    $rwReport.Add([pscustomobject]@{ code = $a.Code; name = $a.Name; kind = $a.Kind; ident = ''; lengthM = ''; widthM = ''; surface = ''; lighted = ''; ends = 'none'; calcM = ''; leDistM = ''; heDistM = ''; outside = $false; drawn = $false })
-    continue
+  $rwList = @(if ($rwByAp.ContainsKey($a.OaId)) { $rwByAp[$a.OaId] })
+  $poly = if ($a.KsjId -and $apPolys.ContainsKey($a.KsjId)) { $apPolys[$a.KsjId] } else { $null }
+  $blank = [ordered]@{ est = $false; estDrawn = $false; estLat = ''; estLon = ''; centerSrc = ''; estLenM = ''; estLenSrc = ''; estHdg = ''; estHdgSrc = ''; estDecl = ''; estLeDistM = ''; estHeDistM = ''; estAltHdg = ''; estAltHdgSrc = ''; estAltDecl = ''; estAltLeDistM = ''; estAltHeDistM = ''; estAltTried = $false }
+  if ($rwList.Count -eq 0) {
+    $o = [ordered]@{ code = $a.Code; name = $a.Name; kind = $a.Kind; ident = ''; lengthM = ''; widthM = ''; surface = ''; lighted = ''; ends = 'none'; calcM = ''; leDistM = ''; heDistM = ''; outside = $false; drawn = $false }
+    foreach ($k in $blank.Keys) { $o[$k] = $blank[$k] }
+    $rwReport.Add([pscustomobject]$o); continue
   }
   foreach ($rw in $rwList) {
     $has = $rw.le_latitude_deg -and $rw.le_longitude_deg -and $rw.he_latitude_deg -and $rw.he_longitude_deg
     $some = $rw.le_latitude_deg -or $rw.he_latitude_deg
     $wM = if ($rw.width_ft -match '^\d+(\.\d+)?$') { [double]$rw.width_ft * 0.3048 } else { $null }
     $lM = if ($rw.length_ft -match '^\d+(\.\d+)?$') { [double]$rw.length_ft * 0.3048 } else { $null }
-    $calc = ''; $leD = ''; $heD = ''; $outside = $false
+    $wq = if ($null -eq $wM) { 0 } else { [math]::Min($RunwayMaxWidthStep, [int][math]::Round($wM / $RunwayWidthStepM)) }
+    $kind = ($wq -shl 2) -bor $a.Kind
+    $calc = ''; $leD = ''; $heD = ''; $outside = $false; $e = [ordered]@{}; foreach ($k in $blank.Keys) { $e[$k] = $blank[$k] }
     if ($has) {
       $la1 = [double]$rw.le_latitude_deg; $lo1 = [double]$rw.le_longitude_deg; $la2 = [double]$rw.he_latitude_deg; $lo2 = [double]$rw.he_longitude_deg
       $calc = [math]::Round((KmBetween $la1 $lo1 $la2 $lo2) * 1000)
-      if ($a.KsjId -and $apPolys.ContainsKey($a.KsjId)) {
-        $leD = [math]::Round([Gm]::DistToPolysM($apPolys[$a.KsjId], $lo1, $la1)); $heD = [math]::Round([Gm]::DistToPolysM($apPolys[$a.KsjId], $lo2, $la2))
+      if ($poly) {
+        $leD = [math]::Round([Gm]::DistToPolysM($poly, $lo1, $la1)); $heD = [math]::Round([Gm]::DistToPolysM($poly, $lo2, $la2))
         $outside = [math]::Max($leD, $heD) -gt $RunwayMaxOutsideM
       }
-      $wq = if ($null -eq $wM) { 0 } else { [math]::Min(63, [int][math]::Round($wM / $RunwayWidthStepM)) }
-      if (-not $outside) { $rwLineObjs.Add(@{ Lat = [int[]]@([int][math]::Round($la1 * $Unit), [int][math]::Round($la2 * $Unit)); Lon = [int[]]@([int][math]::Round($lo1 * $Unit), [int][math]::Round($lo2 * $Unit)); Kind = [int](($wq -shl 2) -bor $a.Kind) }) }
+      if (-not $outside) { AddRunwayLine $la1 $lo1 $la2 $lo2 $kind }
+      # 推定の確かめ: 同じやり方で推定したときの、実際の座標とのずれ（中心は滑走路が 1 本だけの空港だけ。標点が滑走路の中ほどにあるとは限らないので）
+      $real = BearingDeg $la1 $lo1 $la2 $lo2; $mLat = ($la1 + $la2) / 2; $mLon = ($lo1 + $lo2) / 2
+      $nh = NumberHeading $rw $mLat $mLon
+      $degT = if ($rw.le_heading_degT -match '^-?\d+(\.\d+)?$') { [double]$rw.le_heading_degT } elseif ($rw.he_heading_degT -match '^-?\d+(\.\d+)?$') { ([double]$rw.he_heading_degT + 180) % 360 } else { $null }
+      $chk = [ordered]@{ code = $a.Code; name = $a.Name; ident = "$($rw.le_ident)/$($rw.he_ident)"; single = ($rwList.Count -eq 1); outside = $outside; realHdg = (Rnd1 $real)
+        numHdg = $(if ($nh) { Rnd1 $nh[0] } else { '' }); numDiff = $(if ($nh) { Rnd1 (AngDiff $nh[0] $real) } else { '' }); decl = $(if ($nh) { Rnd1 $nh[1] } else { '' })
+        degT = (Rnd1 $degT); degTDiff = $(if ($null -ne $degT) { Rnd1 (AngDiff $degT $real) } else { '' }); centerM = ''; lenM = $a.LenM; calcM = $calc; endM = ''; estFits = '' }
+      if ($rwList.Count -eq 1) {
+        $chk.centerM = [math]::Round((KmBetween $a.Lat $a.Lon $mLat $mLon) * 1000)
+        $hd = RunwayHeading $rw $mLat $mLon
+        if ($hd -and $null -ne $a.LenM) {
+          $p = EstimateEnds $a.Lat $a.Lon $hd[0] $a.LenM
+          $chk.endM = [math]::Round(1000 * [math]::Max((KmBetween $p[0] $p[1] $la1 $lo1), (KmBetween $p[2] $p[3] $la2 $lo2)))
+          if ($poly) { $chk.estFits = [math]::Max([Gm]::DistToPolysM($poly, $p[1], $p[0]), [Gm]::DistToPolysM($poly, $p[3], $p[2])) -le $RunwayMaxOutsideM }
+        }
+      }
+      $rwCheck.Add([pscustomobject]$chk)
     }
-    $rwReport.Add([pscustomobject]@{ code = $a.Code; name = $a.Name; kind = $a.Kind; ident = "$($rw.le_ident)/$($rw.he_ident)"; lengthM = $(if ($null -ne $lM) { [math]::Round($lM) } else { '' })
+    if (((-not $has) -or $outside) -and $rwList.Count -eq 1 -and $null -ne $a.LenM) {
+      # 向きの候補: 先に RunwayHeading（真方位があれば真方位、なければ番号から）。推定した端が敷地の面から外れたら、
+      # もう一方の求め方（真方位 ⇔ 番号から偏角で直した向き）でもう一度推定する（20261024-D07）。収まった方を使い、どちらも外れたら入れない
+      $tries = [System.Collections.Generic.List[object]]::new()
+      $hd = RunwayHeading $rw $a.Lat $a.Lon
+      if ($hd) {
+        $tries.Add($hd)
+        if ($hd[1] -eq 'degT') { $nh = NumberHeading $rw $a.Lat $a.Lon; if ($nh) { $tries.Add(@($nh[0], 'number', $nh[1])) } }
+        else { $dt = DegTHeading $rw; if ($null -ne $dt) { $tries.Add(@($dt, 'degT', '')) } }
+      }
+      $results = foreach ($t in $tries) {
+        $p = EstimateEnds $a.Lat $a.Lon $t[0] $a.LenM
+        $leE = ''; $heE = ''; $fits = $true
+        if ($poly) {
+          $leE = [math]::Round([Gm]::DistToPolysM($poly, $p[1], $p[0])); $heE = [math]::Round([Gm]::DistToPolysM($poly, $p[3], $p[2]))
+          $fits = [math]::Max($leE, $heE) -le $RunwayMaxOutsideM
+        }
+        [pscustomobject]@{ Hdg = $t[0]; Src = $t[1]; Decl = $t[2]; P = $p; Le = $leE; He = $heE; Fits = $fits }
+      }
+      $results = @($results)
+      if ($results.Count) {
+        $use = @($results | Where-Object Fits | Select-Object -First 1)
+        $u = if ($use.Count) { $use[0] } else { $results[0] }
+        $e.est = $true; $e.estLat = [math]::Round($a.Lat, 5); $e.estLon = [math]::Round($a.Lon, 5); $e.centerSrc = $(if ($a.KsjId) { 'KSJ' } else { 'OA' })
+        $e.estLenM = [math]::Round($a.LenM); $e.estLenSrc = $a.LenSrc; $e.estHdg = (Rnd1 $u.Hdg); $e.estHdgSrc = $u.Src; $e.estDecl = (Rnd1 $u.Decl)
+        $e.estLeDistM = $u.Le; $e.estHeDistM = $u.He
+        # 試したもう一方の向き（使わなかった方）
+        $other = @($results | Where-Object { $_ -ne $u } | Select-Object -First 1)
+        if ($other.Count) { $q = $other[0]; $e.estAltHdg = (Rnd1 $q.Hdg); $e.estAltHdgSrc = $q.Src; $e.estAltDecl = (Rnd1 $q.Decl); $e.estAltLeDistM = $q.Le; $e.estAltHeDistM = $q.He; $e.estAltTried = -not $results[0].Fits }
+        if ($u.Fits) { AddRunwayLine $u.P[0] $u.P[1] $u.P[2] $u.P[3] ($kind -bor $RunwayEstimatedFlag); $e.estDrawn = $true }
+      }
+    }
+    $o = [ordered]@{ code = $a.Code; name = $a.Name; kind = $a.Kind; ident = "$($rw.le_ident)/$($rw.he_ident)"; lengthM = $(if ($null -ne $lM) { [math]::Round($lM) } else { '' })
       widthM = $(if ($null -ne $wM) { [math]::Round($wM) } else { '' }); surface = $rw.surface; lighted = $rw.lighted
-      ends = $(if ($has) { 'both' } elseif ($some) { 'one' } else { 'none' }); calcM = $calc; leDistM = $leD; heDistM = $heD; outside = $outside; drawn = ([bool]$has -and -not $outside) })
+      ends = $(if ($has) { 'both' } elseif ($some) { 'one' } else { 'none' }); calcM = $calc; leDistM = $leD; heDistM = $heD; outside = $outside; drawn = (([bool]$has -and -not $outside) -or $e.estDrawn) }
+    foreach ($k in $e.Keys) { $o[$k] = $e[$k] }
+    $rwReport.Add([pscustomobject]$o)
   }
 }
 $rwSorted = $rwLineObjs | Sort-Object { [math]::Floor($_.Lat[0] / ($Unit / 10)) }, { $_.Lon[0] }
-"滑走路: $($rwLineObjs.Count) 本を入れる（$($rwAirports.Count) の空港・閉じていない滑走路 $(@($rwReport | Where-Object ident).Count) 本のうち、両端の座標があり、端が敷地の面から $RunwayMaxOutsideM m 以内のもの。外して $(@($rwReport | Where-Object outside).Count) 本）" | Write-Host
+"滑走路: $($rwLineObjs.Count) 本を入れる（$($rwAirports.Count) の空港・閉じていない滑走路 $(@($rwReport | Where-Object ident).Count) 本のうち、両端の座標があり端が敷地の面から $RunwayMaxOutsideM m 以内のもの $(@($rwReport | Where-Object { $_.drawn -and -not $_.estDrawn }).Count) 本と、推定したもの $(@($rwReport | Where-Object estDrawn).Count) 本。座標が外れたもの $(@($rwReport | Where-Object outside).Count) 本、推定が外れたもの $(@($rwReport | Where-Object { $_.est -and -not $_.estDrawn }).Count) 本）" | Write-Host
 
 # 読む（レイヤごとに、線の部分（単位の整数）と点）
 $data = foreach ($layer in $Layers) {
@@ -1091,6 +1213,11 @@ $riverRows | ConvertTo-Csv -NoTypeInformation | Set-Content -Encoding utf8 (Join
 $apReport | ConvertTo-Csv -NoTypeInformation | Set-Content -Encoding utf8 (Join-Path ([System.IO.Path]::GetTempPath()) 'gm2basemap_airports.csv')
 # 滑走路ごと（略号・空港・番号・長さ・幅・路面・両端の座標の有無・座標から求めた長さ・両端から敷地の面までの距離・描くか）（レポート用。20261024-D04）
 $rwReport | ConvertTo-Csv -NoTypeInformation | Set-Content -Encoding utf8 (Join-Path ([System.IO.Path]::GetTempPath()) 'gm2basemap_runways.csv')
+# 推定の確かめ（実際の座標がある滑走路で同じ推定をしたときの、向き・中心・端のずれ。レポート用。20261024-D06）
+$rwCheck | ConvertTo-Csv -NoTypeInformation | Set-Content -Encoding utf8 (Join-Path ([System.IO.Path]::GetTempPath()) 'gm2basemap_runwaycheck.csv')
 # 山頂ごと（索引番号・名前・標高・孤立度・目印になるか・種類）（レポート用）
 $pkReport | ConvertTo-Csv -NoTypeInformation | Set-Content -Encoding utf8 (Join-Path ([System.IO.Path]::GetTempPath()) 'gm2basemap_peaks.csv')
 "書いた: $Out（$($buf.Length) バイト、圧縮の目安 $([Gm]::Deflated($buf.ToArray())) バイト）"
+
+# 飛行場の一覧の資料と番号の対応表（20261024-D06）
+. (Join-Path $PSScriptRoot 'gm2basemap_airportlist.ps1')
