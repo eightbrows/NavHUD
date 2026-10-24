@@ -50,6 +50,11 @@ data class NavState(
     val liveTrail: List<TrackPoint> = emptyList(),
     /** REPLAY のトラック全体（間引き済み）。再生済みの部分は fix の時刻まで */
     val replayTrack: List<TrackPoint> = emptyList(),
+    /**
+     * 位置（Fix）がなく PAN でもないときに、地図の中心にする地点（緯度, 経度）（20261024-D04）。前回最後にいた位置（LIVE で覚えた位置）、
+     * なければ皇居（Tuning.DEFAULT_MAP_CENTER_*）。null なら今までどおり地図を描かない
+     */
+    val idleCenter: Pair<Double, Double>? = null,
 )
 
 /**

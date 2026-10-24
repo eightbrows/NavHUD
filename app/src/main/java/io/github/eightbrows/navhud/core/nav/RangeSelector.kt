@@ -125,8 +125,12 @@ class RangeSelector(
     /** AUTO が詳細にした（規則 3・5）ときの次の WP のキー。同じ WP の間は、離れるまで規則 4 で広域にしない。次の WP が変われば効かない */
     private var narrowedFor: Any? = null
 
-    /** 有効な段を変える（設定の変更）。今の縮尺は近い段に合わせる。 */
+    /**
+     * 有効な段を変える（設定の変更）。段が変わったときだけ、今の縮尺を近い段に合わせる（20261024-D04: ピンチで使う段にない段にいるとき、
+     * ほかの設定を変えただけで段が動かないように）。
+     */
     fun setSteps(stepsKm: List<Double>) {
+        if (stepsKm == this.stepsKm) return
         this.stepsKm = stepsKm
         steps = normalize(stepsKm)
         rangeM = snap(rangeM)
@@ -153,6 +157,17 @@ class RangeSelector(
         if (!keepAuto) auto = false
         zoomInSince = null
         rangeM = steps.lastOrNull { it < rangeM } ?: rangeM
+    }
+
+    /**
+     * ピンチ（20261024-D04）: 使う段に入れていない段も含めた全段（RangeAuto.ALL_STEPS_KM。R1 25 m〜100 km）で 1 段詳細へ（inward）か広域へ。
+     * AUTO の扱いは ＋ / − と同じ。使う段にない段にいるときに ＋ / − を押すと、その向きでいちばん近い使う段に移る（zoomIn / zoomOut のまま）
+     */
+    fun pinchStep(inward: Boolean, keepAuto: Boolean = false) {
+        if (!keepAuto) auto = false
+        zoomInSince = null
+        val all = (ALL_STEPS_M + steps).distinct().sorted()
+        rangeM = if (inward) all.lastOrNull { it < rangeM - EPS } ?: rangeM else all.firstOrNull { it > rangeM + EPS } ?: rangeM
     }
 
     /** −: 1段広域へ。AUTO は OFF（keepAuto なら AUTO はそのまま。PAN 中）。 */
@@ -303,6 +318,9 @@ class RangeSelector(
 
     private companion object {
         const val EPS = 1e-6
+
+        /** ピンチで使う全段 [m]（20261024-D04） */
+        val ALL_STEPS_M: List<Double> = RangeAuto.ALL_STEPS_KM.map { it * 1000 }
 
         fun normalize(stepsKm: List<Double>): List<Double> =
             stepsKm.filter { it > 0 }.distinct().sorted().map { it * 1000 }.ifEmpty { listOf(1_000.0) }

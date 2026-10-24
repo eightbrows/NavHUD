@@ -9,6 +9,7 @@ import io.github.eightbrows.navhud.core.io.MapLayer
 import io.github.eightbrows.navhud.core.io.MapLine
 import io.github.eightbrows.navhud.core.io.RailKind
 import io.github.eightbrows.navhud.core.io.RoadKind
+import io.github.eightbrows.navhud.core.io.RunwayKind
 import io.github.eightbrows.navhud.core.io.WaterKind
 import io.github.eightbrows.navhud.core.nav.LandmarkItem
 import io.github.eightbrows.navhud.core.nav.MapItem
@@ -34,6 +35,8 @@ data class BaseMapScene(
     val areas: List<Polyline> = emptyList(),
     /** 空港の略号の文字（20261022-D01） */
     val labels: List<MapLabel> = emptyList(),
+    /** 滑走路と延長線（延長線が先、滑走路があと。20261024-D04） */
+    val runways: List<Polyline> = emptyList(),
 )
 
 /** 背景地図のレイヤの描き方（色の種類・太さ・線の種類）。点のレイヤ（空港）は色だけ（記号は飛行機） */
@@ -77,6 +80,7 @@ object BaseMapBuilder {
         MapLayer.AIRPORT -> MapLayerStyle(Ink.MAP_AIRPORT)
         MapLayer.PEAK -> MapLayerStyle(Ink.MAP_PEAK_HIGH)
         MapLayer.AIRPORT_AREA -> MapLayerStyle(Ink.MAP_AIRPORT_AREA)
+        MapLayer.RUNWAY -> MapLayerStyle(Ink.MAP_RUNWAY, Tuning.BASEMAP_RUNWAY_MIN_DP)
     }
 
     /** 記号の幅 [dp]（空港の民間・軍用と大小、山頂の高中低）。記号のない項目（敷地・略号）は 0 */
@@ -87,7 +91,7 @@ object BaseMapBuilder {
         LandmarkItem.PEAK_HIGH -> Tuning.BASEMAP_PEAK_HIGH_MARK_DP
         LandmarkItem.PEAK_MID -> Tuning.BASEMAP_PEAK_MID_MARK_DP
         LandmarkItem.PEAK_LOW -> Tuning.BASEMAP_PEAK_LOW_MARK_DP
-        LandmarkItem.AIRPORT_AREA, LandmarkItem.AIRPORT_CODE -> 0f
+        LandmarkItem.AIRPORT_AREA, LandmarkItem.AIRPORT_CODE, LandmarkItem.RUNWAY -> 0f
     }
 
     /**
@@ -113,7 +117,7 @@ object BaseMapBuilder {
             LandmarkItem.PEAK_HIGH -> Ink.MAP_PEAK_HIGH
             LandmarkItem.PEAK_MID -> Ink.MAP_PEAK_MID
             LandmarkItem.PEAK_LOW -> Ink.MAP_PEAK_LOW
-            LandmarkItem.AIRPORT_AREA, LandmarkItem.AIRPORT_CODE -> throw IllegalArgumentException("記号のない項目: $item")
+            LandmarkItem.AIRPORT_AREA, LandmarkItem.AIRPORT_CODE, LandmarkItem.RUNWAY -> throw IllegalArgumentException("記号のない項目: $item")
         }
         return MapMark(at, ink, landmarkSizeDp(item), shape, brightness)
     }
@@ -203,6 +207,7 @@ object BaseMapBuilder {
         // 空港の敷地 → 記号（LANDMARK_DRAW_ORDER の順）→ 空港の略号
         val areas = ArrayList<Polyline>()
         val labels = ArrayList<MapLabel>()
+        val runways = ArrayList<Polyline>()
         if (shownMarks.isNotEmpty()) {
             val lk = factor(Tuning.BASEMAP_BRIGHTNESS_FACTORS, landmarkBrightnessLevel)
             if (LandmarkItem.AIRPORT_AREA in shownMarks) {
@@ -211,6 +216,9 @@ object BaseMapBuilder {
                     val pts = projectThin(line, refLat, refLon, proj, minStepPx)
                     if (pts.size >= 3) areas += Polyline(pts, Ink.MAP_AIRPORT_AREA, 0f, LineDash.SOLID, lk)
                 }
+            }
+            if (LandmarkItem.RUNWAY in shownMarks) {
+                runways += runwayLines(level?.candidates(MapLayer.RUNWAY, box.minLat, box.minLon, box.maxLat, box.maxLon).orEmpty(), shownMarks, box, refLat, refLon, proj, m, lk)
             }
             // 略号は、記号が出ている空港にだけ（20261024-D01）
             val showCode = LandmarkItem.AIRPORT_CODE in shownMarks
@@ -229,7 +237,43 @@ object BaseMapBuilder {
             for (item in LANDMARK_DRAW_ORDER) marks += byItem.getValue(item)
             labels += pickCodeLabels(codes, m)
         }
-        return BaseMapScene(lines, marks, areas, labels)
+        return BaseMapScene(lines, marks, areas, labels, runways)
+    }
+
+    /**
+     * 滑走路と延長線（20261024-D04）: 記号の項目（民間・軍用 × 大・小）が出ている空港の滑走路だけ。
+     * 滑走路は両端を結ぶ実線で、太さは実際の幅を今の縮尺で直した太さ（Tuning.BASEMAP_RUNWAY_MIN_DP より細くしない）。
+     * 延長線は両端から外へ、画面上の長さ Tuning.BASEMAP_RUNWAY_EXT_DP の破線（端から外へ向かう線。破線は端から描き始める）。
+     * 返す並びは延長線の全部が先、滑走路があと（滑走路を上に描く）
+     */
+    internal fun runwayLines(
+        lines: List<MapLine>,
+        shownMarks: Set<LandmarkItem>,
+        box: LatLonBox,
+        refLat: Double,
+        refLon: Double,
+        proj: HudProjection,
+        m: HudMetrics,
+        brightness: Float,
+    ): List<Polyline> {
+        val ext = ArrayList<Polyline>()
+        val bars = ArrayList<Polyline>()
+        val extPx = Tuning.BASEMAP_RUNWAY_EXT_DP * m.density
+        for (line in lines) {
+            if (line.size < 2 || !box.intersects(line)) continue
+            if (LandmarkItem.airportMark(RunwayKind.airportKind(line.kind)) !in shownMarks) continue
+            val a = project(line.lat(0), line.lon(0), refLat, refLon, proj)
+            val b = project(line.lat(line.size - 1), line.lon(line.size - 1), refLat, refLon, proj)
+            val widthPx = maxOf(Tuning.BASEMAP_RUNWAY_MIN_DP * m.density, (RunwayKind.widthM(line.kind) * proj.pxPerM).toFloat())
+            bars += Polyline(listOf(a, b), Ink.MAP_RUNWAY, widthPx / m.density, LineDash.SOLID, brightness)
+            val len = HudGeometry.dist(a, b)
+            if (len < 0.5f) continue
+            val ux = (b.x - a.x) / len
+            val uy = (b.y - a.y) / len
+            ext += Polyline(listOf(a, P(a.x - ux * extPx, a.y - uy * extPx)), Ink.MAP_RUNWAY_EXT, Tuning.BASEMAP_RUNWAY_EXT_LINE_DP, LineDash.SHORT_DASH, brightness)
+            ext += Polyline(listOf(b, P(b.x + ux * extPx, b.y + uy * extPx)), Ink.MAP_RUNWAY_EXT, Tuning.BASEMAP_RUNWAY_EXT_LINE_DP, LineDash.SHORT_DASH, brightness)
+        }
+        return ext + bars
     }
 
     /** 空港の略号の優先の順位（大きいほど優先。20261023-D02）: 民間（大）> 軍用（大）> 民間（小）> 軍用（小）（民間 = 国土数値情報の空港、軍用 = OurAirports だけの飛行場） */

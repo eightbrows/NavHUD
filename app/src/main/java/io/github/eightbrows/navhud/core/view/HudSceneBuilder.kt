@@ -57,8 +57,8 @@ object HudSceneBuilder {
         val pointers = mutableListOf<Pointer>()
 
         val proj = projection(s, rect, avoid, range, headingDeg, m, pan)
-        // 地図の基準の地点: 通常は自機（proj.origin に描く）、PAN は PAN の中心
-        val ref = if (pan != null) pan.lat to pan.lon else fix?.let { it.lat to it.lon }
+        // 地図の基準の地点: 通常は自機（proj.origin に描く）、PAN は PAN の中心。位置がまだないときは、前回の位置か皇居（idleCenter。20261024-D04）
+        val ref = if (pan != null) pan.lat to pan.lon else fix?.let { it.lat to it.lon } ?: state.idleCenter
         val ownAt: P? = when {
             pan == null -> proj.origin
             fix != null -> proj.toScreen(Geo.toEN(pan.lat, pan.lon, fix.lat, fix.lon))
@@ -111,6 +111,7 @@ object HudSceneBuilder {
             trails = buildTrails(state, proj, ref, ownAt),
             baseMap = map?.lines.orEmpty(),
             baseMapAreas = map?.areas.orEmpty(),
+            baseMapRunways = map?.runways.orEmpty(),
             baseMapMarks = map?.marks.orEmpty(),
             baseMapLabels = map?.labels.orEmpty(),
             // PAN のときだけ、地図の中心（PAN の中心 = 投影の原点）に十字（20261023-D01）

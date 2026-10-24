@@ -262,6 +262,23 @@ private fun DrawScope.drawMapAreas(areas: List<Polyline>) {
     }
 }
 
+/**
+ * 背景地図の滑走路と延長線（20261024-D04）: 滑走路は実線（端は切りっぱなし）、延長線は短い破線。色はランドマークの明るさの段（brightness）を掛ける。
+ * 数が少ない（全国で 132 本）ので、1 本ずつ描く
+ */
+private fun DrawScope.drawMapRunways(lines: List<Polyline>, density: Float) {
+    if (lines.isEmpty()) return
+    val dash = PathEffect.dashPathEffect(floatArrayOf(Tuning.BASEMAP_RUNWAY_EXT_DASH_DP * density, Tuning.BASEMAP_RUNWAY_EXT_DASH_DP * density))
+    for (l in lines) {
+        val a = l.points.first()
+        val b = l.points.last()
+        drawLine(
+            HudColors.landmark(l.ink, l.brightness), Offset(a.x, a.y), Offset(b.x, b.y),
+            strokeWidth = l.widthDp * density, cap = StrokeCap.Butt, pathEffect = if (l.dash == LineDash.SHORT_DASH) dash else null,
+        )
+    }
+}
+
 /** 空港の略号の文字（20261022-D01）: 記号の右上に、黒のふち（HUD の文字と同じ Tuning.TEXT_OUTLINE_DP）を付けて描く */
 private fun DrawScope.drawMapLabels(labels: List<MapLabel>, tm: TextMeasurer, density: Float) {
     if (labels.isEmpty()) return
@@ -384,6 +401,8 @@ private fun DrawScope.drawScene(scene: HudScene, tm: TextMeasurer, density: Floa
     }
     // ランドマーク（線の上）: 空港の敷地 → 記号 → 空港の略号（20261022-D01）
     drawMapAreas(scene.baseMapAreas)
+    // 滑走路と延長線（20261024-D04）: 敷地の上、記号の下
+    drawMapRunways(scene.baseMapRunways, density)
     drawMapMarks(scene.baseMapMarks, density)
     drawMapLabels(scene.baseMapLabels, tm, density)
 

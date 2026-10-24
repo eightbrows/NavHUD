@@ -19,13 +19,13 @@ class MapItemSettingsTest {
         // 線: 高速道路・国道は「すべて」、ほかは OFF（20261021-D01）
         val all = setOf(MapItem.MOTORWAY, MapItem.NATIONAL_ROAD)
         for (item in MapItem.entries) assertEquals(item.name, if (item in all) MapRange.ALL else MapRange.OFF, d.mapRangeOf(item))
-        // 空港・山頂は線の項目にない（20261021-D04 でランドマークに移した）。ランドマークは 9 項目（20261024-D01 で空港を民間・軍用に分けた）:
+        // 空港・山頂は線の項目にない（20261021-D04 でランドマークに移した）。ランドマークは 10 項目（20261024-D01 で空港を民間・軍用に分けた。20261024-D04 で滑走路を足した）:
         // 空港の敷地は〜10k、空港の略号は〜25k、ほかは「すべて」。明るさの段は 4
         assertTrue(MapItem.entries.none { it.name == "AIRPORT" || it.name == "PEAK" })
         assertEquals(
             listOf(
                 "AIRPORT_CIVIL_LARGE", "AIRPORT_CIVIL_SMALL", "AIRPORT_MIL_LARGE", "AIRPORT_MIL_SMALL", "AIRPORT_AREA", "AIRPORT_CODE",
-                "PEAK_HIGH", "PEAK_MID", "PEAK_LOW",
+                "RUNWAY", "PEAK_HIGH", "PEAK_MID", "PEAK_LOW",
             ),
             LandmarkItem.entries.map { it.name },
         )
@@ -37,11 +37,12 @@ class MapItemSettingsTest {
         assertEquals(4, d.mapLineBrightness)
         assertEquals(1..6, NavSettings.MAP_LINE_LEVELS)
         // 使うレイヤ（開くレイヤ）は、OFF でない項目のレイヤ
-        assertEquals(setOf(MapLayer.ROAD, MapLayer.AIRPORT_AREA), d.mapLayersInUse())
-        // 空港の敷地（線のレイヤ）は、ランドマークの「空港の敷地」が OFF なら読まない（20261022-D01）
-        assertEquals(setOf(MapLayer.ROAD), d.withLandmarkRange(LandmarkItem.AIRPORT_AREA, MapRange.OFF).mapLayersInUse())
+        assertEquals(setOf(MapLayer.ROAD, MapLayer.AIRPORT_AREA, MapLayer.RUNWAY), d.mapLayersInUse())
+        // 空港の敷地・滑走路（線のレイヤ）は、ランドマークのその項目が OFF なら読まない（20261022-D01・20261024-D04）
+        assertEquals(setOf(MapLayer.ROAD, MapLayer.RUNWAY), d.withLandmarkRange(LandmarkItem.AIRPORT_AREA, MapRange.OFF).mapLayersInUse())
+        assertEquals(setOf(MapLayer.ROAD, MapLayer.AIRPORT_AREA), d.withLandmarkRange(LandmarkItem.RUNWAY, MapRange.OFF).mapLayersInUse())
         // 河川・湖沼は 2 つのレイヤ
-        assertEquals(setOf(MapLayer.ROAD, MapLayer.AIRPORT_AREA, MapLayer.RIVER, MapLayer.INLAND_WATER), d.withMapRange(MapItem.WATER, MapRange.ALL).mapLayersInUse())
+        assertEquals(setOf(MapLayer.ROAD, MapLayer.AIRPORT_AREA, MapLayer.RUNWAY, MapLayer.RIVER, MapLayer.INLAND_WATER), d.withMapRange(MapItem.WATER, MapRange.ALL).mapLayersInUse())
         // 道路の項目は、どれか 1 つでも OFF でなければ道路のレイヤを使う
         val noRoads = d.withMapRange(MapItem.MOTORWAY, MapRange.OFF).withMapRange(MapItem.NATIONAL_ROAD, MapRange.OFF)
         assertFalse(MapLayer.ROAD in noRoads.mapLayersInUse())
@@ -51,6 +52,10 @@ class MapItemSettingsTest {
     @Test
     fun rangeShowsWhileR1IsAtOrBelowTheValue() {
         assertFalse(MapRange.OFF.shows(25.0))
+        // 〜5k（20261024-D04 で足した）
+        assertEquals(listOf("OFF", "UPTO_5KM", "UPTO_10KM", "UPTO_25KM", "UPTO_50KM", "ALL"), MapRange.entries.map { it.name })
+        assertTrue(MapRange.UPTO_5KM.shows(5_000.0))
+        assertFalse(MapRange.UPTO_5KM.shows(10_000.0))
         assertTrue(MapRange.UPTO_10KM.shows(10_000.0))
         assertFalse(MapRange.UPTO_10KM.shows(25_000.0))
         assertTrue(MapRange.UPTO_25KM.shows(25_000.0))
@@ -91,7 +96,7 @@ class MapItemSettingsTest {
         val lmEnc = SettingsCodec.encode(lm)
         assertEquals(
             "AIRPORT_CIVIL_LARGE:ALL,AIRPORT_CIVIL_SMALL:ALL,AIRPORT_MIL_LARGE:ALL,AIRPORT_MIL_SMALL:ALL,AIRPORT_AREA:UPTO_10KM,AIRPORT_CODE:ALL," +
-                "PEAK_HIGH:ALL,PEAK_MID:ALL,PEAK_LOW:OFF",
+                "RUNWAY:ALL,PEAK_HIGH:ALL,PEAK_MID:ALL,PEAK_LOW:OFF",
             lmEnc["landmarkItems"],
         )
         assertEquals("6", lmEnc["landmarkBrightnessLevel"])

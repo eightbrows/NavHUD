@@ -9,6 +9,15 @@ package io.github.eightbrows.navhud.core
  */
 object Tuning {
 
+    /**
+     * 位置がまだないときの地図の中心（20261024-D04）: 前回最後にいた位置を覚えていなければ、皇居（北緯 35.6852 度・東経 139.7528 度）。
+     * 前回の位置は LIVE の Fix で、LAST_POSITION_SAVE_MIN_MS か LAST_POSITION_SAVE_MIN_M のどちらかを超えたら覚え直す（アプリを閉じるときも）
+     */
+    const val DEFAULT_MAP_CENTER_LAT = 35.6852
+    const val DEFAULT_MAP_CENTER_LON = 139.7528
+    const val LAST_POSITION_SAVE_MIN_MS = 30_000L
+    const val LAST_POSITION_SAVE_MIN_M = 100.0
+
     // ---- 方位・コンパス（§5.2・§6.8） ----
 
     /** コンパスの平滑化の係数（新しい値の重み。単位ベクトルの指数平滑） */
@@ -218,6 +227,20 @@ object Tuning {
 
     /** 軍用の空港の白抜きの飛行機の輪郭の線の太さ [dp]（20261024-D01。仮）。内側は背景の黒で塗り、外側に黒のふち。形は胴体・翼を太くした飛行機（HudCanvas） */
     const val BASEMAP_AIRPORT_HOLLOW_LINE_DP = 1f
+
+    /**
+     * 滑走路（20261024-D04。仮）: 線の太さは実際の幅（OurAirports の width_ft）を今の縮尺で直した太さ。ただし BASEMAP_RUNWAY_MIN_DP より細くしない
+     * （広域では細い実線になる。幅が分からない滑走路もこの太さ）。両端の先に、画面上の長さ BASEMAP_RUNWAY_EXT_DP の破線の延長線
+     * （太さ BASEMAP_RUNWAY_EXT_LINE_DP、BASEMAP_RUNWAY_EXT_DASH_DP 描いて同じだけ空ける）を描く（どの縮尺でも滑走路の向きが分かるように）
+     */
+    const val BASEMAP_RUNWAY_MIN_DP = 1.5f
+    const val BASEMAP_RUNWAY_EXT_DP = 20f
+    const val BASEMAP_RUNWAY_EXT_LINE_DP = 1f
+    const val BASEMAP_RUNWAY_EXT_DASH_DP = 3f
+
+    /** 設定画面（20261024-D04。仮）: 初期値のボタンの塗りの明るさ（テーマの色に掛ける）と、スライダーの初期値の位置の目盛りの●の直径 [dp] */
+    const val SETTINGS_DEFAULT_FILL_FACTOR = 0.75f
+    const val SETTINGS_SLIDER_DEFAULT_DOT_DP = 8f
 
     /** 空港の ICAO の略号の文字の大きさ [sp]。画面上の大きさは縮尺によらず同じ（20261022-D01。仮） */
     const val BASEMAP_AIRPORT_CODE_SP = 10f

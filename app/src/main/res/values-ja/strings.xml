@@ -183,6 +183,7 @@
     <string name="map_line_brightness">線の明るさ</string>
     <string name="map_line_brightness_note">全部の線の明るさ（1 がいちばん暗い。ランドマークの記号は変わらない）</string>
     <string name="map_range_off">OFF</string>
+    <string name="map_range_5">〜5k</string>
     <string name="map_range_10">〜10k</string>
     <string name="map_range_25">〜25k</string>
     <string name="map_range_50">〜50k</string>
@@ -199,7 +200,7 @@
     <string name="map_item_water">河川・湖沼</string>
     <string name="map_layer_ferry">フェリーの航路</string>
     <string name="sec_landmarks">ランドマーク</string>
-    <string name="landmarks_note">空港と山頂の記号（名前は出さず、空港は ICAO の略号だけ）。背景地図の ON・OFF とは別に選べ、線の太さ・明るさの段は効きません。空港の民間は国土数値情報の空港（自衛隊との共用を含む。塗りつぶしの飛行機）、軍用は自衛隊・米軍の専用の飛行場（白抜きの飛行機）。大はいちばん長い滑走路が 2,000 m 以上、小は 600 m 以上（600 m 未満は描きません）。略号は記号が出ている空港にだけ出ます。山頂の高・中は目印になる山（標高 1,500 m 以上が高）、低はほかの山。</string>
+    <string name="landmarks_note">空港と山頂の記号（名前は出さず、空港は ICAO の略号だけ）。背景地図の ON・OFF とは別に選べ、線の太さ・明るさの段は効きません。空港の民間は国土数値情報の空港（自衛隊との共用を含む。塗りつぶしの飛行機）、軍用は自衛隊・米軍の専用の飛行場（白抜きの飛行機）。大はいちばん長い滑走路が 2,000 m 以上、小は 600 m 以上（600 m 未満は描きません）。略号と滑走路（破線の延長線を含む）は、記号が出ている空港にだけ出ます。滑走路は両端の位置が分かるものだけです。山頂の高・中は目印になる山（標高 1,500 m 以上が高）、低はほかの山。</string>
     <string name="landmark_brightness">明るさ</string>
     <string name="landmark_brightness_note">ランドマークの記号・敷地・略号の明るさ（1 がいちばん暗い。項目どうしの差は変わらない）</string>
     <string name="landmark_airport_civil_large">空港・民間（大）</string>
@@ -208,6 +209,7 @@
     <string name="landmark_airport_mil_small">空港・軍用（小）</string>
     <string name="landmark_airport_area">空港の敷地</string>
     <string name="landmark_airport_code">空港の略号</string>
+    <string name="landmark_runway">滑走路</string>
     <string name="landmark_peak_high">山頂（高）</string>
     <string name="landmark_peak_mid">山頂（中）</string>
     <string name="landmark_peak_low">山頂（低）</string>

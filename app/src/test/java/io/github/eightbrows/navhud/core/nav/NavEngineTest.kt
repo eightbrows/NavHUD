@@ -283,17 +283,29 @@ class NavEngineTest {
 
     @Test
     fun pinchStepsActLikeThePlusAndMinusButtons() {
-        // ピンチ（§6.12）: 段の数だけ ＋ / − と同じ。AUTO は OFF、使う段の最小・最大（100m・20km の段）より先には行かない
+        // ピンチ（§6.12）: 段の数だけ動く。AUTO は OFF（＋ / − と同じ）。20261024-D04 から、使う段（100 m〜20 km の段）に入れていない段も含めた
+        // 全段（50 m〜200 km の段 = R1 25 m〜100 km）を 1 段ずつ動き、全段の端で止まる
         val e = engine()
         assertEquals(1_000.0, e.state.rangeM, 0.0)
         assertTrue(e.state.rangeAuto)
         val inTwo = e.zoomBy(2)
         assertEquals(200.0, inTwo.rangeM, 0.0)
         assertFalse(inTwo.rangeAuto)
-        assertEquals(100.0, e.zoomBy(5).rangeM, 0.0)
-        assertEquals(200.0, e.zoomBy(-1).rangeM, 0.0)
-        assertEquals(20_000.0, e.zoomBy(-10).rangeM, 0.0)
-        assertEquals(20_000.0, e.zoomBy(0).rangeM, 0.0)
+        assertEquals(50.0, e.zoomBy(5).rangeM, 0.0)
+        assertEquals(100.0, e.zoomBy(-1).rangeM, 0.0)
+        assertEquals(200_000.0, e.zoomBy(-20).rangeM, 0.0)
+        assertEquals(200_000.0, e.zoomBy(0).rangeM, 0.0)
+        // 使う段にない段（200 km）から ＋: 詳細の向きでいちばん近い使う段（20 km）
+        assertEquals(20_000.0, e.zoomIn().rangeM, 0.0)
+        // 使う段にない段（50 m）から −: 広域の向きでいちばん近い使う段（100 m）。50 m から ＋ は、それより詳細な使う段がないので動かない
+        e.zoomBy(10)
+        assertEquals(50.0, e.state.rangeM, 0.0)
+        assertEquals(50.0, e.zoomIn().rangeM, 0.0)
+        assertEquals(100.0, e.zoomOut().rangeM, 0.0)
+        // ほかの設定を変えても、ピンチで選んだ使う段にない段のまま（段が変わったときだけ近い段に合わせる）
+        e.zoomBy(-20)
+        assertEquals(200_000.0, e.updateSettings(e.settings.copy(rateWindowSec = 10)).rangeM, 0.0)
+        assertEquals(20_000.0, e.updateSettings(e.settings.copy(rangeStepsKm = listOf(0.1, 1.0, 20.0))).rangeM, 0.0)
     }
 
     @Test

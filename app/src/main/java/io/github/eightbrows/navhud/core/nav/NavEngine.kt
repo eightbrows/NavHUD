@@ -68,6 +68,9 @@ class NavEngine(
     private var replayTrack: List<TrackPoint> = emptyList()
     /** PAN の表示（null なら通常の表示） */
     private var pan: PanView? = null
+
+    /** 位置がないときの地図の中心（NavState.idleCenter。20261024-D04） */
+    private var idleCenter: Pair<Double, Double>? = null
     /**
      * AUTO の待機を始める（次の recompute で、そこから設定の秒数のあいだ段を動かさない）。到達した WP を通り過ぎたとき、
      * 真横通過・手動で到達にしたとき、手動で未到達に戻したとき
@@ -175,6 +178,12 @@ class NavEngine(
         return recompute()
     }
 
+    /** 位置（Fix）がないときに地図の中心にする地点（前回の位置か皇居。20261024-D04）。位置が来れば自機の位置に移る */
+    fun setIdleCenter(lat: Double, lon: Double): NavState {
+        idleCenter = lat to lon
+        return recompute()
+    }
+
     /** PAN: 地点 (lat, lon) を表示枠の中心にする（WP ボタンの長押し）。向きは PAN 中ならそのまま。 */
     fun panTo(lat: Double, lon: Double): NavState {
         pan = PanView(lat, lon, pan?.upDeg ?: panUpDeg())
@@ -225,12 +234,11 @@ class NavEngine(
     }
 
     /**
-     * ピンチ（§6.12）: steps 段だけ ＋（正）か −（負）を押したのと同じにする。AUTO の扱い・最小と最大の段で止まるのも ＋ / − と同じ。
+     * ピンチ（§6.12）: steps 段だけ詳細（正）か広域（負）にする。AUTO の扱いは ＋ / − と同じ。
+     * 20261024-D04 から、使う段に入れていない段も含めた全段（R1 25 m〜100 km）を 1 段ずつ動く（＋ / − とダブルタップは使う段だけ）
      */
     fun zoomBy(steps: Int): NavState {
-        repeat(kotlin.math.abs(steps)) {
-            if (steps > 0) rangeSelector.zoomIn(keepAuto = pan != null) else rangeSelector.zoomOut(keepAuto = pan != null)
-        }
+        repeat(kotlin.math.abs(steps)) { rangeSelector.pinchStep(inward = steps > 0, keepAuto = pan != null) }
         return recompute()
     }
 
@@ -480,6 +488,7 @@ class NavEngine(
             pan = pan,
             liveTrail = liveTrail.points,
             replayTrack = replayTrack,
+            idleCenter = idleCenter,
         )
         return state
     }

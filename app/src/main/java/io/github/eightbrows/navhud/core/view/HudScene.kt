@@ -74,6 +74,10 @@ enum class Ink {
     MAP_AIRPORT_AREA,
     MAP_AIRPORT_CODE,
 
+    /** 背景地図の滑走路（空港より少し暗い黄緑の線）と、その延長線（さらに暗い黄緑の破線。20261024-D04） */
+    MAP_RUNWAY,
+    MAP_RUNWAY_EXT,
+
     /**
      * 背景地図の点: 山頂の三角の記号（20261022-D01 で 3 段とも三角）。高（目印になる山、1,500 m 以上）がいちばん明るく、
      * 中（目印になる山、1,500 m 未満）、低（目印になりにくい山）の順に暗い
@@ -84,7 +88,7 @@ enum class Ink {
 }
 
 /** 折れ線の線の種類（背景地図のレイヤの描き分け）。長さは Tuning.BASEMAP_*_DP */
-enum class LineDash { SOLID, DOT, FINE_DOT, DASH, LONG_DASH }
+enum class LineDash { SOLID, DOT, FINE_DOT, DASH, LONG_DASH, SHORT_DASH }
 
 /**
  * 背景地図の点の記号の形: 飛行機（空港）・三角（山頂）。空港は 20261024-D01 で民間・軍用に分けた:
@@ -170,6 +174,8 @@ data class HudScene(
     val baseMap: List<Polyline> = emptyList(),
     /** 背景地図の空港の敷地（線の上、記号の下に塗る。輪の折れ線。20261022-D01） */
     val baseMapAreas: List<Polyline> = emptyList(),
+    /** 背景地図の滑走路と延長線（敷地の上、記号の下に描く。延長線が先、滑走路があと。20261024-D04） */
+    val baseMapRunways: List<Polyline> = emptyList(),
     /** 背景地図の点（ランドマークの記号。敷地の上、距離環より下に描く） */
     val baseMapMarks: List<MapMark> = emptyList(),
     /** 背景地図の文字（空港の略号。記号の上、距離環より下に描く。20261022-D01） */

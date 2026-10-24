@@ -185,6 +185,7 @@
     <string name="map_line_brightness">Line brightness</string>
     <string name="map_line_brightness_note">Brightness of all lines (1 is the darkest; landmark symbols stay the same)</string>
     <string name="map_range_off">OFF</string>
+    <string name="map_range_5">≤5k</string>
     <string name="map_range_10">≤10k</string>
     <string name="map_range_25">≤25k</string>
     <string name="map_range_50">≤50k</string>
@@ -201,7 +202,7 @@
     <string name="map_item_water">Rivers and lakes</string>
     <string name="map_layer_ferry">Ferry routes</string>
     <string name="sec_landmarks">Landmarks</string>
-    <string name="landmarks_note">Airport and peak symbols (no names; airports show only their ICAO codes). Chosen separately from the base map switch; line width and brightness do not apply. Civil airports are those in the National Land Numerical Information, including ones shared with the SDF (filled plane); military ones are airfields used only by the SDF or US forces (hollow plane). Large means a longest runway of 2,000 m or more, small 600 m or more (shorter ones are not drawn). Codes are shown only for airports whose symbol is shown. High and mid peaks are landmark peaks (high at 1,500 m or higher), low peaks are the others.</string>
+    <string name="landmarks_note">Airport and peak symbols (no names; airports show only their ICAO codes). Chosen separately from the base map switch; line width and brightness do not apply. Civil airports are those in the National Land Numerical Information, including ones shared with the SDF (filled plane); military ones are airfields used only by the SDF or US forces (hollow plane). Large means a longest runway of 2,000 m or more, small 600 m or more (shorter ones are not drawn). Codes and runways (with dashed extension lines) are shown only for airports whose symbol is shown; runways are drawn only when both ends are known. High and mid peaks are landmark peaks (high at 1,500 m or higher), low peaks are the others.</string>
     <string name="landmark_brightness">Brightness</string>
     <string name="landmark_brightness_note">Brightness of landmark symbols, areas and codes (1 is the darkest; the differences between items stay)</string>
     <string name="landmark_airport_civil_large">Airports, civil (large)</string>
@@ -210,6 +211,7 @@
     <string name="landmark_airport_mil_small">Airports, military (small)</string>
     <string name="landmark_airport_area">Airport areas</string>
     <string name="landmark_airport_code">Airport codes</string>
+    <string name="landmark_runway">Runways</string>
     <string name="landmark_peak_high">Peaks (high)</string>
     <string name="landmark_peak_mid">Peaks (mid)</string>
     <string name="landmark_peak_low">Peaks (low)</string>

@@ -13,6 +13,7 @@ import io.github.eightbrows.navhud.core.model.Fix
 import io.github.eightbrows.navhud.core.model.SourceMode
 import io.github.eightbrows.navhud.core.model.Waypoint
 import io.github.eightbrows.navhud.core.nav.DisplayMode
+import io.github.eightbrows.navhud.core.nav.LastPositionSaver
 import io.github.eightbrows.navhud.core.nav.NavEngine
 import io.github.eightbrows.navhud.core.nav.NavSettings
 import io.github.eightbrows.navhud.core.nav.NavState
@@ -128,7 +129,17 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
     private var panJob: Job? = null
     private var foreground = false
 
+    /** 前回最後にいた位置を覚え直すか（20261024-D04） */
+    private val lastPositionSaver = LastPositionSaver()
+    private var lastLiveFix: Fix? = null
+
     init {
+        // 位置が来るまでの地図の中心: 前回最後にいた位置、なければ皇居（20261024-D04）
+        // （publish は、このクラスの全部の値ができてから動くよう、コルーチンで呼ぶ）
+        LastPositionSaver.idleCenter(settingsStore.lastPosition).let { (lat, lon) ->
+            engine.setIdleCenter(lat, lon)
+            viewModelScope.launch { publish(engine.state) }
+        }
         // 前回のファイル。zip なら前回選んだセッションを開く（見つからなければ一覧を出す）
         store.savedUri?.let { load(it, isSaved = true, entryName = store.savedEntry) }
         // 設定「前回のリストを自動で開く」: 起動時の選択を出さずに読み込む
@@ -142,7 +153,12 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
         }
         // LIVE: サービスが受け取った GPS の Fix
         viewModelScope.launch {
-            LiveLocationBus.fixes.collect { if (kind == SourceKind.LIVE) publish(engine.onFix(it, LiveClock.nowMs())) }
+            LiveLocationBus.fixes.collect {
+                if (kind == SourceKind.LIVE) {
+                    publish(engine.onFix(it, LiveClock.nowMs()))
+                    rememberPosition(it)
+                }
+            }
         }
         viewModelScope.launch {
             LiveLocationBus.gpsEnabled.collect { _live.value = _live.value.copy(gpsEnabled = it) }
@@ -152,6 +168,17 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
             // 読むのはかたまりの見出しと点だけ。描くレイヤの線は、ここで（画面とは別のスレッドで）読んでから出す
             _baseMap.value = withContext(Dispatchers.IO) { BaseMapStore.load(getApplication()).also { it.preload(engine.settings.mapLayersInUse()) } }
         }
+    }
+
+    /** LIVE の位置を、前回最後にいた位置として覚える（間引いて書く。20261024-D04） */
+    private fun rememberPosition(fix: Fix) {
+        lastLiveFix = fix
+        if (lastPositionSaver.shouldSave(fix)) settingsStore.lastPosition = fix.lat to fix.lon
+    }
+
+    override fun onCleared() {
+        // 閉じるときは、間引いて書かなかった最後の位置も覚える
+        lastLiveFix?.let { settingsStore.lastPosition = it.lat to it.lon }
     }
 
     /** ファイル選択の結果。キャンセルなら null。 */

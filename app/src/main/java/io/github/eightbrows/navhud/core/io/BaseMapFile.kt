@@ -20,7 +20,10 @@ enum class MapLayer(val code: Int, val isPoint: Boolean = false) {
     INLAND_WATER(9),
     AIRPORT(20, isPoint = true),
     PEAK(25, isPoint = true),
-    AIRPORT_AREA(26);
+    AIRPORT_AREA(26),
+
+    /** 滑走路（OurAirports の runways.csv。両端を結ぶ 2 点の線。種類は RunwayKind。20261024-D04） */
+    RUNWAY(27);
 
     companion object {
         /** 知らない番号は null（新しい版のファイルを古いアプリで読んでも、その線・点を飛ばすだけにする） */
@@ -81,6 +84,24 @@ object AirportKind {
     fun isLarge(kind: Int): Boolean = kind and LARGE != 0
 
     fun isOurAirportsOnly(kind: Int): Boolean = kind and OURAIRPORTS != 0
+}
+
+/**
+ * 滑走路のレイヤの中の種類（20261024-D04）: 下の 2 ビットがその滑走路の空港の種類（AirportKind の LARGE・OURAIRPORTS と同じ）、
+ * 上の 6 ビットが幅の段（幅 [m] ÷ WIDTH_STEP_M を四捨五入。0 は幅が分からない）。変換（tools/gm2basemap.ps1）で決める
+ */
+object RunwayKind {
+    const val AIRPORT_MASK = 0x03
+    const val WIDTH_STEP_M = 5
+
+    /** その滑走路の空港の種類（AirportKind の値） */
+    fun airportKind(kind: Int): Int = kind and AIRPORT_MASK
+
+    /** 滑走路の幅 [m]（5 m 単位。分からなければ 0） */
+    fun widthM(kind: Int): Int = (kind shr 2) * WIDTH_STEP_M
+
+    /** 種類の値を作る（テスト・書き出し用） */
+    fun of(airportKind: Int, widthM: Int): Int = ((Math.round(widthM.toFloat() / WIDTH_STEP_M)).coerceIn(0, 63) shl 2) or (airportKind and AIRPORT_MASK)
 }
 
 /**

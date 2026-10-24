@@ -19,6 +19,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
@@ -38,6 +39,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -49,6 +51,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.eightbrows.navhud.R
 import io.github.eightbrows.navhud.core.model.SourceMode
+import io.github.eightbrows.navhud.core.Tuning
 import io.github.eightbrows.navhud.core.nav.ColorTheme
 import io.github.eightbrows.navhud.core.nav.DisplayMode
 import io.github.eightbrows.navhud.core.nav.LanguageMode
@@ -127,11 +130,11 @@ fun SettingsScreen(
             Choice(stringResource(R.string.map_color), colors, s.mapTheme, default = def.mapTheme) { v -> onChange { it.copy(mapTheme = v) } }
             PercentSlider(
                 stringResource(R.string.button_opacity), s.buttonOpacityPct,
-                note = stringResource(R.string.button_opacity_note), defaultText = pct(def.buttonOpacityPct),
+                note = stringResource(R.string.button_opacity_note), defaultText = pct(def.buttonOpacityPct), default = def.buttonOpacityPct,
             ) { v -> onChange { it.copy(buttonOpacityPct = v) } }
             PercentSlider(
                 stringResource(R.string.numbers_opacity), s.numbersOpacityPct,
-                note = stringResource(R.string.numbers_opacity_note), defaultText = pct(def.numbersOpacityPct),
+                note = stringResource(R.string.numbers_opacity_note), defaultText = pct(def.numbersOpacityPct), default = def.numbersOpacityPct,
             ) { v -> onChange { it.copy(numbersOpacityPct = v) } }
             Choice(
                 stringResource(R.string.track_color),
@@ -149,12 +152,12 @@ fun SettingsScreen(
             ) { v -> onChange { it.copy(trackColor = v) } }
             PercentSlider(
                 stringResource(R.string.track_brightness), s.trackBrightnessPct,
-                note = stringResource(R.string.track_brightness_note), defaultText = pct(def.trackBrightnessPct),
+                note = stringResource(R.string.track_brightness_note), defaultText = pct(def.trackBrightnessPct), default = def.trackBrightnessPct,
                 choices = NavSettings.TRACK_BRIGHTNESS_CHOICES_PCT,
             ) { v -> onChange { it.copy(trackBrightnessPct = v) } }
             PercentSlider(
                 stringResource(R.string.ring_label_size), s.ringLabelScalePct,
-                note = stringResource(R.string.ring_label_size_note), defaultText = pct(def.ringLabelScalePct),
+                note = stringResource(R.string.ring_label_size_note), defaultText = pct(def.ringLabelScalePct), default = def.ringLabelScalePct,
                 choices = NavSettings.RING_LABEL_SCALE_CHOICES_PCT,
             ) { v -> onChange { it.copy(ringLabelScalePct = v) } }
             Choice(
@@ -515,6 +518,9 @@ fun SettingsScreen(
 }
 
 /** GitHub のリポジトリ（「情報」の欄のライセンス・チートシート・ファイル形式の説明のリンク先）。ファイルは main ブランチのものを開く */
+/** スライダーのふつうの目盛りの●の半径 [dp]（Material の目盛りとほぼ同じ大きさ。初期値の位置だけ大きくするので、自分で描く） */
+private const val SliderTickRadiusDp = 1.5f
+
 private const val REPO_URL = "https://github.com/eightbrows/NavHUD"
 
 /** 公式サイト（GpsLogger の「情報」の欄と同じ） */
@@ -526,10 +532,11 @@ private val MAP_ITEM_ORDER = listOf(
     MapItem.SHINKANSEN, MapItem.RAILWAY, MapItem.WATER, MapItem.FERRY,
 )
 
-/** 地図レイヤ・ランドマークの項目の選択肢: OFF ／ 〜10k ／ 〜25k ／ 〜50k ／ すべて */
+/** 地図レイヤ・ランドマークの項目の選択肢: OFF ／ 〜5k ／ 〜10k ／ 〜25k ／ 〜50k ／ すべて */
 @Composable
 private fun mapRangeChoices(): List<Pair<String, MapRange>> = listOf(
     stringResource(R.string.map_range_off) to MapRange.OFF,
+    stringResource(R.string.map_range_5) to MapRange.UPTO_5KM,
     stringResource(R.string.map_range_10) to MapRange.UPTO_10KM,
     stringResource(R.string.map_range_25) to MapRange.UPTO_25KM,
     stringResource(R.string.map_range_50) to MapRange.UPTO_50KM,
@@ -543,6 +550,7 @@ private fun landmarkLabel(item: LandmarkItem): Int = when (item) {
     LandmarkItem.AIRPORT_MIL_SMALL -> R.string.landmark_airport_mil_small
     LandmarkItem.AIRPORT_AREA -> R.string.landmark_airport_area
     LandmarkItem.AIRPORT_CODE -> R.string.landmark_airport_code
+    LandmarkItem.RUNWAY -> R.string.landmark_runway
     LandmarkItem.PEAK_HIGH -> R.string.landmark_peak_high
     LandmarkItem.PEAK_MID -> R.string.landmark_peak_mid
     LandmarkItem.PEAK_LOW -> R.string.landmark_peak_low
@@ -735,11 +743,9 @@ private fun <T> Choice(
     }
     Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
         if (compact) {
-            // 地図レイヤ: どの項目もボタンの列が同じ位置（右端）に並ぶ
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Box(Modifier.weight(1f)) { NameLine(label, null, enabled) }
-                buttons()
-            }
+            // 地図レイヤ・ランドマーク: ボタンの列はどの項目も右端に揃える。20261024-D04 で選択肢が 6 つになり、名前と同じ行に収まらない項目が
+            // 多くなったので、収まらないときは名前を上の行に、ボタンの列をその下の行（右端）に置く（前は名前を細い列に押し込んで 1 文字ずつ折り返していた）
+            NameAndButtons(name = { NameLine(label, null, enabled) }, buttons = buttons, endAligned = true)
         } else {
             NameAndButtons(name = { NameLine(label, null, enabled) }, buttons = buttons)
         }
@@ -749,10 +755,10 @@ private fun <T> Choice(
 
 /**
  * 名前とボタンの列: 1 行に収まれば同じ行に置き、ボタンの列を右端に揃える。
- * 収まらなければ、ボタンの列を名前の下の行に（左に寄せて）置く。
+ * 収まらなければ、ボタンの列を名前の下の行に置く（endAligned なら右端に、でなければ左に寄せる）。
  */
 @Composable
-private fun NameAndButtons(name: @Composable () -> Unit, buttons: @Composable () -> Unit) {
+private fun NameAndButtons(name: @Composable () -> Unit, buttons: @Composable () -> Unit, endAligned: Boolean = false) {
     Layout(content = { Box { name() }; Box { buttons() } }) { measurables, constraints ->
         val gap = 10.dp.roundToPx()
         val rowGap = 4.dp.roundToPx()
@@ -769,7 +775,7 @@ private fun NameAndButtons(name: @Composable () -> Unit, buttons: @Composable ()
         } else {
             layout(width, n.height + rowGap + b.height) {
                 n.placeRelative(0, 0)
-                b.placeRelative(0, n.height + rowGap)
+                b.placeRelative(if (endAligned) width - b.width else 0, n.height + rowGap)
             }
         }
     }
@@ -811,7 +817,7 @@ private fun Chip(text: String, on: Boolean, enabled: Boolean = true, compact: Bo
         Box(
             Modifier
                 .border(if (on) SelectedFrame else 1.dp, frame, shape)
-                .background(if (isDefault) c else HudColors.Background, shape)
+                .background(if (isDefault) defaultFill(c) else HudColors.Background, shape)
                 .clickable(enabled = enabled, onClick = onClick)
                 .padding(horizontal = if (compact) 7.dp else 9.dp, vertical = 4.dp),
         ) {
@@ -827,7 +833,7 @@ private fun MarkLegend() {
     val shape = RoundedCornerShape(3.dp)
     FlowRow(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-            Box(Modifier.size(18.dp, 12.dp).background(HudColors.Scale, shape))
+            Box(Modifier.size(18.dp, 12.dp).background(defaultFill(HudColors.Scale), shape))
             Text(stringResource(R.string.settings_mark_default), style = RowNote)
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
@@ -855,7 +861,20 @@ private fun Stepper(label: String, value: String, note: String? = null, defaultT
     }
 }
 
-/** 不透明度などの % を、スライダーで 20〜100% の 10% 刻みに選ぶ。 */
+/**
+ * 初期値のボタンの塗り（20261024-D04）: テーマの色の明るさに Tuning.SETTINGS_DEFAULT_FILL_FACTOR を掛けた色（少し暗くして、
+ * 選んでいる値の水色の枠と見分けやすく、文字（黒）も読めるように）
+ */
+private fun defaultFill(c: Color): Color {
+    val k = Tuning.SETTINGS_DEFAULT_FILL_FACTOR
+    return Color(red = c.red * k, green = c.green * k, blue = c.blue * k, alpha = c.alpha)
+}
+
+/**
+ * 不透明度などの % を、スライダーで 20〜100% の 10% 刻みに選ぶ。
+ * 初期値（default）の位置の目盛りの●は、ほかの目盛りより大きく描く（直径 Tuning.SETTINGS_SLIDER_DEFAULT_DOT_DP。20261024-D04）
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PercentSlider(
     label: String,
@@ -863,8 +882,22 @@ private fun PercentSlider(
     note: String? = null,
     defaultText: String? = null,
     choices: List<Int> = NavSettings.OPACITY_CHOICES_PCT,
+    default: Int? = null,
     onChange: (Int) -> Unit,
 ) {
+    val colors = SliderDefaults.colors(
+        thumbColor = HudColors.Scale,
+        activeTrackColor = HudColors.Scale,
+        inactiveTrackColor = HudColors.WpDisabled,
+        activeTickColor = HudColors.Background,
+        inactiveTickColor = HudColors.ScaleDim,
+    )
+    val density = LocalDensity.current.density
+    val lo = choices.first().toFloat()
+    val hi = choices.last().toFloat()
+    // 初期値の位置（0〜1）と、目盛りの間隔（0〜1）の半分
+    val defaultFrac = default?.let { (it - lo) / (hi - lo) }
+    val halfStep = 0.5f / (choices.size - 1).coerceAtLeast(1)
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.weight(1f)) { Label(label, note, defaultText = defaultText) }
@@ -875,15 +908,21 @@ private fun PercentSlider(
             modifier = Modifier.height(32.dp),
             value = pct.toFloat(),
             onValueChange = { v -> choices.minByOrNull { kotlin.math.abs(it - v) }?.takeIf { it != pct }?.let(onChange) },
-            valueRange = choices.first().toFloat()..choices.last().toFloat(),
+            valueRange = lo..hi,
             steps = choices.size - 2,
-            colors = SliderDefaults.colors(
-                thumbColor = HudColors.Scale,
-                activeTrackColor = HudColors.Scale,
-                inactiveTrackColor = HudColors.WpDisabled,
-                activeTickColor = HudColors.Background,
-                inactiveTickColor = HudColors.ScaleDim,
-            ),
+            colors = colors,
+            track = { state ->
+                SliderDefaults.Track(
+                    sliderState = state,
+                    colors = colors,
+                    drawTick = { offset, color ->
+                        // 目盛りの位置（0〜1）が初期値に近ければ、大きな●
+                        val isDefault = defaultFrac != null && size.width > 0f && kotlin.math.abs(offset.x / size.width - defaultFrac) < halfStep
+                        val r = if (isDefault) Tuning.SETTINGS_SLIDER_DEFAULT_DOT_DP / 2 * density else SliderTickRadiusDp * density
+                        drawCircle(color = color, radius = r, center = offset)
+                    },
+                )
+            },
         )
     }
 }

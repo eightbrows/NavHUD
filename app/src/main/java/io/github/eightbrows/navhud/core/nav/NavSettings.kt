@@ -183,11 +183,11 @@ data class NavSettings(
 
     /**
      * OFF でない項目が使うファイルのレイヤ（使うときに開くレイヤ。BaseMap.preload）。点のレイヤは読み込みのときに全部読むので入れない。
-     * 空港の敷地（線のレイヤ）は、ランドマークの「空港の敷地」が OFF でなければ入れる（背景地図のスイッチによらない。20261022-D01）
+     * 空港の敷地・滑走路（線のレイヤ）は、ランドマークのその項目が OFF でなければ入れる（背景地図のスイッチによらない。20261022-D01・20261024-D04）
      */
     fun mapLayersInUse(): Set<MapLayer> =
         MapItem.entries.filter { mapRangeOf(it) != MapRange.OFF }.flatMap { it.layers }.toSet() +
-            (if (landmarkRangeOf(LandmarkItem.AIRPORT_AREA) != MapRange.OFF) setOf(MapLayer.AIRPORT_AREA) else emptySet())
+            listOf(LandmarkItem.AIRPORT_AREA, LandmarkItem.RUNWAY).filter { landmarkRangeOf(it) != MapRange.OFF }.map { it.layer }
 
     companion object {
         /** 背景地図の項目の初期値（仮）: 高速道路・国道は「すべて」、ほかは OFF（20261021-D01） */

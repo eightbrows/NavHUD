@@ -24,6 +24,8 @@
            地球地図の空港（airp）は、略号を突き合わせるのにだけ使い、点としては入れない。
            「○○空港（△△地区）」のように、ほかの空港の一部の地区の面（滑走路の長さもその空港と同じ）は、記号は入れない（面は入れる）
     線  26 空港の敷地（国土数値情報 C28 の空港の面。供用中だけ。20261022-D01）… 塗るので、外の輪と穴を線として入れ、64 点ずつに分けない
+    線  27 滑走路（OurAirports の runways.csv。地図に出す空港の、両端の座標がある閉じていない滑走路を 2 点の線で。段の全部に入れる。20261024-D04）
+           … 種類 = 幅の段（幅 ÷ 5 m）× 4 ＋ 空港の種類（0x01 = 大、0x02 = OurAirports だけ）
         25 山頂（地球地図ではなく、国土地理院「日本の主な山岳標高一覧（1003山）」の CSV。20261021-D02）… 名前（山名）も入れる。
            種類 = 標高 ÷ 50 m（下の 7 ビット）＋ 目印になる山の印 0x80（下の $PeakLandmarkMinM・$PeakLandmarkMinIsoKm）
     入れないもの: 市街地の面（builtupa。前の 10）、港（portp。21）、駅（rstatp。22）、ダム・堰の点（miscp。23）、都市（builtupp。24）（20261020-D01）、
@@ -351,6 +353,14 @@ public static class Gm {
   // 水系: 名前のある川（named）を、名前によらず端がつながるものどうしでまとめ、名前のない線（lit = 1・2）で切れている所は、
   // 名前のない線をたどる最短の道（湖・沼の中のつなぎの線は 0 km と数える）が maxBridgeKm 以下なら、その道の線も入れる。
   // 戻り値: レコードごとの、入っている水系の長さ [km]（湖・沼の中のつなぎの線は数えない）。水系に入らないレコードは 0
+  // 点から、いくつかの面（空港の敷地など）のいちばん近い輪郭までの距離 [m]（どれかの面の中なら 0。面がなければ -1）（20261024-D04）
+  public static double DistToPolysM(List<ShpRecord> polys, double x, double y) {
+    if (polys == null || polys.Count == 0) return -1;
+    double best = double.MaxValue;
+    foreach (var p in polys) best = Math.Min(best, DistToPolyM(p.Parts, x, y));
+    return best;
+  }
+
   // 点から面の輪郭までの距離 [m]（面の中なら 0）
   static double DistToPolyM(List<double[]> poly, double x, double y) {
     if (Inside(poly, x, y)) return 0;
@@ -656,7 +666,7 @@ $Levels = @(
 )
 $Unit = 10000
 # 短い線を捨てる決まり（段 2・3 の MinExtent / DenseMinExtent）から外すレイヤ: 道路（線が途切れて見えるため）・河川・湖沼など（大きさの段で絞るため）
-$NoExtentRule = @(3, 4, 9, 26)
+$NoExtentRule = @(3, 4, 9, 26, 27)
 # 塗る面のレイヤ（空港の敷地）: 輪が切れないよう、ChunkPoints 点ずつに分けない
 $FillLayers = @(26)
 # 点の多いレイヤ（段 2・3 で DenseMinExtent を使う）: 鉄道・市区町村境
@@ -762,6 +772,70 @@ foreach ($o in $oaCand) {
   if ($sym) { $apPoints.Add(@{ Kind = $(if ($cls -eq 'large') { $AirportLargeFlag -bor $AirportOaFlag } else { $AirportOaFlag }); Lat = [int][math]::Round($o.Lat * $Unit); Lon = [int][math]::Round($o.Lon * $Unit); Name = $o.Code }) }
   $apReport.Add([pscustomobject]@{ src = 'OA'; name = $o.Name; status = ''; runwayM = $m; cls = $cls; code = $o.Code; oaName = $o.Name; oaCode = $o.Code; oaRunwayM = $m; km = ''; symbol = $sym; area = $false; oaType = $o.Type; lat = $o.Lat; lon = $o.Lon })
 }
+
+# 滑走路（20261024-D04）: 地図に記号を出す空港（民間・軍用）の、OurAirports の runways.csv の滑走路（閉じた滑走路は除く）。
+#   両端の座標（le_ / he_latitude_deg・longitude_deg）がそろっているものだけ、両端を結ぶ 2 点の線として入れる（レイヤ 27。段の全部に入れる）。
+#   種類 = 幅の段（幅 [m] ÷ RunwayWidthStepM を四捨五入。0〜63。幅が分からなければ 0）× 4 ＋ 空港の種類（0x01 = 大、0x02 = OurAirports だけ）。
+#   国土数値情報の空港は、両端が敷地の面（C28 の面。同じ C28_101）の中にあるかを調べる（レポート用。ずれていても入れる）
+$RunwayWidthStepM = 5
+$rwAirports = [System.Collections.Generic.List[object]]::new()
+foreach ($s in $ksj) {
+  $cls = AirportClass $s.RunwayM
+  if ($s.Operating -and -not $s.District -and $s.Oa -and $cls -in 'large', 'small') {
+    $rwAirports.Add([pscustomobject]@{ OaId = $s.Oa.Id; Code = $s.Oa.Code; Name = $s.Name; KsjId = $s.Id; Kind = $(if ($cls -eq 'large') { $AirportLargeFlag } else { 0 }); Lat = $s.Lat; Lon = $s.Lon })
+  }
+}
+foreach ($o in $oaCand) {
+  if ($o.Used) { continue }
+  $m = if ($null -eq $o.RunwayM) { $null } else { [math]::Round($o.RunwayM) }
+  $cls = AirportClass $m
+  if ($cls -in 'large', 'small') {
+    $rwAirports.Add([pscustomobject]@{ OaId = $o.Id; Code = $o.Code; Name = $o.Name; KsjId = $null; Kind = $(if ($cls -eq 'large') { $AirportLargeFlag -bor $AirportOaFlag } else { $AirportOaFlag }); Lat = $o.Lat; Lon = $o.Lon })
+  }
+}
+$rwByAp = @{}
+foreach ($rw in (Import-Csv (Join-Path (Get-Location) $OaRunways) -Encoding utf8)) {
+  if ($rw.closed -eq '1') { continue }
+  if (-not $rwByAp.ContainsKey($rw.airport_ref)) { $rwByAp[$rw.airport_ref] = [System.Collections.Generic.List[object]]::new() }
+  $rwByAp[$rw.airport_ref].Add($rw)
+}
+$apPolyRecs = [Gm]::ReadShp((Join-Path $C28 'C28-20_Airport.shp'))
+$apPolys = @{}
+for ($k = 0; $k -lt $apPolyRecs.Count; $k++) {
+  $polyId = $apRows[$k]["C28_101"]
+  if (-not $apPolys.ContainsKey($polyId)) { $apPolys[$polyId] = [System.Collections.Generic.List[ShpRecord]]::new() }
+  $apPolys[$polyId].Add($apPolyRecs[$k])
+}
+$rwLineObjs = [System.Collections.Generic.List[object]]::new()
+$rwReport = [System.Collections.Generic.List[object]]::new()
+foreach ($a in $rwAirports) {
+  $rwList = if ($rwByAp.ContainsKey($a.OaId)) { $rwByAp[$a.OaId] } else { @() }
+  if (@($rwList).Count -eq 0) {
+    $rwReport.Add([pscustomobject]@{ code = $a.Code; name = $a.Name; kind = $a.Kind; ident = ''; lengthM = ''; widthM = ''; surface = ''; lighted = ''; ends = 'none'; calcM = ''; leDistM = ''; heDistM = ''; drawn = $false })
+    continue
+  }
+  foreach ($rw in $rwList) {
+    $has = $rw.le_latitude_deg -and $rw.le_longitude_deg -and $rw.he_latitude_deg -and $rw.he_longitude_deg
+    $some = $rw.le_latitude_deg -or $rw.he_latitude_deg
+    $wM = if ($rw.width_ft -match '^\d+(\.\d+)?$') { [double]$rw.width_ft * 0.3048 } else { $null }
+    $lM = if ($rw.length_ft -match '^\d+(\.\d+)?$') { [double]$rw.length_ft * 0.3048 } else { $null }
+    $calc = ''; $leD = ''; $heD = ''
+    if ($has) {
+      $la1 = [double]$rw.le_latitude_deg; $lo1 = [double]$rw.le_longitude_deg; $la2 = [double]$rw.he_latitude_deg; $lo2 = [double]$rw.he_longitude_deg
+      $calc = [math]::Round((KmBetween $la1 $lo1 $la2 $lo2) * 1000)
+      if ($a.KsjId -and $apPolys.ContainsKey($a.KsjId)) {
+        $leD = [math]::Round([Gm]::DistToPolysM($apPolys[$a.KsjId], $lo1, $la1)); $heD = [math]::Round([Gm]::DistToPolysM($apPolys[$a.KsjId], $lo2, $la2))
+      }
+      $wq = if ($null -eq $wM) { 0 } else { [math]::Min(63, [int][math]::Round($wM / $RunwayWidthStepM)) }
+      $rwLineObjs.Add(@{ Lat = [int[]]@([int][math]::Round($la1 * $Unit), [int][math]::Round($la2 * $Unit)); Lon = [int[]]@([int][math]::Round($lo1 * $Unit), [int][math]::Round($lo2 * $Unit)); Kind = [int](($wq -shl 2) -bor $a.Kind) })
+    }
+    $rwReport.Add([pscustomobject]@{ code = $a.Code; name = $a.Name; kind = $a.Kind; ident = "$($rw.le_ident)/$($rw.he_ident)"; lengthM = $(if ($null -ne $lM) { [math]::Round($lM) } else { '' })
+      widthM = $(if ($null -ne $wM) { [math]::Round($wM) } else { '' }); surface = $rw.surface; lighted = $rw.lighted
+      ends = $(if ($has) { 'both' } elseif ($some) { 'one' } else { 'none' }); calcM = $calc; leDistM = $leD; heDistM = $heD; drawn = [bool]$has })
+  }
+}
+$rwSorted = $rwLineObjs | Sort-Object { [math]::Floor($_.Lat[0] / ($Unit / 10)) }, { $_.Lon[0] }
+"滑走路: $($rwLineObjs.Count) 本を入れる（$($rwAirports.Count) の空港・閉じていない滑走路 $(@($rwReport | Where-Object ident).Count) 本のうち、両端の座標があるもの）" | Write-Host
 
 # 読む（レイヤごとに、線の部分（単位の整数）と点）
 $data = foreach ($layer in $Layers) {
@@ -893,6 +967,11 @@ $data = @($data) + @(@{ Layer = $peakLayer; Lines = @(); Sorted = @(); Points = 
 $Layers = @($Layers) + @($peakLayer)
 "山頂: $pkN 点（目印になる山 $(@($pkReport | Where-Object landmark).Count)）" | Write-Host
 
+# 滑走路（線。20261024-D04）
+$rwLayer = @{ Code = 27; Name = 'runway' }
+$data = @($data) + @(@{ Layer = $rwLayer; Lines = $rwLineObjs; Sorted = @($rwSorted); Points = @(); Kept = $rwLineObjs.Count; Parts = $rwLineObjs.Count })
+$Layers = @($Layers) + @($rwLayer)
+
 # 空港（点）: 入れる空港は線のレイヤを読む前に決めてある（$apPoints）
 $apLayer = @{ Code = 20; Name = 'airport' }
 $data = @($data) + @(@{ Layer = $apLayer; Lines = @(); Sorted = @(); Points = $apPoints; Kept = $apPoints.Count; Parts = 0 })
@@ -1006,6 +1085,8 @@ $riverRows = for ($k = 0; $k -lt $rs.Rows.Count; $k++) {
 $riverRows | ConvertTo-Csv -NoTypeInformation | Set-Content -Encoding utf8 (Join-Path ([System.IO.Path]::GetTempPath()) 'gm2basemap_rivers.csv')
 # 空港ごと（名前・供用・面の数・いちばん長い滑走路・大か・略号・いちばん近い地球地図の空港・距離・記号を入れたか）（レポート用）
 $apReport | ConvertTo-Csv -NoTypeInformation | Set-Content -Encoding utf8 (Join-Path ([System.IO.Path]::GetTempPath()) 'gm2basemap_airports.csv')
+# 滑走路ごと（略号・空港・番号・長さ・幅・路面・両端の座標の有無・座標から求めた長さ・両端から敷地の面までの距離・描くか）（レポート用。20261024-D04）
+$rwReport | ConvertTo-Csv -NoTypeInformation | Set-Content -Encoding utf8 (Join-Path ([System.IO.Path]::GetTempPath()) 'gm2basemap_runways.csv')
 # 山頂ごと（索引番号・名前・標高・孤立度・目印になるか・種類）（レポート用）
 $pkReport | ConvertTo-Csv -NoTypeInformation | Set-Content -Encoding utf8 (Join-Path ([System.IO.Path]::GetTempPath()) 'gm2basemap_peaks.csv')
 "書いた: $Out（$($buf.Length) バイト、圧縮の目安 $([Gm]::Deflated($buf.ToArray())) バイト）"

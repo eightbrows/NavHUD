@@ -30,10 +30,26 @@ class SettingsStore(context: Context) {
         get() = runCatching { prefs.getInt(KEY_SETTINGS_SCROLL, 0) }.getOrDefault(0)
         set(v) = prefs.edit { putInt(KEY_SETTINGS_SCROLL, v.coerceAtLeast(0)) }
 
+    /**
+     * 前回最後にいた位置（緯度, 経度。LIVE の Fix。20261024-D04）。次に起動したとき、位置が来るまでの地図の中心にする。
+     * 覚えていなければ null。NavSettings の外なので、「設定を初期値に戻す」では変わらない
+     */
+    var lastPosition: Pair<Double, Double>?
+        get() {
+            val lat = prefs.getString(KEY_LAST_LAT, null)?.toDoubleOrNull() ?: return null
+            val lon = prefs.getString(KEY_LAST_LON, null)?.toDoubleOrNull() ?: return null
+            return if (lat in -90.0..90.0 && lon in -180.0..180.0) lat to lon else null
+        }
+        set(v) = prefs.edit {
+            if (v == null) { remove(KEY_LAST_LAT); remove(KEY_LAST_LON) } else { putString(KEY_LAST_LAT, v.first.toString()); putString(KEY_LAST_LON, v.second.toString()) }
+        }
+
     internal companion object {
         /** 設定のファイル名。表示言語の選択（AppLanguage。Android 12 以前）もここに置く */
         const val PREFS = "settings"
         private const val KEY_INPUT = "input"
         private const val KEY_SETTINGS_SCROLL = "settingsScrollY"
+        private const val KEY_LAST_LAT = "lastLat"
+        private const val KEY_LAST_LON = "lastLon"
     }
 }
