@@ -4,6 +4,10 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -14,6 +18,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -34,6 +39,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.sp
 import io.github.eightbrows.navhud.core.Tuning
@@ -55,6 +61,7 @@ import io.github.eightbrows.navhud.core.view.Polyline
 import io.github.eightbrows.navhud.core.view.PinchSteps
 import io.github.eightbrows.navhud.core.view.Segment
 import io.github.eightbrows.navhud.core.view.WpMark
+import kotlin.math.roundToInt
 
 /** HUD の図。座標は core（HudSceneBuilder）で計算済みのものを描くだけ。 */
 @Composable
@@ -74,6 +81,13 @@ fun HudCanvas(
     baseMap: BaseMap? = null,
     /** 地図のダブルタップ（20261023-D02）: タップした所 [px]。そこを基準に 1段詳細にする */
     onDoubleTap: (Float, Float) -> Unit = { _, _ -> },
+    /**
+     * 地図の操作（ドラッグの PAN・ピンチ・ダブルタップ）を受け付ける所 [px]（20261024-D01）。上部バーと数値の欄より下、
+     * WP ボタン列より上、再生の操作列より右。ここの外は地図の操作を受け付けず、重ねたボタンが受け取る。null は全体
+     */
+    gestureArea: HudRect? = null,
+    /** gestureArea の中でも、地図の操作を始めない所 [px]（右の操作列。ボタンの間のすき間で地図が動かないように） */
+    gestureBlocked: List<HudRect> = emptyList(),
 ) {
     val density = LocalDensity.current.density
     val metrics = remember(density) { HudMetrics().scaled(density) }
@@ -94,48 +108,83 @@ fun HudCanvas(
     val doubleTapHandler by rememberUpdatedState(onDoubleTap)
     // 今のタッチ（最初の指を置いてから全部離すまで）で指が2本以上になったか。なったら、そのタッチの間はドラッグで PAN しない
     val touch = remember { TouchState() }
-    Canvas(
-        modifier
-            .clipToBounds()
-            .onSizeChanged { size = it }
-            // 2本指のピンチで縮尺を1段ずつ変える（§6.12。段の数は core の PinchSteps）。下のドラッグより先に（Initial で）見て、
-            // 指が2本以上の間はその動きを消費する。1本に戻っても、指を全部離すまでドラッグ（PAN）はしない。
-            // 指が1本だけのタッチでは何も消費しないので、1本指の操作は今まで通り
-            .pointerInput(Unit) {
-                awaitEachGesture {
-                    touch.pinched = false
-                    val pinch = PinchSteps()
-                    do {
-                        val event = awaitPointerEvent(PointerEventPass.Initial)
-                        val down = event.changes.filter { it.pressed }
-                        if (down.size >= 2) {
-                            touch.pinched = true
-                            // 開き具合: 指の重心から各指までの平均の距離（置いたばかりの指も、今の位置で数える）
-                            val steps = pinch.update(PinchSteps.span(down.map { P(it.position.x, it.position.y) }))
-                            if (steps != 0) pinchHandler(steps)
-                            event.changes.forEach { it.consume() }
-                        } else {
-                            pinch.reset()
-                        }
-                    } while (event.changes.any { it.pressed })
-                }
-            }
-            // ドラッグで地図を平行移動（PAN）。指の動きの量 [px] をそのまま渡す
-            .pointerInput(Unit) {
-                detectDragGestures { change, drag ->
-                    change.consume()
-                    if (!touch.pinched) panHandler(drag.x, drag.y)
-                }
-            }
-            // ダブルタップ（20261023-D02）: 1本指で 2 回タップ。ドラッグ（PAN）・ピンチで指が動いた・2本になったタッチは、
-            // 上の 2 つがその動きを消費するので、タップにならない（途中で取り消される）。1 回のタップには何も割り当てていない
-            .pointerInput(Unit) {
-                detectTapGestures(onDoubleTap = { if (!touch.pinched) doubleTapHandler(it.x, it.y) })
-            },
-    ) {
-        scene?.let { drawScene(it, textMeasurer, density, state.settings.buttonOpacityPct / 100f, ringLabelStyle(state.settings.ringLabelScalePct)) }
+    val blockedNow by rememberUpdatedState(gestureBlocked)
+    Box(modifier.clipToBounds().onSizeChanged { size = it }) {
+        Canvas(Modifier.fillMaxSize()) {
+            scene?.let { drawScene(it, textMeasurer, density, state.settings.buttonOpacityPct / 100f, ringLabelStyle(state.settings.ringLabelScalePct)) }
+        }
+        // 地図の操作を受け付ける所（20261024-D01）: 描画の枠の全体ではなく、この枠だけに指の操作を付ける。
+        // 上部バー・数値の欄・WP ボタン列などの上には地図の操作の部品がないので、そこのボタンは Android の標準の広さ（48dp）で押せる
+        val area = gestureArea ?: HudRect(0f, 0f, size.width.toFloat(), size.height.toFloat())
+        if (area.width > 0f && area.height > 0f) {
+            val left = area.left
+            val top = area.top
+            Box(
+                Modifier
+                    .offset { IntOffset(left.roundToInt(), top.roundToInt()) }
+                    .size(with(LocalDensity.current) { area.width.toDp() }, with(LocalDensity.current) { area.height.toDp() })
+                    .gestures(touch, { blockedNow.any { b -> b.contains(P(it.x + left, it.y + top)) } }, pinchHandler, panHandler) { x, y -> doubleTapHandler(x + left, y + top) },
+            )
+        }
     }
 }
+
+/**
+ * 地図の操作（PAN・ピンチ・ダブルタップ）。blocked(最初の指の位置) が true のタッチは、地図の操作にしない（全部消費して、下の 2 つにも渡さない）。
+ * 位置はこの部品の中の座標
+ */
+private fun Modifier.gestures(
+    touch: TouchState,
+    blocked: (Offset) -> Boolean,
+    pinchHandler: (Int) -> Unit,
+    panHandler: (Float, Float) -> Unit,
+    doubleTapHandler: (Float, Float) -> Unit,
+): Modifier = this
+    // 2本指のピンチで縮尺を1段ずつ変える（§6.12。段の数は core の PinchSteps）。下のドラッグより先に（Initial で）見て、
+    // 指が2本以上の間はその動きを消費する。1本に戻っても、指を全部離すまでドラッグ（PAN）はしない。
+    // 指が1本だけのタッチでは何も消費しないので、1本指の操作は今まで通り
+    .pointerInput(Unit) {
+        awaitEachGesture {
+            touch.pinched = false
+            val pinch = PinchSteps()
+            var first = true
+            var skip = false
+            do {
+                val event = awaitPointerEvent(PointerEventPass.Initial)
+                // 地図の操作を始めない所（右の操作列のすき間など）で置いた指のタッチは、離すまで全部消費する
+                if (first) {
+                    skip = event.changes.firstOrNull { it.pressed }?.let { blocked(it.position) } ?: false
+                    first = false
+                }
+                if (skip) {
+                    event.changes.forEach { it.consume() }
+                    continue
+                }
+                val down = event.changes.filter { it.pressed }
+                if (down.size >= 2) {
+                    touch.pinched = true
+                    // 開き具合: 指の重心から各指までの平均の距離（置いたばかりの指も、今の位置で数える）
+                    val steps = pinch.update(PinchSteps.span(down.map { P(it.position.x, it.position.y) }))
+                    if (steps != 0) pinchHandler(steps)
+                    event.changes.forEach { it.consume() }
+                } else {
+                    pinch.reset()
+                }
+            } while (event.changes.any { it.pressed })
+        }
+    }
+    // ドラッグで地図を平行移動（PAN）。指の動きの量 [px] をそのまま渡す
+    .pointerInput(Unit) {
+        detectDragGestures { change, drag ->
+            change.consume()
+            if (!touch.pinched) panHandler(drag.x, drag.y)
+        }
+    }
+    // ダブルタップ（20261023-D02）: 1本指で 2 回タップ。ドラッグ（PAN）・ピンチで指が動いた・2本になったタッチは、
+    // 上の 2 つがその動きを消費するので、タップにならない（途中で取り消される）。1 回のタップには何も割り当てていない
+    .pointerInput(Unit) {
+        detectTapGestures(onDoubleTap = { if (!touch.pinched) doubleTapHandler(it.x, it.y) })
+    }
 
 /** 1回のタッチの間の状態（ピンチとドラッグで共有） */
 private class TouchState {
@@ -167,6 +216,22 @@ private val PLANE_OUTLINE: FloatArray = run {
     val n = PLANE_RIGHT_HALF.size / 2
     val left = (n - 2 downTo 1).flatMap { listOf(-PLANE_RIGHT_HALF[2 * it], PLANE_RIGHT_HALF[2 * it + 1]) }
     PLANE_RIGHT_HALF + left.toFloatArray()
+}
+
+/**
+ * 白抜きの飛行機（軍用の空港。20261024-D01）の右半分の点。輪郭だけを描くので、細い所が線で埋まらないよう、胴体・翼・尾を太くした形
+ * （胴体の幅 0.72、翼の付け根の幅 0.8。PLANE_RIGHT_HALF は 0.44・0.6）
+ */
+private val FAT_PLANE_RIGHT_HALF = floatArrayOf(
+    0f, -1.5f, 0.36f, -1.1f, 0.36f, -0.45f, 1.5f, 0.2f, 1.5f, 0.65f, 0.36f, 0.35f,
+    0.36f, 0.85f, 0.75f, 1.15f, 0.75f, 1.5f, 0f, 1.38f,
+)
+
+/** 白抜きの飛行機の輪郭の x, y の並び */
+private val FAT_PLANE_OUTLINE: FloatArray = run {
+    val n = FAT_PLANE_RIGHT_HALF.size / 2
+    val left = (n - 2 downTo 1).flatMap { listOf(-FAT_PLANE_RIGHT_HALF[2 * it], FAT_PLANE_RIGHT_HALF[2 * it + 1]) }
+    FAT_PLANE_RIGHT_HALF + left.toFloatArray()
 }
 
 /** 飛行機の記号の幅（翼の端から端まで）。PLANE_RIGHT_HALF の単位で 3（-1.5〜1.5） */
@@ -217,6 +282,8 @@ private val MapCodeStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize
 /**
  * 背景地図の点（§8。ランドマークの記号。名前は描かない）: 空港の飛行機・山頂の三角（20261022-D01 で丸をなくした）。
  * 背景の線の上でも形が分かるよう、先に黒のふち（太い線）を描いてから塗る（20261021-D01）。
+ * 空港は 20261024-D01 で民間・軍用に分けた: 民間（大）は塗りつぶしにまわりの丸い輪、民間（小）は塗りつぶし、
+ * 軍用は白抜き（内側を背景の黒で塗り、輪郭だけ色の線。外側に黒のふち）。
  * 色は線の明るさの段によらず、ランドマークの明るさの段（brightness）だけで変わる。同じ色・形・明るさが続く記号を 1 つの Path にまとめて 1 回で描く
  * （記号ごとに物を作らない。記号が多いときに遅くなるため）
  */
@@ -225,6 +292,8 @@ private fun DrawScope.drawMapMarks(marks: List<MapMark>, density: Float) {
     while (i0 < marks.size) {
         val first = marks[i0]
         val path = Path()
+        // 民間（大）の丸い輪
+        val rings = Path()
         var i = i0
         while (i < marks.size) {
             val m = marks[i]
@@ -233,11 +302,16 @@ private fun DrawScope.drawMapMarks(marks: List<MapMark>, density: Float) {
             val x = m.at.x
             val y = m.at.y
             when (m.shape) {
-                MarkShape.PLANE -> {
+                MarkShape.PLANE, MarkShape.PLANE_RING, MarkShape.PLANE_HOLLOW -> {
                     val r = m.sizeDp / PLANE_SPAN * density
-                    path.moveTo(x + PLANE_OUTLINE[0] * r, y + PLANE_OUTLINE[1] * r)
-                    for (k in 2 until PLANE_OUTLINE.size step 2) path.lineTo(x + PLANE_OUTLINE[k] * r, y + PLANE_OUTLINE[k + 1] * r)
+                    val o = if (m.shape == MarkShape.PLANE_HOLLOW) FAT_PLANE_OUTLINE else PLANE_OUTLINE
+                    path.moveTo(x + o[0] * r, y + o[1] * r)
+                    for (k in 2 until o.size step 2) path.lineTo(x + o[k] * r, y + o[k + 1] * r)
                     path.close()
+                    if (m.shape == MarkShape.PLANE_RING) {
+                        val rr = Tuning.BASEMAP_AIRPORT_RING_RADIUS_DP * density
+                        rings.addOval(Rect(x - rr, y - rr, x + rr, y + rr))
+                    }
                 }
                 MarkShape.TRIANGLE -> {
                     // 頂点が上。at は高さの真ん中
@@ -250,12 +324,29 @@ private fun DrawScope.drawMapMarks(marks: List<MapMark>, density: Float) {
                 }
             }
         }
-        val outlineDp = when (first.shape) {
-            MarkShape.PLANE -> Tuning.BASEMAP_AIRPORT_OUTLINE_DP
+        val color = HudColors.landmark(first.ink, first.brightness)
+        val outline = when (first.shape) {
             MarkShape.TRIANGLE -> Tuning.BASEMAP_PEAK_OUTLINE_DP
+            else -> Tuning.BASEMAP_AIRPORT_OUTLINE_DP
+        } * density
+        when (first.shape) {
+            MarkShape.PLANE_HOLLOW -> {
+                // 白抜き: 輪郭の線（幅 line）の外側に黒のふち、内側は背景の黒で塗る（下の線が透けて形が崩れないように）
+                val line = Tuning.BASEMAP_AIRPORT_HOLLOW_LINE_DP * density
+                drawPath(path, HudColors.Background, style = Stroke(line + outline * 2, join = StrokeJoin.Round))
+                drawPath(path, HudColors.Background)
+                drawPath(path, color, style = Stroke(line, join = StrokeJoin.Round))
+            }
+            else -> {
+                if (first.shape == MarkShape.PLANE_RING) {
+                    val ringLine = Tuning.BASEMAP_AIRPORT_RING_LINE_DP * density
+                    drawPath(rings, HudColors.Background, style = Stroke(ringLine + outline * 2))
+                    drawPath(rings, color, style = Stroke(ringLine))
+                }
+                drawPath(path, HudColors.Background, style = Stroke(outline * 2, join = StrokeJoin.Round))
+                drawPath(path, color)
+            }
         }
-        drawPath(path, HudColors.Background, style = Stroke(outlineDp * 2 * density, join = StrokeJoin.Round))
-        drawPath(path, HudColors.landmark(first.ink, first.brightness))
         i0 = i
     }
 }

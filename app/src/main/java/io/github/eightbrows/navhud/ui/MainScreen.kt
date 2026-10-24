@@ -173,9 +173,13 @@ fun MainScreen(
         HudRect(0f, stripTop, w, stripTop + stripPx).takeIf { wpUi.showButtons },
         HudRect(replayLeftPx, topPx.toFloat(), replayRightPx, stripTop).takeIf { showReplay },
     )
+    // 地図の操作（PAN・ピンチ・ダブルタップ）を受け付ける所（20261024-D01）: 上部バーと数値の欄（4 行）より下、WP ボタン列（なければ
+    // 標高プロファイル・ナビゲーションバー）より上、再生の操作列より右。右の操作列のある所では、地図の操作を始めない
+    val gestureArea = HudRect(replayRightPx, topPx.toFloat(), w, stripTop)
+    val gestureBlocked = listOf(HudRect(w - sidePx, sideTop, w, sideBottom))
 
     Box(modifier.fillMaxSize().background(HudColors.Background).onSizeChanged { boxW = it.width; boxPx = it.height }) {
-        HudCanvas(state, Modifier.fillMaxSize(), reserved, onViewport, onPan, onPinch, numberBands, buttonBoxes, baseMap, onDoubleTap = onDoubleTap)
+        HudCanvas(state, Modifier.fillMaxSize(), reserved, onViewport, onPan, onPinch, numberBands, buttonBoxes, baseMap, onDoubleTap = onDoubleTap, gestureArea = gestureArea, gestureBlocked = gestureBlocked)
         // 上: 上部バーと数値（4行）
         Column(Modifier.align(Alignment.TopStart).fillMaxWidth().onSizeChanged { topPx = it.height }) {
             Box(Modifier.onSizeChanged { topBarPx = it.height }) {

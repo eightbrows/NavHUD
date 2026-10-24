@@ -203,13 +203,21 @@ object Tuning {
     const val BASEMAP_LONG_DASH_OFF_DP = 5f
 
     /**
-     * 背景地図の空港の記号の大きさ（翼の端から端まで。機首から尾までもほぼ同じ）[dp]。画面上の大きさは縮尺・線の太さの段によらず同じ
-     * （20261021-D01。前は 7.5dp。仮）
+     * 背景地図の空港の記号の大きさ（翼の端から端まで。機首から尾までもほぼ同じ）[dp]。画面上の大きさは縮尺・線の太さの段によらず同じ。
+     * 民間（大）は塗りつぶしで 20dp、軍用（大）は白抜きで 16dp（20261024-D01。前は大 16dp。仮）
      */
-    const val BASEMAP_AIRPORT_MARK_DP = 16f
+    const val BASEMAP_AIRPORT_CIVIL_LARGE_MARK_DP = 20f
+    const val BASEMAP_AIRPORT_MIL_LARGE_MARK_DP = 16f
 
-    /** 小さい空港（いちばん長い滑走路が 2,000 m 未満）の飛行機の記号の大きさ [dp]（20261022-D01。仮） */
+    /** 小さい空港（いちばん長い滑走路が 2,000 m 未満）の飛行機の記号の大きさ [dp]。民間・軍用とも（20261022-D01。仮） */
     const val BASEMAP_AIRPORT_SMALL_MARK_DP = 11f
+
+    /** 民間（大）の空港の記号のまわりの丸い輪: 半径と線の太さ [dp]（20261024-D01。仮）。外側に黒のふち（BASEMAP_AIRPORT_OUTLINE_DP） */
+    const val BASEMAP_AIRPORT_RING_RADIUS_DP = 14f
+    const val BASEMAP_AIRPORT_RING_LINE_DP = 1.2f
+
+    /** 軍用の空港の白抜きの飛行機の輪郭の線の太さ [dp]（20261024-D01。仮）。内側は背景の黒で塗り、外側に黒のふち。形は胴体・翼を太くした飛行機（HudCanvas） */
+    const val BASEMAP_AIRPORT_HOLLOW_LINE_DP = 1f
 
     /** 空港の ICAO の略号の文字の大きさ [sp]。画面上の大きさは縮尺によらず同じ（20261022-D01。仮） */
     const val BASEMAP_AIRPORT_CODE_SP = 10f

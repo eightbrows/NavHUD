@@ -44,18 +44,23 @@ enum class MapItem(val layers: Set<MapLayer>) {
 }
 
 /**
- * 設定画面の「ランドマーク」の項目（20261021-D04。20261022-D01 で 7 項目にした）。背景地図の空港・山頂を、どの縮尺まで描くか。
+ * 設定画面の「ランドマーク」の項目（20261021-D04。20261022-D01 で 7 項目、20261024-D01 で空港を民間・軍用に分けて 9 項目にした）。
+ * 背景地図の空港・山頂を、どの縮尺まで描くか。
  * 背景地図のスイッチ（NavSettings.baseMap）と線の太さ・明るさの段は効かない（明るさはランドマークの明るさの段 NavSettings.landmarkBrightness）。
- * - 空港（大・小）: 飛行機の記号（いちばん長い滑走路が 2,000 m 以上が大。AirportKind）
+ * - 空港・民間（大・小）: 国土数値情報の空港（自衛隊との共用を含む）。塗りつぶしの飛行機（大は丸い輪付き）
+ * - 空港・軍用（大・小）: OurAirports にだけある飛行場（自衛隊・米軍の専用。AirportKind.OURAIRPORTS）。白抜きの飛行機
+ *   （大小はいちばん長い滑走路が 2,000 m 以上が大。AirportKind.LARGE）
  * - 空港の敷地: 空港の面を半透明で塗る（MapLayer.AIRPORT_AREA）
- * - 空港の略号: ICAO の略号の文字（空港の記号の右上。記号の項目が OFF でも出せる）
+ * - 空港の略号: ICAO の略号の文字（空港の記号の右上）。記号が出ている空港にだけ出す（20261024-D01。前は記号が OFF でも出せた）
  * - 山頂（高）: 目印になる山（PeakKind.isLandmark）のうち、標高 Tuning.BASEMAP_PEAK_HIGH_M（1,500 m）以上
  * - 山頂（中）: 目印になる山のうち、それ未満
  * - 山頂（低）: 目印になりにくい山
  */
 enum class LandmarkItem(val layer: MapLayer) {
-    AIRPORT_LARGE(MapLayer.AIRPORT),
-    AIRPORT_SMALL(MapLayer.AIRPORT),
+    AIRPORT_CIVIL_LARGE(MapLayer.AIRPORT),
+    AIRPORT_CIVIL_SMALL(MapLayer.AIRPORT),
+    AIRPORT_MIL_LARGE(MapLayer.AIRPORT),
+    AIRPORT_MIL_SMALL(MapLayer.AIRPORT),
     AIRPORT_AREA(MapLayer.AIRPORT_AREA),
     AIRPORT_CODE(MapLayer.AIRPORT),
     PEAK_HIGH(MapLayer.PEAK),
@@ -63,9 +68,16 @@ enum class LandmarkItem(val layer: MapLayer) {
     PEAK_LOW(MapLayer.PEAK);
 
     companion object {
-        /** 点の記号がどの項目に入るか（空港の大小・山頂の高中低）。記号のない点（点のレイヤでないもの）は null */
+        /** 空港の記号の 4 項目（民間・軍用 × 大・小） */
+        val AIRPORT_MARKS: Set<LandmarkItem> = setOf(AIRPORT_CIVIL_LARGE, AIRPORT_CIVIL_SMALL, AIRPORT_MIL_LARGE, AIRPORT_MIL_SMALL)
+
+        /** 点の記号がどの項目に入るか（空港の民間・軍用と大小、山頂の高中低）。記号のない点（点のレイヤでないもの）は null */
         fun of(p: MapPoint): LandmarkItem? = when (p.layer) {
-            MapLayer.AIRPORT -> if (AirportKind.isLarge(p.kind)) AIRPORT_LARGE else AIRPORT_SMALL
+            MapLayer.AIRPORT -> {
+                val large = AirportKind.isLarge(p.kind)
+                if (AirportKind.isOurAirportsOnly(p.kind)) (if (large) AIRPORT_MIL_LARGE else AIRPORT_MIL_SMALL)
+                else (if (large) AIRPORT_CIVIL_LARGE else AIRPORT_CIVIL_SMALL)
+            }
             MapLayer.PEAK -> when {
                 !PeakKind.isLandmark(p.kind) -> PEAK_LOW
                 PeakKind.elevationM(p.kind) >= Tuning.BASEMAP_PEAK_HIGH_M -> PEAK_HIGH

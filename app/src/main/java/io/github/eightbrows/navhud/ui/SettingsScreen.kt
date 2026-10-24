@@ -43,6 +43,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -451,23 +452,30 @@ fun SettingsScreen(
             Text(stringResource(R.string.about_links_note), style = RowNote)
         },
 
-        // データの出典（20261023-D01。前は情報の欄に並べていた）: データごとに、使っている所・データの名前と作成者・ページのアドレス・
-        // 「〜をもとに作成」の文（決められた書き方のまま）。OurAirports はパブリックドメインなので、名前とアドレスだけ
+        // データの出典（20261023-D01。前は情報の欄に並べていた。20261024-D02 で短くした）: データごとに、タイトル・組織名・URL・
+        // ライセンス（規約の名前と「最新の規約を参照」の一文だけ）・使用箇所（短く）・「〜をもとに作成」の文（見出しなし）。
+        // OurAirports はパブリックドメインなので、「〜をもとに作成」の文はない
         SettingsSection(stringResource(R.string.sec_sources)) {
             Text(stringResource(R.string.sources_note), style = RowNote)
             SourceBlock(
-                stringResource(R.string.src_use_basemap), stringResource(R.string.src_name_basemap), BASEMAP_SOURCE_URL,
+                stringResource(R.string.src_title_basemap), stringResource(R.string.src_org_basemap), BASEMAP_SOURCE_URL,
+                stringResource(R.string.src_license_basemap), stringResource(R.string.src_use_basemap),
                 stringResource(R.string.about_basemap_source, BASEMAP_SOURCE_URL),
             )
             SourceBlock(
-                stringResource(R.string.src_use_peak), stringResource(R.string.src_name_peak), PEAK_SOURCE_URL,
+                stringResource(R.string.src_title_peak), stringResource(R.string.src_org_peak), PEAK_SOURCE_URL,
+                stringResource(R.string.src_license_peak), stringResource(R.string.src_use_peak),
                 stringResource(R.string.about_peak_source),
             )
             SourceBlock(
-                stringResource(R.string.src_use_airport), stringResource(R.string.src_name_airport), AIRPORT_SOURCE_URL,
+                stringResource(R.string.src_title_airport), stringResource(R.string.src_org_airport), AIRPORT_SOURCE_URL,
+                stringResource(R.string.src_license_airport), stringResource(R.string.src_use_airport),
                 stringResource(R.string.about_airport_source, AIRPORT_SOURCE_URL),
             )
-            SourceBlock(stringResource(R.string.src_use_ourairports), stringResource(R.string.src_name_ourairports), OURAIRPORTS_URL, null)
+            SourceBlock(
+                stringResource(R.string.src_title_ourairports), stringResource(R.string.src_org_ourairports), OURAIRPORTS_URL,
+                stringResource(R.string.src_license_ourairports), stringResource(R.string.src_use_ourairports), null,
+            )
         },
     )
     // スクロール位置は、前に閉じたときの位置から始め、止まったとき・閉じたときに保存する（目次で飛んだあとも、止まったときに保存される）
@@ -529,8 +537,10 @@ private fun mapRangeChoices(): List<Pair<String, MapRange>> = listOf(
 )
 
 private fun landmarkLabel(item: LandmarkItem): Int = when (item) {
-    LandmarkItem.AIRPORT_LARGE -> R.string.landmark_airport_large
-    LandmarkItem.AIRPORT_SMALL -> R.string.landmark_airport_small
+    LandmarkItem.AIRPORT_CIVIL_LARGE -> R.string.landmark_airport_civil_large
+    LandmarkItem.AIRPORT_CIVIL_SMALL -> R.string.landmark_airport_civil_small
+    LandmarkItem.AIRPORT_MIL_LARGE -> R.string.landmark_airport_mil_large
+    LandmarkItem.AIRPORT_MIL_SMALL -> R.string.landmark_airport_mil_small
     LandmarkItem.AIRPORT_AREA -> R.string.landmark_airport_area
     LandmarkItem.AIRPORT_CODE -> R.string.landmark_airport_code
     LandmarkItem.PEAK_HIGH -> R.string.landmark_peak_high
@@ -683,20 +693,22 @@ private fun InfoRow(label: String, value: String, url: String? = null) {
 }
 
 /**
- * データの出典の 1 つ分（20261023-D01）: 使っている所（見出し）・データの名前と作成者・ページのアドレス（下線。押すとブラウザで開く）・
- * 「〜をもとに作成」の文（attribution。なければ書かない）
+ * データの出典の 1 つ分（20261023-D01。20261024-D02 で短くした）: タイトル（データの名前。太字）・組織名・URL（下線。押すとブラウザで開く）・
+ * ライセンス（規約の名前と、最新の規約を参照してほしい一文）・使用箇所（このアプリで使っている所）・「〜をもとに作成」の文 attribution（なければ書かない）
  */
 @Composable
-private fun SourceBlock(use: String, name: String, url: String, attribution: String?) {
+private fun SourceBlock(title: String, org: String, url: String, license: String, use: String, attribution: String?) {
     val uriHandler = LocalUriHandler.current
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(use, style = RowLabel)
-        Text(name, style = RowLabel.copy(fontSize = 13.sp))
+        Text(title, style = RowLabel.copy(fontWeight = FontWeight.Bold))
+        Text(org, style = RowLabel.copy(fontSize = 13.sp))
         Text(
             "$url ↗",
             style = RowLabel.copy(fontSize = 13.sp, textDecoration = TextDecoration.Underline),
             modifier = Modifier.clickable { runCatching { uriHandler.openUri(url) } },
         )
+        Text(stringResource(R.string.src_license_fmt, license), style = RowNote)
+        Text(stringResource(R.string.src_use_fmt, use), style = RowNote)
         attribution?.let { Text(it, style = RowNote) }
     }
 }

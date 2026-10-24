@@ -19,11 +19,14 @@ class MapItemSettingsTest {
         // 線: 高速道路・国道は「すべて」、ほかは OFF（20261021-D01）
         val all = setOf(MapItem.MOTORWAY, MapItem.NATIONAL_ROAD)
         for (item in MapItem.entries) assertEquals(item.name, if (item in all) MapRange.ALL else MapRange.OFF, d.mapRangeOf(item))
-        // 空港・山頂は線の項目にない（20261021-D04 でランドマークに移した）。ランドマークは 7 項目（20261022-D01）:
+        // 空港・山頂は線の項目にない（20261021-D04 でランドマークに移した）。ランドマークは 9 項目（20261024-D01 で空港を民間・軍用に分けた）:
         // 空港の敷地は〜10k、空港の略号は〜25k、ほかは「すべて」。明るさの段は 4
         assertTrue(MapItem.entries.none { it.name == "AIRPORT" || it.name == "PEAK" })
         assertEquals(
-            listOf("AIRPORT_LARGE", "AIRPORT_SMALL", "AIRPORT_AREA", "AIRPORT_CODE", "PEAK_HIGH", "PEAK_MID", "PEAK_LOW"),
+            listOf(
+                "AIRPORT_CIVIL_LARGE", "AIRPORT_CIVIL_SMALL", "AIRPORT_MIL_LARGE", "AIRPORT_MIL_SMALL", "AIRPORT_AREA", "AIRPORT_CODE",
+                "PEAK_HIGH", "PEAK_MID", "PEAK_LOW",
+            ),
             LandmarkItem.entries.map { it.name },
         )
         val lmDefault = mapOf(LandmarkItem.AIRPORT_AREA to MapRange.UPTO_10KM, LandmarkItem.AIRPORT_CODE to MapRange.UPTO_25KM)
@@ -87,14 +90,19 @@ class MapItemSettingsTest {
         val lm = NavSettings(landmarkBrightness = 6).withLandmarkRange(LandmarkItem.PEAK_LOW, MapRange.OFF).withLandmarkRange(LandmarkItem.AIRPORT_CODE, MapRange.ALL)
         val lmEnc = SettingsCodec.encode(lm)
         assertEquals(
-            "AIRPORT_LARGE:ALL,AIRPORT_SMALL:ALL,AIRPORT_AREA:UPTO_10KM,AIRPORT_CODE:ALL,PEAK_HIGH:ALL,PEAK_MID:ALL,PEAK_LOW:OFF",
+            "AIRPORT_CIVIL_LARGE:ALL,AIRPORT_CIVIL_SMALL:ALL,AIRPORT_MIL_LARGE:ALL,AIRPORT_MIL_SMALL:ALL,AIRPORT_AREA:UPTO_10KM,AIRPORT_CODE:ALL," +
+                "PEAK_HIGH:ALL,PEAK_MID:ALL,PEAK_LOW:OFF",
             lmEnc["landmarkItems"],
         )
         assertEquals("6", lmEnc["landmarkBrightnessLevel"])
         assertEquals(lm.landmarks, SettingsCodec.decode(lmEnc).landmarks)
         assertEquals(6, SettingsCodec.decode(lmEnc).landmarkBrightness)
-        val badLm = SettingsCodec.decode(mapOf("landmarkItems" to "AIRPORT_SMALL:OFF,PEAK:OFF,PEAK_HIGH:FOO,CITY", "landmarkBrightnessLevel" to "9"))
-        assertEquals(MapRange.OFF, badLm.landmarkRangeOf(LandmarkItem.AIRPORT_SMALL))
+        val badLm = SettingsCodec.decode(mapOf("landmarkItems" to "AIRPORT_MIL_SMALL:OFF,PEAK:OFF,PEAK_HIGH:FOO,CITY", "landmarkBrightnessLevel" to "9"))
+        assertEquals(MapRange.OFF, badLm.landmarkRangeOf(LandmarkItem.AIRPORT_MIL_SMALL))
+        // 前の版（20261024-D01 より前）の空港の項目（AIRPORT_LARGE・AIRPORT_SMALL）は引き継がない: 空港の 4 項目は初期値（すべて）
+        val oldAirports = SettingsCodec.decode(mapOf("landmarkItems" to "AIRPORT_LARGE:OFF,AIRPORT_SMALL:OFF,AIRPORT_CODE:OFF"))
+        for (item in LandmarkItem.AIRPORT_MARKS) assertEquals(item.name, MapRange.ALL, oldAirports.landmarkRangeOf(item))
+        assertEquals(MapRange.OFF, oldAirports.landmarkRangeOf(LandmarkItem.AIRPORT_CODE))
         assertEquals(MapRange.ALL, badLm.landmarkRangeOf(LandmarkItem.PEAK_HIGH))
         assertEquals(4, badLm.landmarkBrightness)
         // 前の版（20261021-D04）の「landmarks」は読まない（PEAK_HIGH・PEAK_LOW は名前が同じでも中身が違うので、引き継がない）

@@ -86,14 +86,17 @@ enum class Ink {
 /** 折れ線の線の種類（背景地図のレイヤの描き分け）。長さは Tuning.BASEMAP_*_DP */
 enum class LineDash { SOLID, DOT, FINE_DOT, DASH, LONG_DASH }
 
-/** 背景地図の点の記号の形: 飛行機（空港）・三角（山頂） */
-enum class MarkShape { PLANE, TRIANGLE }
+/**
+ * 背景地図の点の記号の形: 飛行機（空港）・三角（山頂）。空港は 20261024-D01 で民間・軍用に分けた:
+ * PLANE は塗りつぶしの飛行機（民間（小））、PLANE_RING はそのまわりに丸い輪（民間（大））、PLANE_HOLLOW は白抜きの飛行機（軍用）
+ */
+enum class MarkShape { PLANE, PLANE_RING, PLANE_HOLLOW, TRIANGLE }
 
 /**
  * 背景地図の点（ランドマークの記号）。sizeDp は記号の幅 [dp]（飛行機は翼の端から端まで、三角は底辺）。
  * 画面上の大きさは縮尺・線の太さの段によらず同じ。色は線の明るさの段によらず、ランドマークの明るさの段（brightness。
  * Tuning.BASEMAP_BRIGHTNESS_FACTORS の値。HudColors.landmark で色に掛ける）だけで変わる（20261022-D01）。
- * - 飛行機: 上から見た塗った記号に黒のふち。機首が上で、向きは変えない
+ * - 飛行機: 上から見た塗った記号（白抜きは輪郭だけ）に黒のふち。機首が上で、向きは変えない
  * - 三角: 頂点が上の塗った三角に黒のふち。at は三角の中心（高さの真ん中）
  */
 data class MapMark(val at: P, val ink: Ink, val sizeDp: Float, val shape: MarkShape = MarkShape.PLANE, val brightness: Float = 1f)
