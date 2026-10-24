@@ -170,6 +170,14 @@ class RangeSelector(
         rangeM = if (inward) all.lastOrNull { it < rangeM - EPS } ?: rangeM else all.firstOrNull { it > rangeM + EPS } ?: rangeM
     }
 
+    /**
+     * 段を m [m] にする（使う段にない段でもよい。AUTO はそのまま）。位置がまだないあいだの縮尺に入るとき・出るときに使う（20261024-D05）
+     */
+    fun setRange(m: Double) {
+        zoomInSince = null
+        rangeM = m
+    }
+
     /** −: 1段広域へ。AUTO は OFF（keepAuto なら AUTO はそのまま。PAN 中）。 */
     fun zoomOut(keepAuto: Boolean = false) {
         if (!keepAuto) auto = false

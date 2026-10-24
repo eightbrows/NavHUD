@@ -36,13 +36,13 @@ class BaseMapBuilderTest {
     private val rect = HudRect(0f, 0f, 720f, 1200f)
 
     /** 全部の項目を「すべて」 */
-    private val all = MapItem.entries.associateWith { MapRange.ALL }
+    private val all = MapItem.entries.associateWith { MapRange.UPTO_100KM }
 
     /** ランドマークの全部の項目を「すべて」 */
-    private val allMarks = LandmarkItem.entries.associateWith { MapRange.ALL }
+    private val allMarks = LandmarkItem.entries.associateWith { MapRange.UPTO_100KM }
 
     /** 選んだ項目だけを range、ほかは描かない */
-    private fun items(vararg on: MapItem, range: MapRange = MapRange.ALL) = on.associateWith { range }
+    private fun items(vararg on: MapItem, range: MapRange = MapRange.UPTO_100KM) = on.associateWith { range }
 
     /** 自機（基準の地点）を画面の (360, 600) に置く。pxPerM = 0.1 は 1 px = 10 m */
     private fun proj(upDeg: Double = 0.0, pxPerM: Double = 0.1) = HudProjection(P(360f, 600f), pxPerM, upDeg)
@@ -193,8 +193,8 @@ class BaseMapBuilderTest {
             listOf(Ink.MAP_PEAK_LOW, Ink.MAP_PEAK_LOW, Ink.MAP_PEAK_MID, Ink.MAP_PEAK_HIGH, Ink.MAP_PEAK_HIGH) + List(5) { Ink.MAP_AIRPORT },
             d.marks.map { it.ink },
         )
-        // 大きさ: 山頂 低 8・中 10・高 12dp、空港 小 11（民間・軍用とも）・軍用（大）16・民間（大）20dp
-        assertEquals(listOf(8f, 8f, 10f, 12f, 12f, 11f, 11f, 11f, 16f, 20f), d.marks.map { it.sizeDp })
+        // 大きさ: 山頂 低 8・中 10・高 12dp、空港 小 11（民間・軍用とも）・軍用（大）16・民間（大）17dp（20261024-D05 で 20dp → 17dp）
+        assertEquals(listOf(8f, 8f, 10f, 12f, 12f, 11f, 11f, 11f, 16f, 17f), d.marks.map { it.sizeDp })
         // 項目の分け方: 山頂は目印になる山で 1,500 m 以上が高、未満が中、目印になりにくい山が低。空港は滑走路 2,000 m 以上（変換の印）が大
         fun item(elevM: Int, landmark: Boolean) = LandmarkItem.of(peak(0.0, 0.0, elevM, landmark))
         assertEquals(listOf(LandmarkItem.PEAK_MID, LandmarkItem.PEAK_HIGH, LandmarkItem.PEAK_HIGH), listOf(1450, 1500, 3750).map { item(it, true) })
@@ -207,15 +207,15 @@ class BaseMapBuilderTest {
         // 空港の敷地: 1 つの輪を塗る（記号より下に描く）
         assertEquals(listOf(Ink.MAP_AIRPORT_AREA), d.areas.map { it.ink })
         assertEquals(5, d.areas.single().points.size)
-        // 空港の略号: 略号のある空港だけ。記号の右上（記号の幅の半分だけずらす。民間（大）は丸い輪にかからないよう、輪の半径 14dp の 0.8 倍）
-        assertEquals(listOf("RJTT" to 11.2f, "RJTF" to 5.5f, "RJTA" to 8f, "RJTC" to 5.5f), d.labels.map { it.text to it.offsetDp })
+        // 空港の略号: 略号のある空港だけ。記号の右上（記号の幅の半分だけずらす。民間（大）は丸い輪にかからないよう、輪の半径 12dp（20261024-D05。前は 14dp）の 0.8 倍）
+        assertEquals(listOf("RJTT" to 9.6f, "RJTF" to 5.5f, "RJTA" to 8f, "RJTC" to 5.5f), d.labels.map { it.text to it.offsetDp })
         assertEquals(d.marks.last().at, d.labels.first().at)
         // 略号は、記号が出ている空港にだけ出す（20261024-D01。前は記号を OFF にしても略号だけ出せた）
-        assertTrue(build(map, landmarks = mapOf(LandmarkItem.AIRPORT_CODE to MapRange.ALL)).labels.isEmpty())
-        val milLargeOnly = build(map, landmarks = mapOf(LandmarkItem.AIRPORT_CODE to MapRange.ALL, LandmarkItem.AIRPORT_MIL_LARGE to MapRange.ALL))
+        assertTrue(build(map, landmarks = mapOf(LandmarkItem.AIRPORT_CODE to MapRange.UPTO_100KM)).labels.isEmpty())
+        val milLargeOnly = build(map, landmarks = mapOf(LandmarkItem.AIRPORT_CODE to MapRange.UPTO_100KM, LandmarkItem.AIRPORT_MIL_LARGE to MapRange.UPTO_100KM))
         assertEquals(listOf("RJTA"), milLargeOnly.labels.map { it.text })
         // 項目ごとに選べる: 山頂（高）と空港・民間（大）だけ
-        val highAndLarge = mapOf(LandmarkItem.PEAK_HIGH to MapRange.ALL, LandmarkItem.AIRPORT_CIVIL_LARGE to MapRange.ALL)
+        val highAndLarge = mapOf(LandmarkItem.PEAK_HIGH to MapRange.UPTO_100KM, LandmarkItem.AIRPORT_CIVIL_LARGE to MapRange.UPTO_100KM)
         assertEquals(listOf(Ink.MAP_PEAK_HIGH, Ink.MAP_PEAK_HIGH, Ink.MAP_AIRPORT), build(map, landmarks = highAndLarge).marks.map { it.ink })
         // 初期値: 敷地は〜10k、略号は〜25k。R1 25 km では敷地を描かず略号は描く、R1 50 km では略号も描かない
         val r25 = build(map, r1M = 25_000.0, landmarks = NavSettings.DEFAULT_LANDMARKS)
@@ -263,7 +263,7 @@ class BaseMapBuilderTest {
         assertEquals(listOf(Ink.MAP_SHINKANSEN, Ink.MAP_SHINKANSEN), build(map, items(MapItem.SHINKANSEN)).lines.map { it.ink })
         assertEquals(listOf(Ink.MAP_RAIL, Ink.MAP_RAIL), build(map, items(MapItem.RAILWAY)).lines.map { it.ink })
         // 縮尺も別に選べる（この試験の R1 は 500 m）
-        assertTrue(build(map, mapOf(MapItem.SHINKANSEN to MapRange.ALL, MapItem.RAILWAY to MapRange.OFF)).lines.all { it.ink == Ink.MAP_SHINKANSEN })
+        assertTrue(build(map, mapOf(MapItem.SHINKANSEN to MapRange.UPTO_100KM, MapItem.RAILWAY to MapRange.OFF)).lines.all { it.ink == Ink.MAP_SHINKANSEN })
         // 初期値は両方とも OFF
         assertEquals(MapRange.OFF, NavSettings().mapRangeOf(MapItem.SHINKANSEN))
         assertEquals(MapRange.OFF, NavSettings().mapRangeOf(MapItem.RAILWAY))
@@ -304,7 +304,7 @@ class BaseMapBuilderTest {
         assertEquals(listOf(true, true, false), listOf(5.0, 10.0, 25.0).map { drawn(MapRange.UPTO_10KM, it) })
         assertEquals(listOf(true, false), listOf(25.0, 50.0).map { drawn(MapRange.UPTO_25KM, it) })
         assertEquals(listOf(true, false), listOf(50.0, 100.0).map { drawn(MapRange.UPTO_50KM, it) })
-        assertEquals(listOf(true, true, true), listOf(0.025, 25.0, 100.0).map { drawn(MapRange.ALL, it) })
+        assertEquals(listOf(true, true, true), listOf(0.025, 25.0, 100.0).map { drawn(MapRange.UPTO_100KM, it) })
         assertEquals(listOf(false, false), listOf(0.025, 100.0).map { drawn(MapRange.OFF, it) })
     }
 
@@ -323,7 +323,7 @@ class BaseMapBuilderTest {
         assertEquals(3, on.size)
         assertEquals(listOf(Ink.MAP_ROAD, Ink.MAP_NATIONAL_ROAD, Ink.MAP_MOTORWAY), on.map { it.ink })
         // 項目ごとに縮尺が違う: R1 50 km で、高速道路は「すべて」・国道は「〜25 km」なら高速道路だけ
-        val mixed = mapOf(MapItem.MOTORWAY to MapRange.ALL, MapItem.NATIONAL_ROAD to MapRange.UPTO_25KM, MapItem.PREF_ROAD to MapRange.UPTO_10KM)
+        val mixed = mapOf(MapItem.MOTORWAY to MapRange.UPTO_100KM, MapItem.NATIONAL_ROAD to MapRange.UPTO_25KM, MapItem.PREF_ROAD to MapRange.UPTO_10KM)
         assertEquals(listOf(3f), build(map, mixed, r1M = 50_000.0).lines.map { it.widthDp })
         assertEquals(listOf(1.5f, 3f), build(map, mixed, r1M = 25_000.0).lines.map { it.widthDp })
         // ほかのレイヤの種類（rtt と同じ 15 の値でも）は飛ばさない（河川・湖沼の項目で描く）
@@ -380,7 +380,7 @@ class BaseMapBuilderTest {
         assertEquals(listOf(1.5f, 1.5f, 3f), all.map { it.widthDp })
         assertEquals(MapItem.OTHER_MOTORWAY, BaseMapBuilder.roadItem(RoadKind.OTHER_MOTORWAY))
         // 縮尺も別に選べる
-        assertEquals(listOf(Ink.MAP_MOTORWAY), build(map, mapOf(MapItem.MOTORWAY to MapRange.ALL, MapItem.OTHER_MOTORWAY to MapRange.UPTO_10KM), r1M = 25_000.0).lines.map { it.ink })
+        assertEquals(listOf(Ink.MAP_MOTORWAY), build(map, mapOf(MapItem.MOTORWAY to MapRange.UPTO_100KM, MapItem.OTHER_MOTORWAY to MapRange.UPTO_10KM), r1M = 25_000.0).lines.map { it.ink })
     }
 
     @Test
@@ -439,10 +439,13 @@ class BaseMapBuilderTest {
             assertEquals(f.last(), BaseMapBuilder.factor(f, 9))
             assertEquals(f.first(), BaseMapBuilder.factor(f, 0))
         }
-        // 空港は飛行機の記号（塗りと黒のふち。形は Canvas が描く）。この空港は小さい空港（種類 0）なので Tuning.BASEMAP_AIRPORT_SMALL_MARK_DP（11dp。民間（大）は 20dp・軍用（大）は 16dp。縮尺によらない）
+        // 空港は飛行機の記号（塗りと黒のふち。形は Canvas が描く）。この空港は小さい空港（種類 0）なので Tuning.BASEMAP_AIRPORT_SMALL_MARK_DP（11dp。民間（大）は 17dp・軍用（大）は 16dp。縮尺によらない）
         val plane = d.marks.single()
         assertEquals(Ink.MAP_AIRPORT, plane.ink)
-        assertEquals(20f, Tuning.BASEMAP_AIRPORT_CIVIL_LARGE_MARK_DP)
+        assertEquals(17f, Tuning.BASEMAP_AIRPORT_CIVIL_LARGE_MARK_DP)
+        // 民間（大）は軍用（大）より大きいまま。丸い輪も記号に合わせて半径 12dp（20261024-D05。前は 14dp）
+        assertTrue(Tuning.BASEMAP_AIRPORT_CIVIL_LARGE_MARK_DP > Tuning.BASEMAP_AIRPORT_MIL_LARGE_MARK_DP)
+        assertEquals(12f, Tuning.BASEMAP_AIRPORT_RING_RADIUS_DP)
         assertEquals(16f, Tuning.BASEMAP_AIRPORT_MIL_LARGE_MARK_DP)
         assertEquals(11f, Tuning.BASEMAP_AIRPORT_SMALL_MARK_DP)
         assertEquals(Tuning.BASEMAP_AIRPORT_SMALL_MARK_DP, plane.sizeDp)
@@ -520,7 +523,7 @@ class BaseMapBuilderTest {
         assertEquals(listOf(Ink.MAP_NATIONAL_ROAD), on.baseMap.map { it.ink })
         assertEquals(1, on.baseMapMarks.size)
         // 項目を足すと描く（海岸線と県境）。空港を OFF にすると描かない
-        val more = HudSceneBuilder.build(state(NavSettings().withMapRange(MapItem.COASTLINE, MapRange.ALL).withMapRange(MapItem.PREF_BOUNDARY, MapRange.UPTO_10KM)), rect, baseMap = map)
+        val more = HudSceneBuilder.build(state(NavSettings().withMapRange(MapItem.COASTLINE, MapRange.UPTO_100KM).withMapRange(MapItem.PREF_BOUNDARY, MapRange.UPTO_10KM)), rect, baseMap = map)
         assertEquals(listOf(Ink.COASTLINE, Ink.PREF_BOUNDARY, Ink.MAP_NATIONAL_ROAD), more.baseMap.map { it.ink })
         assertTrue(HudSceneBuilder.build(state(NavSettings().withLandmarkRange(LandmarkItem.AIRPORT_CIVIL_SMALL, MapRange.OFF)), rect, baseMap = map).baseMapMarks.isEmpty())
         // 背景地図を OFF にすると、選んだ線の項目によらず線は全部描かない。ランドマークは描く（20261021-D04）
@@ -549,6 +552,6 @@ class BaseMapBuilderTest {
         val prefMap = BaseMap(listOf(road(RoadKind.SECONDARY, -300.0 to -300.0, 300.0 to 300.0)))
         assertTrue(HudSceneBuilder.build(state(), rect, baseMap = prefMap).baseMap.isEmpty())
         assertEquals(1, HudSceneBuilder.build(state(NavSettings().withMapRange(MapItem.PREF_ROAD, MapRange.UPTO_10KM)), rect, baseMap = prefMap).baseMap.size)
-        assertEquals(listOf(Ink.COASTLINE), HudSceneBuilder.build(state(NavSettings(mapItems = mapOf(MapItem.COASTLINE to MapRange.ALL, MapItem.PREF_BOUNDARY to MapRange.OFF))), rect, baseMap = map).baseMap.map { it.ink })
+        assertEquals(listOf(Ink.COASTLINE), HudSceneBuilder.build(state(NavSettings(mapItems = mapOf(MapItem.COASTLINE to MapRange.UPTO_100KM, MapItem.PREF_BOUNDARY to MapRange.OFF))), rect, baseMap = map).baseMap.map { it.ink })
     }
 }

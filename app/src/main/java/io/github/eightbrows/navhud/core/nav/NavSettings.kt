@@ -183,24 +183,24 @@ data class NavSettings(
 
     /**
      * OFF でない項目が使うファイルのレイヤ（使うときに開くレイヤ。BaseMap.preload）。点のレイヤは読み込みのときに全部読むので入れない。
-     * 空港の敷地・滑走路（線のレイヤ）は、ランドマークのその項目が OFF でなければ入れる（背景地図のスイッチによらない。20261022-D01・20261024-D04）
+     * 空港の敷地・滑走路・滑走路の延長線（線のレイヤ）は、ランドマークのその項目が OFF でなければ入れる（背景地図のスイッチによらない。20261022-D01・20261024-D04・D05）
      */
     fun mapLayersInUse(): Set<MapLayer> =
         MapItem.entries.filter { mapRangeOf(it) != MapRange.OFF }.flatMap { it.layers }.toSet() +
-            listOf(LandmarkItem.AIRPORT_AREA, LandmarkItem.RUNWAY).filter { landmarkRangeOf(it) != MapRange.OFF }.map { it.layer }
+            listOf(LandmarkItem.AIRPORT_AREA, LandmarkItem.RUNWAY, LandmarkItem.RUNWAY_EXT).filter { landmarkRangeOf(it) != MapRange.OFF }.map { it.layer }
 
     companion object {
-        /** 背景地図の項目の初期値（仮）: 高速道路・国道は「すべて」、ほかは OFF（20261021-D01） */
+        /** 背景地図の項目の初期値（仮）: 高速道路・国道は「〜100k」（20261024-D05 より前は「すべて」。意味は同じ）、ほかは OFF（20261021-D01） */
         val DEFAULT_MAP_ITEMS: Map<MapItem, MapRange> = MapItem.entries.associateWith {
-            if (it in setOf(MapItem.MOTORWAY, MapItem.NATIONAL_ROAD)) MapRange.ALL else MapRange.OFF
+            if (it in setOf(MapItem.MOTORWAY, MapItem.NATIONAL_ROAD)) MapRange.UPTO_100KM else MapRange.OFF
         }
         /** ランドマークの初期値（仮）: 4 項目とも「すべて」（20261021-D04） */
         val DEFAULT_LANDMARKS: Map<LandmarkItem, MapRange> = LandmarkItem.entries.associateWith {
-            // 20261022-D01: 空港の敷地は「〜10k」、空港の略号は「〜25k」、ほかは「すべて」（仮）
+            // 20261022-D01: 空港の敷地は「〜10k」、空港の略号は「〜25k」、ほかは「すべて」（20261024-D05 から「〜100k」。滑走路の延長線もここ。仮）
             when (it) {
                 LandmarkItem.AIRPORT_AREA -> MapRange.UPTO_10KM
                 LandmarkItem.AIRPORT_CODE -> MapRange.UPTO_25KM
-                else -> MapRange.ALL
+                else -> MapRange.UPTO_100KM
             }
         }
         /** 背景地図の線の太さ・明るさの段（1〜6。1 がいちばん細い・暗い） */

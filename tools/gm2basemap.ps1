@@ -25,6 +25,7 @@
            「○○空港（△△地区）」のように、ほかの空港の一部の地区の面（滑走路の長さもその空港と同じ）は、記号は入れない（面は入れる）
     線  26 空港の敷地（国土数値情報 C28 の空港の面。供用中だけ。20261022-D01）… 塗るので、外の輪と穴を線として入れ、64 点ずつに分けない
     線  27 滑走路（OurAirports の runways.csv。地図に出す空港の、両端の座標がある閉じていない滑走路を 2 点の線で。段の全部に入れる。20261024-D04）
+           … 端が国土数値情報の敷地の面から $RunwayMaxOutsideM より外にある滑走路は入れない（20261024-D05）
            … 種類 = 幅の段（幅 ÷ 5 m）× 4 ＋ 空港の種類（0x01 = 大、0x02 = OurAirports だけ）
         25 山頂（地球地図ではなく、国土地理院「日本の主な山岳標高一覧（1003山）」の CSV。20261021-D02）… 名前（山名）も入れる。
            種類 = 標高 ÷ 50 m（下の 7 ビット）＋ 目印になる山の印 0x80（下の $PeakLandmarkMinM・$PeakLandmarkMinIsoKm）
@@ -776,8 +777,10 @@ foreach ($o in $oaCand) {
 # 滑走路（20261024-D04）: 地図に記号を出す空港（民間・軍用）の、OurAirports の runways.csv の滑走路（閉じた滑走路は除く）。
 #   両端の座標（le_ / he_latitude_deg・longitude_deg）がそろっているものだけ、両端を結ぶ 2 点の線として入れる（レイヤ 27。段の全部に入れる）。
 #   種類 = 幅の段（幅 [m] ÷ RunwayWidthStepM を四捨五入。0〜63。幅が分からなければ 0）× 4 ＋ 空港の種類（0x01 = 大、0x02 = OurAirports だけ）。
-#   国土数値情報の空港は、両端が敷地の面（C28 の面。同じ C28_101）の中にあるかを調べる（レポート用。ずれていても入れる）
+#   国土数値情報の空港は、両端が敷地の面（C28 の面。同じ C28_101）の中にあるかを調べる。20261024-D05 から、どちらかの端が面から
+#   RunwayMaxOutsideM より外にある滑走路は、座標が怪しいので入れない（敷地の面がない軍用の飛行場は調べずに入れる。長さが合わないだけなら入れる）
 $RunwayWidthStepM = 5
+$RunwayMaxOutsideM = 50
 $rwAirports = [System.Collections.Generic.List[object]]::new()
 foreach ($s in $ksj) {
   $cls = AirportClass $s.RunwayM
@@ -811,7 +814,7 @@ $rwReport = [System.Collections.Generic.List[object]]::new()
 foreach ($a in $rwAirports) {
   $rwList = if ($rwByAp.ContainsKey($a.OaId)) { $rwByAp[$a.OaId] } else { @() }
   if (@($rwList).Count -eq 0) {
-    $rwReport.Add([pscustomobject]@{ code = $a.Code; name = $a.Name; kind = $a.Kind; ident = ''; lengthM = ''; widthM = ''; surface = ''; lighted = ''; ends = 'none'; calcM = ''; leDistM = ''; heDistM = ''; drawn = $false })
+    $rwReport.Add([pscustomobject]@{ code = $a.Code; name = $a.Name; kind = $a.Kind; ident = ''; lengthM = ''; widthM = ''; surface = ''; lighted = ''; ends = 'none'; calcM = ''; leDistM = ''; heDistM = ''; outside = $false; drawn = $false })
     continue
   }
   foreach ($rw in $rwList) {
@@ -819,23 +822,24 @@ foreach ($a in $rwAirports) {
     $some = $rw.le_latitude_deg -or $rw.he_latitude_deg
     $wM = if ($rw.width_ft -match '^\d+(\.\d+)?$') { [double]$rw.width_ft * 0.3048 } else { $null }
     $lM = if ($rw.length_ft -match '^\d+(\.\d+)?$') { [double]$rw.length_ft * 0.3048 } else { $null }
-    $calc = ''; $leD = ''; $heD = ''
+    $calc = ''; $leD = ''; $heD = ''; $outside = $false
     if ($has) {
       $la1 = [double]$rw.le_latitude_deg; $lo1 = [double]$rw.le_longitude_deg; $la2 = [double]$rw.he_latitude_deg; $lo2 = [double]$rw.he_longitude_deg
       $calc = [math]::Round((KmBetween $la1 $lo1 $la2 $lo2) * 1000)
       if ($a.KsjId -and $apPolys.ContainsKey($a.KsjId)) {
         $leD = [math]::Round([Gm]::DistToPolysM($apPolys[$a.KsjId], $lo1, $la1)); $heD = [math]::Round([Gm]::DistToPolysM($apPolys[$a.KsjId], $lo2, $la2))
+        $outside = [math]::Max($leD, $heD) -gt $RunwayMaxOutsideM
       }
       $wq = if ($null -eq $wM) { 0 } else { [math]::Min(63, [int][math]::Round($wM / $RunwayWidthStepM)) }
-      $rwLineObjs.Add(@{ Lat = [int[]]@([int][math]::Round($la1 * $Unit), [int][math]::Round($la2 * $Unit)); Lon = [int[]]@([int][math]::Round($lo1 * $Unit), [int][math]::Round($lo2 * $Unit)); Kind = [int](($wq -shl 2) -bor $a.Kind) })
+      if (-not $outside) { $rwLineObjs.Add(@{ Lat = [int[]]@([int][math]::Round($la1 * $Unit), [int][math]::Round($la2 * $Unit)); Lon = [int[]]@([int][math]::Round($lo1 * $Unit), [int][math]::Round($lo2 * $Unit)); Kind = [int](($wq -shl 2) -bor $a.Kind) }) }
     }
     $rwReport.Add([pscustomobject]@{ code = $a.Code; name = $a.Name; kind = $a.Kind; ident = "$($rw.le_ident)/$($rw.he_ident)"; lengthM = $(if ($null -ne $lM) { [math]::Round($lM) } else { '' })
       widthM = $(if ($null -ne $wM) { [math]::Round($wM) } else { '' }); surface = $rw.surface; lighted = $rw.lighted
-      ends = $(if ($has) { 'both' } elseif ($some) { 'one' } else { 'none' }); calcM = $calc; leDistM = $leD; heDistM = $heD; drawn = [bool]$has })
+      ends = $(if ($has) { 'both' } elseif ($some) { 'one' } else { 'none' }); calcM = $calc; leDistM = $leD; heDistM = $heD; outside = $outside; drawn = ([bool]$has -and -not $outside) })
   }
 }
 $rwSorted = $rwLineObjs | Sort-Object { [math]::Floor($_.Lat[0] / ($Unit / 10)) }, { $_.Lon[0] }
-"滑走路: $($rwLineObjs.Count) 本を入れる（$($rwAirports.Count) の空港・閉じていない滑走路 $(@($rwReport | Where-Object ident).Count) 本のうち、両端の座標があるもの）" | Write-Host
+"滑走路: $($rwLineObjs.Count) 本を入れる（$($rwAirports.Count) の空港・閉じていない滑走路 $(@($rwReport | Where-Object ident).Count) 本のうち、両端の座標があり、端が敷地の面から $RunwayMaxOutsideM m 以内のもの。外して $(@($rwReport | Where-Object outside).Count) 本）" | Write-Host
 
 # 読む（レイヤごとに、線の部分（単位の整数）と点）
 $data = foreach ($layer in $Layers) {

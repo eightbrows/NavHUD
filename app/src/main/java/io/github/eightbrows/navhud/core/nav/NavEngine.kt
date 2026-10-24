@@ -71,6 +71,15 @@ class NavEngine(
 
     /** 位置がないときの地図の中心（NavState.idleCenter。20261024-D04） */
     private var idleCenter: Pair<Double, Double>? = null
+
+    /**
+     * 位置がまだないあいだの縮尺（Tuning.IDLE_RANGE_KM。20261024-D05）にする前の段。null なら、位置がないあいだの縮尺ではない。
+     * 最初の位置が来たら（PAN 中なら PAN が終わったら）、AUTO なら AUTO が待たずに決め、AUTO が OFF ならこの段に戻す
+     */
+    private var rangeBeforeIdle: Double? = null
+
+    /** ＋ / − ・ピンチ・ダブルタップで AUTO をそのままにするか: PAN 中と、位置がまだないあいだ（20261024-D05） */
+    private val keepAuto: Boolean get() = pan != null || rangeBeforeIdle != null
     /**
      * AUTO の待機を始める（次の recompute で、そこから設定の秒数のあいだ段を動かさない）。到達した WP を通り過ぎたとき、
      * 真横通過・手動で到達にしたとき、手動で未到達に戻したとき
@@ -89,6 +98,7 @@ class NavEngine(
         ingest(fix)
         this.nowMs = nowMs
         lastFixAtMs = nowMs
+        if (pan == null) leaveIdleRange()
         return recompute()
     }
 
@@ -99,6 +109,7 @@ class NavEngine(
         fixes.forEach(::ingest)
         this.nowMs = nowMs
         if (fixes.isNotEmpty()) lastFixAtMs = nowMs
+        if (pan == null) leaveIdleRange()
         return recompute()
     }
 
@@ -165,23 +176,42 @@ class NavEngine(
 
     /**
      * PAN: 指を (dxPx, dyPx) 動かした分、地図を動かす。PAN でなければ、今の表示枠の中心から始める
-     * （ARC は今の機首方位で向きを固定）。PAN 中は縮尺の AUTO を止める。画面の大きさが分からない・Fix がないときは何もしない。
+     * （ARC は今の機首方位で向きを固定）。PAN 中は縮尺の AUTO を止める。画面の大きさが分からないときは何もしない。
+     * Fix がないときは、位置がないときの地図の中心（idleCenter）から始める（20261024-D05。前は何もしなかった）
      */
     fun panBy(dxPx: Float, dyPx: Float): NavState {
         val vp = viewport ?: return state
-        val current = pan ?: run {
-            val fix = lastFix ?: return state
-            val offset = vp.frameCenterOffset(rangeSelector.rangeM, state.heading.deg?.toDouble(), settings)
-            Pan.start(fix.lat, fix.lon, offset, panUpDeg())
-        }
+        val current = pan ?: startPan(vp) ?: return state
         pan = Pan.drag(current, dxPx, dyPx, vp.pxPerM(rangeSelector.rangeM, settings))
         return recompute()
     }
 
-    /** 位置（Fix）がないときに地図の中心にする地点（前回の位置か皇居。20261024-D04）。位置が来れば自機の位置に移る */
+    /** 今の表示で表示枠の中心にある地点から PAN を始める。基準は自機、位置がなければ idleCenter（20261024-D05）。どちらもなければ null */
+    private fun startPan(vp: MapViewport): PanView? {
+        val (lat, lon) = lastFix?.let { it.lat to it.lon } ?: idleCenter ?: return null
+        val offset = vp.frameCenterOffset(rangeSelector.rangeM, state.heading.deg?.toDouble(), settings)
+        return Pan.start(lat, lon, offset, panUpDeg())
+    }
+
+    /**
+     * 位置（Fix）がないときに地図の中心にする地点（前回の位置か皇居。20261024-D04）。位置が来れば自機の位置に移る。
+     * まだ位置が来ていなければ、縮尺を Tuning.IDLE_RANGE_KM（R1 10 km）にする（20261024-D05。AUTO はそのまま）
+     */
     fun setIdleCenter(lat: Double, lon: Double): NavState {
         idleCenter = lat to lon
+        if (lastFix == null && rangeBeforeIdle == null) {
+            rangeBeforeIdle = rangeSelector.rangeM
+            rangeSelector.setRange(Tuning.IDLE_RANGE_KM * 1000)
+        }
         return recompute()
+    }
+
+    /** 位置がまだないあいだの縮尺をやめる（最初の位置が来たとき。PAN 中なら PAN が終わったとき）。AUTO なら待たずに決め直す */
+    private fun leaveIdleRange() {
+        val before = rangeBeforeIdle ?: return
+        if (lastFix == null) return
+        rangeBeforeIdle = null
+        if (rangeSelector.auto) rangeSelector.decideNow() else rangeSelector.setRange(before)
     }
 
     /** PAN: 地点 (lat, lon) を表示枠の中心にする（WP ボタンの長押し）。向きは PAN 中ならそのまま。 */
@@ -190,10 +220,14 @@ class NavEngine(
         return recompute()
     }
 
-    /** PAN をやめて現在地の表示に戻る。AUTO が ON なら、待たずに縮尺を決め直す。 */
+    /**
+     * PAN をやめて現在地の表示に戻る。AUTO が ON なら、待たずに縮尺を決め直す。
+     * PAN 中に最初の位置が来ていたら、位置がないあいだの縮尺もここでやめる（20261024-D05）。位置がまだなければ、idleCenter の表示に戻る
+     */
     fun endPan(): NavState {
         if (pan != null) rangeSelector.decideNow()
         pan = null
+        leaveIdleRange()
         return recompute()
     }
 
@@ -202,25 +236,22 @@ class NavEngine(
 
     /** 縮尺の ＋（1段詳細へ）。AUTO は OFF（PAN 中は AUTO をそのままにし、現在地に戻ったら AUTO が決め直す）。 */
     fun zoomIn(): NavState {
-        rangeSelector.zoomIn(keepAuto = pan != null)
+        rangeSelector.zoomIn(keepAuto = keepAuto)
         return recompute()
     }
 
     /**
      * 地図のダブルタップ（20261023-D02）: 画面の (xPx, yPx) を基準に 1段詳細にする。タップした地点が指の下に残るよう、PAN にして中心を寄せる。
      * AUTO の扱いは ＋ と同じ（PAN でなければ OFF、PAN 中はそのまま）。いちばん詳細な段なら何もしない（PAN にもしない）。
-     * PAN でなく、画面の大きさが分からない・Fix がないときも何もしない（panBy と同じ）
+     * PAN でなく、画面の大きさが分からないときも何もしない（panBy と同じ）。Fix がないときは idleCenter から PAN にする（20261024-D05）
      */
     fun zoomInAt(xPx: Float, yPx: Float): NavState {
         if (!rangeSelector.canZoomIn) return state
         val vp = viewport ?: return state
-        val current = pan ?: run {
-            val fix = lastFix ?: return state
-            val offset = vp.frameCenterOffset(rangeSelector.rangeM, state.heading.deg?.toDouble(), settings)
-            Pan.start(fix.lat, fix.lon, offset, panUpDeg())
-        }
+        val keep = keepAuto
+        val current = pan ?: startPan(vp) ?: return state
         val before = vp.pxPerM(rangeSelector.rangeM, settings)
-        rangeSelector.zoomIn(keepAuto = pan != null)
+        rangeSelector.zoomIn(keepAuto = keep)
         val after = vp.pxPerM(rangeSelector.rangeM, settings)
         val (cx, cy) = vp.panCenterPx()
         pan = Pan.zoomAbout(current, xPx - cx, yPx - cy, before, after)
@@ -229,7 +260,7 @@ class NavEngine(
 
     /** 縮尺の −（1段広域へ）。AUTO は OFF（PAN 中は ＋ と同じ）。 */
     fun zoomOut(): NavState {
-        rangeSelector.zoomOut(keepAuto = pan != null)
+        rangeSelector.zoomOut(keepAuto = keepAuto)
         return recompute()
     }
 
@@ -238,7 +269,7 @@ class NavEngine(
      * 20261024-D04 から、使う段に入れていない段も含めた全段（R1 25 m〜100 km）を 1 段ずつ動く（＋ / − とダブルタップは使う段だけ）
      */
     fun zoomBy(steps: Int): NavState {
-        repeat(kotlin.math.abs(steps)) { rangeSelector.pinchStep(inward = steps > 0, keepAuto = pan != null) }
+        repeat(kotlin.math.abs(steps)) { rangeSelector.pinchStep(inward = steps > 0, keepAuto = keepAuto) }
         return recompute()
     }
 
@@ -455,6 +486,8 @@ class NavEngine(
         val rangeM = when {
             // PAN 中は AUTO を止める（＋ / − は効く）
             pan != null -> rangeSelector.also { it.restartWait() }.rangeM
+            // 位置がまだないあいだ（前回の位置か皇居を中心にしている）: R1 10 km か、そこから ＋ / − ・ピンチで変えた段（20261024-D05）
+            rangeBeforeIdle != null -> rangeSelector.rangeM
             now == null -> rangeSelector.rangeM
             // 次の WP がない: 詳細の限度〜広域の限度の中央の段
             next == null -> rangeSelector.update(null, now)

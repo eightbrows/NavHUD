@@ -18,6 +18,12 @@ object Tuning {
     const val LAST_POSITION_SAVE_MIN_MS = 30_000L
     const val LAST_POSITION_SAVE_MIN_M = 100.0
 
+    /**
+     * 位置がまだないとき（前回の位置か皇居を中心にしているあいだ）の縮尺 [km]（20261024-D05）: 20 km（R1 10 km）。
+     * 位置が来たら、今までどおりの縮尺（AUTO なら AUTO が決める。AUTO が OFF なら起動したときの段）に移る
+     */
+    const val IDLE_RANGE_KM = 20.0
+
     // ---- 方位・コンパス（§5.2・§6.8） ----
 
     /** コンパスの平滑化の係数（新しい値の重み。単位ベクトルの指数平滑） */
@@ -213,16 +219,19 @@ object Tuning {
 
     /**
      * 背景地図の空港の記号の大きさ（翼の端から端まで。機首から尾までもほぼ同じ）[dp]。画面上の大きさは縮尺・線の太さの段によらず同じ。
-     * 民間（大）は塗りつぶしで 20dp、軍用（大）は白抜きで 16dp（20261024-D01。前は大 16dp。仮）
+     * 民間（大）は塗りつぶしで 17dp、軍用（大）は白抜きで 16dp（20261024-D01。前は大 16dp。20261024-D05 で民間（大）を 20dp → 17dp。仮）
      */
-    const val BASEMAP_AIRPORT_CIVIL_LARGE_MARK_DP = 20f
+    const val BASEMAP_AIRPORT_CIVIL_LARGE_MARK_DP = 17f
     const val BASEMAP_AIRPORT_MIL_LARGE_MARK_DP = 16f
 
     /** 小さい空港（いちばん長い滑走路が 2,000 m 未満）の飛行機の記号の大きさ [dp]。民間・軍用とも（20261022-D01。仮） */
     const val BASEMAP_AIRPORT_SMALL_MARK_DP = 11f
 
-    /** 民間（大）の空港の記号のまわりの丸い輪: 半径と線の太さ [dp]（20261024-D01。仮）。外側に黒のふち（BASEMAP_AIRPORT_OUTLINE_DP） */
-    const val BASEMAP_AIRPORT_RING_RADIUS_DP = 14f
+    /**
+     * 民間（大）の空港の記号のまわりの丸い輪: 半径と線の太さ [dp]（20261024-D01。仮）。外側に黒のふち（BASEMAP_AIRPORT_OUTLINE_DP）。
+     * 20261024-D05 で記号に合わせて半径 14dp → 12dp（記号の幅との比はほぼ同じ）
+     */
+    const val BASEMAP_AIRPORT_RING_RADIUS_DP = 12f
     const val BASEMAP_AIRPORT_RING_LINE_DP = 1.2f
 
     /** 軍用の空港の白抜きの飛行機の輪郭の線の太さ [dp]（20261024-D01。仮）。内側は背景の黒で塗り、外側に黒のふち。形は胴体・翼を太くした飛行機（HudCanvas） */
@@ -231,15 +240,19 @@ object Tuning {
     /**
      * 滑走路（20261024-D04。仮）: 線の太さは実際の幅（OurAirports の width_ft）を今の縮尺で直した太さ。ただし BASEMAP_RUNWAY_MIN_DP より細くしない
      * （広域では細い実線になる。幅が分からない滑走路もこの太さ）。両端の先に、画面上の長さ BASEMAP_RUNWAY_EXT_DP の破線の延長線
-     * （太さ BASEMAP_RUNWAY_EXT_LINE_DP、BASEMAP_RUNWAY_EXT_DASH_DP 描いて同じだけ空ける）を描く（どの縮尺でも滑走路の向きが分かるように）
+     * （太さ BASEMAP_RUNWAY_EXT_LINE_DP、BASEMAP_RUNWAY_EXT_DASH_DP 描いて同じだけ空ける）を描く（どの縮尺でも滑走路の向きが分かるように）。
+     * 20261024-D05 で延長線を 20dp → 40dp、太さを 1dp → 1.5dp にした
      */
     const val BASEMAP_RUNWAY_MIN_DP = 1.5f
-    const val BASEMAP_RUNWAY_EXT_DP = 20f
-    const val BASEMAP_RUNWAY_EXT_LINE_DP = 1f
+    const val BASEMAP_RUNWAY_EXT_DP = 40f
+    const val BASEMAP_RUNWAY_EXT_LINE_DP = 1.5f
     const val BASEMAP_RUNWAY_EXT_DASH_DP = 3f
 
-    /** 設定画面（20261024-D04。仮）: 初期値のボタンの塗りの明るさ（テーマの色に掛ける）と、スライダーの初期値の位置の目盛りの●の直径 [dp] */
-    const val SETTINGS_DEFAULT_FILL_FACTOR = 0.75f
+    /**
+     * 設定画面（20261024-D04。仮）: 初期値のボタンの塗りの明るさ（テーマの色に掛ける）と、スライダーの初期値の位置の目盛りの●の直径 [dp]。
+     * 塗りは 20261024-D05 で 0.75 → 0.6（もう 1 段控えめに）
+     */
+    const val SETTINGS_DEFAULT_FILL_FACTOR = 0.6f
     const val SETTINGS_SLIDER_DEFAULT_DOT_DP = 8f
 
     /** 空港の ICAO の略号の文字の大きさ [sp]。画面上の大きさは縮尺によらず同じ（20261022-D01。仮） */

@@ -8,7 +8,9 @@ import io.github.eightbrows.navhud.core.io.PeakKind
 
 /**
  * 背景地図（§8）の項目を、どの縮尺まで描くか。R1（自機から 1 つ目の距離環の距離）がこの値以下のときに描く。
- * OFF は描かない、ALL はどの縮尺でも描く。UPTO_5KM は 20261024-D04 で足した（保存の名前は変えていないので、前の保存もそのまま読める）。
+ * OFF は描かない。UPTO_5KM は 20261024-D04 で足した（保存の名前は変えていないので、前の保存もそのまま読める）。
+ * UPTO_100KM は 20261024-D05 で「すべて」（ALL）を置き換えた。いちばん広域の段が R1 100 km なので、意味は前の ALL と同じ。
+ * 前の保存の ALL は UPTO_100KM として読む（[fromSavedName]）
  */
 enum class MapRange(val maxR1Km: Double?) {
     OFF(null),
@@ -16,10 +18,16 @@ enum class MapRange(val maxR1Km: Double?) {
     UPTO_10KM(10.0),
     UPTO_25KM(25.0),
     UPTO_50KM(50.0),
-    ALL(Double.POSITIVE_INFINITY);
+    UPTO_100KM(100.0);
 
     /** R1 [m] のときに描くか（段の値ちょうどは描く） */
     fun shows(r1M: Double): Boolean = maxR1Km != null && r1M <= maxR1Km * 1000.0 + 1e-6
+
+    companion object {
+        /** 保存の名前から読む。20261024-D05 より前の ALL は UPTO_100KM（どの縮尺でも描く。意味は同じ）。読めない名前は null */
+        fun fromSavedName(name: String): MapRange? =
+            if (name == "ALL") UPTO_100KM else entries.firstOrNull { it.name == name }
+    }
 }
 
 /**
@@ -53,7 +61,8 @@ enum class MapItem(val layers: Set<MapLayer>) {
  *   （大小はいちばん長い滑走路が 2,000 m 以上が大。AirportKind.LARGE）
  * - 空港の敷地: 空港の面を半透明で塗る（MapLayer.AIRPORT_AREA）
  * - 空港の略号: ICAO の略号の文字（空港の記号の右上）。記号が出ている空港にだけ出す（20261024-D01。前は記号が OFF でも出せた）
- * - 滑走路: 両端の座標がある滑走路の線と、両端の先の破線の延長線（MapLayer.RUNWAY。20261024-D04）。記号が出ている空港の滑走路だけ描く
+ * - 滑走路: 両端の座標がある滑走路の線（太さは実際の幅。MapLayer.RUNWAY。20261024-D04）。記号が出ている空港の滑走路だけ描く
+ * - 滑走路の延長線: 滑走路の両端の先の破線（20261024-D05 で滑走路と分けた）。記号が出ている空港の滑走路だけ描く
  * - 山頂（高）: 目印になる山（PeakKind.isLandmark）のうち、標高 Tuning.BASEMAP_PEAK_HIGH_M（1,500 m）以上
  * - 山頂（中）: 目印になる山のうち、それ未満
  * - 山頂（低）: 目印になりにくい山
@@ -66,6 +75,7 @@ enum class LandmarkItem(val layer: MapLayer) {
     AIRPORT_AREA(MapLayer.AIRPORT_AREA),
     AIRPORT_CODE(MapLayer.AIRPORT),
     RUNWAY(MapLayer.RUNWAY),
+    RUNWAY_EXT(MapLayer.RUNWAY),
     PEAK_HIGH(MapLayer.PEAK),
     PEAK_MID(MapLayer.PEAK),
     PEAK_LOW(MapLayer.PEAK);

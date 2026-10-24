@@ -47,7 +47,7 @@ class BaseMapSampleTest {
         // サンプルの記録の 10 か所（等間隔）で
         val at = (0 until 10).map { fixes[it * (fixes.size - 1) / 9] }
         val out = StringBuilder("layers,r1,mode,lines,points,marks,mean_ms,max_ms\n")
-        val sets = listOf("default" to NavSettings.DEFAULT_MAP_ITEMS, "all" to MapItem.entries.associateWith { MapRange.ALL })
+        val sets = listOf("default" to NavSettings.DEFAULT_MAP_ITEMS, "all" to MapItem.entries.associateWith { MapRange.UPTO_100KM })
         // 表示の縮尺（R1）は rangeM の半分
         for ((name, layers) in sets) for ((label, r1) in listOf("100km" to 100_000.0, "25km" to 25_000.0, "2.5km" to 2_500.0, "250m" to 250.0)) {
             for (mode in listOf(DisplayMode.ARC, DisplayMode.NORTH_UP)) {

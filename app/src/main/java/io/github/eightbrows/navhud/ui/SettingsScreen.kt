@@ -532,7 +532,7 @@ private val MAP_ITEM_ORDER = listOf(
     MapItem.SHINKANSEN, MapItem.RAILWAY, MapItem.WATER, MapItem.FERRY,
 )
 
-/** 地図レイヤ・ランドマークの項目の選択肢: OFF ／ 〜5k ／ 〜10k ／ 〜25k ／ 〜50k ／ すべて */
+/** 地図レイヤ・ランドマークの項目の選択肢: OFF ／ 〜5k ／ 〜10k ／ 〜25k ／ 〜50k ／ 〜100k（20261024-D05 で「すべて」を置き換えた） */
 @Composable
 private fun mapRangeChoices(): List<Pair<String, MapRange>> = listOf(
     stringResource(R.string.map_range_off) to MapRange.OFF,
@@ -540,7 +540,7 @@ private fun mapRangeChoices(): List<Pair<String, MapRange>> = listOf(
     stringResource(R.string.map_range_10) to MapRange.UPTO_10KM,
     stringResource(R.string.map_range_25) to MapRange.UPTO_25KM,
     stringResource(R.string.map_range_50) to MapRange.UPTO_50KM,
-    stringResource(R.string.map_range_all) to MapRange.ALL,
+    stringResource(R.string.map_range_100) to MapRange.UPTO_100KM,
 )
 
 private fun landmarkLabel(item: LandmarkItem): Int = when (item) {
@@ -551,6 +551,7 @@ private fun landmarkLabel(item: LandmarkItem): Int = when (item) {
     LandmarkItem.AIRPORT_AREA -> R.string.landmark_airport_area
     LandmarkItem.AIRPORT_CODE -> R.string.landmark_airport_code
     LandmarkItem.RUNWAY -> R.string.landmark_runway
+    LandmarkItem.RUNWAY_EXT -> R.string.landmark_runway_ext
     LandmarkItem.PEAK_HIGH -> R.string.landmark_peak_high
     LandmarkItem.PEAK_MID -> R.string.landmark_peak_mid
     LandmarkItem.PEAK_LOW -> R.string.landmark_peak_low

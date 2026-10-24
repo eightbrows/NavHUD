@@ -186,7 +186,7 @@ object SettingsCodec {
             mapItems = d.mapItems + str("mapItems")?.split(',')?.mapNotNull { e ->
                 val (n, v) = e.split(':').takeIf { it.size == 2 } ?: return@mapNotNull null
                 val item = MapItem.entries.firstOrNull { it.name == n.trim() } ?: return@mapNotNull null
-                val range = MapRange.entries.firstOrNull { it.name == v.trim() } ?: return@mapNotNull null
+                val range = MapRange.fromSavedName(v.trim()) ?: return@mapNotNull null
                 item to range
             }.orEmpty(),
             // ランドマーク: 「名前:縮尺」（20261021-D04。20261022-D01 で項目を作り直し、保存の名前を landmarkItems にした）。
@@ -194,7 +194,7 @@ object SettingsCodec {
             landmarks = d.landmarks + str("landmarkItems")?.split(',')?.mapNotNull { e ->
                 val (n, v) = e.split(':').takeIf { it.size == 2 } ?: return@mapNotNull null
                 val item = LandmarkItem.entries.firstOrNull { it.name == n.trim() } ?: return@mapNotNull null
-                val range = MapRange.entries.firstOrNull { it.name == v.trim() } ?: return@mapNotNull null
+                val range = MapRange.fromSavedName(v.trim()) ?: return@mapNotNull null
                 item to range
             }.orEmpty(),
             landmarkBrightness = int("landmarkBrightnessLevel", d.landmarkBrightness).takeIf { it in NavSettings.MAP_LINE_LEVELS } ?: d.landmarkBrightness,
