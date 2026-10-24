@@ -75,8 +75,12 @@ class NavEngine(
     /**
      * 位置がまだないあいだの縮尺（Tuning.IDLE_RANGE_KM。20261024-D05）にする前の段。null なら、位置がないあいだの縮尺ではない。
      * 最初の位置が来たら（PAN 中なら PAN が終わったら）、AUTO なら AUTO が待たずに決め、AUTO が OFF ならこの段に戻す
+     * （20261024-D08: AUTO が OFF で、位置がないあいだに段を変えていたら、戻さずに変えた段のまま）
      */
     private var rangeBeforeIdle: Double? = null
+
+    /** 位置がないあいだに ＋ / − ・ピンチ・ダブルタップで段を変えたか（20261024-D08） */
+    private var idleRangeChanged = false
 
     /** ＋ / − ・ピンチ・ダブルタップで AUTO をそのままにするか: PAN 中と、位置がまだないあいだ（20261024-D05） */
     private val keepAuto: Boolean get() = pan != null || rangeBeforeIdle != null
@@ -201,6 +205,7 @@ class NavEngine(
         idleCenter = lat to lon
         if (lastFix == null && rangeBeforeIdle == null) {
             rangeBeforeIdle = rangeSelector.rangeM
+            idleRangeChanged = false
             rangeSelector.setRange(Tuning.IDLE_RANGE_KM * 1000)
         }
         return recompute()
@@ -211,7 +216,21 @@ class NavEngine(
         val before = rangeBeforeIdle ?: return
         if (lastFix == null) return
         rangeBeforeIdle = null
-        if (rangeSelector.auto) rangeSelector.decideNow() else rangeSelector.setRange(before)
+        val changed = idleRangeChanged
+        idleRangeChanged = false
+        when {
+            rangeSelector.auto -> rangeSelector.decideNow()
+            // AUTO が OFF: 位置がないあいだに段を変えていたら、その段のまま。変えていなければ起動したときの段に戻す（20261024-D08）
+            changed -> Unit
+            else -> rangeSelector.setRange(before)
+        }
+    }
+
+    /** 縮尺を変える操作。位置がないあいだに段が変わったら覚えておく（20261024-D08） */
+    private inline fun changeRange(action: () -> Unit) {
+        val before = rangeSelector.rangeM
+        action()
+        if (rangeBeforeIdle != null && rangeSelector.rangeM != before) idleRangeChanged = true
     }
 
     /** PAN: 地点 (lat, lon) を表示枠の中心にする（WP ボタンの長押し）。向きは PAN 中ならそのまま。 */
@@ -236,7 +255,7 @@ class NavEngine(
 
     /** 縮尺の ＋（1段詳細へ）。AUTO は OFF（PAN 中は AUTO をそのままにし、現在地に戻ったら AUTO が決め直す）。 */
     fun zoomIn(): NavState {
-        rangeSelector.zoomIn(keepAuto = keepAuto)
+        changeRange { rangeSelector.zoomIn(keepAuto = keepAuto) }
         return recompute()
     }
 
@@ -251,7 +270,7 @@ class NavEngine(
         val keep = keepAuto
         val current = pan ?: startPan(vp) ?: return state
         val before = vp.pxPerM(rangeSelector.rangeM, settings)
-        rangeSelector.zoomIn(keepAuto = keep)
+        changeRange { rangeSelector.zoomIn(keepAuto = keep) }
         val after = vp.pxPerM(rangeSelector.rangeM, settings)
         val (cx, cy) = vp.panCenterPx()
         pan = Pan.zoomAbout(current, xPx - cx, yPx - cy, before, after)
@@ -260,7 +279,7 @@ class NavEngine(
 
     /** 縮尺の −（1段広域へ）。AUTO は OFF（PAN 中は ＋ と同じ）。 */
     fun zoomOut(): NavState {
-        rangeSelector.zoomOut(keepAuto = keepAuto)
+        changeRange { rangeSelector.zoomOut(keepAuto = keepAuto) }
         return recompute()
     }
 
@@ -269,7 +288,7 @@ class NavEngine(
      * 20261024-D04 から、使う段に入れていない段も含めた全段（R1 25 m〜100 km）を 1 段ずつ動く（＋ / − とダブルタップは使う段だけ）
      */
     fun zoomBy(steps: Int): NavState {
-        repeat(kotlin.math.abs(steps)) { rangeSelector.pinchStep(inward = steps > 0, keepAuto = keepAuto) }
+        changeRange { repeat(kotlin.math.abs(steps)) { rangeSelector.pinchStep(inward = steps > 0, keepAuto = keepAuto) } }
         return recompute()
     }
 

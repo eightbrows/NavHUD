@@ -36,6 +36,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.FirstBaseline
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInParent
@@ -618,7 +619,8 @@ private fun Toc(titles: List<String>, onJump: (Int) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(stringResource(R.string.settings_toc), style = RowNote)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            titles.forEachIndexed { i, t -> Chip(t, on = false) { onJump(i) } }
+            val mixed = mixedScripts(titles)
+            titles.forEachIndexed { i, t -> Chip(t, on = false, cjkHeight = mixed) { onJump(i) } }
         }
     }
 }
@@ -735,10 +737,11 @@ private fun <T> Choice(
     compact: Boolean = false,
     onSelect: (T) -> Unit,
 ) {
+    val mixed = mixedScripts(options.map { it.first })
     val buttons: @Composable () -> Unit = {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             for ((text, value) in options) {
-                Chip(text, value == selected, enabled, compact, isDefault = default != null && value == default) { onSelect(value) }
+                Chip(text, value == selected, enabled, compact, isDefault = default != null && value == default, cjkHeight = mixed) { onSelect(value) }
             }
         }
     }
@@ -805,7 +808,12 @@ private val SelectedFrame = 2.5.dp
  * 押せないとき（自動車の固定値・背景地図が OFF）は、塗りと文字をグレー、水色を暗い水色にする
  */
 @Composable
-private fun Chip(text: String, on: Boolean, enabled: Boolean = true, compact: Boolean = false, isDefault: Boolean = false, onClick: () -> Unit) {
+private fun Chip(
+    text: String, on: Boolean, enabled: Boolean = true, compact: Boolean = false, isDefault: Boolean = false,
+    /** 日本語の字体の文字のボタンと同じ並びにあるとき true: 英字だけのボタンも、日本語の字体の文字と同じ高さにする（20261024-D08） */
+    cjkHeight: Boolean = false,
+    onClick: () -> Unit,
+) {
     val shape = RoundedCornerShape(4.dp)
     val c = if (enabled) HudColors.Scale else HudColors.WpReached
     val mark = if (enabled) HudColors.SettingsSelected else HudColors.SettingsSelectedDim
@@ -821,12 +829,37 @@ private fun Chip(text: String, on: Boolean, enabled: Boolean = true, compact: Bo
                 .background(if (isDefault) defaultFill(c) else HudColors.Background, shape)
                 .clickable(enabled = enabled, onClick = onClick)
                 .padding(horizontal = if (compact) 7.dp else 9.dp, vertical = 4.dp),
+            contentAlignment = Alignment.Center,
         ) {
-            Text(text, style = ValueText.copy(color = if (isDefault) HudColors.Background else c, fontSize = if (compact) 12.sp else 13.sp))
+            val style = ValueText.copy(color = if (isDefault) HudColors.Background else c, fontSize = if (compact) 12.sp else 13.sp)
+            // 日本語の画面では、英字だけのボタン（OFF・WP など）が、「〜5k」「小」など日本語の字体の文字を含むボタンより低く、上に寄っていた
+            // （日本語の字体のほうが行が高い）。日本語の字体の行と同じ高さ・同じベースラインに置いて揃える（20261024-D08。英語の並びは英字だけなので変わらない）
+            if (cjkHeight && !hasCjk(text)) CjkLineText(text, style) else Text(text, style = style)
         }
         if (on) SelectedDot(mark, Modifier.align(Alignment.TopEnd).offset(x = 3.dp, y = (-3).dp))
     }
 }
+
+/**
+ * 英字だけの文字を、日本語の字体の文字を含む行と同じ高さ・同じベースラインで描く（20261024-D08）。
+ * 見えない「〜」（日本語の字体で描かれる）を測って、その行の高さとベースラインに合わせる（「〜」は描かない。幅は文字の幅のまま）
+ */
+@Composable
+private fun CjkLineText(text: String, style: TextStyle) {
+    Layout(content = { Text("〜", style = style); Text(text, style = style) }) { measurables, constraints ->
+        val loose = constraints.copy(minWidth = 0, minHeight = 0)
+        val ref = measurables[0].measure(loose)
+        val t = measurables[1].measure(loose)
+        val top = (ref[FirstBaseline] - t[FirstBaseline]).coerceAtLeast(0)
+        layout(t.width, maxOf(ref.height, top + t.height)) { t.placeRelative(0, top) }
+    }
+}
+
+/** 日本語の字体で描く文字（かな・漢字・全角の記号など。U+3000 から）を含むか（20261024-D08） */
+private fun hasCjk(s: String): Boolean = s.any { it >= '　' }
+
+/** 選択肢の並びに、日本語の字体の文字を含むものと含まないものが混ざっているか（20261024-D08） */
+private fun mixedScripts(texts: List<String>): Boolean = texts.any(::hasCjk) && !texts.all(::hasCjk)
 
 /** 設定画面のいちばん上の、ボタンの見た目の説明（「■ 塗り ＝ 初期値　□● 水色の枠 ＝ 選んでいる値」）。見本はボタンと同じ描き方の小さな四角 */
 @Composable

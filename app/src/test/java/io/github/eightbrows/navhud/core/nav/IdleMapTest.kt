@@ -23,6 +23,7 @@ import java.time.ZoneId
 /**
  * 位置がまだないあいだの地図（20261024-D05）: 縮尺は R1 10 km、位置が来たら今までどおりの縮尺に移る。
  * 位置がないときも PAN・ダブルタップ・ピンチが使える（前回の位置・皇居から動かせる）。
+ * 20261024-D08: AUTO が OFF のとき、位置がないあいだに変えた段は、位置が来ても変えた段のまま（変えていなければ起動したときの段）。
  */
 class IdleMapTest {
 
@@ -74,6 +75,69 @@ class IdleMapTest {
         // 位置が来たあとの ＋ は今までどおり AUTO を OFF にする
         e.zoomIn()
         assertEquals(false, e.state.rangeAuto)
+    }
+
+    @Test
+    fun manualRangeChangedWhileIdleIsKeptWhenTheFixArrives() {
+        // AUTO が OFF（起動時の縮尺 2 km）: 位置がないあいだに ＋ で変えた段は、位置が来ても戻さない（20261024-D08）
+        val plus = engine(NavSettings(initialRangeKm = 2.0, autoRange = false))
+        assertEquals(20_000.0, plus.setIdleCenter(lat0, lon0).rangeM, 0.0)
+        assertEquals(10_000.0, plus.zoomIn().rangeM, 0.0)
+        assertEquals(10_000.0, plus.onFix(fix(0), 0).rangeM, 0.0)
+        assertEquals(false, plus.state.rangeAuto)
+        // 時間が進んで次の位置が来ても、そのまま
+        assertEquals(10_000.0, plus.onFix(fix(1_000), 1_000).rangeM, 0.0)
+        // − ・ピンチでも同じ
+        val minus = engine(NavSettings(initialRangeKm = 2.0, autoRange = false)).apply { setIdleCenter(lat0, lon0) }
+        assertEquals(50_000.0, minus.zoomOut().rangeM, 0.0)
+        assertEquals(50_000.0, minus.onFix(fix(0), 0).rangeM, 0.0)
+        val pinch = engine(NavSettings(initialRangeKm = 2.0, autoRange = false)).apply { setIdleCenter(lat0, lon0) }
+        val pinched = pinch.zoomBy(2).rangeM
+        assertTrue(pinched < 20_000.0)
+        assertEquals(pinched, pinch.onFix(fix(0), 0).rangeM, 0.0)
+        // ＋ のあと − で元の段（R1 10 km）に戻した: 段を操作したので、その段（R1 10 km）のまま
+        val back = engine(NavSettings(initialRangeKm = 2.0, autoRange = false)).apply { setIdleCenter(lat0, lon0) }
+        back.zoomIn(); back.zoomOut()
+        assertEquals(20_000.0, back.onFix(fix(0), 0).rangeM, 0.0)
+    }
+
+    @Test
+    fun manualRangeNotChangedWhileIdleGoesBackToTheStartupRange() {
+        // AUTO が OFF で段を変えていなければ、今までどおり起動したときの段（2 km）に戻す
+        val e = engine(NavSettings(initialRangeKm = 2.0, autoRange = false))
+        e.setIdleCenter(lat0, lon0)
+        e.onTick(5_000)
+        assertEquals(2_000.0, e.onFix(fix(5_000), 5_000).rangeM, 0.0)
+        // PAN（ドラッグ）だけで段を変えていなければ、PAN が終わったとき起動したときの段
+        val panOnly = engine(NavSettings(initialRangeKm = 2.0, autoRange = false))
+        panOnly.setIdleCenter(lat0, lon0)
+        panOnly.panBy(-50f, 0f)
+        panOnly.onFix(fix(0), 0)
+        assertEquals(20_000.0, panOnly.state.rangeM, 0.0)
+        assertEquals(2_000.0, panOnly.endPan().rangeM, 0.0)
+    }
+
+    @Test
+    fun doubleTapWhileIdleWithAutoOffIsKeptAfterThePan() {
+        // AUTO が OFF: 位置がないあいだのダブルタップ（PAN になる）で変えた段も、PAN が終わったあと変えた段のまま（20261024-D08）
+        val e = engine(NavSettings(initialRangeKm = 2.0, autoRange = false))
+        e.setIdleCenter(lat0, lon0)
+        e.zoomInAt(300f, 300f)
+        assertEquals(10_000.0, e.state.rangeM, 0.0)
+        e.onFix(fix(0), 0)
+        assertEquals(10_000.0, e.endPan().rangeM, 0.0)
+        assertEquals(false, e.state.rangeAuto)
+    }
+
+    @Test
+    fun autoOnDecidesWhenTheFixArrivesEvenIfTheRangeWasChanged() {
+        // AUTO が ON: 位置がないあいだに段を変えても、位置が来たら待たずに AUTO が決める（今までどおり）
+        val e = engine()
+        e.setIdleCenter(lat0, lon0)
+        e.zoomIn(); e.zoomIn()
+        assertEquals(5_000.0, e.state.rangeM, 0.0)
+        assertEquals(200.0, e.onFix(fix(0), 0).rangeM, 0.0)
+        assertEquals(true, e.state.rangeAuto)
     }
 
     @Test

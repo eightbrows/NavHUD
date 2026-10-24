@@ -264,7 +264,7 @@
     <string name="src_title_ourairports">OurAirports</string>
     <string name="src_org_ourairports">OurAirports（ourairports.com）</string>
     <string name="src_license_ourairports">パブリックドメイン</string>
-    <string name="src_use_ourairports">空港の略号、自衛隊・米軍の飛行場</string>
+    <string name="src_use_ourairports">空港の略号、自衛隊・米軍の飛行場、滑走路</string>
     <string name="about_formats">ファイル形式の説明（PDF）</string>
     <string name="about_links_note">下線の項目は、押すとブラウザで開きます（このアプリ自身は通信しません）。</string>
 

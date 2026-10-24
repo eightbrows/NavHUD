@@ -266,7 +266,7 @@
     <string name="src_title_ourairports">OurAirports</string>
     <string name="src_org_ourairports">OurAirports (ourairports.com)</string>
     <string name="src_license_ourairports">Public domain</string>
-    <string name="src_use_ourairports">Airport codes, SDF and US military airfields</string>
+    <string name="src_use_ourairports">Airport codes, SDF and US military airfields, runways</string>
     <string name="about_formats">File formats (PDF, Japanese)</string>
     <string name="about_links_note">Underlined items open in your browser (this app itself does not use the network).</string>
 
