@@ -102,8 +102,8 @@ data class NavSettings(
     val noFixTimeoutSec: Int = 10,
     /** 標高オフセット [m]。標高 = 楕円体高 − これ（§6.8） */
     val altOffsetM: Double = 36.0,
-    /** 表示モード（§6.1）。初期値は North Up（20261025-D01 で実機の設定に合わせた。前は ARC） */
-    val displayMode: DisplayMode = DisplayMode.NORTH_UP,
+    /** 表示モード（§6.1）。初期値は ARC（20261025-D03 で ARC に戻した。D01・D02 は実機の設定の North Up） */
+    val displayMode: DisplayMode = DisplayMode.ARC,
     /**
      * 使う縮尺の段 [km]（RangeAuto.ALL_STEPS_KM の中から）。縮尺は ARC では基準の距離環が左右端に接する距離、
      * North Up では縮尺の距離環（方位サークルはその1つ外側）。距離環の間隔は縮尺の 1/2

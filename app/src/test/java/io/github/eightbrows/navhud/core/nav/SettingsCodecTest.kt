@@ -22,7 +22,7 @@ class SettingsCodecTest {
             rateWindowSec = 30,
             noFixTimeoutSec = 15,
             altOffsetM = 35.5,
-            displayMode = DisplayMode.ARC,
+            displayMode = DisplayMode.NORTH_UP,
             rangeStepsKm = listOf(0.05, 2.0, 50.0),
             initialRangeKm = 2.0,
             autoRange = false,

@@ -48,10 +48,10 @@ class NavEngineTest {
         assertEquals(10, s.noFixTimeoutSec)
         assertEquals(36.0, s.altOffsetM, 0.0)
         // D03 から: 今使っている端末の設定値を初期値にした（§6.9）
-        // 20261025-D01 から: 実機の設定を初期値にした。使う段は全部の 12 段（前は R1 25m〜25km の 10 段）、表示は North Up、
+        // 20261025-D01 から: 実機の設定を初期値にした。使う段は全部の 12 段（前は R1 25m〜25km の 10 段）（表示モードは 20261025-D03 で ARC に戻した）、
         // ARC の自機の位置は下から4段目、線の太さ 2・線の明るさ 3・ランドマークの明るさ 3、軌跡の明るさ 100%
         assertEquals(RangeAuto.ALL_STEPS_KM, s.rangeStepsKm)
-        assertEquals(DisplayMode.NORTH_UP, s.displayMode)
+        assertEquals(DisplayMode.ARC, s.displayMode)
         assertEquals(OwnshipPosition.NEAR_CENTER, s.ownshipPosition)
         assertEquals(2, s.mapLineWidth)
         assertEquals(3, s.mapLineBrightness)
