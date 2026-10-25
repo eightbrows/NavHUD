@@ -59,6 +59,8 @@ import io.github.eightbrows.navhud.core.view.Ink
 import io.github.eightbrows.navhud.core.view.P
 import io.github.eightbrows.navhud.core.view.Polyline
 import io.github.eightbrows.navhud.core.view.PinchSteps
+import io.github.eightbrows.navhud.core.view.TouchPoint
+import io.github.eightbrows.navhud.core.view.TwoFingerTap
 import io.github.eightbrows.navhud.core.view.Segment
 import io.github.eightbrows.navhud.core.view.WpMark
 import kotlin.math.roundToInt
@@ -81,8 +83,10 @@ fun HudCanvas(
     baseMap: BaseMap? = null,
     /** 地図のダブルタップ（20261023-D02）: タップした所 [px]。そこを基準に 1段詳細にする */
     onDoubleTap: (Float, Float) -> Unit = { _, _ -> },
+    /** 地図の 2 本指のタップ（20261024-D09。core の TwoFingerTap で見分ける）: − と同じ */
+    onTwoFingerTap: () -> Unit = {},
     /**
-     * 地図の操作（ドラッグの PAN・ピンチ・ダブルタップ）を受け付ける所 [px]（20261024-D01）。上部バーと数値の欄より下、
+     * 地図の操作（ドラッグの PAN・ピンチ・ダブルタップ・2 本指のタップ）を受け付ける所 [px]（20261024-D01）。上部バーと数値の欄より下、
      * WP ボタン列より上、再生の操作列より右。ここの外は地図の操作を受け付けず、重ねたボタンが受け取る。null は全体
      */
     gestureArea: HudRect? = null,
@@ -106,6 +110,7 @@ fun HudCanvas(
     val panHandler by rememberUpdatedState(onPan)
     val pinchHandler by rememberUpdatedState(onPinch)
     val doubleTapHandler by rememberUpdatedState(onDoubleTap)
+    val twoFingerTapHandler by rememberUpdatedState(onTwoFingerTap)
     // 今のタッチ（最初の指を置いてから全部離すまで）で指が2本以上になったか。なったら、そのタッチの間はドラッグで PAN しない
     val touch = remember { TouchState() }
     val blockedNow by rememberUpdatedState(gestureBlocked)
@@ -123,14 +128,14 @@ fun HudCanvas(
                 Modifier
                     .offset { IntOffset(left.roundToInt(), top.roundToInt()) }
                     .size(with(LocalDensity.current) { area.width.toDp() }, with(LocalDensity.current) { area.height.toDp() })
-                    .gestures(touch, { blockedNow.any { b -> b.contains(P(it.x + left, it.y + top)) } }, pinchHandler, panHandler) { x, y -> doubleTapHandler(x + left, y + top) },
+                    .gestures(touch, { blockedNow.any { b -> b.contains(P(it.x + left, it.y + top)) } }, pinchHandler, panHandler, { twoFingerTapHandler() }) { x, y -> doubleTapHandler(x + left, y + top) },
             )
         }
     }
 }
 
 /**
- * 地図の操作（PAN・ピンチ・ダブルタップ）。blocked(最初の指の位置) が true のタッチは、地図の操作にしない（全部消費して、下の 2 つにも渡さない）。
+ * 地図の操作（PAN・ピンチ・ダブルタップ・2 本指のタップ）。blocked(最初の指の位置) が true のタッチは、地図の操作にしない（全部消費して、下の 2 つにも渡さない）。
  * 位置はこの部品の中の座標
  */
 private fun Modifier.gestures(
@@ -138,15 +143,18 @@ private fun Modifier.gestures(
     blocked: (Offset) -> Boolean,
     pinchHandler: (Int) -> Unit,
     panHandler: (Float, Float) -> Unit,
+    twoFingerTapHandler: () -> Unit,
     doubleTapHandler: (Float, Float) -> Unit,
 ): Modifier = this
     // 2本指のピンチで縮尺を1段ずつ変える（§6.12。段の数は core の PinchSteps）。下のドラッグより先に（Initial で）見て、
     // 指が2本以上の間はその動きを消費する。1本に戻っても、指を全部離すまでドラッグ（PAN）はしない。
-    // 指が1本だけのタッチでは何も消費しないので、1本指の操作は今まで通り
+    // 指が1本だけのタッチでは何も消費しないので、1本指の操作は今まで通り。
+    // 2 本指のタップ（20261024-D09）: 同じタッチの指の動きを TwoFingerTap に渡し、指を全部離したときにタップだったら − と同じにする
     .pointerInput(Unit) {
         awaitEachGesture {
             touch.pinched = false
             val pinch = PinchSteps()
+            val tap = TwoFingerTap(viewConfiguration.touchSlop)
             var first = true
             var skip = false
             do {
@@ -160,17 +168,22 @@ private fun Modifier.gestures(
                     event.changes.forEach { it.consume() }
                     continue
                 }
+                tap.onEvent(event.changes.maxOf { it.uptimeMillis }, event.changes.map { TouchPoint(it.id.value, it.position.x, it.position.y, it.pressed) })
                 val down = event.changes.filter { it.pressed }
                 if (down.size >= 2) {
                     touch.pinched = true
                     // 開き具合: 指の重心から各指までの平均の距離（置いたばかりの指も、今の位置で数える）
                     val steps = pinch.update(PinchSteps.span(down.map { P(it.position.x, it.position.y) }))
-                    if (steps != 0) pinchHandler(steps)
+                    if (steps != 0) {
+                        tap.onPinchStep()
+                        pinchHandler(steps)
+                    }
                     event.changes.forEach { it.consume() }
                 } else {
                     pinch.reset()
                 }
             } while (event.changes.any { it.pressed })
+            if (!skip && tap.isTap) twoFingerTapHandler()
         }
     }
     // ドラッグで地図を平行移動（PAN）。指の動きの量 [px] をそのまま渡す

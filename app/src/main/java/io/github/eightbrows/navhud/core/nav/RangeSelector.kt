@@ -152,6 +152,9 @@ class RangeSelector(
     /** 今より詳細な段があるか（いちばん詳細な段でなければ true。ダブルタップで使う。20261023-D02） */
     val canZoomIn: Boolean get() = steps.any { it < rangeM }
 
+    /** 今より広域な段があるか（いちばん広域な段でなければ true。2 本指のタップで使う。20261024-D09） */
+    val canZoomOut: Boolean get() = steps.any { it > rangeM }
+
     /** ＋: 1段詳細へ。AUTO は OFF（keepAuto なら AUTO はそのまま。PAN 中）。 */
     fun zoomIn(keepAuto: Boolean = false) {
         if (!keepAuto) auto = false

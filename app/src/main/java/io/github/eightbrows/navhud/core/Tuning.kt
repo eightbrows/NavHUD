@@ -105,6 +105,9 @@ object Tuning {
     const val PINCH_ZOOM_IN_RATIO = 1.25f
     const val PINCH_ZOOM_OUT_RATIO = 0.8f
 
+    /** 2 本指のタップ（20261024-D09）: 最初の指を置いてから全部の指を離すまでが、この時間 [ms] 以内なら 2 本指のタップ（指の動きは端末のタッチのずれの許し方まで） */
+    const val TWO_FINGER_TAP_MAX_MS = 300L
+
     // ---- WP の到達判定（§5.4）。移動手段「自動車」の推奨値（自転車・徒歩はあとで足す） ----
 
     /** 到着半径 [m]（停車・目的地そのものへ行く場合）。入ったら到達 */

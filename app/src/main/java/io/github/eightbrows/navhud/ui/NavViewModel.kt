@@ -284,6 +284,15 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
         restartPanTimer()
     }
 
+    /** 地図の 2 本指のタップ（20261024-D09）: − と同じ（いちばん広域の段では何もしない） */
+    fun twoFingerTap() {
+        val before = engine.state
+        val after = engine.zoomOutByTwoFingerTap()
+        if (after === before) return   // いちばん広域の段: 何もしない
+        publish(after)
+        restartPanTimer()
+    }
+
     /** ピンチ（§6.12）: steps 段だけ ＋（正）か −（負）を押したのと同じ。 */
     fun zoomBy(steps: Int) {
         if (steps == 0) return

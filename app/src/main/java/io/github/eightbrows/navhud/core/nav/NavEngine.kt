@@ -284,6 +284,15 @@ class NavEngine(
     }
 
     /**
+     * 地図の 2 本指のタップ（20261024-D09）: − を 1 回押したのと同じ（PAN でないときは PAN にしない。AUTO の扱いも − と同じ。
+     * 位置がないあいだに段を変えたら、変えた段として数える）。いちばん広域の段なら何もしない（AUTO も変えない）
+     */
+    fun zoomOutByTwoFingerTap(): NavState {
+        if (!rangeSelector.canZoomOut) return state
+        return zoomOut()
+    }
+
+    /**
      * ピンチ（§6.12）: steps 段だけ詳細（正）か広域（負）にする。AUTO の扱いは ＋ / − と同じ。
      * 20261024-D04 から、使う段に入れていない段も含めた全段（R1 25 m〜100 km）を 1 段ずつ動く（＋ / − とダブルタップは使う段だけ）
      */
