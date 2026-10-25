@@ -16,11 +16,21 @@ class MapItemSettingsTest {
     fun defaultsAreTheTemporaryValues() {
         val d = NavSettings()
         assertTrue(d.baseMap)
-        // 線: 高速道路・国道は「〜100k」（20261024-D05 より前は「すべて」）、ほかは OFF（20261021-D01）
-        val all = setOf(MapItem.MOTORWAY, MapItem.NATIONAL_ROAD)
-        for (item in MapItem.entries) assertEquals(item.name, if (item in all) MapRange.UPTO_100KM else MapRange.OFF, d.mapRangeOf(item))
+        // 線（20261025-D01 で実機の設定に合わせた）: 海岸線・県境・高速道路・新幹線・河川と湖沼・航路は「〜100k」、国道は「〜25k」、
+        // 市町村界は「〜5k」、その他の自動車専用道路・県道・在来線は OFF（前は高速道路・国道が「〜100k」、ほかは OFF）
+        val expected = mapOf(
+            MapItem.COASTLINE to MapRange.UPTO_100KM, MapItem.PREF_BOUNDARY to MapRange.UPTO_100KM, MapItem.MUNI_BOUNDARY to MapRange.UPTO_5KM,
+            MapItem.MOTORWAY to MapRange.UPTO_100KM, MapItem.OTHER_MOTORWAY to MapRange.OFF, MapItem.NATIONAL_ROAD to MapRange.UPTO_25KM,
+            MapItem.PREF_ROAD to MapRange.OFF, MapItem.SHINKANSEN to MapRange.UPTO_100KM, MapItem.RAILWAY to MapRange.OFF,
+            MapItem.WATER to MapRange.UPTO_100KM, MapItem.FERRY to MapRange.UPTO_100KM,
+        )
+        assertEquals(MapItem.entries.toSet(), expected.keys)
+        for (item in MapItem.entries) assertEquals(item.name, expected.getValue(item), d.mapRangeOf(item))
+        // 海岸線は初期値で出る（20261024-D09 の伊江島の調べ。変換の basemap.bin は変えない）
+        assertEquals(MapRange.UPTO_100KM, d.mapRangeOf(MapItem.COASTLINE))
         // 空港・山頂は線の項目にない（20261021-D04 でランドマークに移した）。ランドマークは 11 項目（20261024-D01 で空港を民間・軍用に分けた。
-        // 20261024-D04 で滑走路、20261024-D05 で滑走路の延長線を足した）: 空港の敷地は〜10k、空港の略号は〜25k、ほかは〜100k。明るさの段は 4
+        // 20261024-D04 で滑走路、20261024-D05 で滑走路の延長線を足した）: 空港の敷地は〜5k、ほかは〜100k、明るさの段は 3
+        // （20261025-D01 で実機の設定に合わせた。前は空港の敷地〜10k・空港の略号〜25k・明るさの段 4）
         assertTrue(MapItem.entries.none { it.name == "AIRPORT" || it.name == "PEAK" })
         assertEquals(
             listOf(
@@ -29,28 +39,39 @@ class MapItemSettingsTest {
             ),
             LandmarkItem.entries.map { it.name },
         )
-        val lmDefault = mapOf(LandmarkItem.AIRPORT_AREA to MapRange.UPTO_10KM, LandmarkItem.AIRPORT_CODE to MapRange.UPTO_25KM)
-        for (item in LandmarkItem.entries) assertEquals(item.name, lmDefault[item] ?: MapRange.UPTO_100KM, d.landmarkRangeOf(item))
-        assertEquals(4, d.landmarkBrightness)
-        // 線の太さ・明るさは 4（今の太さ・色）。選べるのは 1〜6
-        assertEquals(4, d.mapLineWidth)
-        assertEquals(4, d.mapLineBrightness)
+        for (item in LandmarkItem.entries) {
+            assertEquals(item.name, if (item == LandmarkItem.AIRPORT_AREA) MapRange.UPTO_5KM else MapRange.UPTO_100KM, d.landmarkRangeOf(item))
+        }
+        assertEquals(3, d.landmarkBrightness)
+        // 線の太さは 2、明るさは 3（20261025-D01 から。前はどちらも掛ける数が 1 の段 4）。選べるのは 1〜6
+        assertEquals(2, d.mapLineWidth)
+        assertEquals(3, d.mapLineBrightness)
+        assertEquals(4, NavSettings.MAP_LINE_DEFAULT_LEVEL)
         assertEquals(1..6, NavSettings.MAP_LINE_LEVELS)
-        // 使うレイヤ（開くレイヤ）は、OFF でない項目のレイヤ
-        assertEquals(setOf(MapLayer.ROAD, MapLayer.AIRPORT_AREA, MapLayer.RUNWAY), d.mapLayersInUse())
+        // 使うレイヤ（開くレイヤ）は、OFF でない項目のレイヤ。初期値では在来線が OFF でも新幹線が〜100k なので鉄道のレイヤを使う
+        assertEquals(
+            setOf(
+                MapLayer.COASTLINE, MapLayer.PREF_BOUNDARY, MapLayer.MUNI_BOUNDARY, MapLayer.ROAD, MapLayer.RAILWAY, MapLayer.RIVER, MapLayer.INLAND_WATER,
+                MapLayer.FERRY, MapLayer.AIRPORT_AREA, MapLayer.RUNWAY,
+            ),
+            d.mapLayersInUse(),
+        )
+        // 以下は使うレイヤの決まりを、20261024-D09 までの初期値（高速道路・国道だけ）で確かめる
+        val old = io.github.eightbrows.navhud.core.TestSettings.BEFORE_1025_D01
+        assertEquals(setOf(MapLayer.ROAD, MapLayer.AIRPORT_AREA, MapLayer.RUNWAY), old.mapLayersInUse())
         // 空港の敷地・滑走路（線のレイヤ）は、ランドマークのその項目が OFF なら読まない（20261022-D01・20261024-D04）。
         // 滑走路のレイヤは、滑走路と滑走路の延長線の両方が OFF のときだけ読まない（20261024-D05）
-        assertEquals(setOf(MapLayer.ROAD, MapLayer.RUNWAY), d.withLandmarkRange(LandmarkItem.AIRPORT_AREA, MapRange.OFF).mapLayersInUse())
-        assertEquals(setOf(MapLayer.ROAD, MapLayer.AIRPORT_AREA, MapLayer.RUNWAY), d.withLandmarkRange(LandmarkItem.RUNWAY, MapRange.OFF).mapLayersInUse())
-        assertEquals(setOf(MapLayer.ROAD, MapLayer.AIRPORT_AREA, MapLayer.RUNWAY), d.withLandmarkRange(LandmarkItem.RUNWAY_EXT, MapRange.OFF).mapLayersInUse())
+        assertEquals(setOf(MapLayer.ROAD, MapLayer.RUNWAY), old.withLandmarkRange(LandmarkItem.AIRPORT_AREA, MapRange.OFF).mapLayersInUse())
+        assertEquals(setOf(MapLayer.ROAD, MapLayer.AIRPORT_AREA, MapLayer.RUNWAY), old.withLandmarkRange(LandmarkItem.RUNWAY, MapRange.OFF).mapLayersInUse())
+        assertEquals(setOf(MapLayer.ROAD, MapLayer.AIRPORT_AREA, MapLayer.RUNWAY), old.withLandmarkRange(LandmarkItem.RUNWAY_EXT, MapRange.OFF).mapLayersInUse())
         assertEquals(
             setOf(MapLayer.ROAD, MapLayer.AIRPORT_AREA),
-            d.withLandmarkRange(LandmarkItem.RUNWAY, MapRange.OFF).withLandmarkRange(LandmarkItem.RUNWAY_EXT, MapRange.OFF).mapLayersInUse(),
+            old.withLandmarkRange(LandmarkItem.RUNWAY, MapRange.OFF).withLandmarkRange(LandmarkItem.RUNWAY_EXT, MapRange.OFF).mapLayersInUse(),
         )
         // 河川・湖沼は 2 つのレイヤ
-        assertEquals(setOf(MapLayer.ROAD, MapLayer.AIRPORT_AREA, MapLayer.RUNWAY, MapLayer.RIVER, MapLayer.INLAND_WATER), d.withMapRange(MapItem.WATER, MapRange.UPTO_100KM).mapLayersInUse())
+        assertEquals(setOf(MapLayer.ROAD, MapLayer.AIRPORT_AREA, MapLayer.RUNWAY, MapLayer.RIVER, MapLayer.INLAND_WATER), old.withMapRange(MapItem.WATER, MapRange.UPTO_100KM).mapLayersInUse())
         // 道路の項目は、どれか 1 つでも OFF でなければ道路のレイヤを使う
-        val noRoads = d.withMapRange(MapItem.MOTORWAY, MapRange.OFF).withMapRange(MapItem.NATIONAL_ROAD, MapRange.OFF)
+        val noRoads = old.withMapRange(MapItem.MOTORWAY, MapRange.OFF).withMapRange(MapItem.NATIONAL_ROAD, MapRange.OFF)
         assertFalse(MapLayer.ROAD in noRoads.mapLayersInUse())
         assertTrue(MapLayer.ROAD in noRoads.withMapRange(MapItem.PREF_ROAD, MapRange.UPTO_10KM).mapLayersInUse())
     }
@@ -102,7 +123,7 @@ class MapItemSettingsTest {
             .withMapRange(MapItem.PREF_ROAD, MapRange.UPTO_10KM).withMapRange(MapItem.WATER, MapRange.UPTO_25KM)
         val enc = SettingsCodec.encode(s)
         // 全部の項目を「名前:縮尺」で（MapItem の順）
-        assertTrue(enc.getValue("mapItems").startsWith("COASTLINE:OFF,PREF_BOUNDARY:OFF,MUNI_BOUNDARY:OFF,MOTORWAY:UPTO_100KM,OTHER_MOTORWAY:OFF,NATIONAL_ROAD:UPTO_50KM,PREF_ROAD:UPTO_10KM,"))
+        assertTrue(enc.getValue("mapItems").startsWith("COASTLINE:UPTO_100KM,PREF_BOUNDARY:UPTO_100KM,MUNI_BOUNDARY:UPTO_5KM,MOTORWAY:UPTO_100KM,OTHER_MOTORWAY:OFF,NATIONAL_ROAD:UPTO_50KM,PREF_ROAD:UPTO_10KM,"))
         assertEquals("3", enc["mapLineWidthLevel"])
         val back = SettingsCodec.decode(enc)
         assertEquals(s.mapItems, back.mapItems)
@@ -126,7 +147,7 @@ class MapItemSettingsTest {
         val lmEnc = SettingsCodec.encode(lm)
         assertEquals(
             "AIRPORT_CIVIL_LARGE:UPTO_100KM,AIRPORT_CIVIL_SMALL:UPTO_100KM,AIRPORT_MIL_LARGE:UPTO_100KM,AIRPORT_MIL_SMALL:UPTO_100KM," +
-                "AIRPORT_AREA:UPTO_10KM,AIRPORT_CODE:UPTO_100KM,RUNWAY:UPTO_100KM,RUNWAY_EXT:UPTO_100KM,PEAK_HIGH:UPTO_100KM,PEAK_MID:UPTO_100KM,PEAK_LOW:OFF",
+                "AIRPORT_AREA:UPTO_5KM,AIRPORT_CODE:UPTO_100KM,RUNWAY:UPTO_100KM,RUNWAY_EXT:UPTO_100KM,PEAK_HIGH:UPTO_100KM,PEAK_MID:UPTO_100KM,PEAK_LOW:OFF",
             lmEnc["landmarkItems"],
         )
         assertEquals("6", lmEnc["landmarkBrightnessLevel"])
@@ -139,7 +160,7 @@ class MapItemSettingsTest {
         for (item in LandmarkItem.AIRPORT_MARKS) assertEquals(item.name, MapRange.UPTO_100KM, oldAirports.landmarkRangeOf(item))
         assertEquals(MapRange.OFF, oldAirports.landmarkRangeOf(LandmarkItem.AIRPORT_CODE))
         assertEquals(MapRange.UPTO_100KM, badLm.landmarkRangeOf(LandmarkItem.PEAK_HIGH))
-        assertEquals(4, badLm.landmarkBrightness)
+        assertEquals(NavSettings.DEFAULT_LANDMARK_BRIGHTNESS, badLm.landmarkBrightness)
         // 前の版（20261021-D04）の「landmarks」は読まない（PEAK_HIGH・PEAK_LOW は名前が同じでも中身が違うので、引き継がない）
         val oldLm = SettingsCodec.decode(mapOf("landmarks" to "AIRPORT:OFF,PEAK_HIGH:OFF,PEAK_LOW:OFF,PEAK_OTHER:OFF"))
         assertEquals(NavSettings.DEFAULT_LANDMARKS, oldLm.landmarks)
@@ -150,15 +171,15 @@ class MapItemSettingsTest {
         assertEquals(NavSettings.DEFAULT_MAP_ITEMS - MapItem.RAILWAY, removed.mapItems - MapItem.RAILWAY)
         val savedNames = SettingsCodec.encode(removed).getValue("mapItems").split(',').map { it.substringBefore(':') }
         assertTrue(listOf("PORT", "STATION", "DAM_POINT", "CITY", "BUILT_UP_AREA", "DAM_LINE").none { it in savedNames })
-        assertEquals(4, bad.mapLineWidth)
-        assertEquals(4, bad.mapLineBrightness)
-        assertEquals(4, SettingsCodec.decode(mapOf("mapLineWidthLevel" to "0")).mapLineWidth)
+        assertEquals(NavSettings.DEFAULT_MAP_LINE_WIDTH, bad.mapLineWidth)
+        assertEquals(NavSettings.DEFAULT_MAP_LINE_BRIGHTNESS, bad.mapLineBrightness)
+        assertEquals(NavSettings.DEFAULT_MAP_LINE_WIDTH, SettingsCodec.decode(mapOf("mapLineWidthLevel" to "0")).mapLineWidth)
         assertEquals(6, SettingsCodec.decode(mapOf("mapLineWidthLevel" to "6")).mapLineWidth)
         assertEquals(1, SettingsCodec.decode(mapOf("mapLineBrightnessLevel" to "1")).mapLineBrightness)
         // 3 段のころ（20261018-D06 まで）の保存（mapLineWidth・mapLineBrightness）は読まない: 段 1（当時の初期値）が、今のいちばん細い・暗い段にならない
         val three = SettingsCodec.decode(mapOf("mapLineWidth" to "1", "mapLineBrightness" to "3"))
-        assertEquals(4, three.mapLineWidth)
-        assertEquals(4, three.mapLineBrightness)
+        assertEquals(NavSettings.DEFAULT_MAP_LINE_WIDTH, three.mapLineWidth)
+        assertEquals(NavSettings.DEFAULT_MAP_LINE_BRIGHTNESS, three.mapLineBrightness)
     }
 
     @Test
@@ -171,8 +192,8 @@ class MapItemSettingsTest {
         assertTrue(reset.baseMap)
         assertEquals(NavSettings.DEFAULT_MAP_ITEMS, reset.mapItems)
         assertEquals(NavSettings.DEFAULT_LANDMARKS, reset.landmarks)
-        assertEquals(4, reset.landmarkBrightness)
-        assertEquals(4, reset.mapLineWidth)
-        assertEquals(4, reset.mapLineBrightness)
+        assertEquals(NavSettings.DEFAULT_LANDMARK_BRIGHTNESS, reset.landmarkBrightness)
+        assertEquals(NavSettings.DEFAULT_MAP_LINE_WIDTH, reset.mapLineWidth)
+        assertEquals(NavSettings.DEFAULT_MAP_LINE_BRIGHTNESS, reset.mapLineBrightness)
     }
 }

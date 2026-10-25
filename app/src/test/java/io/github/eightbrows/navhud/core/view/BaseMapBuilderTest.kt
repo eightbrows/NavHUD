@@ -1,6 +1,7 @@
 package io.github.eightbrows.navhud.core.view
 
 import io.github.eightbrows.navhud.core.TestGeo
+import io.github.eightbrows.navhud.core.TestSettings
 import io.github.eightbrows.navhud.core.Tuning
 import io.github.eightbrows.navhud.core.geo.EN
 import io.github.eightbrows.navhud.core.geo.Geo
@@ -217,11 +218,15 @@ class BaseMapBuilderTest {
         // 項目ごとに選べる: 山頂（高）と空港・民間（大）だけ
         val highAndLarge = mapOf(LandmarkItem.PEAK_HIGH to MapRange.UPTO_100KM, LandmarkItem.AIRPORT_CIVIL_LARGE to MapRange.UPTO_100KM)
         assertEquals(listOf(Ink.MAP_PEAK_HIGH, Ink.MAP_PEAK_HIGH, Ink.MAP_AIRPORT), build(map, landmarks = highAndLarge).marks.map { it.ink })
-        // 初期値: 敷地は〜10k、略号は〜25k。R1 25 km では敷地を描かず略号は描く、R1 50 km では略号も描かない
-        val r25 = build(map, r1M = 25_000.0, landmarks = NavSettings.DEFAULT_LANDMARKS)
+        // 20261024-D09 までの初期値（敷地は〜10k、略号は〜25k）: R1 25 km では敷地を描かず略号は描く、R1 50 km では略号も描かない
+        val r25 = build(map, r1M = 25_000.0, landmarks = TestSettings.LANDMARKS_BEFORE_1025_D01)
         assertTrue(r25.areas.isEmpty())
         assertEquals(4, r25.labels.size)
-        assertTrue(build(map, r1M = 50_000.0, landmarks = NavSettings.DEFAULT_LANDMARKS).labels.isEmpty())
+        assertTrue(build(map, r1M = 50_000.0, landmarks = TestSettings.LANDMARKS_BEFORE_1025_D01).labels.isEmpty())
+        // 20261025-D01 からの初期値（敷地は〜5k、略号は〜100k）: R1 5 km では敷地を描き、R1 10 km では描かない。R1 50 km でも略号は描く
+        assertFalse(build(map, r1M = 5_000.0, landmarks = NavSettings.DEFAULT_LANDMARKS).areas.isEmpty())
+        assertTrue(build(map, r1M = 10_000.0, landmarks = NavSettings.DEFAULT_LANDMARKS).areas.isEmpty())
+        assertFalse(build(map, r1M = 50_000.0, landmarks = NavSettings.DEFAULT_LANDMARKS).labels.isEmpty())
         // ランドマークの明るさの段: 段 4 は 1。段 6 は 1.6 を、記号・敷地・略号の全部に。大きさ・色の種類は変わらない
         assertTrue(d.marks.all { it.brightness == 1f } && d.areas.all { it.brightness == 1f } && d.labels.all { it.brightness == 1f })
         val lit = build(map, landmarks = allMarks, landmarkBrightness = 6)
@@ -264,8 +269,8 @@ class BaseMapBuilderTest {
         assertEquals(listOf(Ink.MAP_RAIL, Ink.MAP_RAIL), build(map, items(MapItem.RAILWAY)).lines.map { it.ink })
         // 縮尺も別に選べる（この試験の R1 は 500 m）
         assertTrue(build(map, mapOf(MapItem.SHINKANSEN to MapRange.UPTO_100KM, MapItem.RAILWAY to MapRange.OFF)).lines.all { it.ink == Ink.MAP_SHINKANSEN })
-        // 初期値は両方とも OFF
-        assertEquals(MapRange.OFF, NavSettings().mapRangeOf(MapItem.SHINKANSEN))
+        // 初期値は新幹線が〜100k、在来線が OFF（20261025-D01 で実機の設定に合わせた。前は両方とも OFF）
+        assertEquals(MapRange.UPTO_100KM, NavSettings().mapRangeOf(MapItem.SHINKANSEN))
         assertEquals(MapRange.OFF, NavSettings().mapRangeOf(MapItem.RAILWAY))
     }
 
@@ -275,8 +280,8 @@ class BaseMapBuilderTest {
             listOf(MapLevel(0.0, listOf(line(MapLayer.COASTLINE, 0.0 to 0.0, 100.0 to 100.0), line(MapLayer.ROAD, 0.0 to 0.0, -100.0 to 100.0)))),
             listOf(point(MapLayer.AIRPORT, 200.0, 200.0), point(MapLayer.AIRPORT, 50_000.0, 0.0)),
         )
-        // 初期値（高速道路・国道・空港が「すべて」。20261021-D01）: 海岸線は描かない。種類の分からない道路は国道。画面の外の空港は描かない
-        val d = build(map, NavSettings.DEFAULT_MAP_ITEMS, landmarks = NavSettings.DEFAULT_LANDMARKS)
+        // 20261024-D09 までの初期値（高速道路・国道・空港が「〜100k」。20261021-D01）: 海岸線は描かない。種類の分からない道路は国道。画面の外の空港は描かない
+        val d = build(map, TestSettings.MAP_ITEMS_BEFORE_1025_D01, landmarks = TestSettings.LANDMARKS_BEFORE_1025_D01)
         assertEquals(listOf(Ink.MAP_NATIONAL_ROAD), d.lines.map { it.ink })
         assertEquals(listOf(Ink.MAP_AIRPORT), d.marks.map { it.ink })
         // 海岸線だけ
@@ -498,7 +503,7 @@ class BaseMapBuilderTest {
         assertEquals(pw.toScreen(EN(2000.0, 0.0)).x, wide.points.last().x, 0.05f)
     }
 
-    private fun state(settings: NavSettings = NavSettings(), pan: PanView? = null) = NavState(
+    private fun state(settings: NavSettings = TestSettings.BEFORE_1025_D01, pan: PanView? = null) = NavState(
         nowMs = 0,
         fix = Fix(timeMs = 0, lat = TestGeo.LAT0, lon = TestGeo.LON0),
         heading = Heading(30f, HeadingSrc.GPS),
@@ -518,24 +523,24 @@ class BaseMapBuilderTest {
 
     @Test
     fun hudSceneDrawsTheSelectedLayersWhenSwitchedOn() {
-        // 初期値: 背景地図 ON、高速道路・国道が「すべて」、ランドマークは全部「すべて」（この地図にあるのは国道（種類の分からない道路）と空港）
+        // 20261024-D09 までの初期値: 背景地図 ON、高速道路・国道が「すべて」、ランドマークは全部「すべて」（この地図にあるのは国道（種類の分からない道路）と空港）
         val on = HudSceneBuilder.build(state(), rect, baseMap = map)
         assertEquals(listOf(Ink.MAP_NATIONAL_ROAD), on.baseMap.map { it.ink })
         assertEquals(1, on.baseMapMarks.size)
         // 項目を足すと描く（海岸線と県境）。空港を OFF にすると描かない
-        val more = HudSceneBuilder.build(state(NavSettings().withMapRange(MapItem.COASTLINE, MapRange.UPTO_100KM).withMapRange(MapItem.PREF_BOUNDARY, MapRange.UPTO_10KM)), rect, baseMap = map)
+        val more = HudSceneBuilder.build(state(TestSettings.BEFORE_1025_D01.withMapRange(MapItem.COASTLINE, MapRange.UPTO_100KM).withMapRange(MapItem.PREF_BOUNDARY, MapRange.UPTO_10KM)), rect, baseMap = map)
         assertEquals(listOf(Ink.COASTLINE, Ink.PREF_BOUNDARY, Ink.MAP_NATIONAL_ROAD), more.baseMap.map { it.ink })
-        assertTrue(HudSceneBuilder.build(state(NavSettings().withLandmarkRange(LandmarkItem.AIRPORT_CIVIL_SMALL, MapRange.OFF)), rect, baseMap = map).baseMapMarks.isEmpty())
+        assertTrue(HudSceneBuilder.build(state(TestSettings.BEFORE_1025_D01.withLandmarkRange(LandmarkItem.AIRPORT_CIVIL_SMALL, MapRange.OFF)), rect, baseMap = map).baseMapMarks.isEmpty())
         // 背景地図を OFF にすると、選んだ線の項目によらず線は全部描かない。ランドマークは描く（20261021-D04）
-        val off = HudSceneBuilder.build(state(NavSettings(baseMap = false, mapItems = all)), rect, baseMap = map)
+        val off = HudSceneBuilder.build(state(TestSettings.BEFORE_1025_D01.copy(baseMap = false, mapItems = all)), rect, baseMap = map)
         assertTrue(off.baseMap.isEmpty())
         assertEquals(on.baseMapMarks, off.baseMapMarks)
-        val noMarks = NavSettings(baseMap = false, landmarks = LandmarkItem.entries.associateWith { MapRange.OFF })
+        val noMarks = TestSettings.BEFORE_1025_D01.copy(baseMap = false, landmarks = LandmarkItem.entries.associateWith { MapRange.OFF })
         assertTrue(HudSceneBuilder.build(state(noMarks), rect, baseMap = map).let { it.baseMap.isEmpty() && it.baseMapMarks.isEmpty() })
         // 背景地図がまだ読めていない（null）ときは描かない
         assertTrue(HudSceneBuilder.build(state(), rect, baseMap = null).baseMap.isEmpty())
         // North Up と PAN でも描く。PAN は PAN の中心が基準
-        assertEquals(1, HudSceneBuilder.build(state(NavSettings(displayMode = DisplayMode.NORTH_UP)), rect, baseMap = map).baseMap.size)
+        assertEquals(1, HudSceneBuilder.build(state(TestSettings.BEFORE_1025_D01.copy(displayMode = DisplayMode.NORTH_UP)), rect, baseMap = map).baseMap.size)
         val pan = HudSceneBuilder.build(state(pan = PanView(TestGeo.lat(200.0), TestGeo.LON0, 0.0)), rect, baseMap = map)
         assertEquals(1, pan.baseMap.size)
         assertFalse(pan.baseMap == on.baseMap)
@@ -545,13 +550,13 @@ class BaseMapBuilderTest {
         // 背景地図は軌跡とは別のリスト（Canvas がいちばん下に描く）
         assertTrue(on.trails.none { it.ink == Ink.MAP_NATIONAL_ROAD })
         // 設定の線の太さ・明るさが届く
-        val lit = HudSceneBuilder.build(state(NavSettings(mapLineWidth = 2, mapLineBrightness = 3)), rect, baseMap = map)
+        val lit = HudSceneBuilder.build(state(TestSettings.BEFORE_1025_D01.copy(mapLineWidth = 2, mapLineBrightness = 3)), rect, baseMap = map)
         assertTrue(lit.baseMap.all { it.brightness == Tuning.BASEMAP_BRIGHTNESS_FACTORS[2] })
         assertEquals(on.baseMap.map { it.widthDp * Tuning.BASEMAP_WIDTH_FACTORS[1] }, lit.baseMap.map { it.widthDp })
         // 項目の縮尺は今の R1（この状態は 1 km）で決まる: 県道「〜10 km」は描き、県境「OFF」は描かない
         val prefMap = BaseMap(listOf(road(RoadKind.SECONDARY, -300.0 to -300.0, 300.0 to 300.0)))
         assertTrue(HudSceneBuilder.build(state(), rect, baseMap = prefMap).baseMap.isEmpty())
-        assertEquals(1, HudSceneBuilder.build(state(NavSettings().withMapRange(MapItem.PREF_ROAD, MapRange.UPTO_10KM)), rect, baseMap = prefMap).baseMap.size)
+        assertEquals(1, HudSceneBuilder.build(state(TestSettings.BEFORE_1025_D01.withMapRange(MapItem.PREF_ROAD, MapRange.UPTO_10KM)), rect, baseMap = prefMap).baseMap.size)
         assertEquals(listOf(Ink.COASTLINE), HudSceneBuilder.build(state(NavSettings(mapItems = mapOf(MapItem.COASTLINE to MapRange.UPTO_100KM, MapItem.PREF_BOUNDARY to MapRange.OFF))), rect, baseMap = map).baseMap.map { it.ink })
     }
 }

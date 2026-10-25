@@ -68,8 +68,8 @@ object Tuning {
      */
     val RANGE_ALL_STEPS_KM = listOf(0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0, 200.0)
 
-    /** 使う縮尺の段の初期値 [km]: R1 25m〜25km の 10 段（20261017-D02 で全段を増やしたが、初期値は変えない） */
-    val RANGE_DEFAULT_STEPS_KM = listOf(0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0)
+    /** 使う縮尺の段の初期値 [km]: 全部の 12 段（R1 25m〜100km。20261025-D01 で実機の設定に合わせた。前は R1 25m〜25km の 10 段） */
+    val RANGE_DEFAULT_STEPS_KM = RANGE_ALL_STEPS_KM
 
     /** 画面の大きさがまだ分からないときの AUTO: 次の WP が「縮尺 × これ」以内 */
     const val RANGE_DISTANCE_FIT_RATIO = 0.9
@@ -351,7 +351,7 @@ object Tuning {
      * 読み込んだ軌跡（REPLAY のトラック全体の線）の明るさ [%] の既定と選べる値。色（設定。既定は白）の RGB に p / 100 を掛ける
      * （白なら 25% = 0x40、50% = 0x80 のグレー）。D11 までの 0x3A は白の約 23%
      */
-    const val TRACK_BRIGHTNESS_DEFAULT_PCT = 75
+    const val TRACK_BRIGHTNESS_DEFAULT_PCT = 100   // 20261025-D01 で実機の設定に合わせた（前は 75）
     val TRACK_BRIGHTNESS_CHOICES_PCT = listOf(25, 50, 75, 100)
 
     /**

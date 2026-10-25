@@ -48,8 +48,14 @@ class NavEngineTest {
         assertEquals(10, s.noFixTimeoutSec)
         assertEquals(36.0, s.altOffsetM, 0.0)
         // D03 から: 今使っている端末の設定値を初期値にした（§6.9）
-        // 使う段は R1 25m〜25km の 10 段（20261017-D02 で全段は 12 段になったが、初期値は変えない）
-        assertEquals(RangeAuto.ALL_STEPS_KM.take(10), s.rangeStepsKm)
+        // 20261025-D01 から: 実機の設定を初期値にした。使う段は全部の 12 段（前は R1 25m〜25km の 10 段）、表示は North Up、
+        // ARC の自機の位置は下から4段目、線の太さ 2・線の明るさ 3・ランドマークの明るさ 3、軌跡の明るさ 100%
+        assertEquals(RangeAuto.ALL_STEPS_KM, s.rangeStepsKm)
+        assertEquals(DisplayMode.NORTH_UP, s.displayMode)
+        assertEquals(OwnshipPosition.NEAR_CENTER, s.ownshipPosition)
+        assertEquals(2, s.mapLineWidth)
+        assertEquals(3, s.mapLineBrightness)
+        assertEquals(3, s.landmarkBrightness)
         assertEquals(5, s.wpButtonsMax)
         assertEquals(10, s.hudWpCount)
         assertEquals(ProfileSize.OFF, s.profileSize)
@@ -58,7 +64,7 @@ class NavEngineTest {
         assertEquals(0.5, s.autoMaxRangeKm, 0.0)
         assertEquals(10, s.rateWindowSec)
         assertEquals(125, s.ringLabelScalePct)
-        assertEquals(75, s.trackBrightnessPct)
+        assertEquals(100, s.trackBrightnessPct)
         assertTrue(s.autoOpenLastList)
         assertTrue(s.autoRange)
         assertTrue(s.rangeStepsKm.all { it in RangeAuto.ALL_STEPS_KM })

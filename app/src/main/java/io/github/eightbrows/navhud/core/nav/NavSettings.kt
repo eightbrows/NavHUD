@@ -102,8 +102,8 @@ data class NavSettings(
     val noFixTimeoutSec: Int = 10,
     /** 標高オフセット [m]。標高 = 楕円体高 − これ（§6.8） */
     val altOffsetM: Double = 36.0,
-    /** 表示モード（§6.1） */
-    val displayMode: DisplayMode = DisplayMode.ARC,
+    /** 表示モード（§6.1）。初期値は North Up（20261025-D01 で実機の設定に合わせた。前は ARC） */
+    val displayMode: DisplayMode = DisplayMode.NORTH_UP,
     /**
      * 使う縮尺の段 [km]（RangeAuto.ALL_STEPS_KM の中から）。縮尺は ARC では基準の距離環が左右端に接する距離、
      * North Up では縮尺の距離環（方位サークルはその1つ外側）。距離環の間隔は縮尺の 1/2
@@ -133,8 +133,8 @@ data class NavSettings(
     val uiTheme: ColorTheme = ColorTheme.WHITE,
     /** 地図の色（地図の Canvas に描くもの） */
     val mapTheme: ColorTheme = ColorTheme.GREEN,
-    /** ARC の自機の位置（5段）。既定は3段目（HIGHER。保存がない・読めない値も同じ） */
-    val ownshipPosition: OwnshipPosition = OwnshipPosition.HIGHER,
+    /** ARC の自機の位置（5段）。既定は下から4段目（NEAR_CENTER。保存がない・読めない値も同じ。20261025-D01 で実機の設定に合わせた。前は HIGHER） */
+    val ownshipPosition: OwnshipPosition = OwnshipPosition.NEAR_CENTER,
     /** 起動時に前回の WP リストを自動で開く（起動時の選択を出さない） */
     val autoOpenLastList: Boolean = true,
     /** 標高プロファイルの表示サイズ（§6.6） */
@@ -150,14 +150,14 @@ data class NavSettings(
     /** ランドマーク（空港・山頂の記号）の項目ごとの、どの縮尺まで描くか（20261021-D04）。baseMap によらない。初期値は DEFAULT_LANDMARKS */
     val landmarks: Map<LandmarkItem, MapRange> = DEFAULT_LANDMARKS,
     /**
-     * ランドマークの明るさの段（1〜6。20261022-D01）。段 4 が今の見え方。空港の記号・敷地・略号・山頂の三角の全部に効く
+     * ランドマークの明るさの段（1〜6。20261022-D01）。段 4 が掛ける数 1 の見え方。空港の記号・敷地・略号・山頂の三角の全部に効く
      * （掛ける数は線の明るさと同じ Tuning.BASEMAP_BRIGHTNESS_FACTORS。明るくする方は白に近づける。HudColors.landmark）
      */
-    val landmarkBrightness: Int = MAP_LINE_DEFAULT_LEVEL,
+    val landmarkBrightness: Int = DEFAULT_LANDMARK_BRIGHTNESS,
     /** 背景地図の線の太さの段（1〜6。Tuning.BASEMAP_WIDTH_FACTORS を全部の線の太さに掛ける） */
-    val mapLineWidth: Int = MAP_LINE_DEFAULT_LEVEL,
+    val mapLineWidth: Int = DEFAULT_MAP_LINE_WIDTH,
     /** 背景地図の線の明るさの段（1〜6。Tuning.BASEMAP_BRIGHTNESS_FACTORS を全部の線の色に掛ける。ランドマークの記号には掛けない） */
-    val mapLineBrightness: Int = MAP_LINE_DEFAULT_LEVEL,
+    val mapLineBrightness: Int = DEFAULT_MAP_LINE_BRIGHTNESS,
     /** 地図に重ねるボタン（上部バー・操作列・WP ボタン列・再生の操作列）の不透明度 [%]。20〜100、10 刻み */
     val buttonOpacityPct: Int = Tuning.BUTTON_OPACITY_DEFAULT_PCT,
     /** 数値（4行）の不透明度 [%]。20〜100、10 刻み。警告の表示は常に 100% */
@@ -190,23 +190,34 @@ data class NavSettings(
             listOf(LandmarkItem.AIRPORT_AREA, LandmarkItem.RUNWAY, LandmarkItem.RUNWAY_EXT).filter { landmarkRangeOf(it) != MapRange.OFF }.map { it.layer }
 
     companion object {
-        /** 背景地図の項目の初期値（仮）: 高速道路・国道は「〜100k」（20261024-D05 より前は「すべて」。意味は同じ）、ほかは OFF（20261021-D01） */
+        /**
+         * 背景地図の項目の初期値（20261025-D01 で実機の設定に合わせた）: 海岸線・県境・高速道路・新幹線・河川と湖沼・航路は「〜100k」、
+         * 国道は「〜25k」、市町村界は「〜5k」、その他の自動車専用道路・県道・在来線は OFF。
+         * 前（20261021-D01〜20261024-D09）は高速道路・国道が「〜100k」、ほかは OFF
+         */
         val DEFAULT_MAP_ITEMS: Map<MapItem, MapRange> = MapItem.entries.associateWith {
-            if (it in setOf(MapItem.MOTORWAY, MapItem.NATIONAL_ROAD)) MapRange.UPTO_100KM else MapRange.OFF
-        }
-        /** ランドマークの初期値（仮）: 4 項目とも「すべて」（20261021-D04） */
-        val DEFAULT_LANDMARKS: Map<LandmarkItem, MapRange> = LandmarkItem.entries.associateWith {
-            // 20261022-D01: 空港の敷地は「〜10k」、空港の略号は「〜25k」、ほかは「すべて」（20261024-D05 から「〜100k」。滑走路の延長線もここ。仮）
             when (it) {
-                LandmarkItem.AIRPORT_AREA -> MapRange.UPTO_10KM
-                LandmarkItem.AIRPORT_CODE -> MapRange.UPTO_25KM
-                else -> MapRange.UPTO_100KM
+                MapItem.COASTLINE, MapItem.PREF_BOUNDARY, MapItem.MOTORWAY, MapItem.SHINKANSEN, MapItem.WATER, MapItem.FERRY -> MapRange.UPTO_100KM
+                MapItem.NATIONAL_ROAD -> MapRange.UPTO_25KM
+                MapItem.MUNI_BOUNDARY -> MapRange.UPTO_5KM
+                MapItem.OTHER_MOTORWAY, MapItem.PREF_ROAD, MapItem.RAILWAY -> MapRange.OFF
             }
+        }
+        /**
+         * ランドマークの初期値（20261025-D01 で実機の設定に合わせた）: 空港の敷地は「〜5k」、ほかは「〜100k」。
+         * 前（20261022-D01〜20261024-D09）は空港の敷地が「〜10k」、空港の略号が「〜25k」
+         */
+        val DEFAULT_LANDMARKS: Map<LandmarkItem, MapRange> = LandmarkItem.entries.associateWith {
+            if (it == LandmarkItem.AIRPORT_AREA) MapRange.UPTO_5KM else MapRange.UPTO_100KM
         }
         /** 背景地図の線の太さ・明るさの段（1〜6。1 がいちばん細い・暗い） */
         val MAP_LINE_LEVELS = 1..Tuning.BASEMAP_WIDTH_FACTORS.size
-        /** 背景地図の線の太さ・明るさの段の初期値（仮）。この段の掛ける数が 1（今の太さ・色） */
+        /** 背景地図の線の太さ・明るさ、ランドマークの明るさの、掛ける数が 1（もとの太さ・色）の段 */
         const val MAP_LINE_DEFAULT_LEVEL = 4
+        /** 設定の初期値（20261025-D01 で実機の設定に合わせた。前はどれも 4）: 線の太さ 2・線の明るさ 3・ランドマークの明るさ 3 */
+        const val DEFAULT_MAP_LINE_WIDTH = 2
+        const val DEFAULT_MAP_LINE_BRIGHTNESS = 3
+        const val DEFAULT_LANDMARK_BRIGHTNESS = 3
         val WP_BUTTONS_MAX_RANGE = 3..6
         val PAN_RETURN_SEC_RANGE = 5..60
         val HUD_WP_COUNT_RANGE = 1..20

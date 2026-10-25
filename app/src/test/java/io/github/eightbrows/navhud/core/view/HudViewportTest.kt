@@ -245,7 +245,8 @@ class HudViewportTest {
         val lat0 = TestGeo.LAT0
         val lon0 = TestGeo.LON0
         // AUTO の広域の限度は 20km の段（距離の判定と画面の判定の違いを見るため）
-        val e = NavEngine(NavSettings(initialRangeKm = 1.0, autoMaxRangeKm = 20.0), sourceKind = SourceKind.LIVE)
+        // 表示・使う段などは 20261024-D09 までの初期値（ARC・R1 25 km までの段）
+        val e = NavEngine(TestSettings.BEFORE_1025_D01.copy(initialRangeKm = 1.0, autoMaxRangeKm = 20.0), sourceKind = SourceKind.LIVE)
         // 北へ 1.9km の WP。方位がないので北が上
         e.setWaypoints(listOf(Waypoint("A", TestGeo.lat(1_900.0), lon0)))
         // 画面が分からないうちは距離で判定（1.9km は 2km の段の 0.9 倍を超える）: 1段ずつ広域にして 5km

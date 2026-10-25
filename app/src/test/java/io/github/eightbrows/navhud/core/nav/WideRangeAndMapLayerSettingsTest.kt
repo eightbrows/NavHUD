@@ -23,8 +23,8 @@ class WideRangeAndMapLayerSettingsTest {
         // ＋ で 1 段詳細へ: R1 50 km
         assertEquals(100_000.0, e.zoomIn().rangeM, 0.0)
         assertEquals(50_000.0, e.zoomBy(1).rangeM, 0.0)
-        // 初期値の使う段（R1 25 km まで）でも、ピンチなら R1 100 km（200 km の段）まで行ける（20261024-D04）。＋ / − は使う段だけ
-        val d = NavEngine(NavSettings(initialRangeKm = 50.0, autoRange = false), ZoneId.of("Asia/Tokyo"), SourceKind.REPLAY)
+        // 使う段が R1 25 km まで（20261024-D09 までの初期値）でも、ピンチなら R1 100 km（200 km の段）まで行ける（20261024-D04）。＋ / − は使う段だけ
+        val d = NavEngine(io.github.eightbrows.navhud.core.TestSettings.BEFORE_1025_D01.copy(initialRangeKm = 50.0, autoRange = false), ZoneId.of("Asia/Tokyo"), SourceKind.REPLAY)
         assertEquals(50_000.0, d.zoomOut().rangeM, 0.0)
         assertEquals(200_000.0, d.zoomBy(-3).rangeM, 0.0)
         assertEquals(50_000.0, d.zoomIn().rangeM, 0.0)

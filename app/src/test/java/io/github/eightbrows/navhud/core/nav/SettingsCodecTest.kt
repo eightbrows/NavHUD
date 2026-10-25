@@ -22,7 +22,7 @@ class SettingsCodecTest {
             rateWindowSec = 30,
             noFixTimeoutSec = 15,
             altOffsetM = 35.5,
-            displayMode = DisplayMode.NORTH_UP,
+            displayMode = DisplayMode.ARC,
             rangeStepsKm = listOf(0.05, 2.0, 50.0),
             initialRangeKm = 2.0,
             autoRange = false,
@@ -118,8 +118,8 @@ class SettingsCodecTest {
 
     @Test
     fun trackBrightnessIsSavedAndInvalidValuesAreDefault() {
-        // 読み込んだ軌跡の明るさ: 既定 75%（D03 から。前は 50%）、25 / 50 / 75 / 100 から選ぶ
-        assertEquals(75, NavSettings().trackBrightnessPct)
+        // 読み込んだ軌跡の明るさ: 既定 100%（20261025-D01 から。D03〜は 75%、その前は 50%）、25 / 50 / 75 / 100 から選ぶ
+        assertEquals(100, NavSettings().trackBrightnessPct)
         assertEquals(listOf(25, 50, 75, 100), NavSettings.TRACK_BRIGHTNESS_CHOICES_PCT)
         // 保存して読み直すと同じ値
         for (v in NavSettings.TRACK_BRIGHTNESS_CHOICES_PCT) {
@@ -130,11 +130,11 @@ class SettingsCodecTest {
         // 範囲外・選べない値・読めない値は、その項目だけ既定値（ほかの項目はそのまま）
         for (bad in listOf("0", "10", "60", "125", "x", "")) {
             val s = SettingsCodec.decode(mapOf("trackBrightnessPct" to bad, "buttonOpacityPct" to "40"))
-            assertEquals(75, s.trackBrightnessPct)
+            assertEquals(100, s.trackBrightnessPct)
             assertEquals(40, s.buttonOpacityPct)
         }
         // 保存がない（前の版）なら既定値
-        assertEquals(75, SettingsCodec.decode(mapOf("travelMode" to "CAR")).trackBrightnessPct)
+        assertEquals(100, SettingsCodec.decode(mapOf("travelMode" to "CAR")).trackBrightnessPct)
     }
 
     @Test
@@ -193,9 +193,9 @@ class SettingsCodecTest {
     @Test
     fun ownshipPositionKeepsTheSavedNames() {
         // 5段（D04 から）。前からの3段の保存値（STANDARD / HIGH / HIGHER）は、同じ段のまま読む。足した2段は NEAR_CENTER / CENTER。
-        // 既定は今のまま 3段目（HIGHER）
-        assertEquals(OwnshipPosition.HIGHER, NavSettings().ownshipPosition)
-        assertEquals("HIGHER", SettingsCodec.encode(NavSettings())["ownshipPosition"])
+        // 既定は下から4段目（NEAR_CENTER。20261025-D01 で実機の設定に合わせた。前は 3段目の HIGHER）
+        assertEquals(OwnshipPosition.NEAR_CENTER, NavSettings().ownshipPosition)
+        assertEquals("NEAR_CENTER", SettingsCodec.encode(NavSettings())["ownshipPosition"])
         assertEquals(listOf("STANDARD", "HIGH", "HIGHER", "NEAR_CENTER", "CENTER"), OwnshipPosition.entries.map { it.name })
         assertEquals(OwnshipPosition.NEAR_CENTER, SettingsCodec.decode(mapOf("ownshipPosition" to "NEAR_CENTER")).ownshipPosition)
         assertEquals(OwnshipPosition.CENTER, SettingsCodec.decode(mapOf("ownshipPosition" to "CENTER")).ownshipPosition)
@@ -203,9 +203,10 @@ class SettingsCodecTest {
             assertEquals(p, SettingsCodec.decode(mapOf("ownshipPosition" to p.name)).ownshipPosition)
         }
         assertEquals(OwnshipPosition.HIGH, SettingsCodec.decode(mapOf("ownshipPosition" to "HIGH")).ownshipPosition)
-        // 読めない名前・保存がないときは既定の3段目。保存してある1段目（標準）はそのまま
-        assertEquals(OwnshipPosition.HIGHER, SettingsCodec.decode(mapOf("ownshipPosition" to "TOP")).ownshipPosition)
-        assertEquals(OwnshipPosition.HIGHER, SettingsCodec.decode(mapOf("travelMode" to "CAR")).ownshipPosition)
+        // 読めない名前・保存がないときは既定の4段目。保存してある1段目（標準）・3段目（HIGHER）はそのまま
+        assertEquals(OwnshipPosition.NEAR_CENTER, SettingsCodec.decode(mapOf("ownshipPosition" to "TOP")).ownshipPosition)
+        assertEquals(OwnshipPosition.NEAR_CENTER, SettingsCodec.decode(mapOf("travelMode" to "CAR")).ownshipPosition)
+        assertEquals(OwnshipPosition.HIGHER, SettingsCodec.decode(mapOf("travelMode" to "CAR", "ownshipPosition" to "HIGHER")).ownshipPosition)
         assertEquals(OwnshipPosition.STANDARD, SettingsCodec.decode(mapOf("travelMode" to "CAR", "ownshipPosition" to "STANDARD")).ownshipPosition)
     }
 

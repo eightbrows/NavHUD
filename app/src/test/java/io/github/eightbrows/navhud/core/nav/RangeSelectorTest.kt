@@ -325,9 +325,10 @@ class RangeSelectorTest {
 
     @Test
     fun allStepsList() {
-        // 20261017-D02 から R1 50 km・100 km（100・200 km の段）を足した 12 段。使う段の初期値は今まで通り R1 25 km までの 10 段
+        // 20261017-D02 から R1 50 km・100 km（100・200 km の段）を足した 12 段。使う段の初期値は 20261025-D01 から全部の 12 段
+        // （前は R1 25 km までの 10 段）
         assertEquals(listOf(0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0, 200.0), RangeAuto.ALL_STEPS_KM)
-        assertEquals(RangeAuto.ALL_STEPS_KM.take(10), NavSettings().rangeStepsKm)
+        assertEquals(RangeAuto.ALL_STEPS_KM, NavSettings().rangeStepsKm)
     }
 
     @Test
@@ -344,7 +345,9 @@ class RangeSelectorTest {
             RangeSelector(steps, 1.0, auto = true, autoMinKm = 0.1, autoMaxKm = 200.0).autoSteps)
         assertEquals(100_000.0, RangeAuto.desired(steps.map { it * 1000 }, 80_000.0, null)!!, 0.0)
         assertEquals(200_000.0, RangeAuto.desired(steps.map { it * 1000 }, 150_000.0, null)!!, 0.0)
-        // 使う段に入っていなければ、AUTO の広域の限度にしても使う段の端に寄る（初期値の使う段では R1 25 km まで）
-        assertEquals(0.1 to 50.0, RangeAuto.limitsKm(NavSettings().rangeStepsKm, 0.1, 200.0))
+        // 使う段に入っていなければ、AUTO の広域の限度にしても使う段の端に寄る（R1 25 km までの使う段（20261024-D09 までの初期値）では R1 25 km まで）。
+        // 20261025-D01 からの初期値の使う段（全部）では R1 100 km
+        assertEquals(0.1 to 50.0, RangeAuto.limitsKm(io.github.eightbrows.navhud.core.TestSettings.BEFORE_1025_D01.rangeStepsKm, 0.1, 200.0))
+        assertEquals(0.1 to 200.0, RangeAuto.limitsKm(NavSettings().rangeStepsKm, 0.1, 200.0))
     }
 }
