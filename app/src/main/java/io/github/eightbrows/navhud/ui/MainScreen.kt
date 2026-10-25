@@ -81,8 +81,10 @@ import io.github.eightbrows.navhud.core.view.HudInsets
 import io.github.eightbrows.navhud.core.view.HudRect
 import io.github.eightbrows.navhud.core.view.HudViewport
 import io.github.eightbrows.navhud.core.view.NumberField
+import io.github.eightbrows.navhud.core.view.NumberLayout
 import io.github.eightbrows.navhud.core.view.NumberRows
 import io.github.eightbrows.navhud.core.view.RangeButtonFace
+import io.github.eightbrows.navhud.core.view.TopBarFit
 import io.github.eightbrows.navhud.core.view.WpStripLayout
 import java.time.ZoneId
 import kotlin.math.roundToInt
@@ -614,28 +616,59 @@ private fun TopBar(
     onOpenSettings: () -> Unit,
     onOpenDebug: () -> Unit,
 ) {
-    Row(
-        // 空いている所は地図に渡す（ドラッグで PAN）
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
+    // ボタンの文字（small は小さい文字のボタン）。左の列と、右に寄せる表示モード・⚙
+    val hdg = "HDG ${state.sourceMode.name}"
+    val input = "⇄ " + if (state.sourceKind == SourceKind.LIVE) "LIVE" else "REPLAY"
+    val mode = if (state.settings.displayMode == DisplayMode.ARC) "ARC" else "N-UP"
+    val labels = buildList {
+        add(hdg to false)
+        add("WP" to false)
+        add(input to true)
+        if (showReplay) add("FILE" to true)
+        add(mode to false)
+        add("⚙" to false)
+    }
+    val tm = rememberTextMeasurer()
+    val density = LocalDensity.current
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        // 入りきらないときだけ、文字を全部同じ倍率で小さくする（20261025-D09。余白・枠・すき間は縮めない）
+        val scale = with(density) {
+            val textDp = labels.sumOf { (t, small) -> tm.measure(t, hudButtonStyle(small)).size.width.toDp().value.toDouble() }.toFloat()
+            // ボタンごとに内側の左右の余白と枠（左右 1dp）、丸めの分 1dp。ボタンの間のすき間と、上部バーの左右の余白
+            val fixedDp = labels.sumOf { (_, small) -> (hudButtonPadH(small).value * Tuning.TOP_BAR_BUTTON_PAD_SCALE * 2 + 3f).toDouble() }.toFloat() +
+                Tuning.TOP_BAR_GAP_DP * (labels.size - 1) + Tuning.TOP_BAR_PADDING_H_DP * 2
+            TopBarFit.textScale(constraints.maxWidth.toDp().value, textDp, fixedDp)
+        }
+        val pad = Tuning.TOP_BAR_BUTTON_PAD_SCALE
         // ボタンの不透明度（設定）
         val a = state.settings.buttonOpacityPct / 100f
-        // 方位ソースの選択（HYBRID / GPS / COMPASS）
-        HudButton("HDG ${state.sourceMode.name}", onCycleSource, overlayAlpha = a)
-        // WP ボタン列の表示/非表示（出ているときは反転）
-        HudButton("WP", onToggleWpButtons, inverted = showWpButtons, overlayAlpha = a)
-        // INPUT（タップで LIVE ⇔ REPLAY）
-        HudButton("⇄ " + if (state.sourceKind == SourceKind.LIVE) "LIVE" else "REPLAY", onToggleSourceKind, small = true, overlayAlpha = a)
-        // track.csv を選ぶ（REPLAY のときだけ）
-        if (showReplay) HudButton("FILE", onPickTrack, small = true, overlayAlpha = a)
-        Spacer(Modifier.weight(1f))
-        HudButton(if (state.settings.displayMode == DisplayMode.ARC) "ARC" else "N-UP", onToggleDisplay, overlayAlpha = a)
-        // 設定画面。長押しで開発用画面
-        HudButton("⚙", onOpenSettings, onLongClick = onOpenDebug, overlayAlpha = a)
+        Row(
+            // 空いている所は地図に渡す（ドラッグで PAN）
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Tuning.TOP_BAR_PADDING_H_DP.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Tuning.TOP_BAR_GAP_DP.dp),
+        ) {
+            // 左の列は残りの幅に入れる（右の表示モードと ⚙ の幅を先に取るので、⚙ は押しつぶされない）
+            Row(
+                Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Tuning.TOP_BAR_GAP_DP.dp),
+            ) {
+                // 方位ソースの選択（HYBRID / GPS / COMPASS）
+                HudButton(hdg, onCycleSource, overlayAlpha = a, padScale = pad, textScale = scale)
+                // WP ボタン列の表示/非表示（出ているときは反転）
+                HudButton("WP", onToggleWpButtons, inverted = showWpButtons, overlayAlpha = a, padScale = pad, textScale = scale)
+                // INPUT（タップで LIVE ⇔ REPLAY）
+                HudButton(input, onToggleSourceKind, small = true, overlayAlpha = a, padScale = pad, textScale = scale)
+                // track.csv を選ぶ（REPLAY のときだけ）
+                if (showReplay) HudButton("FILE", onPickTrack, small = true, overlayAlpha = a, padScale = pad, textScale = scale)
+            }
+            HudButton(mode, onToggleDisplay, overlayAlpha = a, padScale = pad, textScale = scale)
+            // 設定画面。長押しで開発用画面
+            HudButton("⚙", onOpenSettings, onLongClick = onOpenDebug, overlayAlpha = a, padScale = pad, textScale = scale)
+        }
     }
 }
 
@@ -653,79 +686,43 @@ private fun compassMarks(state: NavState): String {
     return listOfNotNull("MAG".takeIf { q.declinationUnknown }, "CAL".takeIf { q.lowAccuracy }).joinToString(" ")
 }
 
-/** HDG 欄: 値の横に実際のソース（小さく）と、コンパスの印（黄色）。 */
-@Composable
-private fun RowScope.HeadingCell(state: NavState, valueColor: Color, weight: Float, alpha: Float) {
-    val src = headingSourceLabel(state)
-    val marks = compassMarks(state)
-    val small = SpanStyle(fontSize = 11.sp)
-    InlineCell(
-        "HDG",
-        buildAnnotatedString {
-            append(HudFormat.bearing(state.heading.deg))
-            if (src.isNotEmpty()) withStyle(small) { append(" $src") }
-            if (marks.isNotEmpty()) {
-                // コンパス自体の状態なので、NO FIX 中も黄色のまま
-                withStyle(small.copy(color = HudColors.Caution)) { append(" $marks") }
-            }
-        },
-        valueColor,
-        weight,
-        // コンパスの印（CAL / MAG）は警告なので、出ているときはセルごと 100%
-        modifier = Modifier.alpha(if (marks.isNotEmpty()) 1f else alpha),
-    )
-}
-
 /**
- * 数値の表示（上部バーの下、4行）。見出しは値の左に小さく並べる。箱なしで、文字に黒の縁取り。
- * 1行目: TIME / ALT / RATE（タップで窓の切替）、2行目: HDG / GS / ETA、3行目: TGT / DDL、4行目: LAT/LON。
+ * 数値の表示（上部バーの下、4行。20261025-D09 から。左の列 = 時刻と WP、右 = 自機の値）。見出しは値の左に小さく並べる。箱なしで、文字に黒の縁取り。
+ * 1行目: TIME ｜ LAT/LON、2行目: ETA ｜ GS・HDG、3行目: TGT ｜ ALT・AGL、4行目: DDL ｜ RATE（タップで窓の切替）。
  * 次の WP の名前・方位・距離は地図上の WP の文字で見る（§6.1）。
- * 不透明度は設定（numbersOpacityPct）。警告の表示（締切超過の DDL、CAL / MAG の付いた HDG）は常に 100%。
+ * 幅は欄ごとのいちばん長くなる値（NumberRows.SAMPLES）を先に取り、左の列は全部の行で同じ幅（core の NumberLayout）。
+ * 幅が足りない画面では、全部の行の文字を同じ倍率で縮める。
+ * 不透明度は設定（numbersOpacityPct）。TIME はいつも UI の色。警告の表示（締切超過の DDL、CAL / MAG の付いた HDG、
+ * 負のまま出す設定の負の AGL）は常に 100%。
  */
 @Composable
 private fun NumbersPanel(state: NavState, zone: ZoneId, valueColor: Color, onCycleRate: () -> Unit) {
-    val fix = state.fix
-    val deadline = state.deadlineCountdownSec
-    val deadlineColor = when {
-        deadline == null -> valueColor
-        deadline < 0 -> HudColors.Warning
-        else -> valueColor
-    }
-    val n = Modifier.alpha(state.settings.numbersOpacityPct / 100f)
-    Column(
+    val alpha = state.settings.numbersOpacityPct / 100f
+    val tm = rememberTextMeasurer()
+    val density = LocalDensity.current
+    BoxWithConstraints(
         Modifier
             .fillMaxWidth()
             .padding(horizontal = 10.dp, vertical = Tuning.NUMBERS_PADDING_V_DP.dp),
-        verticalArrangement = Arrangement.spacedBy(Tuning.NUMBERS_ROW_GAP_DP.dp),
     ) {
-        // 1行目（TIME / ALT / RATE）は切れない幅を先に取る。2行目から下は NumberRows の順に重みで並べる
-        FirstNumbersRow(state, zone, valueColor, state.settings.numbersOpacityPct / 100f, onCycleRate)
-        for (row in NumberRows.ROWS.drop(1)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(Tuning.NUMBERS_CELL_GAP_DP.dp)) {
-                for (field in row) {
-                    val c = field.caption
-                    when (field) {
-                        NumberField.HDG -> HeadingCell(state, valueColor, weight = 1.25f, alpha = state.settings.numbersOpacityPct / 100f)
-                        NumberField.GS -> InlineCell(c, AnnotatedString(HudFormat.speedKmh(state.groundSpeedMps)), valueColor, 1f, modifier = n)
-                        NumberField.ETA -> InlineCell(c, AnnotatedString(HudFormat.time(state.etaMs, zone)), valueColor, 1.15f, modifier = n)
-                        NumberField.TGT -> InlineCell(c, AnnotatedString(HudFormat.countdown(state.targetCountdownSec)), valueColor, 1f, modifier = n)
-                        // 締切を過ぎたら警告なので 100%
-                        NumberField.DDL -> InlineCell(
-                            c, AnnotatedString(HudFormat.countdown(deadline)), deadlineColor, 1f,
-                            modifier = if (deadline != null && deadline < 0) Modifier else n,
-                        )
-                        // LAT/LON と AGL の幅は、要る幅（「33.47649, 132.99592」と「-1234 m」）の比で分ける
-                        NumberField.LAT_LON -> InlineCell(c, AnnotatedString(HudFormat.latLon(fix?.lat, fix?.lon)), valueColor, 2.4f, modifier = n)
-                        // 地上高（20261025-D08）: 設定「地上高の負の値」が「負のまま出す」で 0 未満なら、DDL を過ぎたときと同じ警告の色・100%
-                        NumberField.AGL -> {
-                            val agl = HudFormat.agl(state.aglM, state.settings.aglNegative)
-                            InlineCell(
-                                c, AnnotatedString(agl.text), if (agl.warning) HudColors.Warning else valueColor, 1f,
-                                modifier = if (agl.warning) Modifier else n,
-                            )
-                        }
-                        // 1行目の欄は FirstNumbersRow で出す
-                        NumberField.TIME, NumberField.ALT, NumberField.RATE -> Unit
+        val gap = Tuning.NUMBERS_CELL_GAP_DP
+        // 欄ごとの要る幅 [dp]（見出し + すき間 + 値 + 小さな文字。丸めの分を少し足す）
+        val needs = remember(density) {
+            NumberRows.ROWS.map { row ->
+                row.map { f ->
+                    val s = NumberRows.SAMPLES.getValue(f)
+                    val px = tm.measure(s.caption, Caption).size.width + tm.measure(s.value, Value).size.width +
+                        (if (s.small.isEmpty()) 0 else tm.measure(s.small, Caption).size.width)
+                    with(density) { px.toDp().value } + Tuning.NUMBERS_CAPTION_PAD_DP + 1f
+                }
+            }
+        }
+        val fit = NumberLayout.fit(needs, with(density) { constraints.maxWidth.toDp().value }, gap)
+        Column(verticalArrangement = Arrangement.spacedBy(Tuning.NUMBERS_ROW_GAP_DP.dp)) {
+            NumberRows.ROWS.forEachIndexed { i, row ->
+                Row(horizontalArrangement = Arrangement.spacedBy(gap.dp)) {
+                    row.forEachIndexed { j, field ->
+                        NumberFieldCell(state, zone, field, valueColor, alpha, onCycleRate, Modifier.width(fit.widths[i][j].dp), fit.scale)
                     }
                 }
             }
@@ -733,55 +730,62 @@ private fun NumbersPanel(state: NavState, zone: ZoneId, valueColor: Color, onCyc
     }
 }
 
-/**
- * 数値の1行目（TIME / ALT / RATE）。どの画面幅でも切れないよう、各欄にいちばん長くなる値（Tuning.NUMBERS_ROW1_SAMPLES）の
- * 幅を先に取り、余りを前の比率（Tuning.NUMBERS_ROW1_WEIGHTS）で分ける。それでも入りきらない狭い画面では、1行目の文字を縮める。
- */
+/** 数値の欄 1 つ（見出し・値・色・不透明度・タップ）。幅は modifier、文字の倍率は textScale */
 @Composable
-private fun FirstNumbersRow(state: NavState, zone: ZoneId, valueColor: Color, alpha: Float, onCycleRate: () -> Unit) {
+private fun NumberFieldCell(
+    state: NavState,
+    zone: ZoneId,
+    field: NumberField,
+    valueColor: Color,
+    alpha: Float,
+    onCycleRate: () -> Unit,
+    modifier: Modifier,
+    textScale: Float,
+) {
     val n = Modifier.alpha(alpha)
-    val tm = rememberTextMeasurer()
-    val density = LocalDensity.current
-    BoxWithConstraints(Modifier.fillMaxWidth()) {
-        val gap = Tuning.NUMBERS_CELL_GAP_DP.dp
-        val samples = Tuning.NUMBERS_ROW1_SAMPLES
-        val weights = Tuning.NUMBERS_ROW1_WEIGHTS
-        // 各欄の要る幅 [px]（見出し + すき間 + 値。丸めの分を少し足す）
-        val need = with(density) {
-            samples.map { (cap, value) ->
-                tm.measure(cap, Caption).size.width + Tuning.NUMBERS_CAPTION_PAD_DP.dp.toPx() + tm.measure(value, Value).size.width + 2f
+    val c = field.caption
+    when (field) {
+        // TIME はいつも UI の色（NO FIX でもグレーにしない）
+        NumberField.TIME -> NumberCell(c, AnnotatedString(HudFormat.time(state.nowMs, zone)), HudColors.Scale, modifier.then(n), textScale)
+        NumberField.ETA -> NumberCell(c, AnnotatedString(HudFormat.time(state.etaMs, zone)), valueColor, modifier.then(n), textScale)
+        NumberField.TGT -> NumberCell(c, AnnotatedString(HudFormat.countdown(state.targetCountdownSec)), valueColor, modifier.then(n), textScale)
+        // 締切を過ぎたら警告なので 100%
+        NumberField.DDL -> {
+            val d = state.deadlineCountdownSec
+            val over = d != null && d < 0
+            NumberCell(c, AnnotatedString(HudFormat.countdown(d)), if (over) HudColors.Warning else valueColor, if (over) modifier else modifier.then(n), textScale)
+        }
+        NumberField.LAT_LON -> NumberCell(c, AnnotatedString(HudFormat.latLon(state.fix?.lat, state.fix?.lon)), valueColor, modifier.then(n), textScale)
+        NumberField.GS -> NumberCell(c, AnnotatedString(HudFormat.speedKmh(state.groundSpeedMps)), valueColor, modifier.then(n), textScale)
+        NumberField.HDG -> {
+            // 値の横に実際のソース（小さく）と、コンパスの印（黄色）。コンパスの印は警告なので、出ているときはセルごと 100%
+            val src = headingSourceLabel(state)
+            val marks = compassMarks(state)
+            val small = SpanStyle(fontSize = Caption.fontSize * textScale)
+            val value = buildAnnotatedString {
+                append(HudFormat.bearing(state.heading.deg))
+                if (src.isNotEmpty()) withStyle(small) { append(" $src") }
+                // コンパス自体の状態なので、NO FIX 中も黄色のまま
+                if (marks.isNotEmpty()) withStyle(small.copy(color = HudColors.Caution)) { append(" $marks") }
             }
+            NumberCell(c, value, valueColor, if (marks.isNotEmpty()) modifier else modifier.then(n), textScale)
         }
-        val avail = constraints.maxWidth - with(density) { gap.toPx() } * (samples.size - 1)
-        val scale = minOf(1f, avail / need.sum())
-        val spare = (avail - need.sum() * scale).coerceAtLeast(0f)
-        val widths = need.mapIndexed { i, w -> with(density) { (w * scale + spare * weights[i] / weights.sum()).toDp() } }
-        Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
-            NumberCell(NumberField.TIME.caption, AnnotatedString(HudFormat.time(state.nowMs, zone)), HudColors.Scale, n.width(widths[0]), scale)
-            NumberCell(NumberField.ALT.caption, AnnotatedString(HudFormat.altitude(state.altM)), valueColor, n.width(widths[1]), scale)
-            NumberCell(
-                "${NumberField.RATE.caption} ${state.settings.rateWindowSec}s",
-                AnnotatedString(HudFormat.rate(state.rate)),
-                valueColor,
-                Modifier.width(widths[2]).clickable(onClick = onCycleRate).then(n),
-                scale,
-            )
+        NumberField.ALT -> NumberCell(c, AnnotatedString(HudFormat.altitude(state.altM)), valueColor, modifier.then(n), textScale)
+        // 地上高（20261025-D08）: 設定「地上高の負の値」が「負のまま出す」で 0 未満なら、DDL を過ぎたときと同じ警告の色・100%
+        NumberField.AGL -> {
+            val agl = HudFormat.agl(state.aglM, state.settings.aglNegative)
+            NumberCell(c, AnnotatedString(agl.text), if (agl.warning) HudColors.Warning else valueColor, if (agl.warning) modifier else modifier.then(n), textScale)
         }
+        // RATE: タップで窓（10 / 30 / 60 秒）を切り替える
+        NumberField.RATE -> NumberCell(
+            "$c ${state.settings.rateWindowSec}s", AnnotatedString(HudFormat.rate(state.rate)), valueColor,
+            modifier.clickable(onClick = onCycleRate).then(n), textScale,
+        )
     }
 }
 
-/** 数値のセル（重みで幅を決める）。 */
-@Composable
-private fun RowScope.InlineCell(
-    caption: String,
-    value: AnnotatedString,
-    color: Color,
-    weight: Float,
-    modifier: Modifier = Modifier,
-) = NumberCell(caption, value, color, modifier.weight(weight))
-
 /**
- * 数値のセル: 見出しを値の左に小さく並べる。幅は modifier で決める。textScale は文字の倍率（1行目が入りきらない狭い画面だけ 1 未満）。
+ * 数値のセル: 見出しを値の左に小さく並べる。幅は modifier で決める。textScale は文字の倍率（入りきらない画面だけ 1 未満。全部の行で同じ）。
  */
 @Composable
 private fun NumberCell(caption: String, value: AnnotatedString, color: Color, modifier: Modifier, textScale: Float = 1f) {
@@ -894,6 +898,13 @@ private fun PermissionBox(
     }
 }
 
+/** HudButton の内側の左右の余白（倍率 1 のとき） */
+private fun hudButtonPadH(small: Boolean) = if (small) 8.dp else 10.dp
+
+/** HudButton の文字（textScale は上部バーが入りきらないときの倍率） */
+private fun hudButtonStyle(small: Boolean, textScale: Float = 1f) =
+    ButtonText.copy(fontSize = (if (small) 12.sp else 13.sp) * textScale)
+
 @Composable
 internal fun HudButton(
     text: String,
@@ -905,6 +916,10 @@ internal fun HudButton(
     onLongClick: (() -> Unit)? = null,
     /** 地図に重ねるボタン（上部バー）ならボタンの不透明度（設定）。null は設定画面などのボタン（不透明度は変えない） */
     overlayAlpha: Float? = null,
+    /** 内側の左右の余白の倍率（上部バーは Tuning.TOP_BAR_BUTTON_PAD_SCALE） */
+    padScale: Float = 1f,
+    /** 文字の倍率（上部バーが入りきらないときだけ 1 より小さい。TopBarFit） */
+    textScale: Float = 1f,
 ) {
     val color = if (enabled) HudColors.Scale else HudColors.WpReached
     val shape = RoundedCornerShape(4.dp)
@@ -919,10 +934,10 @@ internal fun HudButton(
                 },
             )
             .combinedClickable(enabled = enabled, onClick = onClick, onLongClick = onLongClick)
-            .padding(horizontal = if (small) 8.dp else 10.dp, vertical = if (small) 3.dp else 5.dp),
+            .padding(horizontal = hudButtonPadH(small) * padScale, vertical = if (small) 3.dp else 5.dp),
         contentAlignment = Alignment.Center,
     ) {
-        val style = ButtonText.copy(fontSize = if (small) 12.sp else 13.sp)
+        val style = hudButtonStyle(small, textScale)
         when {
             overlayAlpha != null -> OverlayButtonText(text, color, inverted, overlayAlpha, style)
             inverted -> Text(text, style = style.copy(color = HudColors.Background))

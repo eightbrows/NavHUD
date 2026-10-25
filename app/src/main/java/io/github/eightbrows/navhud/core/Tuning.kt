@@ -330,6 +330,11 @@ object Tuning {
     /** WP ボタン列の上下の余白（ボタンの高さ = 列の高さ − 2 × これ） */
     const val WP_STRIP_PADDING_V_DP = 3f
 
+    /** 上部バー（20261025-D09）: 左右の余白 [dp]、ボタンの間 [dp]、ボタンの内側の左右の余白の倍率（ほかの画面のボタンに対して） */
+    const val TOP_BAR_PADDING_H_DP = 8f
+    const val TOP_BAR_GAP_DP = 4f
+    const val TOP_BAR_BUTTON_PAD_SCALE = 0.6f
+
     /** 数値の表示（上部バーの下、4行）: 上下の余白と、行の間隔 */
     const val NUMBERS_PADDING_V_DP = 4f
     const val NUMBERS_ROW_GAP_DP = 2f
@@ -410,15 +415,6 @@ object Tuning {
     /** 数値の表示: 欄の間のすき間 [dp]、見出しと値の間 [dp] */
     const val NUMBERS_CELL_GAP_DP = 10f
     const val NUMBERS_CAPTION_PAD_DP = 4f
-
-    /**
-     * 数値の1行目（TIME / ALT / RATE）の、いちばん長くなる見出しと値。この幅は必ず取る（切れないように）。
-     * RATE は 60 秒の窓で 10 km 近く・高低差 3 桁まで
-     */
-    val NUMBERS_ROW1_SAMPLES = listOf("TIME" to "88:88:88", "ALT" to "8888 m", "RATE 60s" to "88.8 km  +888 m")
-
-    /** 数値の1行目の、余った幅の分け方（TIME : ALT : RATE。前の欄の比率） */
-    val NUMBERS_ROW1_WEIGHTS = listOf(1f, 0.85f, 1.55f)
 
     /** 文字の大きさ [sp]: 方位目盛り / 距離環（距離環の数字は、これに設定の大きさ ringLabelScalePct を掛ける） */
     const val LABEL_SP = 13f
