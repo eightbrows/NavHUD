@@ -96,7 +96,7 @@
     <string name="button_opacity">Button opacity</string>
     <string name="button_opacity_note">Buttons over the map (top bar, side columns, WP strip, replay controls). ON fill is half of this.</string>
     <string name="numbers_opacity">Numbers opacity</string>
-    <string name="numbers_opacity_note" formatted="false">The four rows of numbers. Warnings (deadline passed, CAL / MAG) are always 100%.</string>
+    <string name="numbers_opacity_note" formatted="false">The four rows of numbers. Warnings (deadline passed, CAL / MAG, negative AGL) are always 100%.</string>
     <string name="track_color">Loaded track color</string>
     <string name="track_color_note">The whole REPLAY track line. The driven trail does not change.</string>
     <string name="track_brightness">Loaded track brightness</string>
@@ -252,7 +252,7 @@
     <string name="about_peak_source">Created from “List of Elevations of Major Mountains in Japan (1003 Mountains)” (Geospatial Information Authority of Japan)</string>
     <string name="about_airport_source">Created from “National Land Numerical Information (Airport Data)” (Ministry of Land, Infrastructure, Transport and Tourism) (%1$s)</string>
     <string name="sec_sources">Data sources</string>
-    <string name="sources_note">Data for the base map and landmarks. Tap an address to open it.</string>
+    <string name="sources_note">Data for the base map, landmarks and height above ground. Tap an address to open it.</string>
     <string name="src_license_fmt">License: %1$s</string>
     <string name="src_use_fmt">Used for: %1$s</string>
     <string name="src_title_basemap">Global Map Japan</string>

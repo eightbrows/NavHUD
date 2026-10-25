@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
@@ -41,6 +42,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
@@ -55,6 +57,7 @@ import io.github.eightbrows.navhud.core.model.Waypoint
 import io.github.eightbrows.navhud.core.nav.NavState
 import io.github.eightbrows.navhud.core.nav.WaypointTimes
 import io.github.eightbrows.navhud.core.view.HudFormat
+import io.github.eightbrows.navhud.core.view.ItemWrap
 import java.time.LocalTime
 import java.time.ZoneId
 import java.util.Locale
@@ -275,17 +278,19 @@ private fun ReorderableWaypointList(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    Text(CoordinateText.format(wp.lat, wp.lon), style = Small, maxLines = 1)
+                    // 緯度・経度も、入らなければ緯度と経度の間で次の行へ（20261025-D13）
+                    WrappedItems(coordinateItems(CoordinateText.format(wp.lat, wp.lon)), " ", Small)
                     val details = listOfNotNull(
                         wp.eleM?.let { stringResource(R.string.wp_detail_elevation, "%.0f".format(Locale.US, it)) },
                         wp.targetTime?.let { stringResource(R.string.wp_detail_target, TimeText.format(it)) },
                         wp.deadlineTime?.let { stringResource(R.string.wp_detail_deadline, TimeText.format(it)) },
                         wp.radiusM?.let { stringResource(R.string.wp_detail_radius, "%.0f".format(Locale.US, it)) },
                     )
-                    if (details.isNotEmpty()) Text(details.joinToString("  "), style = Small, maxLines = 1)
+                    // 1 行に入らないときは、項目の切れ目で次の行へ（20261025-D13）
+                    WrappedItems(details, "  ", Small)
                     // 到達済みなら、到達の理由・時刻・最接近（§5.4）
                     wp.reach?.takeIf { wp.reached }?.let {
-                        Text(reachText(HudFormat.reach(it, ZoneId.systemDefault())), style = Small.copy(color = HudColors.Caution), maxLines = 1)
+                        WrappedItems(reachItems(HudFormat.reach(it, ZoneId.systemDefault())), " ", Small.copy(color = HudColors.Caution))
                     }
                 }
                 Switch(
@@ -449,9 +454,40 @@ private fun TimeAdjustDialog(
     )
 }
 
-/** 到達の理由の 1 行（§5.4）: 「真横 08:12:34 最接近 42 m」。シークで飛ばした区間なら「シーク・真横 …」。 */
+/**
+ * 項目を区切り（separator）でつないで並べる。1 行に入らないときは、入らない項目から次の行に送る（項目の途中では切らない。
+ * 行の分け方は core の ItemWrap）。1 つで幅に入らない項目は、その行の端を … にする。20261025-D13
+ */
 @Composable
-private fun reachText(r: HudFormat.ReachLine): String {
+private fun WrappedItems(items: List<String>, separator: String, style: TextStyle) {
+    if (items.isEmpty()) return
+    val tm = rememberTextMeasurer()
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val avail = constraints.maxWidth.toFloat()
+        val lines = remember(items, separator, style, avail) {
+            val widths = items.map { tm.measure(it, style).size.width.toFloat() }
+            // 区切りの幅（空白は行の端では幅に入らないことがあるので、文字ではさんで測る）
+            val x = tm.measure("x", style).size.width
+            val gap = (tm.measure("x${separator}x", style).size.width - 2 * x).toFloat()
+            ItemWrap.lines(widths, gap, avail)
+        }
+        Column {
+            lines.forEach { line ->
+                Text(line.joinToString(separator) { items[it] }, style = style, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+    }
+}
+
+/** 「緯度, 経度」を「緯度,」と「経度」の 2 つの項目に分ける（空白 1 つでつなぐと元に戻る）。形が違えば 1 つのまま */
+private fun coordinateItems(text: String): List<String> {
+    val parts = text.split(", ")
+    return if (parts.size == 2) listOf(parts[0] + ",", parts[1]) else listOf(text)
+}
+
+/** 到達の理由の項目（§5.4）: 「真横」「08:12:34」「最接近 42 m」。シークで飛ばした区間なら「シーク・真横」。空白 1 つでつないで出す。 */
+@Composable
+private fun reachItems(r: HudFormat.ReachLine): List<String> {
     val reason = stringResource(
         when (r.reason) {
             ReachReason.RADIUS -> R.string.reach_radius
@@ -463,5 +499,5 @@ private fun reachText(r: HudFormat.ReachLine): String {
     )
     val head = if (r.viaSeek) stringResource(R.string.reach_seek, reason) else reason
     val closest = r.closestM?.let { stringResource(R.string.reach_closest, it) }
-    return listOfNotNull(head, r.time, closest).joinToString(" ")
+    return listOfNotNull(head, r.time, closest)
 }

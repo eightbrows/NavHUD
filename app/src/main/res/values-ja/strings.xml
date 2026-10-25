@@ -94,7 +94,7 @@
     <string name="button_opacity">ボタンの不透明度</string>
     <string name="button_opacity_note">地図に重ねるボタン（上部バー・操作列・WP ボタン列・再生の操作列）。ON の塗りはさらに半分</string>
     <string name="numbers_opacity">数値の不透明度</string>
-    <string name="numbers_opacity_note" formatted="false">上の4行の数値。警告の表示（締切超過・CAL / MAG）は常に 100%</string>
+    <string name="numbers_opacity_note" formatted="false">上の4行の数値。警告の表示（締切超過・CAL / MAG・負の AGL）は常に 100%</string>
     <string name="track_color">読み込んだ軌跡の色</string>
     <string name="track_color_note">REPLAY のトラック全体の線。走った跡の線は変わらない</string>
     <string name="track_brightness">読み込んだ軌跡の明るさ</string>
@@ -250,7 +250,7 @@
     <string name="about_peak_source">「日本の主な山岳標高一覧（1003山）」（国土地理院）をもとに作成</string>
     <string name="about_airport_source">「国土数値情報（空港データ）」（国土交通省）（%1$s）をもとに作成</string>
     <string name="sec_sources">データの出典</string>
-    <string name="sources_note">背景地図とランドマークのデータ。アドレスを押すと開きます。</string>
+    <string name="sources_note">背景地図・ランドマーク・地上高のデータ。アドレスを押すと開きます。</string>
     <string name="src_license_fmt">ライセンス：%1$s</string>
     <string name="src_use_fmt">使用箇所：%1$s</string>
     <string name="src_title_basemap">地球地図日本</string>

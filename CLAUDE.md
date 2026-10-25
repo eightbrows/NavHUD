@@ -14,13 +14,13 @@
 - `MainActivity`（直下） アプリの入口。画面の切り替え、ファイルを選ぶ画面、権限のお願い
 - `core/Tuning.kt` 調整値（設定画面で変えられないしきい値・時間・寸法）
 - `core/geo` 地理計算（距離、方位、角度の差、緯度・経度と東m・北m の変換）
-- `core/io` ファイルの読み書き（WP リストの CSV・GPX、座標の貼り付け、track.csv、GpsLogger の zip、背景地図のファイル）
-- `core/model` データ型（Fix, Waypoint, 到達の理由, 方位ソースの enum, PositionSource）
+- `core/io` ファイルの読み書き（WP リストの CSV・GPX、座標の貼り付け、track.csv、GpsLogger の zip、背景地図のファイル、最高標高のファイル（MaxElevFile）。地上高に使う）
+- `core/model` データ型（Fix（海抜高度 mslAltM を含む）, Waypoint, 到達の理由, 方位ソースの enum, PositionSource）
 - `core/nav` ナビ計算（NavEngine、NavState、設定と保存用の変換、背景地図の項目と縮尺（MapItems。線の MapItem・ランドマークの LandmarkItem）、表示言語の選択、RATE、方位選択、縮尺と AUTO、WP、ETA、カウントダウン、到達判定、PAN、軌跡、NO FIX）
 - `core/replay` 再生の時間の進め方（LIVE / REPLAY の時計、Fix の送出、シーク、倍速）
 - `core/sensor` センサーの値の下ごしらえ（コンパスの計算、端末の位置から Fix を作る）
-- `core/view` 画面に描くものの位置と文字の計算（HudScene、ARC / North Up、背景地図の線とランドマーク、距離環の数字、標高プロファイル、ピンチ・2 本指のタップの見分け方、文字の整形）
-- `source` 端末の機能とつなぐ所（GPS、位置のサービス、コンパス、リプレイの送出、ファイルの選択と記憶、設定の保存、表示言語の切り替え、権限の状態、背景地図のファイルを読む）
+- `core/view` 画面に描くものの位置と文字の計算（HudScene、ARC / North Up、背景地図の線とランドマーク、距離環の数字、標高プロファイル、ピンチ・2 本指のタップの見分け方、文字の整形、数値の欄の並びと幅（NumberRows・NumberLayout）、上部バーの文字の倍率（TopBarFit））
+- `source` 端末の機能とつなぐ所（GPS、位置のサービス、コンパス、リプレイの送出、ファイルの選択と記憶、設定の保存、表示言語の切り替え、権限の状態、背景地図のファイルを読む、最高標高のファイルを読む（MaxElevStore）、AltitudeConverter で海抜高度を求める（MslAltitude））
 - `ui` 画面（NavViewModel、メイン画面、HUD の Canvas、色、設定、WP設定、開発用の画面）。`ui/theme` は配色
 - 画面は Jetpack Compose の Canvas で描く。画面は `NavState`（計算済みの値）だけを見る。
   - 例外: 背景地図のデータ（`BaseMap`。大きいので）は NavState に入れず、`source/BaseMapStore` で読んで HUD の Canvas に直接渡す。
@@ -30,6 +30,7 @@
   - `tools/gm2basemap_airportlist.ps1` 飛行場の一覧の資料を書く（gm2basemap.ps1 が読み込んで、毎回呼ぶ）
   - `tools/airport_ids.csv` 飛行場の番号（A001 など）の対応表。**番号は変えない・使い回さない**（新しい飛行場は続きの番号を変換が足す）
   - `tools/track2gpx.ps1` track.csv からエミュレータで再生する GPX を作る
+  - `tools/build_maxelev.py` 最高標高のファイルを作る（`mapdata/G04-d/` の国土数値情報 標高・傾斜度5次メッシュの ZIP 169 個 → `app/src/main/assets/maxelev.bin`。SPEC §8.10）。Python 3 と pyshp が要る（今の開発機には Python がない）。使い方はスクリプトの先頭
   - `docs/airports.html` 飛行場の一覧の資料（変換が basemap.bin と一緒に書き出す。**手で直さない**）
   - `docs/SPEC.md`（仕様）・`docs/cheatsheet.html` / `.pdf`（チートシート）・`docs/formats.html` / `.pdf`（ファイル形式の説明）・`docs/images/`（README の画像）
 
@@ -37,6 +38,7 @@
 - 仕様は SPEC §8。元のデータ（地球地図日本・山岳標高一覧の CSV・国土数値情報の空港データ・OurAirports の airports.csv と runways.csv）は `mapdata/`（git 管理外）に置き、`pwsh tools/gm2basemap.ps1` で変換する。
 - 背景地図を作り直したら、`app/src/main/assets/basemap.bin`・`docs/airports.html`・`tools/airport_ids.csv` を一緒にコミットする（開発者がコミットする）。
 - 線の項目・ランドマークの項目と初期値は `core/nav/MapItems.kt` と `NavSettings`（DEFAULT_MAP_ITEMS・DEFAULT_LANDMARKS）。見た目の寸法は `core/Tuning.kt`、色は `ui/HudColors`。
+- 地上高の最高標高のファイル（maxelev.bin）は `mapdata/G04-d/`（git 管理外）の ZIP から `tools/build_maxelev.py` で作る。作り直したら `app/src/main/assets/maxelev.bin` をコミットする（開発者がコミットする）。
 
 ## エミュレータ・実機
 - エミュレータは **NavHUD_Shots** を使う（自由に起動してよい）。**使い終わったら毎回閉じる**（`adb -s emulator-5554 emu kill`）。レポートを作る前に、NavHUD_Shots が動いていないことを確かめる。
