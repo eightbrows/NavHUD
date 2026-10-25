@@ -16,13 +16,33 @@
 - `core/geo` 地理計算（距離、方位、角度の差、緯度・経度と東m・北m の変換）
 - `core/io` ファイルの読み書き（WP リストの CSV・GPX、座標の貼り付け、track.csv、GpsLogger の zip、背景地図のファイル）
 - `core/model` データ型（Fix, Waypoint, 到達の理由, 方位ソースの enum, PositionSource）
-- `core/nav` ナビ計算（NavEngine、NavState、設定と保存用の変換、表示言語の選択、RATE、方位選択、縮尺と AUTO、WP、ETA、カウントダウン、到達判定、PAN、軌跡、NO FIX）
+- `core/nav` ナビ計算（NavEngine、NavState、設定と保存用の変換、背景地図の項目と縮尺（MapItems。線の MapItem・ランドマークの LandmarkItem）、表示言語の選択、RATE、方位選択、縮尺と AUTO、WP、ETA、カウントダウン、到達判定、PAN、軌跡、NO FIX）
 - `core/replay` 再生の時間の進め方（LIVE / REPLAY の時計、Fix の送出、シーク、倍速）
 - `core/sensor` センサーの値の下ごしらえ（コンパスの計算、端末の位置から Fix を作る）
-- `core/view` 画面に描くものの位置と文字の計算（HudScene、ARC / North Up、背景地図の線、距離環の数字、標高プロファイル、文字の整形）
+- `core/view` 画面に描くものの位置と文字の計算（HudScene、ARC / North Up、背景地図の線とランドマーク、距離環の数字、標高プロファイル、ピンチ・2 本指のタップの見分け方、文字の整形）
 - `source` 端末の機能とつなぐ所（GPS、位置のサービス、コンパス、リプレイの送出、ファイルの選択と記憶、設定の保存、表示言語の切り替え、権限の状態、背景地図のファイルを読む）
 - `ui` 画面（NavViewModel、メイン画面、HUD の Canvas、色、設定、WP設定、開発用の画面）。`ui/theme` は配色
 - 画面は Jetpack Compose の Canvas で描く。画面は `NavState`（計算済みの値）だけを見る。
+  - 例外: 背景地図のデータ（`BaseMap`。大きいので）は NavState に入れず、`source/BaseMapStore` で読んで HUD の Canvas に直接渡す。
+- リポジトリの一番上のフォルダ:
+  - `art/` 空港の記号の SVG のひな形（アプリは読み込まない。形は `ui/HudCanvas` のコードで描く）
+  - `tools/gm2basemap.ps1` 背景地図の変換（`mapdata/` の元のデータ → `app/src/main/assets/basemap.bin`）。使い方はスクリプトの先頭
+  - `tools/gm2basemap_airportlist.ps1` 飛行場の一覧の資料を書く（gm2basemap.ps1 が読み込んで、毎回呼ぶ）
+  - `tools/airport_ids.csv` 飛行場の番号（A001 など）の対応表。**番号は変えない・使い回さない**（新しい飛行場は続きの番号を変換が足す）
+  - `tools/track2gpx.ps1` track.csv からエミュレータで再生する GPX を作る
+  - `docs/airports.html` 飛行場の一覧の資料（変換が basemap.bin と一緒に書き出す。**手で直さない**）
+  - `docs/SPEC.md`（仕様）・`docs/cheatsheet.html` / `.pdf`（チートシート）・`docs/formats.html` / `.pdf`（ファイル形式の説明）・`docs/images/`（README の画像）
+
+## 背景地図
+- 仕様は SPEC §8。元のデータ（地球地図日本・山岳標高一覧の CSV・国土数値情報の空港データ・OurAirports の airports.csv と runways.csv）は `mapdata/`（git 管理外）に置き、`pwsh tools/gm2basemap.ps1` で変換する。
+- 背景地図を作り直したら、`app/src/main/assets/basemap.bin`・`docs/airports.html`・`tools/airport_ids.csv` を一緒にコミットする（開発者がコミットする）。
+- 線の項目・ランドマークの項目と初期値は `core/nav/MapItems.kt` と `NavSettings`（DEFAULT_MAP_ITEMS・DEFAULT_LANDMARKS）。見た目の寸法は `core/Tuning.kt`、色は `ui/HudColors`。
+
+## エミュレータ・実機
+- エミュレータは **NavHUD_Shots** を使う（自由に起動してよい）。**使い終わったら毎回閉じる**（`adb -s emulator-5554 emu kill`）。レポートを作る前に、NavHUD_Shots が動いていないことを確かめる。
+- Small_Phone_A14 には触らない。
+- アプリを入れるのは `adb -s emulator-5554` で、エミュレータだけ。
+- USB でつないでいる実機には、何も入れない（アプリを入れる・入れ直す・消す・データを消す・設定を変えることはしない）。頼まれたときに読むだけは可（デバッグ版なので `run-as` で保存の設定を読める）。
 
 ## サンプルデータ（track.csv）
 - track.csv は**意図的に git 管理外**。`/sample` は `.gitignore` で除外したまま、コミットしない。
@@ -32,8 +52,8 @@
   URI を永続化（`takePersistableUriPermission`）して次回から再利用する。
 
 ## 保留中
-- 背景地図（SPEC §8）: 海岸線と県境だけを**試しに**載せた（20261017-D01）。元のデータは `mapdata/`（git 管理外）、変換は `tools/gm2basemap.ps1`。河川・道路・鉄道などほかの線は**保留**（レポートの「次の作業」には挙げない）。
-- 調整値（設定画面で変えられないしきい値・時間・寸法）は `core/Tuning.kt` に集めてある。設定画面で変えられる値は `NavSettings` の既定値。
+- 画像の背景（SPEC §8.9 の保留の案）は使っていない（レポートの「次の作業」には挙げない）。
+- 調整値（設定画面で変えられないしきい値・時間・寸法）は `core/Tuning.kt` に集めてある。設定画面で変えられる値は `NavSettings` の既定値（20261025-D01 に開発者の実機の設定に合わせた）。
 
 ## 結果レポート（恒久ルール）
 各ステップの作業完了時に、結果レポートを HTML で作成する。

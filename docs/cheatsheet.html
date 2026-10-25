@@ -105,7 +105,7 @@
 <main class="sheet">
   <header>
     <h1>NavHUD チートシート</h1>
-    <p class="ver">目標針路案内アプリ ・ 20261017-D01 時点 ・ 画面は REPLAY（記録の再生）の例</p>
+    <p class="ver">目標針路案内アプリ ・ 20261025-D02 時点 ・ 図は REPLAY（記録の再生）の ARC の例（20261017-D01 の画面。背景地図なし）</p>
   </header>
 
   <div class="cols">
@@ -153,6 +153,17 @@
           <li><b>標高プロファイル</b>（高度のグラフ） 現在地 → 次の WP → その先。初期値は OFF（設定で出す）</li>
         </ol>
       </section>
+
+      <section>
+        <h2>背景地図の見方 <small>（いちばん下に暗く描く）</small></h2>
+        <ul>
+          <li><b>空港</b> 黄緑の飛行機。民間は塗りつぶし（大は丸い輪付き）、自衛隊・米軍は白抜き。大 = 滑走路 2,000m 以上、小 = 600m 以上。右上に略号、薄い塗りは敷地</li>
+          <li><b>滑走路</b> 黄緑の線（太さは実際の幅）。両端の先の破線は延長線</li>
+          <li><b>山頂</b> 桃色の三角。大きい順に 高（1,500m 以上の目印の山）・中・低</li>
+          <li><b>道路</b> <b>高速道路は青</b>、<b>国道は赤</b>、県道は茶。新幹線は紫の実線、在来線は破線</li>
+          <li><b>パン中</b> 地図の中心に小さな十字</li>
+        </ul>
+      </section>
     </div>
 
     <div>
@@ -176,11 +187,13 @@
         <h2>2 操作</h2>
         <table>
           <tr><th>地図をドラッグ</th><td>パン（先を見る）。30 秒さわらないと現在地に戻る</td></tr>
-          <tr><th>「現在地」</th><td>パン中だけ ＋ の下に出る。すぐ現在地に戻る</td></tr>
-          <tr><th>ピンチ</th><td>縮尺を詳細へ・広域へ（1段ずつ）</td></tr>
+          <tr><th>「現在地」</th><td>パン中だけ出る。すぐ現在地へ</td></tr>
+          <tr><th>ピンチ</th><td>1段ずつ 詳細へ・広域へ（R1 100km まで）</td></tr>
+          <tr><th>ダブルタップ</th><td>その所を基準に 1段 詳細へ</td></tr>
+          <tr><th>2 本指で軽くタップ</th><td>1段 広域へ（− と同じ）</td></tr>
           <tr><th>＋ / −</th><td>1段 詳細へ / 広域へ</td></tr>
           <tr><th>縮尺の数字をタップ</th><td>AUTO の ON / OFF</td></tr>
-          <tr><th>WP ボタンをタップ</th><td>到達済み ⇔ 未到達（その WP だけ）</td></tr>
+          <tr><th>WP ボタンをタップ</th><td>到達済み ⇔ 未到達</td></tr>
           <tr><th>WP ボタンを長押し</th><td>その WP を中心にパン</td></tr>
           <tr><th>「WP設定」</th><td>WP の追加・編集・並べ替え・有効 / 無効・読み書き</td></tr>
           <tr><th>RATE をタップ</th><td>10 / 30 / 60 秒</td></tr>
@@ -188,6 +201,7 @@
           <tr><th>再生: ▶ / ❚❚</th><td>再生 / 一時停止（終わりは END）</td></tr>
           <tr><th>再生: ＋ / −</th><td>速度 ×1 / 2 / 5 / 10 / 30</td></tr>
         </table>
+        <p class="note">位置が来るまでは前回の位置（初回は皇居）を出す。その間も地図を動かせる。</p>
       </section>
 
       <section>
@@ -201,9 +215,7 @@
           <li><b>＋ / −・ピンチで手動</b>になる。縮尺の数字をタップすると AUTO に戻る。パン中の ＋ / −・ピンチは AUTO を切らない。</li>
         </ul>
       </section>
-    </div>
 
-    <div>
       <section>
         <h2>4 WP の到達の判定 <small>（次の WP だけ）</small></h2>
         <table>
@@ -217,33 +229,36 @@
           <li>違っていたら、WP ボタンのタップで戻す。</li>
         </ul>
       </section>
+    </div>
 
+    <div>
       <section>
         <h2>5 主な設定と初期値 <small>（⚙）</small></h2>
         <table>
-          <tr><td>表示モード</td><td class="v">ARC</td></tr>
+          <tr><td>表示モード</td><td class="v">North Up</td></tr>
           <tr><td>UI の色 / 地図の色</td><td class="v">白 / 緑</td></tr>
           <tr><td>ボタン / 数値の不透明度</td><td class="v">70% / 100%</td></tr>
           <tr><td>距離環の数字の大きさ</td><td class="v">125%</td></tr>
-          <tr><td>ARC の自機の位置（後4〜後1・中央）</td><td class="v">後2</td></tr>
-          <tr><td>標高プロファイル</td><td class="v">OFF</td></tr>
-          <tr><td>標高オフセット</td><td class="v">36 m</td></tr>
-          <tr><td>読み込んだ軌跡の色 / 明るさ</td><td class="v">黄 / 75%</td></tr>
+          <tr><td>ARC の自機の位置（後4〜後1・中央）</td><td class="v">後1</td></tr>
+          <tr><td>標高プロファイル / 標高オフセット</td><td class="v">OFF / 36 m</td></tr>
+          <tr><td>読み込んだ軌跡の色 / 明るさ</td><td class="v">黄 / 100%</td></tr>
           <tr><td>方位ソース（車は GPS、歩行は HYBRID か COMPASS）</td><td class="v">GPS</td></tr>
           <tr><td>方位を保持する速度</td><td class="v">7 / 11 km/h</td></tr>
-          <tr><td>使う縮尺 / 起動時の縮尺</td><td class="v">25m〜25km / 250m</td></tr>
+          <tr><td>使う縮尺 / 起動時の縮尺</td><td class="v">25m〜100km / 250m</td></tr>
           <tr><td>AUTO / 詳細の限度 / 広域の限度</td><td class="v">ON / 50m / 250m</td></tr>
           <tr><td>AUTO で詳細にするまで / 詳細へ切り替える距離</td><td class="v">5 秒 / 1.3 倍</td></tr>
-          <tr><td>通過後に縮尺を変えるまで</td><td class="v">10 秒</td></tr>
-          <tr><td>パンから現在地へ戻るまで</td><td class="v">30 秒</td></tr>
+          <tr><td>通過後に縮尺を変えるまで / パンから戻るまで</td><td class="v">10 秒 / 30 秒</td></tr>
           <tr><td>移動手段（値を変えるならカスタム1〜3）</td><td class="v">自動車</td></tr>
           <tr><td>WP ボタンの数 / 地図に描く WP の数</td><td class="v">5 / 10</td></tr>
           <tr><td>NO FIX とみなす時間 / RATE の窓</td><td class="v">10 秒 / 10 秒</td></tr>
           <tr><td>画面常時点灯 / 前回の WP リストを自動で開く</td><td class="v">ON / ON</td></tr>
           <tr><td>言語</td><td class="v">端末に合わせる</td></tr>
-          <tr><td>背景地図（海岸線・県境）</td><td class="v">ON</td></tr>
+          <tr><td>地図レイヤ: 背景地図 / 線の太さ / 明るさ（1〜6）</td><td class="v">ON / 2 / 3</td></tr>
+          <tr><td colspan="2">　〜100k: 海岸線・県境・高速道路・新幹線・河川と湖沼・フェリーの航路 ／ 〜25k: 国道 ／ 〜5k: 市区町村境 ／ OFF: その他の自動車専用道路・県道・在来線</td></tr>
+          <tr><td>ランドマーク: 明るさ（1〜6）/ 空港の敷地</td><td class="v">3 / 〜5k</td></tr>
+          <tr><td colspan="2">　〜100k: 空港（民間・軍用 × 大・小）・略号・滑走路・延長線・山頂（高・中・低）</td></tr>
         </table>
-        <p class="note">変更はすぐ保存される。どの項目も、設定画面に（初期値：…）と出る。「その他」に「設定を初期値に戻す」（言語は変わらない）。一番下に 権限 と 情報。</p>
+        <p class="note">変更はすぐ保存される。「その他」に「設定を初期値に戻す」（言語は変わらない）。一番下に 権限・情報・データの出典。</p>
       </section>
 
       <section>
