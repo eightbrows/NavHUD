@@ -23,6 +23,7 @@ class SettingsCodecTest {
             noFixTimeoutSec = 15,
             altOffsetM = 35.5,
             displayMode = DisplayMode.NORTH_UP,
+            aglNegative = AglNegative.SHOW,
             rangeStepsKm = listOf(0.05, 2.0, 50.0),
             initialRangeKm = 2.0,
             autoRange = false,

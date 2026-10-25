@@ -183,11 +183,17 @@ class NavEngine(
     }
 
     /**
+     * 海抜高度 [m]（ALT・標高プロファイルの現在地・地上高に使う）: Fix.mslAltM（AltitudeConverter。Android 14 以上）があればそれ、
+     * なければ 楕円体高 − 標高オフセット（20261025-D08 から ALT もこの値。前は ALT だけいつも 楕円体高 − 標高オフセット）
+     */
+    private fun seaLevelM(fix: Fix): Double? = fix.mslAltM ?: fix.altRawM?.let { it - settings.altOffsetM }
+
+    /**
      * 地上高 [m] = 海抜高度 − 最高標高。海抜高度は Fix.mslAltM（AltitudeConverter）、なければ 楕円体高 − 標高オフセット。
      * 高さがない・最高標高が分からない（範囲外・unknown・まだ読んでいない）ときは null。負になってもそのまま返す
      */
     private fun aboveGroundM(fix: Fix): Double? {
-        val msl = fix.mslAltM ?: fix.altRawM?.let { it - settings.altOffsetM } ?: return null
+        val msl = seaLevelM(fix) ?: return null
         val ground = terrain?.maxElevationM(fix.lat, fix.lon) ?: return null
         return msl - ground
     }
@@ -551,7 +557,7 @@ class NavEngine(
             heading = heading,
             sourceMode = settings.sourceMode,
             groundSpeedMps = fix?.speedMps,
-            altM = fix?.altRawM?.let { it - settings.altOffsetM },
+            altM = fix?.let(::seaLevelM),
             aglM = if (noFix || fix == null) null else aboveGroundM(fix),
             rate = rate,
             waypoints = waypoints,

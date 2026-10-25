@@ -26,6 +26,7 @@ object SettingsCodec {
         "rateWindowSec" to s.rateWindowSec.toString(),
         "noFixTimeoutSec" to s.noFixTimeoutSec.toString(),
         "altOffsetM" to s.altOffsetM.toString(),
+        "aglNegative" to s.aglNegative.name,
         "displayMode" to s.displayMode.name,
         "rangeStepsKm" to s.rangeStepsKm.joinToString(","),
         "initialRangeKm" to s.initialRangeKm.toString(),
@@ -158,6 +159,8 @@ object SettingsCodec {
             rateWindowSec = int("rateWindowSec", d.rateWindowSec).takeIf { it in NavSettings.RATE_WINDOW_CHOICES_SEC } ?: d.rateWindowSec,
             noFixTimeoutSec = NavSettings.nearestInt(NavSettings.NO_FIX_TIMEOUT_CHOICES_SEC, int("noFixTimeoutSec", d.noFixTimeoutSec)),
             altOffsetM = dbl("altOffsetM", d.altOffsetM).inOr(NavSettings.ALT_OFFSET_M_RANGE, d.altOffsetM),
+            // 地上高の負の値（20261025-D08）: 保存がない（前の版）・読めない名前なら初期値の ZERO（0 にする）
+            aglNegative = enum("aglNegative", AglNegative.entries.toTypedArray(), d.aglNegative),
             displayMode = enum("displayMode", DisplayMode.entries.toTypedArray(), d.displayMode),
             rangeStepsKm = steps,
             // 起動時の縮尺: 段の一覧にない値は既定値（使う段にない段は、設定画面ではいちばん近い段に見える）

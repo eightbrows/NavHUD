@@ -113,7 +113,11 @@
     <string name="size_large">L</string>
     <string name="profile_note">Below the WP strip. Elevation from your position to the next target and beyond.</string>
     <string name="alt_offset">Altitude offset</string>
-    <string name="alt_offset_note">Altitude = GPS ellipsoid height − this</string>
+    <string name="alt_offset_note">Altitude = GPS ellipsoid height − this. Not used on Android 14 or later (the device computes the height above sea level)</string>
+    <string name="agl_negative">Negative AGL</string>
+    <string name="agl_negative_zero">Show 0</string>
+    <string name="agl_negative_show">Show negative</string>
+    <string name="agl_negative_note">When AGL is below the highest ground of the area (usual when driving). Negative values are shown in red</string>
     <string name="sec_heading">Heading</string>
     <string name="heading_source">Heading source</string>
     <string name="heading_source_note">GPS in a car; HYBRID or COMPASS on foot</string>

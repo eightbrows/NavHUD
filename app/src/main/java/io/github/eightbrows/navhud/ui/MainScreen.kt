@@ -716,7 +716,14 @@ private fun NumbersPanel(state: NavState, zone: ZoneId, valueColor: Color, onCyc
                         )
                         // LAT/LON と AGL の幅は、要る幅（「33.47649, 132.99592」と「-1234 m」）の比で分ける
                         NumberField.LAT_LON -> InlineCell(c, AnnotatedString(HudFormat.latLon(fix?.lat, fix?.lon)), valueColor, 2.4f, modifier = n)
-                        NumberField.AGL -> InlineCell(c, AnnotatedString(HudFormat.altitude(state.aglM)), valueColor, 1f, modifier = n)
+                        // 地上高（20261025-D08）: 設定「地上高の負の値」が「負のまま出す」で 0 未満なら、DDL を過ぎたときと同じ警告の色・100%
+                        NumberField.AGL -> {
+                            val agl = HudFormat.agl(state.aglM, state.settings.aglNegative)
+                            InlineCell(
+                                c, AnnotatedString(agl.text), if (agl.warning) HudColors.Warning else valueColor, 1f,
+                                modifier = if (agl.warning) Modifier else n,
+                            )
+                        }
                         // 1行目の欄は FirstNumbersRow で出す
                         NumberField.TIME, NumberField.ALT, NumberField.RATE -> Unit
                     }

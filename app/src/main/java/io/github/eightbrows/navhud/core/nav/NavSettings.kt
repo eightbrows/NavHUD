@@ -26,6 +26,12 @@ enum class OwnshipPosition { STANDARD, HIGH, HIGHER, NEAR_CENTER, CENTER }
  */
 enum class TrackColor { WHITE, GREEN, AMBER, CYAN, YELLOW, BLUE }
 
+/**
+ * 地上高（AGL）が負（その場所の最高標高より低い）のときの出し方（20261025-D08）。保存値は名前。
+ * ZERO = 「0 m」と出す（初期値）、SHOW = 負の値のまま警告の色で出す
+ */
+enum class AglNegative { ZERO, SHOW }
+
 /** 標高プロファイルの表示サイズ（§6.6） */
 enum class ProfileSize { OFF, SMALL, MEDIUM, LARGE }
 
@@ -102,6 +108,8 @@ data class NavSettings(
     val noFixTimeoutSec: Int = 10,
     /** 標高オフセット [m]。標高 = 楕円体高 − これ（§6.8） */
     val altOffsetM: Double = 36.0,
+    /** 地上高の負の値の出し方（20261025-D08）。初期値は 0 にする */
+    val aglNegative: AglNegative = AglNegative.ZERO,
     /** 表示モード（§6.1）。初期値は ARC（20261025-D03 で ARC に戻した。D01・D02 は実機の設定の North Up） */
     val displayMode: DisplayMode = DisplayMode.ARC,
     /**

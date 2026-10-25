@@ -31,16 +31,18 @@ class AboveGroundTest {
 
     @Test
     fun usesTheConvertedAltitudeWhenThereIsOne() {
-        // AltitudeConverter の海抜高度 1,250 m: 地上高 50 m（ALT の表示は今までどおり 楕円体高 − オフセット = 1,300 m）
+        // AltitudeConverter の海抜高度 1,250 m: 地上高 50 m。ALT も海抜高度（20261025-D08。前は 楕円体高 − オフセット = 1,300 m）
         val s = engine().onFix(fix(0, msl = 1_250.0), 0)
         assertEquals(50.0, s.aglM!!, 1e-9)
-        assertEquals(1_300.0, s.altM!!, 1e-9)
+        assertEquals(1_250.0, s.altM!!, 1e-9)
     }
 
     @Test
     fun fallsBackToTheAltitudeOffset() {
         // 海抜高度がない（API 33 以下など）: 楕円体高 1,336 − オフセット 36 = 1,300 m、地上高 100 m
         assertEquals(100.0, engine().onFix(fix(0), 0).aglM!!, 1e-9)
+        // ALT も同じ 楕円体高 − オフセット
+        assertEquals(1_300.0, engine().onFix(fix(0), 0).altM!!, 1e-9)
         // 海の上（最高標高 0）: 地上高 ＝ 海抜高度
         assertEquals(20.0, engine().onFix(fix(0, lat = 32.5, alt = 56.0), 0).aglM!!, 1e-9)
     }

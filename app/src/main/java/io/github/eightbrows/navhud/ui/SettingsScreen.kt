@@ -54,6 +54,7 @@ import io.github.eightbrows.navhud.R
 import io.github.eightbrows.navhud.core.model.SourceMode
 import io.github.eightbrows.navhud.core.Tuning
 import io.github.eightbrows.navhud.core.nav.ColorTheme
+import io.github.eightbrows.navhud.core.nav.AglNegative
 import io.github.eightbrows.navhud.core.nav.DisplayMode
 import io.github.eightbrows.navhud.core.nav.LanguageMode
 import io.github.eightbrows.navhud.core.nav.LandmarkItem
@@ -191,6 +192,14 @@ fun SettingsScreen(
             Stepper(stringResource(R.string.alt_offset), "%.0f".format(Locale.US, s.altOffsetM), note = stringResource(R.string.alt_offset_note), defaultText = meters(def.altOffsetM)) { d ->
                 onChange { it.copy(altOffsetM = (it.altOffsetM + d).coerceIn(NavSettings.ALT_OFFSET_M_RANGE)) }
             }
+            // 地上高の負の値（20261025-D08）: 0 にする（初期値）/ 負のまま出す（警告の色）
+            Choice(
+                stringResource(R.string.agl_negative),
+                listOf(stringResource(R.string.agl_negative_zero) to AglNegative.ZERO, stringResource(R.string.agl_negative_show) to AglNegative.SHOW),
+                s.aglNegative,
+                note = stringResource(R.string.agl_negative_note),
+                default = def.aglNegative,
+            ) { v -> onChange { it.copy(aglNegative = v) } }
         },
 
         SettingsSection(stringResource(R.string.sec_heading)) {

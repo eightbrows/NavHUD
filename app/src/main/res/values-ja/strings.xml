@@ -111,7 +111,11 @@
     <string name="size_large">大</string>
     <string name="profile_note">WP ボタン列の下。現在地から次の目標、その先の目標までの標高</string>
     <string name="alt_offset">標高オフセット</string>
-    <string name="alt_offset_note">標高 = GPS の楕円体高 − これ</string>
+    <string name="alt_offset_note">標高 = GPS の楕円体高 − これ。Android 14 以上では使わない（端末の仕組みで海抜高度を求める）</string>
+    <string name="agl_negative">地上高の負の値</string>
+    <string name="agl_negative_zero">0 にする</string>
+    <string name="agl_negative_show">負のまま出す</string>
+    <string name="agl_negative_note">地上高（AGL）がその場所の最高標高より低いとき（地上を走るときはふつう負）。負のまま出すときは赤で出す</string>
     <string name="sec_heading">方位</string>
     <string name="heading_source">方位ソース</string>
     <string name="heading_source_note">車は GPS、歩行は HYBRID か COMPASS</string>

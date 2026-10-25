@@ -2,6 +2,7 @@ package io.github.eightbrows.navhud.core.view
 
 import io.github.eightbrows.navhud.core.model.ReachInfo
 import io.github.eightbrows.navhud.core.model.ReachReason
+import io.github.eightbrows.navhud.core.nav.AglNegative
 import io.github.eightbrows.navhud.core.nav.Rate
 import java.time.Instant
 import java.time.ZoneId
@@ -65,6 +66,23 @@ object HudFormat {
     fun speedKmh(mps: Float?): String = if (mps == null) NONE else "%.0f km/h".format(Locale.US, mps * 3.6)
 
     fun altitude(m: Double?): String = if (m == null) NONE else "%.0f m".format(Locale.US, m)
+
+    /** 地上高の文字と、警告の色で出すか（20261025-D08） */
+    data class AglText(val text: String, val warning: Boolean)
+
+    /**
+     * 地上高: m の整数（ALT と同じ書き方）。値がなければ "---"（どちらの設定でも）。m に丸めて 0 未満なら、
+     * ZERO は "0 m"（ふつうの色）、SHOW は負の値のまま警告の色。0 ちょうど（-0.4 m などの丸めて 0 を含む）と正はふつうの色
+     */
+    fun agl(m: Double?, mode: AglNegative): AglText {
+        if (m == null || !m.isFinite()) return AglText(NONE, false)
+        val r = Math.round(m)
+        return when {
+            r >= 0 -> AglText("$r m", false)
+            mode == AglNegative.ZERO -> AglText("0 m", false)
+            else -> AglText("$r m", true)
+        }
+    }
 
     fun latLon(lat: Double?, lon: Double?): String =
         if (lat == null || lon == null) NONE else "%.5f, %.5f".format(Locale.US, lat, lon)

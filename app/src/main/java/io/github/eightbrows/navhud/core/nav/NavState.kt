@@ -19,7 +19,7 @@ data class NavState(
     val sourceMode: SourceMode = SourceMode.HYBRID,
     /** 対地速度 [m/s] */
     val groundSpeedMps: Float? = null,
-    /** 標高 [m] = 楕円体高 − 標高オフセット */
+    /** 標高（海抜高度）[m]: AltitudeConverter で求めた海抜高度（Fix.mslAltM）、なければ 楕円体高 − 標高オフセット（20261025-D08） */
     val altM: Double? = null,
     /**
      * 地上高 [m] = 海抜高度 − その場所の最高標高（maxelev.bin。20261025-D07）。海抜高度は Fix.mslAltM、なければ altM。
