@@ -2,6 +2,7 @@ package io.github.eightbrows.navhud.core.nav
 
 import io.github.eightbrows.navhud.core.Tuning
 import io.github.eightbrows.navhud.core.geo.Geo
+import io.github.eightbrows.navhud.core.io.TerrainLookup
 import io.github.eightbrows.navhud.core.model.Fix
 import io.github.eightbrows.navhud.core.model.ReachInfo
 import io.github.eightbrows.navhud.core.model.ReachReason
@@ -68,6 +69,9 @@ class NavEngine(
     private var replayTrack: List<TrackPoint> = emptyList()
     /** PAN の表示（null なら通常の表示） */
     private var pan: PanView? = null
+
+    /** 最高標高の検索（地上高の計算。20261025-D07）。まだ読んでいなければ null */
+    private var terrain: TerrainLookup? = null
 
     /** 位置がないときの地図の中心（NavState.idleCenter。20261024-D04） */
     private var idleCenter: Pair<Double, Double>? = null
@@ -170,6 +174,22 @@ class NavEngine(
         rangeSelector.setAutoLimits(s.autoMinRangeKm, s.autoMaxRangeKm)
         rangeSelector.holdAfterWpMs = s.autoHoldAfterWpSec * 1000L
         rangeSelector.zoomInDistRatio = s.autoZoomInDistRatio
+    }
+
+    /** 最高標高の検索を渡す（読み終わったとき。20261025-D07）。地上高（NavState.aglM）が出るようになる */
+    fun setTerrain(lookup: TerrainLookup?): NavState {
+        terrain = lookup
+        return recompute()
+    }
+
+    /**
+     * 地上高 [m] = 海抜高度 − 最高標高。海抜高度は Fix.mslAltM（AltitudeConverter）、なければ 楕円体高 − 標高オフセット。
+     * 高さがない・最高標高が分からない（範囲外・unknown・まだ読んでいない）ときは null。負になってもそのまま返す
+     */
+    private fun aboveGroundM(fix: Fix): Double? {
+        val msl = fix.mslAltM ?: fix.altRawM?.let { it - settings.altOffsetM } ?: return null
+        val ground = terrain?.maxElevationM(fix.lat, fix.lon) ?: return null
+        return msl - ground
     }
 
     /** 画面の大きさ・帯が変わったとき（AUTO 縮尺は、次の WP がこの表示枠に収まる最小の段を選ぶ）。 */
@@ -532,6 +552,7 @@ class NavEngine(
             sourceMode = settings.sourceMode,
             groundSpeedMps = fix?.speedMps,
             altM = fix?.altRawM?.let { it - settings.altOffsetM },
+            aglM = if (noFix || fix == null) null else aboveGroundM(fix),
             rate = rate,
             waypoints = waypoints,
             nextWpIndex = next,

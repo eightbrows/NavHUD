@@ -476,6 +476,12 @@ fun SettingsScreen(
                 stringResource(R.string.src_license_airport), stringResource(R.string.src_use_airport),
                 stringResource(R.string.about_airport_source, AIRPORT_SOURCE_URL),
             )
+            // 地上高の最高標高（国土数値情報「標高・傾斜度5次メッシュ（G04-d）」。20261025-D07）
+            SourceBlock(
+                stringResource(R.string.src_title_elevation), stringResource(R.string.src_org_elevation), ELEVATION_SOURCE_URL,
+                stringResource(R.string.src_license_elevation), stringResource(R.string.src_use_elevation),
+                stringResource(R.string.about_elevation_source),
+            )
             SourceBlock(
                 stringResource(R.string.src_title_ourairports), stringResource(R.string.src_org_ourairports), OURAIRPORTS_URL,
                 stringResource(R.string.src_license_ourairports), stringResource(R.string.src_use_ourairports), null,
@@ -580,6 +586,9 @@ private const val OURAIRPORTS_URL = "https://ourairports.com/data/"
 
 /** 空港の出典（国土数値情報「空港データ」のページ。2020 年版もこのページから取る） */
 private const val AIRPORT_SOURCE_URL = "https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-C28-2021.html"
+
+/** 地上高の最高標高の出典（国土数値情報「標高・傾斜度5次メッシュ（G04-d）」のページ。2011 年度版。20261025-D07） */
+private const val ELEVATION_SOURCE_URL = "https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-G04-d.html"
 
 /** 背景地図の出典（国土地理院「地球地図日本」のページ） */
 private const val BASEMAP_SOURCE_URL = "https://www.gsi.go.jp/kankyochiri/gm_jpn.html"

@@ -31,6 +31,8 @@ import io.github.eightbrows.navhud.source.GeoPoint
 import io.github.eightbrows.navhud.source.AppLanguage
 import io.github.eightbrows.navhud.source.BaseMapStore
 import io.github.eightbrows.navhud.source.LiveGpsSource
+import io.github.eightbrows.navhud.source.MaxElevStore
+import io.github.eightbrows.navhud.source.MslAltitude
 import io.github.eightbrows.navhud.source.LiveLocationBus
 import io.github.eightbrows.navhud.source.LoadedTrack
 import io.github.eightbrows.navhud.source.NavLocationService
@@ -162,6 +164,11 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
         }
         viewModelScope.launch {
             LiveLocationBus.gpsEnabled.collect { _live.value = _live.value.copy(gpsEnabled = it) }
+        }
+        // 最高標高のファイル（assets）を読む。読めたら地上高を出す（20261025-D07）
+        viewModelScope.launch {
+            val terrain = withContext(Dispatchers.IO) { MaxElevStore.load(getApplication()) }
+            if (terrain != null) publish(engine.setTerrain(terrain))
         }
         // 背景地図のファイル（assets）を読む
         viewModelScope.launch {
@@ -499,7 +506,7 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
         source = null
         _replay.value = ReplayUiState(loading = true)
         viewModelScope.launch {
-            runCatching { withContext(Dispatchers.IO) { store.open(uri, entryName) } }
+            runCatching { withContext(Dispatchers.IO) { store.open(uri, entryName).withMsl() } }
                 .onSuccess { opened ->
                     when (opened) {
                         is OpenedTrack.Track -> start(opened.track)
@@ -521,6 +528,15 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
                     _replay.value = ReplayUiState(message = message)
                 }
         }
+    }
+
+    /** 読んだトラックの Fix に海抜高度（AltitudeConverter。API 34 以上）を入れる（IO のスレッドで呼ぶ。20261025-D07） */
+    private fun OpenedTrack.withMsl(): OpenedTrack = when (this) {
+        is OpenedTrack.Track -> {
+            val app = getApplication<Application>()
+            OpenedTrack.Track(track.copy(result = track.result.copy(fixes = track.result.fixes.map { MslAltitude.withMsl(app, it) })))
+        }
+        is OpenedTrack.Sessions -> this
     }
 
     private fun start(track: LoadedTrack) {

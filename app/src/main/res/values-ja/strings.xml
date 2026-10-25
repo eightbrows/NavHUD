@@ -261,6 +261,11 @@
     <string name="src_org_airport">国土交通省</string>
     <string name="src_license_airport">国土数値情報ダウンロードサービスコンテンツ利用規約（旧国土情報利用約款準拠版）</string>
     <string name="src_use_airport">空港の位置・敷地・大小</string>
+    <string name="src_title_elevation">国土数値情報（標高・傾斜度5次メッシュ）</string>
+    <string name="src_org_elevation">国土交通省</string>
+    <string name="src_license_elevation">国土数値情報ダウンロードサービスコンテンツ利用規約（旧国土情報利用約款準拠版）</string>
+    <string name="src_use_elevation">地上高</string>
+    <string name="about_elevation_source">国土数値情報（標高・傾斜度5次メッシュ）（国土交通省）を加工して作成</string>
     <string name="src_title_ourairports">OurAirports</string>
     <string name="src_org_ourairports">OurAirports（ourairports.com）</string>
     <string name="src_license_ourairports">パブリックドメイン</string>

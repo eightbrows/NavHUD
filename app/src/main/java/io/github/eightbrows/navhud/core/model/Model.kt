@@ -16,6 +16,11 @@ data class Fix(
     val horizAccM: Float? = null,
     /** 方位の精度 [°]。端末が出さなければ null */
     val bearingAccDeg: Float? = null,
+    /**
+     * 海抜高度 [m]（Android の AltitudeConverter で楕円体高から求めた値。API 34 以上で求められたときだけ。20261025-D07）。
+     * null なら、地上高の計算は楕円体高 − 標高オフセットを使う
+     */
+    val mslAltM: Double? = null,
 )
 
 data class Waypoint(

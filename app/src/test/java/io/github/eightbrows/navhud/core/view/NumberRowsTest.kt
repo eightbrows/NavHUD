@@ -18,7 +18,9 @@ class NumberRowsTest {
         assertEquals(4, NumberRows.ROWS.size)
         assertEquals(listOf(NumberField.TIME, NumberField.ALT, NumberField.RATE), NumberRows.ROWS[0])
         assertEquals(listOf(NumberField.HDG, NumberField.GS, NumberField.ETA), NumberRows.ROWS[1])
-        assertEquals(listOf(NumberField.LAT_LON), NumberRows.ROWS[3])
+        // 4行目は LAT/LON と地上高（AGL。20261025-D07。1行目の ALT の隣は幅 360dp ほどの画面で入りきらないため）
+        assertEquals(listOf(NumberField.LAT_LON, NumberField.AGL), NumberRows.ROWS[3])
+        assertEquals("AGL", NumberField.AGL.caption)
         assertFalse(NumberRows.ROWS.flatten().any { it.caption == "NEXT" })
         // どの欄も1回だけ
         assertEquals(NumberField.entries.toSet(), NumberRows.ROWS.flatten().toSet())

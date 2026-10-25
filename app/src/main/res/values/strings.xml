@@ -263,6 +263,11 @@
     <string name="src_org_airport">Ministry of Land, Infrastructure, Transport and Tourism</string>
     <string name="src_license_airport">National Land Numerical Information Download Service Content Terms of Use (former National Land Information Use Agreement version)</string>
     <string name="src_use_airport">Airport locations, areas and sizes</string>
+    <string name="src_title_elevation">National Land Numerical Information (Elevation and Slope Angle Fifth Mesh)</string>
+    <string name="src_org_elevation">Ministry of Land, Infrastructure, Transport and Tourism</string>
+    <string name="src_license_elevation">National Land Numerical Information Download Service Content Terms of Use (former National Land Information Use Agreement version)</string>
+    <string name="src_use_elevation">Height above ground (AGL)</string>
+    <string name="about_elevation_source">Processed from National Land Numerical Information (Elevation and Slope Angle Fifth Mesh) (Ministry of Land, Infrastructure, Transport and Tourism)</string>
     <string name="src_title_ourairports">OurAirports</string>
     <string name="src_org_ourairports">OurAirports (ourairports.com)</string>
     <string name="src_license_ourairports">Public domain</string>

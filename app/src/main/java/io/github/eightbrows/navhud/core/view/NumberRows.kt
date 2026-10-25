@@ -11,6 +11,9 @@ enum class NumberField(val caption: String) {
     TGT("TGT"),
     DDL("DDL"),
     LAT_LON("LAT/LON"),
+
+    /** 地上高（海抜高度 − 最高標高。20261025-D07） */
+    AGL("AGL"),
 }
 
 /**
@@ -22,6 +25,7 @@ object NumberRows {
         listOf(NumberField.TIME, NumberField.ALT, NumberField.RATE),
         listOf(NumberField.HDG, NumberField.GS, NumberField.ETA),
         listOf(NumberField.TGT, NumberField.DDL),
-        listOf(NumberField.LAT_LON),
+        // 地上高は、1 行目（ALT の隣）が幅 360dp ほどの画面で入りきらないので、今は 4 行目の LAT/LON の右に置く（20261025-D07。置き場所は回答待ち）
+        listOf(NumberField.LAT_LON, NumberField.AGL),
     )
 }

@@ -714,7 +714,9 @@ private fun NumbersPanel(state: NavState, zone: ZoneId, valueColor: Color, onCyc
                             c, AnnotatedString(HudFormat.countdown(deadline)), deadlineColor, 1f,
                             modifier = if (deadline != null && deadline < 0) Modifier else n,
                         )
-                        NumberField.LAT_LON -> InlineCell(c, AnnotatedString(HudFormat.latLon(fix?.lat, fix?.lon)), valueColor, 1f, modifier = n)
+                        // LAT/LON と AGL の幅は、要る幅（「33.47649, 132.99592」と「-1234 m」）の比で分ける
+                        NumberField.LAT_LON -> InlineCell(c, AnnotatedString(HudFormat.latLon(fix?.lat, fix?.lon)), valueColor, 2.4f, modifier = n)
+                        NumberField.AGL -> InlineCell(c, AnnotatedString(HudFormat.altitude(state.aglM)), valueColor, 1f, modifier = n)
                         // 1行目の欄は FirstNumbersRow で出す
                         NumberField.TIME, NumberField.ALT, NumberField.RATE -> Unit
                     }

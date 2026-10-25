@@ -21,6 +21,11 @@ data class NavState(
     val groundSpeedMps: Float? = null,
     /** 標高 [m] = 楕円体高 − 標高オフセット */
     val altM: Double? = null,
+    /**
+     * 地上高 [m] = 海抜高度 − その場所の最高標高（maxelev.bin。20261025-D07）。海抜高度は Fix.mslAltM、なければ altM。
+     * NO FIX・高さがない・範囲外・unknown・最高標高のファイルがまだないときは null。負になってもそのまま
+     */
+    val aglM: Double? = null,
     val rate: Rate? = null,
     val waypoints: List<Waypoint> = emptyList(),
     val nextWpIndex: Int? = null,

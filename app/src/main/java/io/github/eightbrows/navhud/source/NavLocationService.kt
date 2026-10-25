@@ -28,6 +28,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 /** サービスが受け取った GPS の Fix を、画面側（ViewModel）へ渡す。 */
@@ -72,6 +74,9 @@ class NavLocationService : Service() {
         if (gpsJob == null) {
             gpsJob = scope.launch {
                 LiveGpsSource(this@NavLocationService, LiveLocationBus::setGpsEnabled).fixes
+                    // 海抜高度（AltitudeConverter。API 34 以上。ファイルを読むので IO のスレッドで。20261025-D07）
+                    .map { MslAltitude.withMsl(this@NavLocationService, it) }
+                    .flowOn(Dispatchers.IO)
                     .catch { stopSelf() }
                     .collect(LiveLocationBus::emit)
             }
