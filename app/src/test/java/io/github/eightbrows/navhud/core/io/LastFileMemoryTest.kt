@@ -73,4 +73,13 @@ class LastFileMemoryTest {
         list.rememberEntry("x")
         assertNull(list.entry)
     }
+
+    @Test
+    fun permissionIsKeptWhileTheOtherFileUsesIt() {
+        // 20261103-D01: 軌跡として WP リストのファイルを選んで読めなかったとき、WP リストが同じファイルを覚えていれば権限は返さない
+        val wp = "content://a/wp_profile.csv"
+        assertEquals(false, LastFileMemory.shouldRelease(wp, keep = wp))
+        assertEquals(true, LastFileMemory.shouldRelease(wp, keep = "content://a/track.csv"))
+        assertEquals(true, LastFileMemory.shouldRelease(wp, keep = null))
+    }
 }

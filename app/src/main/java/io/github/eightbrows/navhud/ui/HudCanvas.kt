@@ -421,7 +421,7 @@ private fun DrawScope.drawScene(scene: HudScene, tm: TextMeasurer, density: Floa
 
     for (a in scene.arcs) {
         drawArc(
-            color = HudColors.ofMap(a.ink),
+            color = HudColors.ofMap(a.ink, a.brightness),
             // core の角度は「上が 0」、Canvas は「右が 0」
             startAngle = a.startDeg - 90f,
             sweepAngle = a.sweepDeg,

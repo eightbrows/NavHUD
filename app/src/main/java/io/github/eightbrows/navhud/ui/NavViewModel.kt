@@ -26,6 +26,7 @@ import io.github.eightbrows.navhud.core.replay.LiveClock
 import io.github.eightbrows.navhud.core.replay.ReplayClock
 import io.github.eightbrows.navhud.core.replay.ReplaySpeed
 import io.github.eightbrows.navhud.core.view.HudViewport
+import io.github.eightbrows.navhud.core.view.LoadSummary
 import io.github.eightbrows.navhud.source.CompassSource
 import io.github.eightbrows.navhud.source.GeoPoint
 import io.github.eightbrows.navhud.source.AppLanguage
@@ -41,6 +42,7 @@ import io.github.eightbrows.navhud.source.SettingsStore
 import io.github.eightbrows.navhud.source.TrackDocumentStore
 import io.github.eightbrows.navhud.source.OpenedTrack
 import io.github.eightbrows.navhud.source.ZipSessions
+import io.github.eightbrows.navhud.core.io.FileKindException
 import io.github.eightbrows.navhud.core.io.SessionZipError
 import io.github.eightbrows.navhud.core.io.SessionZipException
 import io.github.eightbrows.navhud.source.WaypointDocumentStore
@@ -121,6 +123,20 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _wp = MutableStateFlow(WaypointUiState(hasSavedList = wpStore.savedUri != null))
     val wp: StateFlow<WaypointUiState> = _wp.asStateFlow()
+
+    /** 読み込んだ結果などのひとこと（20261103-D01）。Tuning.NOTICE_MS で消える。続けて来たものは行を分けて並べる */
+    private val _notices = MutableStateFlow<List<UiText>>(emptyList())
+    val notices: StateFlow<List<UiText>> = _notices.asStateFlow()
+    private var noticeJob: Job? = null
+
+    private fun showNotice(text: UiText) {
+        _notices.value = _notices.value + text
+        noticeJob?.cancel()
+        noticeJob = viewModelScope.launch {
+            delay(Tuning.NOTICE_MS)
+            _notices.value = emptyList()
+        }
+    }
 
     private val _live = MutableStateFlow(LiveUiState())
     val live: StateFlow<LiveUiState> = _live.asStateFlow()
@@ -468,6 +484,12 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
                 .onSuccess { loaded ->
                     wpStore.remember(uri, writable = false)
                     publish(engine.setWaypoints(loaded.result.waypoints))
+                    // ひとこと（20261103-D01）: 「WP 6 件（うち無効 1）を読み込みました（wp_profile.csv）」
+                    val sum = LoadSummary.waypoints(loaded.result.waypoints)
+                    showNotice(
+                        if (sum.disabled > 0) uiText(R.string.notice_wp_loaded_disabled, sum.count.toString(), sum.disabled.toString(), loaded.displayName)
+                        else uiText(R.string.notice_wp_loaded, sum.count.toString(), loaded.displayName),
+                    )
                     val skipped = loaded.result.skippedLines
                     _wp.value = _wp.value.copy(
                         listName = loaded.displayName, dirty = false, loading = false, hasSavedList = true,
@@ -478,11 +500,15 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
                     )
                 }
                 .onFailure { e ->
-                    if (isSaved) wpStore.forget()
+                    if (isSaved) wpStore.forget(keep = store.savedUri)
                     val what = uiText(if (isSaved) R.string.what_last_list else R.string.what_chosen_file)
+                    // 軌跡のファイルだった（20261103-D01）: 読み込まずに知らせる（前回のリストのときも同じ）
+                    val message = (e as? FileKindException)?.let { uiText(R.string.msg_not_wp_list, it.fileName) }
+                        ?: uiText(R.string.msg_read_failed, what, e.reason())
+                    if (e is FileKindException) showNotice(message)
                     _wp.value = _wp.value.copy(
                         loading = false, hasSavedList = wpStore.savedUri != null,
-                        message = uiText(R.string.msg_read_failed, what, e.reason()),
+                        message = message,
                     )
                 }
         }
@@ -493,7 +519,7 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
      * エクスポートしていない編集も消える（確認は画面の側で出す）。画面はリストを読み込んでいないときと同じ。
      */
     fun clearWaypoints() {
-        wpStore.forget()
+        wpStore.forget(keep = store.savedUri)
         publish(engine.setWaypoints(emptyList()))
         _wp.value = _wp.value.cleared(uiText(R.string.msg_wp_cleared))
     }
@@ -528,20 +554,27 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
                     when (opened) {
                         is OpenedTrack.Track -> start(opened.track)
                         is OpenedTrack.Sessions -> {
-                            if (kind == SourceKind.REPLAY) publish(engine.resetPosition())
+                            // 前のトラックは外す（線も消す。20261103-D01）
+                            trackFixes = emptyList()
+                            publish(engine.clearReplayTrack())
                             _replay.value = ReplayUiState(sessions = opened.zip)
                         }
                     }
                 }
                 .onFailure { e ->
-                    store.forget()
-                    if (kind == SourceKind.REPLAY) publish(engine.resetPosition())
+                    store.forget(keep = wpStore.savedUri)
+                    // 読み込めなかった: トラックを読み込んでいないときと同じにする（前のトラックの線も消す。20261103-D01。前は線だけ残っていた）
+                    trackFixes = emptyList()
+                    publish(engine.clearReplayTrack())
                     val what = uiText(if (isSaved) R.string.what_last_file else R.string.what_chosen_file)
-                    val message = when ((e as? SessionZipException)?.error) {
-                        SessionZipError.BROKEN -> uiText(R.string.msg_zip_broken, what)
-                        SessionZipError.NO_TRACK -> uiText(R.string.msg_zip_no_track, what)
-                        null -> uiText(R.string.msg_read_failed_retry, what, e.reason())
+                    val message = when {
+                        // WP リストのファイルだった（20261103-D01）: 読み込まずに知らせる（前回のファイルのときも同じ）
+                        e is FileKindException -> uiText(R.string.msg_not_track, e.fileName)
+                        (e as? SessionZipException)?.error == SessionZipError.BROKEN -> uiText(R.string.msg_zip_broken, what)
+                        (e as? SessionZipException)?.error == SessionZipError.NO_TRACK -> uiText(R.string.msg_zip_no_track, what)
+                        else -> uiText(R.string.msg_read_failed_retry, what, e.reason())
                     }
+                    if (e is FileKindException) showNotice(message)
                     _replay.value = ReplayUiState(message = message)
                 }
         }
@@ -557,7 +590,7 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
         fixJob = null
         source = null
         trackFixes = emptyList()
-        store.forget()
+        store.forget(keep = wpStore.savedUri)
         clock.setSpeed(1)
         publish(engine.clearReplayTrack())
         _replay.value = ReplayUiState()
@@ -592,6 +625,10 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
         // 軌跡の表示に使うトラック全体（10m 間隔に間引く）。倍速は読み直したら ×1
         publish(engine.setReplayTrack(Trail.decimate(fixes)))
         clock.setSpeed(1)
+        // ひとこと（20261103-D01）: 「軌跡 11,172 点・7:52〜11:01（track.csv）」（zip はファイル名 / セッションの名前）
+        LoadSummary.track(fixes, zone)?.let { t ->
+            showNotice(uiText(R.string.notice_track_loaded, t.points, t.start, t.end, track.displayName))
+        }
         _replay.value = ReplayUiState(
             fileName = track.displayName,
             fixCount = fixes.size,

@@ -162,6 +162,11 @@ fun SettingsScreen(
                 note = stringResource(R.string.ring_label_size_note), defaultText = pct(def.ringLabelScalePct), default = def.ringLabelScalePct,
                 choices = NavSettings.RING_LABEL_SCALE_CHOICES_PCT,
             ) { v -> onChange { it.copy(ringLabelScalePct = v) } }
+            // 距離環の明るさ（20261103-D01）: 1〜6 段（掛ける数は背景地図の線の明るさと同じ）。距離環の線だけ
+            Choice(
+                stringResource(R.string.ring_brightness), NavSettings.MAP_LINE_LEVELS.map { it.toString() to it }, s.ringBrightness,
+                note = stringResource(R.string.ring_brightness_note), default = def.ringBrightness,
+            ) { v -> onChange { it.copy(ringBrightness = v) } }
             Choice(
                 stringResource(R.string.ownship_position),
                 listOf(

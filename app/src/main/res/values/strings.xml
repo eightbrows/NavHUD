@@ -103,6 +103,8 @@
     <string name="track_brightness_note">Applies to every track color.</string>
     <string name="ring_label_size">Range ring label size</string>
     <string name="ring_label_size_note" formatted="false">Numbers on the range rings (250, 1k, …). 100% is the original size.</string>
+    <string name="ring_brightness">Range ring brightness</string>
+    <string name="ring_brightness_note">Brightness of the range ring lines (1 is the darkest). The distance labels and the heading scale do not change</string>
     <string name="ownship_position">ARC ownship position</string>
     <string name="position_center">Center</string>
     <string name="position_aft">Aft %1$s</string>
@@ -291,6 +293,11 @@
     <string name="wp_clear_title">Clear the WP list</string>
     <string name="wp_clear_confirm">Removes the loaded WP list. Edits that have not been exported are lost. The previous list will not be opened at the next start either.</string>
     <string name="msg_wp_cleared">Cleared the WP list</string>
+    <string name="msg_not_wp_list">This looks like a track file. It cannot be loaded as a WP list (%1$s)</string>
+    <string name="msg_not_track">This looks like a WP list file. It cannot be loaded as a track (%1$s)</string>
+    <string name="notice_wp_loaded">Loaded %1$s WPs (%2$s)</string>
+    <string name="notice_wp_loaded_disabled">Loaded %1$s WPs, %2$s disabled (%3$s)</string>
+    <string name="notice_track_loaded">Track: %1$s points, %2$s–%3$s (%4$s)</string>
     <string name="wp_editor">WP editor</string>
     <string name="track_file_title">Track file</string>
     <string name="track_file_current">Loaded file: %1$s</string>

@@ -32,6 +32,14 @@ class LastFileMemory(private val kv: KeyValueStore, private val uriKey: String, 
         entryKey?.let { kv.put(it, entry) }
     }
 
+    companion object {
+        /**
+         * 忘れるときに、そのファイル（uri）の読み書きの権限の永続化を返してよいか（20261103-D01）: もう一方（WP リストと軌跡）が
+         * 同じファイルを覚えていれば返さない（返すと、もう一方が次の起動で読めなくなる）
+         */
+        fun shouldRelease(uri: String, keep: String?): Boolean = uri != keep
+    }
+
     /** 忘れる（クリア・読めなかったとき） */
     fun forget() {
         kv.remove(*listOfNotNull(uriKey, entryKey).toTypedArray())

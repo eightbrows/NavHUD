@@ -84,6 +84,7 @@ class MainActivity : ComponentActivity() {
                 val wpUi by vm.wp.collectAsState()
                 val live by vm.live.collectAsState()
                 val baseMap by vm.baseMap.collectAsState()
+                val notices by vm.notices.collectAsState()
                 var screen by rememberSaveable { mutableStateOf(Screen.MAIN) }
                 val context = LocalContext.current
 
@@ -175,6 +176,7 @@ class MainActivity : ComponentActivity() {
                             onPinch = vm::zoomBy,
                             onDoubleTap = vm::zoomInAt,
                             onTwoFingerTap = vm::twoFingerTap,
+                            notices = notices,
                             onEndPan = vm::endPan,
                             onSlower = vm::slowerReplay,
                             onFaster = vm::fasterReplay,

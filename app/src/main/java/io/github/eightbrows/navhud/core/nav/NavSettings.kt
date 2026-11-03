@@ -176,6 +176,11 @@ data class NavSettings(
     val trackBrightnessPct: Int = Tuning.TRACK_BRIGHTNESS_DEFAULT_PCT,
     /** 距離環の数字の大きさ [%]。Tuning.RING_LABEL_SP（10sp）を 100% として 100 / 125 / 150 / 175 / 200 */
     val ringLabelScalePct: Int = Tuning.RING_LABEL_SCALE_DEFAULT_PCT,
+    /**
+     * 距離環の明るさの段（1〜6。20261103-D01）。距離環の線の色に、背景地図の線の明るさと同じ掛ける数（Tuning.BASEMAP_BRIGHTNESS_FACTORS）を掛ける。
+     * 距離環の数字・方位の目盛りと文字には掛けない。初期値 3（0.8 倍。D13 までの距離環の 0.8 倍）
+     */
+    val ringBrightness: Int = DEFAULT_RING_BRIGHTNESS,
 ) {
     /** その項目をどの縮尺まで描くか */
     fun mapRangeOf(item: MapItem): MapRange = mapItems[item] ?: MapRange.OFF
@@ -226,6 +231,7 @@ data class NavSettings(
         const val DEFAULT_MAP_LINE_WIDTH = 2
         const val DEFAULT_MAP_LINE_BRIGHTNESS = 3
         const val DEFAULT_LANDMARK_BRIGHTNESS = 3
+        const val DEFAULT_RING_BRIGHTNESS = 3
         val WP_BUTTONS_MAX_RANGE = 3..6
         val PAN_RETURN_SEC_RANGE = 5..60
         val HUD_WP_COUNT_RANGE = 1..20

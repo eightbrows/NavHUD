@@ -101,7 +101,8 @@ object HudSceneBuilder {
         } else null
         val scene = HudScene(
             rect = rect,
-            arcs = arcs,
+            // 距離環の線だけ、設定「距離環の明るさ」の掛ける数（20261103-D01。数字・方位の目盛りと文字は変えない）
+            arcs = BaseMapBuilder.factor(Tuning.BASEMAP_BRIGHTNESS_FACTORS, s.ringBrightness).let { k -> arcs.map { it.copy(brightness = k) } },
             segments = segments,
             labels = labels,
             wpMarks = wpMarks,

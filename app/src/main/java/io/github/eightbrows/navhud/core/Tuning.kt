@@ -330,6 +330,10 @@ object Tuning {
     /** WP ボタン列の上下の余白（ボタンの高さ = 列の高さ − 2 × これ） */
     const val WP_STRIP_PADDING_V_DP = 3f
 
+    /** 読み込んだ結果のひとこと（20261103-D01）: 出しておく時間 [ms] と、WP ボタン列の上の余白 [dp] */
+    const val NOTICE_MS = 4_000L
+    const val NOTICE_MARGIN_BOTTOM_DP = 8f
+
     /** 上部バー（20261025-D09）: 左右の余白 [dp]、ボタンの間 [dp]、ボタンの内側の左右の余白の倍率（ほかの画面のボタンに対して） */
     const val TOP_BAR_PADDING_H_DP = 8f
     const val TOP_BAR_GAP_DP = 4f

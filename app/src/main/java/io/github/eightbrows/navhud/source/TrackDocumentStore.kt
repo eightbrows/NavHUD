@@ -7,6 +7,9 @@ import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import androidx.activity.result.contract.ActivityResultContracts
 import io.github.eightbrows.navhud.R
+import io.github.eightbrows.navhud.core.io.FileKind
+import io.github.eightbrows.navhud.core.io.FileKindException
+import io.github.eightbrows.navhud.core.io.FileKinds
 import io.github.eightbrows.navhud.core.io.LastFileMemory
 import io.github.eightbrows.navhud.core.io.SessionZip
 import io.github.eightbrows.navhud.core.io.TrackCsv
@@ -53,9 +56,11 @@ class TrackDocumentStore(context: Context) {
         memory.remember(uri.toString())
     }
 
-    /** 前回のファイルを忘れる（読めなかったとき・クリアしたとき）。次の起動では自動で開かない（20261102-D01） */
-    fun forget() {
-        savedUri?.let { uri ->
+    /** 前回のファイルを忘れる（読めなかったとき・クリアしたとき）。次の起動では自動で開かない（20261102-D01）。keep: もう一方（WP リスト）が覚えているファイル */
+    fun forget(keep: Uri? = null) {
+        // WP リストが同じファイルを覚えていれば、読み取りの権限は返さない（20261103-D01。軌跡として WP リストを選んで読めなかったとき、
+        // WP リストまで読めなくなっていた）
+        savedUri?.takeIf { LastFileMemory.shouldRelease(it.toString(), keep?.toString()) }?.let { uri ->
             try {
                 appContext.contentResolver.releasePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
             } catch (_: SecurityException) {
@@ -65,7 +70,7 @@ class TrackDocumentStore(context: Context) {
     }
 
     /**
-     * URI のファイルを開く。ファイル削除・権限失効などで読めなければ例外を投げる。ブロッキングなので IO スレッドで呼ぶ。
+     * URI のファイルを開く。ファイル削除・権限失効などで読めなければ例外を投げる。WP リストのファイルなら FileKindException（20261103-D01）。ブロッキングなので IO スレッドで呼ぶ。
      * - track.csv: そのまま読む。
      * - zip（先頭が PK）: entryName のセッションがあればそれを読む。なければ（選んでいない・見つからない）セッションの一覧を返す。
      *   中身は展開せず、必要な track.csv だけを流し読みする。
@@ -73,9 +78,10 @@ class TrackDocumentStore(context: Context) {
      */
     fun open(uri: Uri, entryName: String?): OpenedTrack {
         val name = displayName(uri)
-        val head = ByteArray(4)
-        val n = stream(uri).use { it.read(head) }
-        if (!SessionZip.isZip(head.copyOf(maxOf(n, 0)))) {
+        // 先頭で見分ける（20261103-D01）: WP リスト（lat・lon の CSV・<wpt> のある GPX）なら読み込まない
+        val head = stream(uri).use { readHead(it, FileKinds.HEAD_BYTES) }
+        if (FileKinds.detect(head) == FileKind.WAYPOINTS) throw FileKindException(FileKind.WAYPOINTS, name)
+        if (!SessionZip.isZip(head.copyOf(minOf(head.size, 4)))) {
             return OpenedTrack.Track(LoadedTrack(uri, name, stream(uri).use { TrackCsv.parse(it) }))
         }
         if (entryName != null) {
@@ -85,6 +91,18 @@ class TrackDocumentStore(context: Context) {
             }
         }
         return OpenedTrack.Sessions(ZipSessions(uri, name, stream(uri).use { SessionZip.list(it) }))
+    }
+
+    /** 先頭の max バイトまで（短いファイルはその長さ） */
+    private fun readHead(input: java.io.InputStream, max: Int): ByteArray {
+        val buf = ByteArray(max)
+        var n = 0
+        while (n < max) {
+            val r = input.read(buf, n, max - n)
+            if (r < 0) break
+            n += r
+        }
+        return buf.copyOf(n)
     }
 
     private fun stream(uri: Uri) =

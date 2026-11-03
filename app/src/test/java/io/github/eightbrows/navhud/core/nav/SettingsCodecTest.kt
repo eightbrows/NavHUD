@@ -48,6 +48,7 @@ class SettingsCodecTest {
             trackColor = TrackColor.CYAN,
             trackBrightnessPct = 25,
             ringLabelScalePct = 175,
+            ringBrightness = 5,
             autoMinRangeKm = 0.2,
             autoMaxRangeKm = 5.0,
             autoHoldAfterWpSec = 20,

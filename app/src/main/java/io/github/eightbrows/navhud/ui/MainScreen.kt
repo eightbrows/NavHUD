@@ -137,6 +137,8 @@ fun MainScreen(
     onDoubleTap: (Float, Float) -> Unit = { _, _ -> },
     /** 地図の 2 本指のタップ（20261024-D09）: − と同じ */
     onTwoFingerTap: () -> Unit = {},
+    /** 読み込んだ結果などのひとこと（20261103-D01）。数秒で消える。重なったら行を分けて全部出す。空なら出さない */
+    notices: List<UiText> = emptyList(),
 ) {
     val zone = ZoneId.systemDefault()
     // NO FIX 中は最後の値をグレーで出し続ける
@@ -247,6 +249,22 @@ fun MainScreen(
                 contentAlignment = Alignment.TopStart,
             ) {
                 NoFixBox(noFixHint(state, replay, live))
+            }
+        }
+        // 読み込んだ結果のひとこと（20261103-D01）: WP ボタン列のすぐ上、横の中央（右の操作列・再生の操作列にかからない幅）
+        if (notices.isNotEmpty()) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .padding(
+                        top = topDp,
+                        start = with(density) { replayRightPx.toDp() } + 8.dp,
+                        end = SideColumnWidth,
+                        bottom = bottomDp + Tuning.NOTICE_MARGIN_BOTTOM_DP.dp,
+                    ),
+                contentAlignment = Alignment.BottomCenter,
+            ) {
+                NoticeBox(notices.map { it.asString() }.joinToString("\n"))
             }
         }
     }
@@ -842,6 +860,19 @@ private fun NoFixBox(hint: String?, modifier: Modifier = Modifier) {
         Text("NO FIX", style = Value.copy(color = HudColors.Warning, fontWeight = FontWeight.Bold, fontSize = 18.sp))
         hint?.let { Text(it, style = Caption.copy(color = HudColors.Caution), textAlign = TextAlign.Center) }
     }
+}
+
+/** 読み込んだ結果などのひとこと（20261103-D01）: 黒の地に UI の色の細い枠と文字 */
+@Composable
+private fun NoticeBox(text: String) {
+    Text(
+        text,
+        style = Caption.copy(color = HudColors.Scale, fontSize = 13.sp, textAlign = TextAlign.Center),
+        modifier = Modifier
+            .background(HudColors.Background.copy(alpha = 0.85f), RoundedCornerShape(4.dp))
+            .border(1.dp, HudColors.Scale, RoundedCornerShape(4.dp))
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+    )
 }
 
 /** NO FIX の枠に添える案内。 */

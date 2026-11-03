@@ -115,7 +115,8 @@ data class MapLabel(val text: String, val at: P, val offsetDp: Float, val ink: I
 data class Segment(val a: P, val b: P, val ink: Ink, val dashed: Boolean = false, val bold: Boolean = false, val longDash: Boolean = false)
 
 /** 円弧。角度は画面上の角度（上が 0、時計回り）。 */
-data class Arc(val center: P, val radius: Float, val startDeg: Float, val sweepDeg: Float, val ink: Ink)
+/** 距離環。brightness は色の RGB に掛ける数（設定「距離環の明るさ」。Tuning.BASEMAP_BRIGHTNESS_FACTORS。20261103-D01） */
+data class Arc(val center: P, val radius: Float, val startDeg: Float, val sweepDeg: Float, val ink: Ink, val brightness: Float = 1f)
 
 /** 文字。at は文字の中心。 */
 data class Label(val text: String, val at: P, val ink: Ink, val small: Boolean = false)

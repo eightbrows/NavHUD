@@ -5,6 +5,9 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.OpenableColumns
 import io.github.eightbrows.navhud.R
+import io.github.eightbrows.navhud.core.io.FileKind
+import io.github.eightbrows.navhud.core.io.FileKindException
+import io.github.eightbrows.navhud.core.io.FileKinds
 import io.github.eightbrows.navhud.core.io.LastFileMemory
 import io.github.eightbrows.navhud.core.io.WaypointCsv
 import io.github.eightbrows.navhud.core.io.WaypointGpx
@@ -42,9 +45,10 @@ class WaypointDocumentStore(context: Context) {
         memory.remember(uri.toString())
     }
 
-    /** 前回のリストを忘れる（読めなかったとき・クリアしたとき）。次の起動では自動で開かない。永続化した権限も返す（20261102-D01） */
-    fun forget() {
-        savedUri?.let { uri ->
+    /** 前回のリストを忘れる（読めなかったとき・クリアしたとき）。次の起動では自動で開かない。永続化した権限も返す（20261102-D01）。keep: もう一方（軌跡）が覚えているファイル */
+    fun forget(keep: Uri? = null) {
+        // 軌跡が同じファイルを覚えていれば、権限は返さない（20261103-D01）
+        savedUri?.takeIf { LastFileMemory.shouldRelease(it.toString(), keep?.toString()) }?.let { uri ->
             for (flag in listOf(Intent.FLAG_GRANT_READ_URI_PERMISSION, Intent.FLAG_GRANT_WRITE_URI_PERMISSION)) {
                 try {
                     appContext.contentResolver.releasePersistableUriPermission(uri, flag)
@@ -55,10 +59,14 @@ class WaypointDocumentStore(context: Context) {
         memory.forget()
     }
 
-    /** CSV か GPX を読む。中身で見分ける。ブロッキングなので IO スレッドで呼ぶ。 */
+    /**
+     * CSV か GPX を読む。中身で見分ける。軌跡のファイルなら FileKindException（20261103-D01）。ブロッキングなので IO スレッドで呼ぶ。
+     */
     fun load(uri: Uri, zone: ZoneId): LoadedWaypoints {
         val bytes = appContext.contentResolver.openInputStream(uri)?.use { it.readBytes() }
             ?: error(AppLanguage.localized(appContext).getString(R.string.err_file_open))
+        // 中身が軌跡（track.csv・zip・<trk> だけの GPX）なら読み込まない（20261103-D01）
+        if (FileKinds.detect(bytes) == FileKind.TRACK) throw FileKindException(FileKind.TRACK, displayName(uri))
         val gpx = WaypointGpx.looksLikeGpx(bytes)
         val result = if (gpx) WaypointGpx.parse(bytes, zone) else WaypointCsv.parse(bytes)
         return LoadedWaypoints(uri, displayName(uri), result, gpx)

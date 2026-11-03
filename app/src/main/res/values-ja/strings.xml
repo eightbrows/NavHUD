@@ -101,6 +101,8 @@
     <string name="track_brightness_note">どの色にも効く</string>
     <string name="ring_label_size">距離環の数字の大きさ</string>
     <string name="ring_label_size_note" formatted="false">距離環に付ける数字（250・1k など）。100% が元の大きさ</string>
+    <string name="ring_brightness">距離環の明るさ</string>
+    <string name="ring_brightness_note">距離環の線の明るさ（1 がいちばん暗い）。距離の数字・方位の目盛りと文字は変わらない</string>
     <string name="ownship_position">ARC の自機の位置</string>
     <string name="position_center">中央</string>
     <string name="position_aft">後%1$s</string>
@@ -289,6 +291,11 @@
     <string name="wp_clear_title">WP リストをクリア</string>
     <string name="wp_clear_confirm">読み込んでいる WP リストを外します。エクスポートしていない編集は消えます。次の起動でも、前回のリストは開きません。</string>
     <string name="msg_wp_cleared">WP リストをクリアしました</string>
+    <string name="msg_not_wp_list">軌跡のファイルのようです。WP リストとしては読み込めません（%1$s）</string>
+    <string name="msg_not_track">WP リストのファイルのようです。軌跡としては読み込めません（%1$s）</string>
+    <string name="notice_wp_loaded">WP %1$s 件を読み込みました（%2$s）</string>
+    <string name="notice_wp_loaded_disabled">WP %1$s 件（うち無効 %2$s）を読み込みました（%3$s）</string>
+    <string name="notice_track_loaded">軌跡 %1$s 点・%2$s〜%3$s（%4$s）</string>
     <string name="wp_editor">WP エディタ</string>
     <string name="track_file_title">軌跡のファイル</string>
     <string name="track_file_current">読み込んでいるファイル: %1$s</string>

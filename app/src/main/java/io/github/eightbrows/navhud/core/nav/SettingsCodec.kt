@@ -60,6 +60,8 @@ object SettingsCodec {
         "trackColor" to s.trackColor.name,
         "trackBrightnessPct" to s.trackBrightnessPct.toString(),
         "ringLabelScalePct" to s.ringLabelScalePct.toString(),
+        // 距離環の明るさの段（1〜6。20261103-D01）
+        "ringBrightnessLevel" to s.ringBrightness.toString(),
     ) + s.customReach.withIndex().flatMap { (i, p) -> encodeProfile("custom${i + 1}.", p).toList() }.toMap()
 
     private fun encodeProfile(prefix: String, p: ReachProfile): Map<String, String> = mapOf(
@@ -214,6 +216,7 @@ object SettingsCodec {
             // 距離環の数字の大きさ: 選べる値（100〜200 の 25 刻み）にない数は一番近い段に読み替える（前の版の 250 は 200）。
             // 数でなければ既定値
             ringLabelScalePct = str("ringLabelScalePct")?.toIntOrNull()?.let(NavSettings::nearestRingLabelScalePct) ?: d.ringLabelScalePct,
+            ringBrightness = int("ringBrightnessLevel", d.ringBrightness).takeIf { it in NavSettings.MAP_LINE_LEVELS } ?: d.ringBrightness,
         ).selectTravelMode(travelMode)
     }
 
