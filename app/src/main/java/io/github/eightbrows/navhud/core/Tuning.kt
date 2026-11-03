@@ -252,11 +252,10 @@ object Tuning {
     const val BASEMAP_RUNWAY_EXT_DASH_DP = 3f
 
     /**
-     * 設定画面（20261024-D04。仮）: 初期値のボタンの塗りの明るさ（テーマの色に掛ける）と、スライダーの初期値の位置の目盛りの●の直径 [dp]。
+     * 設定画面（20261024-D04。仮）: 初期値のボタンの塗りの明るさ（テーマの色に掛ける）。スライダーの初期値の●は 20261103-D02 でスライダーをやめたのでなくした。
      * 塗りは 20261024-D05 で 0.75 → 0.6（もう 1 段控えめに）
      */
     const val SETTINGS_DEFAULT_FILL_FACTOR = 0.6f
-    const val SETTINGS_SLIDER_DEFAULT_DOT_DP = 8f
 
     /** 空港の ICAO の略号の文字の大きさ [sp]。画面上の大きさは縮尺によらず同じ（20261022-D01。仮） */
     const val BASEMAP_AIRPORT_CODE_SP = 10f
@@ -283,6 +282,9 @@ object Tuning {
      * 段 4 = 1.0 が今の色（初期値）。項目どうしの比率は変わらない（仮の値）
      */
     val BASEMAP_BRIGHTNESS_FACTORS = listOf(0.4f, 0.6f, 0.8f, 1f, 1.3f, 1.6f)
+
+    /** 距離環の明るさの段 1〜6 の掛ける数（20261103-D02。背景地図の線の明るさとは別。1 を超える段はない） */
+    val RING_BRIGHTNESS_FACTORS = listOf(0.2f, 0.3f, 0.4f, 0.6f, 0.8f, 1f)
 
     /**
      * 背景地図の線の太さ（設定。地図全体で 1〜6。1 がいちばん細い）ごとに、全部の線の太さに掛ける数。
@@ -347,14 +349,15 @@ object Tuning {
     const val OVERLAY_ALPHA = 0.6f
 
     /**
-     * 地図に重ねるボタン（上部バー・操作列・WP ボタン列・再生の操作列）と数値の不透明度 [%]（設定で変える。既定値と範囲・刻み）。
-     * 設定画面・WP 設定画面・案内の枠のボタンには使わない
+     * 地図に重ねるボタン（上部バー・操作列・WP ボタン列・再生の操作列）と数値の不透明度 [%]（設定で変える。既定値と選べる値）。
+     * 設定画面・WP 設定画面・案内の枠のボタンには使わない。20261103-D02 でスライダー（20〜100%、10% 刻み）から 5 つの選ぶボタンにした。
+     * 前の保存で、選べる値にない値（20〜100 の中）は一番近い値に読む（ちょうど真ん中なら小さい方）。20〜100 の外は初期値
      */
     const val BUTTON_OPACITY_DEFAULT_PCT = 70
     const val NUMBERS_OPACITY_DEFAULT_PCT = 100
+    val OPACITY_CHOICES_PCT = listOf(30, 50, 70, 90, 100)
     const val OPACITY_MIN_PCT = 20
     const val OPACITY_MAX_PCT = 100
-    const val OPACITY_STEP_PCT = 10
 
     /**
      * 読み込んだ軌跡（REPLAY のトラック全体の線）の明るさ [%] の既定と選べる値。色（設定。既定は白）の RGB に p / 100 を掛ける

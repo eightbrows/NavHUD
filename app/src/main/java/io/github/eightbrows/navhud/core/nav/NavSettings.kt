@@ -177,8 +177,8 @@ data class NavSettings(
     /** 距離環の数字の大きさ [%]。Tuning.RING_LABEL_SP（10sp）を 100% として 100 / 125 / 150 / 175 / 200 */
     val ringLabelScalePct: Int = Tuning.RING_LABEL_SCALE_DEFAULT_PCT,
     /**
-     * 距離環の明るさの段（1〜6。20261103-D01）。距離環の線の色に、背景地図の線の明るさと同じ掛ける数（Tuning.BASEMAP_BRIGHTNESS_FACTORS）を掛ける。
-     * 距離環の数字・方位の目盛りと文字には掛けない。初期値 3（0.8 倍。D13 までの距離環の 0.8 倍）
+     * 距離環の明るさの段（1〜6。20261103-D01、D02 で暗い側に寄せた）。距離環の線の色に Tuning.RING_BRIGHTNESS_FACTORS（0.2〜1.0）を掛ける。
+     * 距離環の数字・方位の目盛りと文字には掛けない。初期値 5（0.8 倍。D01 の初期値と同じ明るさ。D13 までの距離環の 0.8 倍）
      */
     val ringBrightness: Int = DEFAULT_RING_BRIGHTNESS,
 ) {
@@ -231,7 +231,15 @@ data class NavSettings(
         const val DEFAULT_MAP_LINE_WIDTH = 2
         const val DEFAULT_MAP_LINE_BRIGHTNESS = 3
         const val DEFAULT_LANDMARK_BRIGHTNESS = 3
-        const val DEFAULT_RING_BRIGHTNESS = 3
+        const val DEFAULT_RING_BRIGHTNESS = 5
+        /** 距離環の明るさの段（1〜6） */
+        val RING_BRIGHTNESS_LEVELS = 1..Tuning.RING_BRIGHTNESS_FACTORS.size
+
+        /**
+         * D01 の距離環の明るさの段（保存の名前 ringBrightnessLevel。掛ける数 0.4 / 0.6 / 0.8 / 1.0 / 1.3 / 1.6）を、同じ明るさの今の段に読み替える
+         * （1→3、2→4、3→5、4→6、5・6→6。今の段には 1.0 より明るい段がないので、5・6 はいちばん明るい 6）。範囲の外は null
+         */
+        fun ringBrightnessFromD01(level: Int): Int? = if (level in 1..6) minOf(level + 2, RING_BRIGHTNESS_LEVELS.last) else null
         val WP_BUTTONS_MAX_RANGE = 3..6
         val PAN_RETURN_SEC_RANGE = 5..60
         val HUD_WP_COUNT_RANGE = 1..20
@@ -275,10 +283,21 @@ data class NavSettings(
         val RATE_WINDOW_CHOICES_SEC = listOf(10, 30, 60)
 
         /** 不透明度 [%] の選べる値（20, 30, … 100） */
-        val OPACITY_CHOICES_PCT = (Tuning.OPACITY_MIN_PCT..Tuning.OPACITY_MAX_PCT step Tuning.OPACITY_STEP_PCT).toList()
+        val OPACITY_CHOICES_PCT = Tuning.OPACITY_CHOICES_PCT
+
+        /**
+         * 不透明度の保存値を、選べる値（OPACITY_CHOICES_PCT）に読む（20261103-D02）: 前のスライダーの範囲（20〜100）の中なら一番近い値
+         * （ちょうど真ん中なら小さい方）、外なら null（初期値にする）
+         */
+        fun nearestOpacityPct(pct: Int): Int? =
+            if (pct in Tuning.OPACITY_MIN_PCT..Tuning.OPACITY_MAX_PCT) OPACITY_CHOICES_PCT.minBy { kotlin.math.abs(it - pct) } else null
 
         /** 読み込んだ軌跡の明るさ [%] の選べる値 */
         val TRACK_BRIGHTNESS_CHOICES_PCT = Tuning.TRACK_BRIGHTNESS_CHOICES_PCT
+
+        /** 読み込んだ軌跡の明るさの保存値を、選べる値に読む（20261103-D02）: 25〜100 の中なら一番近い値（真ん中なら小さい方）、外なら null */
+        fun nearestTrackBrightnessPct(pct: Int): Int? =
+            if (pct in TRACK_BRIGHTNESS_CHOICES_PCT.first()..TRACK_BRIGHTNESS_CHOICES_PCT.last()) TRACK_BRIGHTNESS_CHOICES_PCT.minBy { kotlin.math.abs(it - pct) } else null
 
         /** 距離環の数字の大きさ [%] の選べる値 */
         val RING_LABEL_SCALE_CHOICES_PCT = Tuning.RING_LABEL_SCALE_CHOICES_PCT

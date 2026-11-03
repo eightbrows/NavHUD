@@ -43,12 +43,12 @@ class SettingsCodecTest {
             landmarkBrightness = 2,
             mapLineWidth = 3,
             mapLineBrightness = 2,
-            buttonOpacityPct = 40,
-            numbersOpacityPct = 60,
+            buttonOpacityPct = 50,
+            numbersOpacityPct = 30,
             trackColor = TrackColor.CYAN,
             trackBrightnessPct = 25,
             ringLabelScalePct = 175,
-            ringBrightness = 5,
+            ringBrightness = 2,
             autoMinRangeKm = 0.2,
             autoMaxRangeKm = 5.0,
             autoHoldAfterWpSec = 20,
@@ -104,13 +104,23 @@ class SettingsCodecTest {
         val d = NavSettings()
         assertEquals(70, d.buttonOpacityPct)
         assertEquals(100, d.numbersOpacityPct)
-        assertEquals(listOf(20, 30, 40, 50, 60, 70, 80, 90, 100), NavSettings.OPACITY_CHOICES_PCT)
-        // 20〜100 の 10 刻みなら読む
-        val ok = SettingsCodec.decode(mapOf("buttonOpacityPct" to "20", "numbersOpacityPct" to "50"))
-        assertEquals(20, ok.buttonOpacityPct)
-        assertEquals(50, ok.numbersOpacityPct)
-        // 範囲外・刻みに合わない・読めない値は、その項目だけ既定値
-        for (bad in listOf("10", "110", "35", "x", "")) {
+        // 選ぶボタンの 5 つ（20261103-D02。前はスライダーの 20〜100%・10% 刻み）。初期値を含む
+        assertEquals(listOf(30, 50, 70, 90, 100), NavSettings.OPACITY_CHOICES_PCT)
+        assertTrue(70 in NavSettings.OPACITY_CHOICES_PCT && 100 in NavSettings.OPACITY_CHOICES_PCT)
+        for (v in NavSettings.OPACITY_CHOICES_PCT) {
+            val s = SettingsCodec.decode(mapOf("buttonOpacityPct" to v.toString(), "numbersOpacityPct" to v.toString()))
+            assertEquals(v, s.buttonOpacityPct)
+            assertEquals(v, s.numbersOpacityPct)
+        }
+        // 前のスライダーの値（20〜100 の 10 刻み）は一番近い値（ちょうど真ん中なら小さい方）
+        val old = mapOf(20 to 30, 30 to 30, 40 to 30, 50 to 50, 60 to 50, 70 to 70, 80 to 70, 90 to 90, 100 to 100)
+        for ((saved, expected) in old) {
+            val s = SettingsCodec.decode(mapOf("buttonOpacityPct" to saved.toString(), "numbersOpacityPct" to saved.toString()))
+            assertEquals("button $saved", expected, s.buttonOpacityPct)
+            assertEquals("numbers $saved", expected, s.numbersOpacityPct)
+        }
+        // 20〜100 の外・読めない値は、その項目だけ既定値
+        for (bad in listOf("10", "110", "19", "x", "")) {
             val s = SettingsCodec.decode(mapOf("buttonOpacityPct" to bad, "numbersOpacityPct" to bad, "rateWindowSec" to "30"))
             assertEquals(70, s.buttonOpacityPct)
             assertEquals(100, s.numbersOpacityPct)
@@ -123,6 +133,10 @@ class SettingsCodecTest {
         // 読み込んだ軌跡の明るさ: 既定 100%（20261025-D01 から。D03〜は 75%、その前は 50%）、25 / 50 / 75 / 100 から選ぶ
         assertEquals(100, NavSettings().trackBrightnessPct)
         assertEquals(listOf(25, 50, 75, 100), NavSettings.TRACK_BRIGHTNESS_CHOICES_PCT)
+        // 20261103-D02: 選ぶボタン（前のスライダーと同じ 4 つ）。25〜100 の中で選べる値にない数は一番近い値（真ん中なら小さい方）
+        for ((saved, expected) in mapOf(30 to 25, 60 to 50, 62 to 50, 63 to 75, 90 to 100)) {
+            assertEquals("$saved", expected, SettingsCodec.decode(mapOf("trackBrightnessPct" to saved.toString())).trackBrightnessPct)
+        }
         // 保存して読み直すと同じ値
         for (v in NavSettings.TRACK_BRIGHTNESS_CHOICES_PCT) {
             val s = NavSettings(trackBrightnessPct = v)
@@ -130,10 +144,10 @@ class SettingsCodecTest {
             assertEquals(s, SettingsCodec.decode(SettingsCodec.encode(s)))
         }
         // 範囲外・選べない値・読めない値は、その項目だけ既定値（ほかの項目はそのまま）
-        for (bad in listOf("0", "10", "60", "125", "x", "")) {
-            val s = SettingsCodec.decode(mapOf("trackBrightnessPct" to bad, "buttonOpacityPct" to "40"))
+        for (bad in listOf("0", "10", "24", "125", "x", "")) {
+            val s = SettingsCodec.decode(mapOf("trackBrightnessPct" to bad, "buttonOpacityPct" to "50"))
             assertEquals(100, s.trackBrightnessPct)
-            assertEquals(40, s.buttonOpacityPct)
+            assertEquals(50, s.buttonOpacityPct)
         }
         // 保存がない（前の版）なら既定値
         assertEquals(100, SettingsCodec.decode(mapOf("travelMode" to "CAR")).trackBrightnessPct)
@@ -289,11 +303,11 @@ class SettingsCodecTest {
         val hold = mapOf("0" to 0, "2" to 0, "3" to 5, "7" to 5, "8" to 10, "17" to 15, "18" to 20, "26" to 30, "45" to 30, "46" to 60, "61" to 60, "-5" to 0)
         for ((saved, expected) in hold) assertEquals(saved, expected, SettingsCodec.decode(mapOf("autoHoldAfterWpSec" to saved)).autoHoldAfterWpSec)
         // 数でない値・保存がないときは既定値。ほかの項目はそのまま
-        val bad = SettingsCodec.decode(mapOf("noFixTimeoutSec" to "x", "maxGpsAccM" to "", "autoHoldAfterWpSec" to "1.5", "buttonOpacityPct" to "40"))
+        val bad = SettingsCodec.decode(mapOf("noFixTimeoutSec" to "x", "maxGpsAccM" to "", "autoHoldAfterWpSec" to "1.5", "buttonOpacityPct" to "50"))
         assertEquals(10, bad.noFixTimeoutSec)
         assertEquals(15f, bad.maxGpsAccM, 0f)
         assertEquals(10, bad.autoHoldAfterWpSec)
-        assertEquals(40, bad.buttonOpacityPct)
+        assertEquals(50, bad.buttonOpacityPct)
         // 読み替えた値は、保存して読み直しても同じ
         val s = SettingsCodec.decode(mapOf("noFixTimeoutSec" to "45", "maxGpsAccM" to "42", "autoHoldAfterWpSec" to "7"))
         assertEquals(s, SettingsCodec.decode(SettingsCodec.encode(s)))

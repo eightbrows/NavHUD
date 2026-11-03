@@ -60,8 +60,8 @@ object SettingsCodec {
         "trackColor" to s.trackColor.name,
         "trackBrightnessPct" to s.trackBrightnessPct.toString(),
         "ringLabelScalePct" to s.ringLabelScalePct.toString(),
-        // 距離環の明るさの段（1〜6。20261103-D01）
-        "ringBrightnessLevel" to s.ringBrightness.toString(),
+        // 距離環の明るさの段（1〜6）。20261103-D02 で掛ける数を変えたので名前を変えた（D01 の ringBrightnessLevel は読み替えて読む）
+        "ringLineBrightnessLevel" to s.ringBrightness.toString(),
     ) + s.customReach.withIndex().flatMap { (i, p) -> encodeProfile("custom${i + 1}.", p).toList() }.toMap()
 
     private fun encodeProfile(prefix: String, p: ReachProfile): Map<String, String> = mapOf(
@@ -206,17 +206,19 @@ object SettingsCodec {
             mapLineWidth = int("mapLineWidthLevel", d.mapLineWidth).takeIf { it in NavSettings.MAP_LINE_LEVELS } ?: d.mapLineWidth,
             mapLineBrightness = int("mapLineBrightnessLevel", d.mapLineBrightness).takeIf { it in NavSettings.MAP_LINE_LEVELS } ?: d.mapLineBrightness,
             // 不透明度: 20〜100 の 10 刻み以外は既定値
-            buttonOpacityPct = int("buttonOpacityPct", d.buttonOpacityPct).takeIf { it in NavSettings.OPACITY_CHOICES_PCT } ?: d.buttonOpacityPct,
-            numbersOpacityPct = int("numbersOpacityPct", d.numbersOpacityPct).takeIf { it in NavSettings.OPACITY_CHOICES_PCT } ?: d.numbersOpacityPct,
+            // 不透明度: 選べる値は 5 つ（20261103-D02）。前のスライダーの値（20〜100、10 刻み）は一番近い値に読む
+            buttonOpacityPct = str("buttonOpacityPct")?.toIntOrNull()?.let(NavSettings::nearestOpacityPct) ?: d.buttonOpacityPct,
+            numbersOpacityPct = str("numbersOpacityPct")?.toIntOrNull()?.let(NavSettings::nearestOpacityPct) ?: d.numbersOpacityPct,
             // 読み込んだ軌跡の色: 保存がない（前の版）・読めない名前なら既定の白（前の版と同じ見た目）
             trackColor = enum("trackColor", TrackColor.entries.toTypedArray(), d.trackColor),
             // 読み込んだ軌跡の明るさ: 25 / 50 / 75 / 100 以外は既定値
-            trackBrightnessPct = int("trackBrightnessPct", d.trackBrightnessPct).takeIf { it in NavSettings.TRACK_BRIGHTNESS_CHOICES_PCT }
-                ?: d.trackBrightnessPct,
+            trackBrightnessPct = str("trackBrightnessPct")?.toIntOrNull()?.let(NavSettings::nearestTrackBrightnessPct) ?: d.trackBrightnessPct,
             // 距離環の数字の大きさ: 選べる値（100〜200 の 25 刻み）にない数は一番近い段に読み替える（前の版の 250 は 200）。
             // 数でなければ既定値
             ringLabelScalePct = str("ringLabelScalePct")?.toIntOrNull()?.let(NavSettings::nearestRingLabelScalePct) ?: d.ringLabelScalePct,
-            ringBrightness = int("ringBrightnessLevel", d.ringBrightness).takeIf { it in NavSettings.MAP_LINE_LEVELS } ?: d.ringBrightness,
+            ringBrightness = str("ringLineBrightnessLevel")?.toIntOrNull()?.takeIf { it in NavSettings.RING_BRIGHTNESS_LEVELS }
+                ?: str("ringBrightnessLevel")?.toIntOrNull()?.let(NavSettings::ringBrightnessFromD01)
+                ?: d.ringBrightness,
         ).selectTravelMode(travelMode)
     }
 

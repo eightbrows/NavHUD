@@ -19,9 +19,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -40,7 +37,6 @@ import androidx.compose.ui.layout.FirstBaseline
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInParent
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -130,14 +126,13 @@ fun SettingsScreen(
             )
             Choice(stringResource(R.string.ui_color), colors, s.uiTheme, default = def.uiTheme) { v -> onChange { it.copy(uiTheme = v) } }
             Choice(stringResource(R.string.map_color), colors, s.mapTheme, default = def.mapTheme) { v -> onChange { it.copy(mapTheme = v) } }
-            PercentSlider(
-                stringResource(R.string.button_opacity), s.buttonOpacityPct,
-                note = stringResource(R.string.button_opacity_note), defaultText = pct(def.buttonOpacityPct), default = def.buttonOpacityPct,
-            ) { v -> onChange { it.copy(buttonOpacityPct = v) } }
-            PercentSlider(
-                stringResource(R.string.numbers_opacity), s.numbersOpacityPct,
-                note = stringResource(R.string.numbers_opacity_note), defaultText = pct(def.numbersOpacityPct), default = def.numbersOpacityPct,
-            ) { v -> onChange { it.copy(numbersOpacityPct = v) } }
+            // % の項目は選ぶボタン（20261103-D02。前はスライダー）
+            Choice(stringResource(R.string.button_opacity), percentChoices(NavSettings.OPACITY_CHOICES_PCT), s.buttonOpacityPct, note = stringResource(R.string.button_opacity_note), default = def.buttonOpacityPct) { v ->
+                onChange { it.copy(buttonOpacityPct = v) }
+            }
+            Choice(stringResource(R.string.numbers_opacity), percentChoices(NavSettings.OPACITY_CHOICES_PCT), s.numbersOpacityPct, note = stringResource(R.string.numbers_opacity_note), default = def.numbersOpacityPct) { v ->
+                onChange { it.copy(numbersOpacityPct = v) }
+            }
             Choice(
                 stringResource(R.string.track_color),
                 listOf(
@@ -152,19 +147,15 @@ fun SettingsScreen(
                 note = stringResource(R.string.track_color_note),
                 default = def.trackColor,
             ) { v -> onChange { it.copy(trackColor = v) } }
-            PercentSlider(
-                stringResource(R.string.track_brightness), s.trackBrightnessPct,
-                note = stringResource(R.string.track_brightness_note), defaultText = pct(def.trackBrightnessPct), default = def.trackBrightnessPct,
-                choices = NavSettings.TRACK_BRIGHTNESS_CHOICES_PCT,
-            ) { v -> onChange { it.copy(trackBrightnessPct = v) } }
-            PercentSlider(
-                stringResource(R.string.ring_label_size), s.ringLabelScalePct,
-                note = stringResource(R.string.ring_label_size_note), defaultText = pct(def.ringLabelScalePct), default = def.ringLabelScalePct,
-                choices = NavSettings.RING_LABEL_SCALE_CHOICES_PCT,
-            ) { v -> onChange { it.copy(ringLabelScalePct = v) } }
-            // 距離環の明るさ（20261103-D01）: 1〜6 段（掛ける数は背景地図の線の明るさと同じ）。距離環の線だけ
+            Choice(stringResource(R.string.track_brightness), percentChoices(NavSettings.TRACK_BRIGHTNESS_CHOICES_PCT), s.trackBrightnessPct, note = stringResource(R.string.track_brightness_note), default = def.trackBrightnessPct) { v ->
+                onChange { it.copy(trackBrightnessPct = v) }
+            }
+            Choice(stringResource(R.string.ring_label_size), percentChoices(NavSettings.RING_LABEL_SCALE_CHOICES_PCT), s.ringLabelScalePct, note = stringResource(R.string.ring_label_size_note), default = def.ringLabelScalePct) { v ->
+                onChange { it.copy(ringLabelScalePct = v) }
+            }
+            // 距離環の明るさ（20261103-D01・D02）: 1〜6 段（掛ける数 0.2〜1.0。Tuning.RING_BRIGHTNESS_FACTORS）。距離環の線だけ
             Choice(
-                stringResource(R.string.ring_brightness), NavSettings.MAP_LINE_LEVELS.map { it.toString() to it }, s.ringBrightness,
+                stringResource(R.string.ring_brightness), NavSettings.RING_BRIGHTNESS_LEVELS.map { it.toString() to it }, s.ringBrightness,
                 note = stringResource(R.string.ring_brightness_note), default = def.ringBrightness,
             ) { v -> onChange { it.copy(ringBrightness = v) } }
             Choice(
@@ -542,7 +533,6 @@ fun SettingsScreen(
 
 /** GitHub のリポジトリ（「情報」の欄のライセンス・チートシート・ファイル形式の説明のリンク先）。ファイルは main ブランチのものを開く */
 /** スライダーのふつうの目盛りの●の半径 [dp]（Material の目盛りとほぼ同じ大きさ。初期値の位置だけ大きくするので、自分で描く） */
-private const val SliderTickRadiusDp = 1.5f
 
 private const val REPO_URL = "https://github.com/eightbrows/NavHUD"
 
@@ -624,6 +614,9 @@ private fun kmh(kmh: Int) = "$kmh km/h"
 private fun seconds(sec: Int) = stringResource(R.string.value_seconds, sec.toString())
 
 private fun pct(p: Int) = "$p%"
+
+/** % の選ぶボタン（「70%」など）。20261103-D02 */
+private fun percentChoices(values: List<Int>): List<Pair<String, Int>> = values.map { pct(it) to it }
 
 
 // 設定画面の距離は、m は数字だけ、km は「k」（距離環の文字と同じ書き方。20261020-D02）
@@ -941,63 +934,6 @@ private fun Stepper(label: String, value: String, note: String? = null, defaultT
 private fun defaultFill(c: Color): Color {
     val k = Tuning.SETTINGS_DEFAULT_FILL_FACTOR
     return Color(red = c.red * k, green = c.green * k, blue = c.blue * k, alpha = c.alpha)
-}
-
-/**
- * 不透明度などの % を、スライダーで 20〜100% の 10% 刻みに選ぶ。
- * 初期値（default）の位置の目盛りの●は、ほかの目盛りより大きく描く（直径 Tuning.SETTINGS_SLIDER_DEFAULT_DOT_DP。20261024-D04）
- */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun PercentSlider(
-    label: String,
-    pct: Int,
-    note: String? = null,
-    defaultText: String? = null,
-    choices: List<Int> = NavSettings.OPACITY_CHOICES_PCT,
-    default: Int? = null,
-    onChange: (Int) -> Unit,
-) {
-    val colors = SliderDefaults.colors(
-        thumbColor = HudColors.Scale,
-        activeTrackColor = HudColors.Scale,
-        inactiveTrackColor = HudColors.WpDisabled,
-        activeTickColor = HudColors.Background,
-        inactiveTickColor = HudColors.ScaleDim,
-    )
-    val density = LocalDensity.current.density
-    val lo = choices.first().toFloat()
-    val hi = choices.last().toFloat()
-    // 初期値の位置（0〜1）と、目盛りの間隔（0〜1）の半分
-    val defaultFrac = default?.let { (it - lo) / (hi - lo) }
-    val halfStep = 0.5f / (choices.size - 1).coerceAtLeast(1)
-    Column {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.weight(1f)) { Label(label, note, defaultText = defaultText) }
-            Text("$pct%", style = ValueText, textAlign = TextAlign.Center, modifier = Modifier.widthIn(min = 56.dp))
-        }
-        // スライダーは高さを詰める（つまみと目盛りが収まる高さ）
-        Slider(
-            modifier = Modifier.height(32.dp),
-            value = pct.toFloat(),
-            onValueChange = { v -> choices.minByOrNull { kotlin.math.abs(it - v) }?.takeIf { it != pct }?.let(onChange) },
-            valueRange = lo..hi,
-            steps = choices.size - 2,
-            colors = colors,
-            track = { state ->
-                SliderDefaults.Track(
-                    sliderState = state,
-                    colors = colors,
-                    drawTick = { offset, color ->
-                        // 目盛りの位置（0〜1）が初期値に近ければ、大きな●
-                        val isDefault = defaultFrac != null && size.width > 0f && kotlin.math.abs(offset.x / size.width - defaultFrac) < halfStep
-                        val r = if (isDefault) Tuning.SETTINGS_SLIDER_DEFAULT_DOT_DP / 2 * density else SliderTickRadiusDp * density
-                        drawCircle(color = color, radius = r, center = offset)
-                    },
-                )
-            },
-        )
-    }
 }
 
 @Composable
