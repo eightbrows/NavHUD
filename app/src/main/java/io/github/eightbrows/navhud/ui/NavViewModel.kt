@@ -89,7 +89,14 @@ data class WaypointUiState(
     /** WP ボタン列を出す */
     val showButtons: Boolean = true,
     val loading: Boolean = false,
-)
+) {
+    /**
+     * WP リストをクリアしたあと（20261102-D01）: リストを読み込んでいないとき（起動時に「リストなし」を選んだとき）と同じ。
+     * 前回のリストはない。WP ボタン列の表示 / 非表示はそのまま
+     */
+    fun cleared(message: UiText?): WaypointUiState =
+        WaypointUiState(hasSavedList = false, startupPending = false, showButtons = showButtons, message = message)
+}
 
 /**
  * NavState を StateFlow で公開する。NavEngine への入力（Fix・tick）はすべてメインスレッドから行う。
@@ -481,6 +488,16 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * WP リストをクリアする（20261102-D01）: リストを空にし、前回のリストの覚えも消す（次の起動では自動で開かない）。
+     * エクスポートしていない編集も消える（確認は画面の側で出す）。画面はリストを読み込んでいないときと同じ。
+     */
+    fun clearWaypoints() {
+        wpStore.forget()
+        publish(engine.setWaypoints(emptyList()))
+        _wp.value = _wp.value.cleared(uiText(R.string.msg_wp_cleared))
+    }
+
     fun toggleWaypointButtons() {
         _wp.value = _wp.value.copy(showButtons = !_wp.value.showButtons)
     }
@@ -528,6 +545,22 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
                     _replay.value = ReplayUiState(message = message)
                 }
         }
+    }
+
+    /**
+     * 読み込んでいるトラック（track.csv・GpsLogger の zip）をクリアする（20261102-D01）: 再生を止めてトラックを外し、
+     * 前回のファイル（と zip のセッション）の覚えも消す（次の起動では自動で開かない）。画面はトラックを読み込んでいないときと同じ。
+     */
+    fun clearTrack() {
+        pauseReplay()
+        fixJob?.cancel()
+        fixJob = null
+        source = null
+        trackFixes = emptyList()
+        store.forget()
+        clock.setSpeed(1)
+        publish(engine.clearReplayTrack())
+        _replay.value = ReplayUiState()
     }
 
     /** 読んだトラックの Fix に海抜高度（AltitudeConverter。API 34 以上）を入れる（IO のスレッドで呼ぶ。20261025-D07） */
@@ -625,6 +658,12 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
         settingsStore.input = next
         pauseReplay()
         publish(engine.switchSource(next, playing = next == SourceKind.LIVE))
+        // REPLAY にしたら、止めているトラックの時刻の点をすぐ自機の位置として出す（20261102-D01。LIVE 中に読んだトラックは、
+        // 最初の点を LIVE のあいだに送って捨てているので、再生を始めるまで位置がなかった）
+        val src = source
+        if (next == SourceKind.REPLAY && src != null) {
+            src.seek(clock.nowMs()).last?.let { publish(engine.onFix(it, clock.nowMs())) }
+        }
         nowMs()?.let { publish(engine.onTick(it)) }
         updateService()
     }

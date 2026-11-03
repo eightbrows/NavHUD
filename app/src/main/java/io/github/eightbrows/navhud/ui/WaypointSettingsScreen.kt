@@ -40,6 +40,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -61,6 +62,9 @@ import io.github.eightbrows.navhud.core.view.ItemWrap
 import java.time.LocalTime
 import java.time.ZoneId
 import java.util.Locale
+
+/** WP エディタ（ブラウザで WP リストを作る・直すページ。20261102-D01）。WP設定の画面と、設定画面の情報の欄から開く */
+internal const val WP_EDITOR_URL = "https://eightbrows.github.io/navhud-wp-editor/"
 
 private val Body get() = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 14.sp, color = HudColors.Scale)
 private val Small get() = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 12.sp, color = HudColors.ScaleDim)
@@ -85,13 +89,16 @@ fun WaypointSettingsScreen(
     onExport: () -> Unit,
     onReverse: () -> Unit,
     onAdjustTimes: (Int, LocalTime) -> Unit,
+    onClear: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val wps = state.waypoints
     // 編集中の WP の番号。-1 は新規
     var editing by remember { mutableStateOf<Int?>(null) }
     var confirmReverse by remember { mutableStateOf(false) }
+    var confirmClear by remember { mutableStateOf(false) }
     var adjusting by remember { mutableStateOf(false) }
+    val uriHandler = LocalUriHandler.current
 
     Column(
         modifier
@@ -109,8 +116,12 @@ fun WaypointSettingsScreen(
             HudButton(stringResource(R.string.wp_paste), onPaste)
             HudButton(stringResource(R.string.wp_import), onImport)
             HudButton(stringResource(R.string.wp_export), onExport, enabled = wps.isNotEmpty())
+            // WP エディタ（20261102-D01）: ブラウザで開く（開けるアプリがない端末では何もしない）
+            HudButton(stringResource(R.string.wp_editor) + " ↗", { runCatching { uriHandler.openUri(WP_EDITOR_URL) } })
             HudButton(stringResource(R.string.wp_reverse), { confirmReverse = true }, enabled = wps.size >= 2)
             HudButton(stringResource(R.string.wp_adjust_times), { adjusting = true }, enabled = wps.any { it.targetTime != null })
+            // クリア（20261102-D01）: リストを外し、前回のリストの覚えも消す。確認を出す
+            HudButton(stringResource(R.string.wp_clear), { confirmClear = true }, enabled = wps.isNotEmpty() || wpUi.listName != null)
         }
         Text(
             stringResource(
@@ -149,6 +160,20 @@ fun WaypointSettingsScreen(
                 }) { Text(stringResource(R.string.wp_reverse)) }
             },
             dismissButton = { TextButton(onClick = { confirmReverse = false }) { Text(stringResource(R.string.cancel)) } },
+        )
+    }
+    if (confirmClear) {
+        AlertDialog(
+            onDismissRequest = { confirmClear = false },
+            title = { Text(stringResource(R.string.wp_clear_title)) },
+            text = { Text(stringResource(R.string.wp_clear_confirm)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    onClear()
+                    confirmClear = false
+                }) { Text(stringResource(R.string.wp_clear)) }
+            },
+            dismissButton = { TextButton(onClick = { confirmClear = false }) { Text(stringResource(R.string.cancel)) } },
         )
     }
     if (adjusting) {

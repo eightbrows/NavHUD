@@ -97,6 +97,10 @@ class MainActivity : ComponentActivity() {
                     ActivityResultContracts.CreateDocument(WaypointDocumentStore.EXPORT_MIME_TYPE),
                 ) { vm.exportWaypoints(it) }
                 val onPickTrack = { pickTrack.launch(TrackDocumentStore.MIME_TYPES) }
+                // FILE（20261102-D01）: トラックを読み込んでいれば「ファイルを選ぶ / クリア」を出す。読み込んでいなければすぐファイル選択
+                var trackMenu by remember { mutableStateOf(false) }
+                var confirmTrackClear by remember { mutableStateOf(false) }
+                val onFileButton = { if (replay.fileName != null) trackMenu = true else onPickTrack() }
 
                 // 通知の権限（Android 13 以降）。拒否されても動作は続ける
                 val requestNotifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
@@ -145,7 +149,7 @@ class MainActivity : ComponentActivity() {
                         Screen.MAIN -> MainScreen(
                             state = state,
                             replay = replay,
-                            onPickTrack = onPickTrack,
+                            onPickTrack = onFileButton,
                             onTogglePlay = vm::togglePlay,
                             onCycleSource = vm::cycleSourceMode,
                             onToggleDisplay = vm::toggleDisplayMode,
@@ -195,6 +199,7 @@ class MainActivity : ComponentActivity() {
                             onExport = { exportWaypoints.launch(WaypointDocumentStore.EXPORT_DEFAULT_NAME) },
                             onReverse = vm::reverseWaypoints,
                             onAdjustTimes = vm::adjustWaypointTimes,
+                            onClear = vm::clearWaypoints,
                             modifier = modifier,
                         )
                         Screen.SETTINGS -> SettingsScreen(
@@ -246,6 +251,35 @@ class MainActivity : ComponentActivity() {
                     replay.sessions?.let { zip ->
                         ZipSessionDialog(zip, java.time.ZoneId.systemDefault(), vm::onZipSessionPicked, vm::onZipSessionDismissed)
                     }
+                }
+                // FILE を押したとき（トラックを読み込んでいるとき）: ファイルを選ぶ / クリア（20261102-D01）
+                if (trackMenu) {
+                    TrackFileDialog(
+                        fileName = replay.fileName.orEmpty(),
+                        onChoose = {
+                            trackMenu = false
+                            onPickTrack()
+                        },
+                        onClear = {
+                            trackMenu = false
+                            confirmTrackClear = true
+                        },
+                        onDismiss = { trackMenu = false },
+                    )
+                }
+                if (confirmTrackClear) {
+                    AlertDialog(
+                        onDismissRequest = { confirmTrackClear = false },
+                        title = { Text(stringResource(R.string.track_clear_title)) },
+                        text = { Text(stringResource(R.string.track_clear_confirm, replay.fileName.orEmpty())) },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                vm.clearTrack()
+                                confirmTrackClear = false
+                            }) { Text(stringResource(R.string.track_clear)) }
+                        },
+                        dismissButton = { TextButton(onClick = { confirmTrackClear = false }) { Text(stringResource(R.string.cancel)) } },
+                    )
                 }
             }
         }
@@ -299,6 +333,24 @@ private fun StartupDialog(wpUi: WaypointUiState, onPrevious: () -> Unit, onChoos
             }
         },
         confirmButton = {},
+    )
+}
+
+/** FILE（トラックを読み込んでいるとき。20261102-D01）: 読み込んでいるファイルの名前と、ファイルを選ぶ / クリア / 閉じる。 */
+@Composable
+private fun TrackFileDialog(fileName: String, onChoose: () -> Unit, onClear: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.track_file_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(stringResource(R.string.track_file_current, fileName))
+                TextButton(onClick = onChoose) { Text(stringResource(R.string.track_file_choose)) }
+                TextButton(onClick = onClear) { Text(stringResource(R.string.track_clear)) }
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) } },
     )
 }
 

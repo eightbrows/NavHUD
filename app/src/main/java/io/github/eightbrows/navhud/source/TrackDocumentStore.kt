@@ -6,8 +6,8 @@ import android.net.Uri
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.edit
 import io.github.eightbrows.navhud.R
+import io.github.eightbrows.navhud.core.io.LastFileMemory
 import io.github.eightbrows.navhud.core.io.SessionZip
 import io.github.eightbrows.navhud.core.io.TrackCsv
 import io.github.eightbrows.navhud.core.io.TrackParseResult
@@ -33,15 +33,15 @@ sealed interface OpenedTrack {
 class TrackDocumentStore(context: Context) {
 
     private val appContext = context.applicationContext
-    private val prefs = appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    private val memory = LastFileMemory(PrefsKeyValueStore(appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)), KEY_URI, KEY_ENTRY)
 
-    val savedUri: Uri? get() = prefs.getString(KEY_URI, null)?.let(Uri::parse)
+    val savedUri: Uri? get() = memory.uri?.let(Uri::parse)
 
     /** 前回選んだ zip のセッション（zip の中の track.csv の名前）。zip でない・まだ選んでいないなら null */
-    val savedEntry: String? get() = prefs.getString(KEY_ENTRY, null)
+    val savedEntry: String? get() = memory.entry
 
     /** zip の中で選んだセッションを覚える。 */
-    fun rememberEntry(entryName: String) = prefs.edit { putString(KEY_ENTRY, entryName) }
+    fun rememberEntry(entryName: String) = memory.rememberEntry(entryName)
 
     /** 選ばれた URI の読み取り権限を永続化して保存する（前のファイルで選んだセッションは忘れる）。 */
     fun remember(uri: Uri) {
@@ -50,12 +50,10 @@ class TrackDocumentStore(context: Context) {
         } catch (_: SecurityException) {
             // 永続化できないプロバイダ。今回の起動中は読めるので、保存だけしておく
         }
-        prefs.edit {
-            putString(KEY_URI, uri.toString())
-            remove(KEY_ENTRY)
-        }
+        memory.remember(uri.toString())
     }
 
+    /** 前回のファイルを忘れる（読めなかったとき・クリアしたとき）。次の起動では自動で開かない（20261102-D01） */
     fun forget() {
         savedUri?.let { uri ->
             try {
@@ -63,10 +61,7 @@ class TrackDocumentStore(context: Context) {
             } catch (_: SecurityException) {
             }
         }
-        prefs.edit {
-            remove(KEY_URI)
-            remove(KEY_ENTRY)
-        }
+        memory.forget()
     }
 
     /**

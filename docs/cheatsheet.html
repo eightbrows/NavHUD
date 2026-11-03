@@ -105,7 +105,7 @@
 <main class="sheet">
   <header>
     <h1>NavHUD チートシート</h1>
-    <p class="ver">目標針路案内アプリ ・ 20261025-D11 時点 ・ 図は REPLAY（記録の再生）の ARC の例（20261025-D11 の画面。R1 5km・背景地図あり）</p>
+    <p class="ver">目標針路案内アプリ ・ 20261102-D01 時点 ・ 図は REPLAY（記録の再生）の ARC の例（20261025-D11 の画面。R1 5km・背景地図あり）</p>
   </header>
 
   <div class="cols">
@@ -202,7 +202,7 @@
           <tr><th>再生: ▶ / ❚❚</th><td>再生 / 一時停止（終わりは END）</td></tr>
           <tr><th>再生: ＋ / −</th><td>速度 ×1 / 2 / 5 / 10 / 30</td></tr>
         </table>
-        <p class="note">位置が来るまでは前回の位置（初回は皇居）を出す。その間も地図を動かせる。</p>
+        <p class="note">位置が来るまでは前回の位置（初回は皇居）を出す。その間も地図を動かせ、WP も出る。</p>
       </section>
 
       <section>
@@ -265,14 +265,15 @@
 
       <section>
         <h2>6 ファイルの読み込み</h2>
-        <p><b>WP リスト</b>: 起動すると前回のリストを開く（設定で、起動時に選ぶ形にもできる）。あとからは「WP設定」→ インポート。</p>
+        <p><b>WP リスト</b>: 起動すると前回のリストを開く（設定で、起動時に選ぶ形にもできる）。あとからは「WP設定」→ インポート。「WP設定」→ <b>クリア</b> で外すと、次回も開かない。</p>
         <ul>
           <li><b>CSV</b>（読み書き）: 1行目は見出し <code>lat,lon,ele,name,target_time,deadline_time,enabled,radius</code>。必須は lat と lon。時刻は <code>9:30</code> の形。Excel で編集できる。</li>
           <li><b>GPX</b>（読むだけ）: <code>&lt;wpt&gt;</code> の位置・name・ele・time（目標時刻）。</li>
           <li><b>貼り付け</b>: Google マップでコピーした座標 <code>34.69370, 135.50230</code>。</li>
           <li><b>編集した WP はアプリに保存されない</b>。エクスポート（CSV）して残す。</li>
+          <li><b>WP エディタ</b>（ブラウザ）でも作れる。「WP設定」の「WP エディタ ↗」から開く。</li>
         </ul>
-        <p style="margin-top:.4em"><b>軌跡（再生用）</b>: ⇄ で REPLAY にして、FILE で track.csv か GpsLogger の zip を選ぶ。次回からは自動で開く。</p>
+        <p style="margin-top:.4em"><b>軌跡（再生用）</b>: ⇄ で REPLAY にして、FILE で track.csv か GpsLogger の zip を選ぶ。次回からは自動で開く。読み込み中の FILE → <b>クリア</b> で外す（次回も開かない）。</p>
         <ul>
           <li><b>GpsLogger の zip</b>: 中のセッションの一覧（新しい順。開始時刻・長さ・点の数）から1つ選ぶ。</li>
           <li>track.csv は、見出しに <code>latitude</code>・<code>longitude</code> と、時刻の <code>epoch_ms</code> か <code>utc_iso8601</code> が必要。</li>

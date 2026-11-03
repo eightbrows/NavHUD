@@ -46,4 +46,19 @@ class ReplayPlayerTest {
     fun rejectsUnsortedTrack() {
         ReplayPlayer(listOf(fix(2_000), fix(1_000)))
     }
+
+    /**
+     * 読み込んだ時点の位置（20261102-D01）: LIVE のあいだに最初の点を出して捨てても、REPLAY に切り替えたときに
+     * 止めている時刻（先頭）へシークし直せば、最初の点を自機の位置として出せる（飛ばした点はない）。
+     */
+    @Test
+    fun firstFixCanBeShownAgainAtTheStoppedTime() {
+        val p = ReplayPlayer(track)
+        assertEquals(listOf(1_000L), p.due(1_000).map { it.timeMs })
+        val r = p.seek(1_000)
+        assertEquals(1_000L, r.last?.timeMs)
+        assertTrue(r.passed.isEmpty())
+        // 再生を始めると、次の点から出る
+        assertEquals(listOf(2_000L), p.due(2_000).map { it.timeMs })
+    }
 }

@@ -412,8 +412,10 @@ object HudSceneBuilder {
         numberBoxes: List<Box> = emptyList(),
         visibleFrame: TargetFrame = TargetFrame(drawFrame, null),
     ): Pair<List<WpMark>, List<EdgeArrow>> {
-        // ref: 地図の基準の地点（通常は自機、PAN は PAN の中心）。矢印の距離は自機から
-        val fix = state.fix ?: return emptyList<WpMark>() to emptyList()
+        // ref: 地図の基準の地点（通常は自機、PAN は PAN の中心、位置がまだないときは前回の位置か皇居）。矢印の距離は自機から。
+        // 位置がまだないとき（NO FIX・起動直後）も WP の印・線・名前は描く（20261102-D01）。自機から次の WP への線と、
+        // 次の WP の距離・方位は、自機の位置がないので出さない（次の WP の文字は名前だけ）
+        val fix = state.fix
         val (refLat, refLon) = ref ?: return emptyList<WpMark>() to emptyList()
         val wps = state.waypoints
         val next = state.nextWpIndex
@@ -434,10 +436,10 @@ object HudSceneBuilder {
             segments += Segment(pts[i], pts[j], ink, dashed)
         }
         // 自機から次の WP への方位線（マゼンタの長い破線。ラバーラインと重なっても、すき間から自機の線が見える）
-        if (next != null && ownAt != null) segments += Segment(ownAt, pts[next], Ink.ACTIVE, bold = true, longDash = true)
-        // 次の WP の距離と方位（自機から。方位は HDG と同じ真北基準の3桁）
-        val nextBearing = next?.let { HudFormat.bearing(Geo.bearingDeg(fix.lat, fix.lon, wps[it].lat, wps[it].lon)) }
-        val nextDistance = next?.let { HudFormat.distance(Geo.distanceM(fix.lat, fix.lon, wps[it].lat, wps[it].lon)) }
+        if (next != null && ownAt != null && fix != null) segments += Segment(ownAt, pts[next], Ink.ACTIVE, bold = true, longDash = true)
+        // 次の WP の距離と方位（自機から。方位は HDG と同じ真北基準の3桁）。位置がなければ出さない
+        val nextBearing = if (fix == null) null else next?.let { HudFormat.bearing(Geo.bearingDeg(fix.lat, fix.lon, wps[it].lat, wps[it].lon)) }
+        val nextDistance = if (fix == null) null else next?.let { HudFormat.distance(Geo.distanceM(fix.lat, fix.lon, wps[it].lat, wps[it].lon)) }
 
         // inner: 矢印を置く枠（TargetFrame の縁から edgeInset 内側）
         // 文字を置かない所: 自機の記号、方位目盛り・距離環の文字、画面内の WP の印と名前、数値の表示、操作列

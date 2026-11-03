@@ -4,8 +4,8 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.OpenableColumns
-import androidx.core.content.edit
 import io.github.eightbrows.navhud.R
+import io.github.eightbrows.navhud.core.io.LastFileMemory
 import io.github.eightbrows.navhud.core.io.WaypointCsv
 import io.github.eightbrows.navhud.core.io.WaypointGpx
 import io.github.eightbrows.navhud.core.io.WaypointParseResult
@@ -22,9 +22,9 @@ data class LoadedWaypoints(val uri: Uri, val displayName: String, val result: Wa
 class WaypointDocumentStore(context: Context) {
 
     private val appContext = context.applicationContext
-    private val prefs = appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    private val memory = LastFileMemory(PrefsKeyValueStore(appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)), KEY_URI)
 
-    val savedUri: Uri? get() = prefs.getString(KEY_URI, null)?.let(Uri::parse)
+    val savedUri: Uri? get() = memory.uri?.let(Uri::parse)
 
     /** 読み取り（書き出したファイルなら書き込みも）の権限を永続化して、「前回のリスト」として覚える。 */
     fun remember(uri: Uri, writable: Boolean) {
@@ -39,11 +39,20 @@ class WaypointDocumentStore(context: Context) {
             } catch (_: SecurityException) {
             }
         }
-        prefs.edit { putString(KEY_URI, uri.toString()) }
+        memory.remember(uri.toString())
     }
 
+    /** 前回のリストを忘れる（読めなかったとき・クリアしたとき）。次の起動では自動で開かない。永続化した権限も返す（20261102-D01） */
     fun forget() {
-        prefs.edit { remove(KEY_URI) }
+        savedUri?.let { uri ->
+            for (flag in listOf(Intent.FLAG_GRANT_READ_URI_PERMISSION, Intent.FLAG_GRANT_WRITE_URI_PERMISSION)) {
+                try {
+                    appContext.contentResolver.releasePersistableUriPermission(uri, flag)
+                } catch (_: SecurityException) {
+                }
+            }
+        }
+        memory.forget()
     }
 
     /** CSV か GPX を読む。中身で見分ける。ブロッキングなので IO スレッドで呼ぶ。 */

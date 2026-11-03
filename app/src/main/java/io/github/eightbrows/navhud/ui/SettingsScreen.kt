@@ -460,6 +460,8 @@ fun SettingsScreen(
             InfoRow(stringResource(R.string.about_version), versionName)
             InfoRow(stringResource(R.string.about_license), "Apache License 2.0", "$REPO_URL/blob/main/LICENSE")
             InfoRow(stringResource(R.string.about_website), "eightbrows.github.io", WEBSITE_URL)
+            // WP エディタ（20261102-D01）: WP設定の画面の「WP エディタ」と同じページ。アドレスが長いので、項目名の下にアドレス（データの出典と同じ開き方）
+            InfoLinkBlock(stringResource(R.string.about_wp_editor), WP_EDITOR_URL)
             InfoRow(stringResource(R.string.about_cheatsheet), "docs/cheatsheet.pdf", "$REPO_URL/blob/main/docs/cheatsheet.pdf")
             InfoRow(stringResource(R.string.about_formats), "docs/formats.pdf", "$REPO_URL/blob/main/docs/formats.pdf")
             Text(stringResource(R.string.about_links_note), style = RowNote)
@@ -718,6 +720,20 @@ private fun InfoRow(label: String, value: String, url: String? = null) {
             Text(value, style = ValueText.copy(textDecoration = TextDecoration.Underline), textAlign = TextAlign.End)
             Text("↗", style = ValueText)
         }
+    }
+}
+
+/** 情報の、アドレスの長いリンク（20261102-D01）: 項目名の下に URL（下線と ↗。押すとブラウザで開く。データの出典の URL と同じ） */
+@Composable
+private fun InfoLinkBlock(label: String, url: String) {
+    val uriHandler = LocalUriHandler.current
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Label(label)
+        Text(
+            "$url ↗",
+            style = RowLabel.copy(fontSize = 13.sp, textDecoration = TextDecoration.Underline),
+            modifier = Modifier.clickable { runCatching { uriHandler.openUri(url) } },
+        )
     }
 }
 

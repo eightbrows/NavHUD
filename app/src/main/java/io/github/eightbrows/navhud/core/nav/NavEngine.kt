@@ -390,6 +390,22 @@ class NavEngine(
     }
 
     /**
+     * 読み込んでいるトラックをクリアする（20261102-D01）: トラックを読み込んでいないときと同じにする。
+     * REPLAY なら自機の位置・RATE の履歴・通過判定の記録・時刻も消す（NO FIX。地図は位置がないときの中心で、
+     * 縮尺は起動したときと同じ、位置がないあいだの縮尺 R1 10 km。位置が来たときの決まりも起動したときと同じ）。
+     * LIVE のときは LIVE の位置はそのまま。WP リストと到達の状態は変えない。
+     */
+    fun clearReplayTrack(): NavState {
+        replayTrack = emptyList()
+        if (sourceKind == SourceKind.REPLAY) {
+            clearHistory()
+            nowMs = null
+            idleCenter?.let { (lat, lon) -> return setIdleCenter(lat, lon) }
+        }
+        return recompute()
+    }
+
+    /**
      * リプレイのシーク: RATE の履歴・通過判定の記録・GPS 方位の保持・PAN をリセットする。このあと呼び出し側がシーク先の Fix を入れる。
      * - 前方へのシーク: 飛ばした区間の Fix（passed）を先に通常どおりの到達判定（WP ごとの半径・到達半径・真横通過・通過判定）にかけ、
      *   トラックが通った WP を到達にする。
