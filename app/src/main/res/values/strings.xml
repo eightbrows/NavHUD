@@ -104,7 +104,7 @@
     <string name="ring_label_size">Range ring label size</string>
     <string name="ring_label_size_note" formatted="false">Numbers on the range rings (250, 1k, …). 100% is the original size.</string>
     <string name="ring_brightness">Range ring brightness</string>
-    <string name="ring_brightness_note">Brightness of the range ring lines (1 is the darkest). The distance labels and the heading scale do not change</string>
+    <string name="ring_brightness_note">Brightness of the range ring lines. The distance labels and the heading scale do not change</string>
     <string name="ownship_position">ARC ownship position</string>
     <string name="position_center">Center</string>
     <string name="position_aft">Aft %1$s</string>

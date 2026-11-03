@@ -153,11 +153,11 @@ fun SettingsScreen(
             Choice(stringResource(R.string.ring_label_size), percentChoices(NavSettings.RING_LABEL_SCALE_CHOICES_PCT), s.ringLabelScalePct, note = stringResource(R.string.ring_label_size_note), default = def.ringLabelScalePct) { v ->
                 onChange { it.copy(ringLabelScalePct = v) }
             }
-            // 距離環の明るさ（20261103-D01・D02）: 1〜6 段（掛ける数 0.2〜1.0。Tuning.RING_BRIGHTNESS_FACTORS）。距離環の線だけ
+            // 距離環の明るさ [%]（20261103-D01・D02 は段、20261104-D01 から %）。距離環の線だけ
             Choice(
-                stringResource(R.string.ring_brightness), NavSettings.RING_BRIGHTNESS_LEVELS.map { it.toString() to it }, s.ringBrightness,
-                note = stringResource(R.string.ring_brightness_note), default = def.ringBrightness,
-            ) { v -> onChange { it.copy(ringBrightness = v) } }
+                stringResource(R.string.ring_brightness), percentChoices(NavSettings.RING_BRIGHTNESS_CHOICES_PCT), s.ringBrightnessPct,
+                note = stringResource(R.string.ring_brightness_note), default = def.ringBrightnessPct,
+            ) { v -> onChange { it.copy(ringBrightnessPct = v) } }
             Choice(
                 stringResource(R.string.ownship_position),
                 listOf(
@@ -240,7 +240,8 @@ fun SettingsScreen(
         SettingsSection(stringResource(R.string.sec_range)) {
             // 初期値の段のボタンは塗り、使う段（選んでいる段）は水色の枠と点（20261021-D01）
             Label(stringResource(R.string.range_steps))
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            // 12 段のボタンは名前の下に、各行を右端にそろえて並べる（20261104-D01。前は左に寄せていた）
+            FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.End), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 for (km in RangeAuto.ALL_STEPS_KM) {
                     val on = km in s.rangeStepsKm
                     Chip(r1Label(km * 1000), on, isDefault = km in def.rangeStepsKm) {
@@ -771,30 +772,27 @@ private fun <T> Choice(
 ) {
     val mixed = mixedScripts(options.map { it.first })
     val buttons: @Composable () -> Unit = {
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        // ボタンが 2 行以上になるときも、各行を右端にそろえる（20261104-D01）
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 6.dp, Alignment.End), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             for ((text, value) in options) {
                 Chip(text, value == selected, enabled, compact, isDefault = default != null && value == default, cjkHeight = mixed) { onSelect(value) }
             }
         }
     }
     Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-        if (compact) {
-            // 地図レイヤ・ランドマーク: ボタンの列はどの項目も右端に揃える。20261024-D04 で選択肢が 6 つになり、名前と同じ行に収まらない項目が
-            // 多くなったので、収まらないときは名前を上の行に、ボタンの列をその下の行（右端）に置く（前は名前を細い列に押し込んで 1 文字ずつ折り返していた）
-            NameAndButtons(name = { NameLine(label, null, enabled) }, buttons = buttons, endAligned = true)
-        } else {
-            NameAndButtons(name = { NameLine(label, null, enabled) }, buttons = buttons)
-        }
+        // 名前は左、ボタンの列は右端。収まらないときは名前を上の行（左）に、ボタンの列をその下の行（右端）に置く
+        // （20261024-D04 は地図レイヤ・ランドマークだけ。20261104-D01 から全部の選ぶボタンの項目。前はほかの項目は下の行で左に寄せていた）
+        NameAndButtons(name = { NameLine(label, null, enabled) }, buttons = buttons)
         note?.let { Text(it, style = RowNote) }
     }
 }
 
 /**
  * 名前とボタンの列: 1 行に収まれば同じ行に置き、ボタンの列を右端に揃える。
- * 収まらなければ、ボタンの列を名前の下の行に置く（endAligned なら右端に、でなければ左に寄せる）。
+ * 収まらなければ、ボタンの列を名前の下の行の右端に置く（20261104-D01。前は項目によって左に寄せていた）。
  */
 @Composable
-private fun NameAndButtons(name: @Composable () -> Unit, buttons: @Composable () -> Unit, endAligned: Boolean = false) {
+private fun NameAndButtons(name: @Composable () -> Unit, buttons: @Composable () -> Unit) {
     Layout(content = { Box { name() }; Box { buttons() } }) { measurables, constraints ->
         val gap = 10.dp.roundToPx()
         val rowGap = 4.dp.roundToPx()
@@ -811,7 +809,7 @@ private fun NameAndButtons(name: @Composable () -> Unit, buttons: @Composable ()
         } else {
             layout(width, n.height + rowGap + b.height) {
                 n.placeRelative(0, 0)
-                b.placeRelative(if (endAligned) width - b.width else 0, n.height + rowGap)
+                b.placeRelative(width - b.width, n.height + rowGap)
             }
         }
     }

@@ -283,8 +283,13 @@ object Tuning {
      */
     val BASEMAP_BRIGHTNESS_FACTORS = listOf(0.4f, 0.6f, 0.8f, 1f, 1.3f, 1.6f)
 
-    /** 距離環の明るさの段 1〜6 の掛ける数（20261103-D02。背景地図の線の明るさとは別。1 を超える段はない） */
-    val RING_BRIGHTNESS_FACTORS = listOf(0.2f, 0.3f, 0.4f, 0.6f, 0.8f, 1f)
+    /**
+     * 距離環の明るさ [%] の初期値（20261104-D01 から %。選べる値は PCT_CHOICES。80% は D02 の段 5 と同じ明るさ）。
+     * 前の段（D01: ringBrightnessLevel、D02: ringLineBrightnessLevel）の掛ける数は、前の保存を読み替えるときに使う
+     */
+    const val RING_BRIGHTNESS_DEFAULT_PCT = 80
+    val RING_BRIGHTNESS_D01_FACTORS = listOf(0.4f, 0.6f, 0.8f, 1f, 1.3f, 1.6f)
+    val RING_BRIGHTNESS_D02_FACTORS = listOf(0.2f, 0.3f, 0.4f, 0.6f, 0.8f, 1f)
 
     /**
      * 背景地図の線の太さ（設定。地図全体で 1〜6。1 がいちばん細い）ごとに、全部の線の太さに掛ける数。
@@ -350,21 +355,25 @@ object Tuning {
 
     /**
      * 地図に重ねるボタン（上部バー・操作列・WP ボタン列・再生の操作列）と数値の不透明度 [%]（設定で変える。既定値と選べる値）。
-     * 設定画面・WP 設定画面・案内の枠のボタンには使わない。20261103-D02 でスライダー（20〜100%、10% 刻み）から 5 つの選ぶボタンにした。
-     * 前の保存で、選べる値にない値（20〜100 の中）は一番近い値に読む（ちょうど真ん中なら小さい方）。20〜100 の外は初期値
+     * 設定画面・WP 設定画面・案内の枠のボタンには使わない。20261103-D02 でスライダーから選ぶボタンに、20261104-D01 で 20% 刻みにした
+     * （ボタンの初期値は 70 → 80%）
      */
-    const val BUTTON_OPACITY_DEFAULT_PCT = 70
+    const val BUTTON_OPACITY_DEFAULT_PCT = 80
     const val NUMBERS_OPACITY_DEFAULT_PCT = 100
-    val OPACITY_CHOICES_PCT = listOf(30, 50, 70, 90, 100)
-    const val OPACITY_MIN_PCT = 20
-    const val OPACITY_MAX_PCT = 100
+
+    /**
+     * 不透明度・読み込んだ軌跡の明るさ・距離環の明るさ [%] の選べる値（20261104-D01。20% 刻み）。前の保存で選べる値にない値は、
+     * 20〜100 の中なら一番近い値（ちょうど真ん中なら大きい方）、外なら初期値（PCT_MIN・PCT_MAX）
+     */
+    val PCT_CHOICES = listOf(20, 40, 60, 80, 100)
+    const val PCT_MIN = 20
+    const val PCT_MAX = 100
 
     /**
      * 読み込んだ軌跡（REPLAY のトラック全体の線）の明るさ [%] の既定と選べる値。色（設定。既定は白）の RGB に p / 100 を掛ける
      * （白なら 25% = 0x40、50% = 0x80 のグレー）。D11 までの 0x3A は白の約 23%
      */
-    const val TRACK_BRIGHTNESS_DEFAULT_PCT = 100   // 20261025-D01 で実機の設定に合わせた（前は 75）
-    val TRACK_BRIGHTNESS_CHOICES_PCT = listOf(25, 50, 75, 100)
+    const val TRACK_BRIGHTNESS_DEFAULT_PCT = 100   // 20261025-D01 で実機の設定に合わせた（前は 75）。選べる値は PCT_CHOICES（20261104-D01。前は 25 / 50 / 75 / 100）
 
     /**
      * 地図上の到達済みの WP（印・名前・そこへの線）のグレーの明るさ（0〜255）。D11 までは 0x4A。

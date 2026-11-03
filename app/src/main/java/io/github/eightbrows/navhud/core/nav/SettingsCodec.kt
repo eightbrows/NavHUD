@@ -1,5 +1,7 @@
 package io.github.eightbrows.navhud.core.nav
 
+import io.github.eightbrows.navhud.core.Tuning
+
 import io.github.eightbrows.navhud.core.model.SourceMode
 
 /**
@@ -60,8 +62,8 @@ object SettingsCodec {
         "trackColor" to s.trackColor.name,
         "trackBrightnessPct" to s.trackBrightnessPct.toString(),
         "ringLabelScalePct" to s.ringLabelScalePct.toString(),
-        // 距離環の明るさの段（1〜6）。20261103-D02 で掛ける数を変えたので名前を変えた（D01 の ringBrightnessLevel は読み替えて読む）
-        "ringLineBrightnessLevel" to s.ringBrightness.toString(),
+        // 距離環の明るさ [%]（20261104-D01 から。D01 の ringBrightnessLevel・D02 の ringLineBrightnessLevel（段）は読み替えて読む）
+        "ringLineBrightnessPct" to s.ringBrightnessPct.toString(),
     ) + s.customReach.withIndex().flatMap { (i, p) -> encodeProfile("custom${i + 1}.", p).toList() }.toMap()
 
     private fun encodeProfile(prefix: String, p: ReachProfile): Map<String, String> = mapOf(
@@ -206,19 +208,21 @@ object SettingsCodec {
             mapLineWidth = int("mapLineWidthLevel", d.mapLineWidth).takeIf { it in NavSettings.MAP_LINE_LEVELS } ?: d.mapLineWidth,
             mapLineBrightness = int("mapLineBrightnessLevel", d.mapLineBrightness).takeIf { it in NavSettings.MAP_LINE_LEVELS } ?: d.mapLineBrightness,
             // 不透明度: 20〜100 の 10 刻み以外は既定値
-            // 不透明度: 選べる値は 5 つ（20261103-D02）。前のスライダーの値（20〜100、10 刻み）は一番近い値に読む
-            buttonOpacityPct = str("buttonOpacityPct")?.toIntOrNull()?.let(NavSettings::nearestOpacityPct) ?: d.buttonOpacityPct,
-            numbersOpacityPct = str("numbersOpacityPct")?.toIntOrNull()?.let(NavSettings::nearestOpacityPct) ?: d.numbersOpacityPct,
+            // 不透明度: 選べる値は 20 / 40 / 60 / 80 / 100（20261104-D01）。前の値（20〜100）は一番近い値（真ん中なら大きい方）に読む
+            buttonOpacityPct = str("buttonOpacityPct")?.toIntOrNull()?.let(NavSettings::readPct) ?: d.buttonOpacityPct,
+            numbersOpacityPct = str("numbersOpacityPct")?.toIntOrNull()?.let(NavSettings::readPct) ?: d.numbersOpacityPct,
             // 読み込んだ軌跡の色: 保存がない（前の版）・読めない名前なら既定の白（前の版と同じ見た目）
             trackColor = enum("trackColor", TrackColor.entries.toTypedArray(), d.trackColor),
             // 読み込んだ軌跡の明るさ: 25 / 50 / 75 / 100 以外は既定値
-            trackBrightnessPct = str("trackBrightnessPct")?.toIntOrNull()?.let(NavSettings::nearestTrackBrightnessPct) ?: d.trackBrightnessPct,
+            trackBrightnessPct = str("trackBrightnessPct")?.toIntOrNull()?.let(NavSettings::readPct) ?: d.trackBrightnessPct,
             // 距離環の数字の大きさ: 選べる値（100〜200 の 25 刻み）にない数は一番近い段に読み替える（前の版の 250 は 200）。
             // 数でなければ既定値
             ringLabelScalePct = str("ringLabelScalePct")?.toIntOrNull()?.let(NavSettings::nearestRingLabelScalePct) ?: d.ringLabelScalePct,
-            ringBrightness = str("ringLineBrightnessLevel")?.toIntOrNull()?.takeIf { it in NavSettings.RING_BRIGHTNESS_LEVELS }
-                ?: str("ringBrightnessLevel")?.toIntOrNull()?.let(NavSettings::ringBrightnessFromD01)
-                ?: d.ringBrightness,
+            // 距離環の明るさ: 今の % → D02 の段 → D01 の段 → 初期値 80% の順に探す（20261104-D01）
+            ringBrightnessPct = str("ringLineBrightnessPct")?.toIntOrNull()?.let(NavSettings::readPct)
+                ?: str("ringLineBrightnessLevel")?.toIntOrNull()?.let { NavSettings.ringBrightnessPctFromLevel(it, Tuning.RING_BRIGHTNESS_D02_FACTORS) }
+                ?: str("ringBrightnessLevel")?.toIntOrNull()?.let { NavSettings.ringBrightnessPctFromLevel(it, Tuning.RING_BRIGHTNESS_D01_FACTORS) }
+                ?: d.ringBrightnessPct,
         ).selectTravelMode(travelMode)
     }
 

@@ -102,7 +102,7 @@
     <string name="ring_label_size">距離環の数字の大きさ</string>
     <string name="ring_label_size_note" formatted="false">距離環に付ける数字（250・1k など）。100% が元の大きさ</string>
     <string name="ring_brightness">距離環の明るさ</string>
-    <string name="ring_brightness_note">距離環の線の明るさ（1 がいちばん暗い）。距離の数字・方位の目盛りと文字は変わらない</string>
+    <string name="ring_brightness_note">距離環の線の明るさ。距離の数字・方位の目盛りと文字は変わらない</string>
     <string name="ownship_position">ARC の自機の位置</string>
     <string name="position_center">中央</string>
     <string name="position_aft">後%1$s</string>
