@@ -206,14 +206,11 @@ class MainActivity : ComponentActivity() {
                         )
                         Screen.SETTINGS -> SettingsScreen(
                             settings = state.settings,
-                            input = state.sourceKind,
-                            rangeM = state.rangeM,
                             // 言語と権限は、画面に戻ってきたとき（端末の設定で変えたあとなど）に読み直す
                             language = remember(resumeCount) { AppLanguage.current(context) },
                             permissions = remember(resumeCount) { AppPermissions.statuses(context) },
                             versionName = remember { packageManager.getPackageInfo(packageName, 0).versionName.orEmpty() },
                             onChange = vm::updateSettings,
-                            onInput = vm::setSourceKind,
                             onReset = vm::resetSettings,
                             onLanguage = { AppLanguage.set(this@MainActivity, it) },
                             onOpenAppSettings = ::openAppSettings,
@@ -222,6 +219,9 @@ class MainActivity : ComponentActivity() {
                             // 前に閉じたときのスクロール位置から出す（20261023-D01）
                             initialScrollY = remember { vm.settingsScrollY },
                             onScrollY = { vm.settingsScrollY = it },
+                            // 閉じたセクションも、前に閉じたときのまま出す（20261104-D02）
+                            initialClosed = remember { vm.settingsClosedSections },
+                            onClosedChange = { vm.settingsClosedSections = it },
                         )
                         Screen.DEBUG -> DebugScreen(
                             state = state,

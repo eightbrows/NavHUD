@@ -31,6 +31,14 @@ class SettingsStore(context: Context) {
         set(v) = prefs.edit { putInt(KEY_SETTINGS_SCROLL, v.coerceAtLeast(0)) }
 
     /**
+     * 設定画面の閉じたセクション（20261104-D02。SettingsOutline.encodeClosed の文字）。スクロール位置と同じ画面の状態で、
+     * NavSettings の外なので「設定を初期値に戻す」では変わらない。覚えがなければ（初めて）全部開く
+     */
+    var settingsClosedSections: String
+        get() = runCatching { prefs.getString(KEY_SETTINGS_CLOSED, null) }.getOrNull().orEmpty()
+        set(v) = prefs.edit { putString(KEY_SETTINGS_CLOSED, v) }
+
+    /**
      * 前回最後にいた位置（緯度, 経度。LIVE の Fix。20261024-D04）。次に起動したとき、位置が来るまでの地図の中心にする。
      * 覚えていなければ null。NavSettings の外なので、「設定を初期値に戻す」では変わらない
      */
@@ -49,6 +57,7 @@ class SettingsStore(context: Context) {
         const val PREFS = "settings"
         private const val KEY_INPUT = "input"
         private const val KEY_SETTINGS_SCROLL = "settingsScrollY"
+        private const val KEY_SETTINGS_CLOSED = "settingsClosedSections"
         private const val KEY_LAST_LAT = "lastLat"
         private const val KEY_LAST_LON = "lastLon"
     }

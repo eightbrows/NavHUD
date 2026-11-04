@@ -27,6 +27,8 @@ import io.github.eightbrows.navhud.core.replay.ReplayClock
 import io.github.eightbrows.navhud.core.replay.ReplaySpeed
 import io.github.eightbrows.navhud.core.view.HudViewport
 import io.github.eightbrows.navhud.core.view.LoadSummary
+import io.github.eightbrows.navhud.core.view.SettingsOutline
+import io.github.eightbrows.navhud.core.view.SettingsSectionId
 import io.github.eightbrows.navhud.source.CompassSource
 import io.github.eightbrows.navhud.source.GeoPoint
 import io.github.eightbrows.navhud.source.AppLanguage
@@ -291,6 +293,11 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
     var settingsScrollY: Int
         get() = settingsStore.settingsScrollY
         set(v) { settingsStore.settingsScrollY = v }
+
+    /** 設定画面の閉じたセクション（20261104-D02。スクロール位置と同じく覚える。設定を初期値に戻しても変わらない） */
+    var settingsClosedSections: Set<SettingsSectionId>
+        get() = SettingsOutline.decodeClosed(settingsStore.settingsClosedSections)
+        set(v) { settingsStore.settingsClosedSections = SettingsOutline.encodeClosed(v) }
 
     /** 設定を初期値に戻す。カスタム1〜3 の値は残す（移動手段は自動車に戻る）。 */
     fun resetSettings() = updateSettings { it.resetKeepingCustomReach() }

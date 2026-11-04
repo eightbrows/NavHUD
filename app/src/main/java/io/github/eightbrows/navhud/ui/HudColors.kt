@@ -88,6 +88,12 @@ object HudColors {
 
     /** 押せないボタンの、選んでいる値の印（SettingsSelected の RGB に 0.55 を掛けた暗い水色。押せないボタンのグレーの文字・塗りと同じくらい暗い） */
     val SettingsSelectedDim = Color(0xFF2B6B88)
+
+    /** 設定画面の地図・ランドマークの表の、初期値のマスの塗り（灰色。20261104-D02。丸のグレーの輪と水色の丸がどちらも見える暗さ） */
+    val SettingsDefaultCell = Color(0xFF3A3A3A)
+
+    /** 押せない表（背景地図が OFF）の、初期値のマスの塗り */
+    val SettingsDefaultCellDim = Color(0xFF242424)
     val MapFerry = Color(0xFF22504F)
     /**
      * 空港の記号: 目立つ明るい黄緑（仮。20261021-D01）。距離環の緑・WP のマゼンタ・琥珀・白・警告の赤や、道路・鉄道・河川の色と ΔE 38 以上離れる
