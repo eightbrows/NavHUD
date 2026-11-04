@@ -32,7 +32,11 @@ class NavEngine(
         settings.rangeStepsKm, settings.initialRangeKm, settings.autoRange,
         autoMinKm = settings.autoMinRangeKm, autoMaxKm = settings.autoMaxRangeKm,
     )
-    private val rateTracker = RateTracker(maxWindowSec = NavSettings.RATE_WINDOW_CHOICES_SEC.max())
+    /** ETA の平均速度（Tuning.ETA_WINDOW_SEC 秒。20261104-D03 から RATE の表示はなく、ETA だけに使う） */
+    private val rateTracker = RateTracker(maxWindowSec = Tuning.ETA_WINDOW_SEC)
+
+    /** V/S（20261104-D03。直前 60 秒の高さの変化） */
+    private val vsTracker = VerticalSpeedTracker()
     private val passDetector = PassDetector()
     private val sidePassDetector = SidePassDetector()
 
@@ -128,6 +132,7 @@ class NavEngine(
         lastFix = fix
         headingSelector.update(fix)
         rateTracker.add(fix)
+        vsTracker.add(fix)
         val nextBefore = WaypointNav.nextIndex(waypoints)
         reachedNow = null
         checkRadius(fix)
@@ -411,6 +416,14 @@ class NavEngine(
      *   トラックが通った WP を到達にする。
      * - 後方へのシーク: WP の到達状態は残す。トラックの先頭まで戻したとき（toStart）だけ、すべて未到達に戻す。
      */
+    /**
+     * V/S の履歴に、シーク先の前の Fix（ReplayPlayer の SeekResult.before）を入れる（20261104-D03）。seekReset・REPLAY への切り替えのあと、
+     * シーク先の Fix を入れる前に呼ぶ。V/S の履歴だけで、到達の判定・方位などには使わない（記録の時刻で 60 秒前からの変化が、シークのすぐあとから出る）
+     */
+    fun primeVerticalSpeed(before: List<Fix>) {
+        before.forEach(vsTracker::add)
+    }
+
     fun seekReset(toStart: Boolean, passed: List<Fix> = emptyList()): NavState {
         seeking = true
         passed.forEach(::ingest)
@@ -523,6 +536,7 @@ class NavEngine(
         lastFixAtMs = null
         pan = null
         rateTracker.clear()
+        vsTracker.clear()
         headingSelector.reset()
         passDetector.reset()
         sidePassDetector.reset()
@@ -539,14 +553,15 @@ class NavEngine(
         val noFix = now == null || isNoFix(now, lastFixMs, settings.noFixTimeoutSec * 1000L)
         // NO FIX 中の古い Fix の方位は「今使える GPS 方位」として扱わない
         val heading = headingSelector.select(settings.sourceMode, noFix, compassDeg, compassQuality.lowAccuracy)
-        val rate = rateTracker.rate(settings.rateWindowSec)
+        // V/S: NO FIX のときは出さない。途中で途切れた（Fix の間が「測位が途切れたとみなす時間」を超えた）ときも出さない
+        val vs = if (noFix) null else vsTracker.metersPerMinute(settings.noFixTimeoutSec * 1000L, ::seaLevelM)
 
         val next = WaypointNav.nextIndex(waypoints)
         val wp = next?.let { waypoints[it] }
         val dist = if (fix != null && wp != null) Geo.distanceM(fix.lat, fix.lon, wp.lat, wp.lon) else null
         val bearing = if (fix != null && wp != null) Geo.bearingDeg(fix.lat, fix.lon, wp.lat, wp.lon) else null
-        // ETA: RATE の窓の平均速度。履歴が窓に足りなければ、ある分（最低 10 秒）の平均速度
-        val eta = if (now != null && dist != null) WaypointNav.etaMs(now, dist, rateTracker.etaSpeed(settings.rateWindowSec)) else null
+        // ETA: 直前 10 秒の平均速度（Tuning.ETA_WINDOW_SEC。前の RATE の窓の初期値）。履歴が足りなければ、ある分（最低 10 秒）の平均速度
+        val eta = if (now != null && dist != null) WaypointNav.etaMs(now, dist, rateTracker.etaSpeed(Tuning.ETA_WINDOW_SEC)) else null
         // 到達した WP を通り過ぎたら（真横通過・手動は到達したら）、そこから設定の秒数のあいだ AUTO の段を動かさない（時刻はトラックの時刻）
         if (wpChanged && now != null) {
             rangeSelector.holdForWpChange(now)
@@ -575,7 +590,7 @@ class NavEngine(
             groundSpeedMps = fix?.speedMps,
             altM = fix?.let(::seaLevelM),
             aglM = if (noFix || fix == null) null else aboveGroundM(fix),
-            rate = rate,
+            verticalSpeedMpm = vs,
             waypoints = waypoints,
             nextWpIndex = next,
             nextWpBearingDeg = bearing,

@@ -3,6 +3,7 @@ package io.github.eightbrows.navhud.ui
 import android.app.Application
 import android.net.Uri
 import android.os.SystemClock
+import androidx.core.net.toUri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.eightbrows.navhud.R
@@ -45,6 +46,9 @@ import io.github.eightbrows.navhud.source.TrackDocumentStore
 import io.github.eightbrows.navhud.source.OpenedTrack
 import io.github.eightbrows.navhud.source.ZipSessions
 import io.github.eightbrows.navhud.core.io.FileKindException
+import io.github.eightbrows.navhud.core.io.RecentFile
+import io.github.eightbrows.navhud.core.io.RecentFiles
+import io.github.eightbrows.navhud.source.FileAccess
 import io.github.eightbrows.navhud.core.io.SessionZipError
 import io.github.eightbrows.navhud.core.io.SessionZipException
 import io.github.eightbrows.navhud.source.WaypointDocumentStore
@@ -63,6 +67,9 @@ import kotlinx.coroutines.withContext
 /** リプレイのファイルと進み具合（NavState の外の、確認用画面のための情報）。 */
 data class ReplayUiState(
     val fileName: String? = null,
+    /** ファイルの名前だけ（zip でもセッションを付けない）と、zip のセッションの名前（20261104-D03。ファイルの画面に出す） */
+    val file: String? = null,
+    val session: String? = null,
     val fixCount: Int = 0,
     val skippedLines: Int = 0,
     val loading: Boolean = false,
@@ -102,6 +109,15 @@ data class WaypointUiState(
         WaypointUiState(hasSavedList = false, startupPending = false, showButtons = showButtons, message = message)
 }
 
+/** ファイルの画面（20261104-D03）: 軌跡か WP リストか */
+enum class FileSheetKind { TRACK, WAYPOINTS }
+
+/** 最近のファイルの 1 行。openable: 開けるか（確かめている間は null。押せる） */
+data class RecentFileRow(val uri: String, val name: String, val openedAtMs: Long, val openable: Boolean? = null)
+
+/** 開いているファイルの画面。recent は新しい順 */
+data class FileSheetState(val kind: FileSheetKind, val recent: List<RecentFileRow>)
+
 /**
  * NavState を StateFlow で公開する。NavEngine への入力（Fix・tick）はすべてメインスレッドから行う。
  * LIVE は GPS（フォアグラウンドサービス）とコンパス、REPLAY は track.csv。
@@ -139,6 +155,10 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
             _notices.value = emptyList()
         }
     }
+
+    /** ファイルの画面（20261104-D03）。閉じていれば null */
+    private val _fileSheet = MutableStateFlow<FileSheetState?>(null)
+    val fileSheet: StateFlow<FileSheetState?> = _fileSheet.asStateFlow()
 
     private val _live = MutableStateFlow(LiveUiState())
     val live: StateFlow<LiveUiState> = _live.asStateFlow()
@@ -214,6 +234,73 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** ファイル選択の結果。キャンセルなら null。 */
+    // ---- ファイルの画面と最近のファイル（20261104-D03）----
+
+    /** ファイルの画面を開く。最近のファイルを出し、開けるかどうかを IO スレッドで確かめる（開けないものはグレー） */
+    fun openFileSheet(kind: FileSheetKind) {
+        _fileSheet.value = FileSheetState(kind, recentRows(kind))
+        checkRecent(kind)
+    }
+
+    fun closeFileSheet() {
+        _fileSheet.value = null
+    }
+
+    private fun recentRows(kind: FileSheetKind): List<RecentFileRow> =
+        (if (kind == FileSheetKind.TRACK) store.recent else wpStore.recent).map { RecentFileRow(it.uri, it.name, it.openedAtMs) }
+
+    private fun checkRecent(kind: FileSheetKind) {
+        val rows = _fileSheet.value?.takeIf { it.kind == kind }?.recent ?: return
+        viewModelScope.launch {
+            val checked = withContext(Dispatchers.IO) { rows.map { it.copy(openable = FileAccess.canOpen(getApplication(), it.uri)) } }
+            val now = _fileSheet.value ?: return@launch
+            if (now.kind != kind) return@launch
+            val ok = checked.associate { it.uri to it.openable }
+            _fileSheet.value = now.copy(recent = now.recent.map { r -> r.copy(openable = ok[r.uri] ?: r.openable) })
+        }
+    }
+
+    /** 最近のファイルを押した: 画面を閉じて、そのファイルを開く（選んだときと同じ。zip ならセッションの一覧、違う種類なら読み込まない） */
+    fun openRecent(kind: FileSheetKind, uri: String) {
+        closeFileSheet()
+        when (kind) {
+            FileSheetKind.TRACK -> onTrackPicked(uri.toUri())
+            FileSheetKind.WAYPOINTS -> loadWaypoints(uri.toUri(), isSaved = false)
+        }
+    }
+
+    /** ✕: 最近のファイルから消す。どこにも使っていなければ（読み込み中・前回のファイル・もう一方の履歴でもなければ）権限を返す */
+    fun removeRecent(kind: FileSheetKind, uri: String) {
+        if (kind == FileSheetKind.TRACK) store.removeRecent(uri) else wpStore.removeRecent(uri)
+        releaseUnused(listOf(uri))
+        _fileSheet.value = _fileSheet.value?.let { s -> s.copy(recent = s.recent.filter { it.uri != uri }) }
+    }
+
+    /**
+     * 開いた結果を最近のファイルに反映する（RecentFiles.recordOpen）: 読めたら入れ、違う種類のファイルなら入れない（入っていれば消す）。
+     * 履歴から外れたファイルは、どこにも使っていなければ権限を返す
+     */
+    private fun recordRecent(kind: FileSheetKind, uri: Uri, name: String, error: Throwable? = null) {
+        val file = RecentFile(uri.toString(), name, System.currentTimeMillis())
+        val out = if (kind == FileSheetKind.TRACK) store.recordRecent(file, error) else wpStore.recordRecent(file, error)
+        releaseUnused(out)
+    }
+
+    /**
+     * 読み取りの権限を返す（20261104-D03）: WP リストと軌跡の、最近のファイル・前回のファイル（読み込み中のファイル）の
+     * どれでもなくなったファイルだけ（RecentFiles.shouldRelease。前の「もう一方が覚えていれば返さない」の、見るファイルを増やした）
+     */
+    private fun releaseUnused(uris: Collection<String?>) {
+        val inUse = store.inUse() + wpStore.inUse()
+        uris.filterNotNull().distinct().filter { RecentFiles.shouldRelease(it, inUse) }.forEach { FileAccess.release(getApplication(), it) }
+    }
+
+    /** 前回の軌跡のファイルを忘れる（読めなかったとき・クリアしたとき）。使っていなければ権限も返す */
+    private fun forgetTrackFile() = releaseUnused(listOf(store.forget()))
+
+    /** 前回の WP リストを忘れる（読めなかったとき・クリアしたとき）。使っていなければ権限も返す */
+    private fun forgetWaypointFile() = releaseUnused(listOf(wpStore.forget()))
+
     fun onTrackPicked(uri: Uri?) {
         if (uri == null) return
         store.remember(uri)
@@ -262,6 +349,8 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
         val r = src.seek(t)
         // 前方へのシークでは、飛ばした区間で通った WP を到達にする
         publish(engine.seekReset(toStart = t <= start, passed = r.passed))
+        // V/S は、シーク先の前の 60 秒の記録からすぐに出す（20261104-D03）
+        engine.primeVerticalSpeed(r.before)
         val fix = r.last
         publish(if (fix != null) engine.onFix(fix, clock.nowMs()) else engine.onTick(clock.nowMs()))
         _replay.value = _replay.value.copy(finished = src.finished)
@@ -382,11 +471,6 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
         it.copy(displayMode = if (it.displayMode == DisplayMode.ARC) DisplayMode.NORTH_UP else DisplayMode.ARC)
     }
 
-    /** RATE の窓 10 → 30 → 60 → 10 … */
-    fun cycleRateWindow() = updateSettings {
-        val choices = NavSettings.RATE_WINDOW_CHOICES_SEC
-        it.copy(rateWindowSec = choices[(choices.indexOf(it.rateWindowSec) + 1) % choices.size])
-    }
 
     fun toggleReached(index: Int) = publish(engine.toggleReached(index))
 
@@ -490,6 +574,8 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
             runCatching { withContext(Dispatchers.IO) { wpStore.load(uri, zone) } }
                 .onSuccess { loaded ->
                     wpStore.remember(uri, writable = false)
+                    // 最近のファイル（20261104-D03）: 読み込めた（WP リストだった）ファイルだけ入れる
+                    recordRecent(FileSheetKind.WAYPOINTS, uri, loaded.displayName)
                     publish(engine.setWaypoints(loaded.result.waypoints))
                     // ひとこと（20261103-D01）: 「WP 6 件（うち無効 1）を読み込みました（wp_profile.csv）」
                     val sum = LoadSummary.waypoints(loaded.result.waypoints)
@@ -507,7 +593,9 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
                     )
                 }
                 .onFailure { e ->
-                    if (isSaved) wpStore.forget(keep = store.savedUri)
+                    if (isSaved) forgetWaypointFile()
+                    // 違う種類のファイルだったら、最近のファイルに入れない（入っていれば消す）
+                    if (e is FileKindException) recordRecent(FileSheetKind.WAYPOINTS, uri, e.fileName, e)
                     val what = uiText(if (isSaved) R.string.what_last_list else R.string.what_chosen_file)
                     // 軌跡のファイルだった（20261103-D01）: 読み込まずに知らせる（前回のリストのときも同じ）
                     val message = (e as? FileKindException)?.let { uiText(R.string.msg_not_wp_list, it.fileName) }
@@ -526,7 +614,7 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
      * エクスポートしていない編集も消える（確認は画面の側で出す）。画面はリストを読み込んでいないときと同じ。
      */
     fun clearWaypoints() {
-        wpStore.forget(keep = store.savedUri)
+        forgetWaypointFile()
         publish(engine.setWaypoints(emptyList()))
         _wp.value = _wp.value.cleared(uiText(R.string.msg_wp_cleared))
     }
@@ -558,6 +646,11 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             runCatching { withContext(Dispatchers.IO) { store.open(uri, entryName).withMsl() } }
                 .onSuccess { opened ->
+                    // 最近のファイル（20261104-D03）: 軌跡のファイルだったら入れる（zip はファイルの名前で）
+                    when (opened) {
+                        is OpenedTrack.Track -> recordRecent(FileSheetKind.TRACK, uri, opened.track.fileName)
+                        is OpenedTrack.Sessions -> recordRecent(FileSheetKind.TRACK, uri, opened.zip.displayName)
+                    }
                     when (opened) {
                         is OpenedTrack.Track -> start(opened.track)
                         is OpenedTrack.Sessions -> {
@@ -569,7 +662,8 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
                     }
                 }
                 .onFailure { e ->
-                    store.forget(keep = wpStore.savedUri)
+                    forgetTrackFile()
+                    if (e is FileKindException) recordRecent(FileSheetKind.TRACK, uri, e.fileName, e)
                     // 読み込めなかった: トラックを読み込んでいないときと同じにする（前のトラックの線も消す。20261103-D01。前は線だけ残っていた）
                     trackFixes = emptyList()
                     publish(engine.clearReplayTrack())
@@ -597,7 +691,7 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
         fixJob = null
         source = null
         trackFixes = emptyList()
-        store.forget(keep = wpStore.savedUri)
+        forgetTrackFile()
         clock.setSpeed(1)
         publish(engine.clearReplayTrack())
         _replay.value = ReplayUiState()
@@ -638,6 +732,8 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
         }
         _replay.value = ReplayUiState(
             fileName = track.displayName,
+            file = track.fileName,
+            session = track.session,
             fixCount = fixes.size,
             skippedLines = track.result.skippedLines,
             startMs = src.startMs,
@@ -706,7 +802,9 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
         // 最初の点を LIVE のあいだに送って捨てているので、再生を始めるまで位置がなかった）
         val src = source
         if (next == SourceKind.REPLAY && src != null) {
-            src.seek(clock.nowMs()).last?.let { publish(engine.onFix(it, clock.nowMs())) }
+            val r = src.seek(clock.nowMs())
+            engine.primeVerticalSpeed(r.before)
+            r.last?.let { publish(engine.onFix(it, clock.nowMs())) }
         }
         nowMs()?.let { publish(engine.onTick(it)) }
         updateService()

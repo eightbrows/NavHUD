@@ -1,13 +1,17 @@
 package io.github.eightbrows.navhud.core.replay
 
+import io.github.eightbrows.navhud.core.Tuning
 import io.github.eightbrows.navhud.core.model.Fix
 
 /**
  * リプレイの送出スケジュール。時刻順の Fix のうち、指定時刻までに出すべきものを返す。
  * 時計は持たない（ReplayClock の時刻を渡す）。
  */
-/** シークの結果。last はシーク先の Fix、passed は前方へのシークで飛ばした Fix（時刻順）。 */
-data class SeekResult(val last: Fix?, val passed: List<Fix>)
+/**
+ * シークの結果。last はシーク先の Fix、passed は前方へのシークで飛ばした Fix（時刻順）。
+ * before は last の前の V/S の窓（60 秒）＋余裕の分の Fix（時刻順。last は含まない）。シークのすぐあとから V/S を出すために使う（20261104-D03）
+ */
+data class SeekResult(val last: Fix?, val passed: List<Fix>, val before: List<Fix> = emptyList())
 
 class ReplayPlayer(private val track: List<Fix>) {
 
@@ -51,9 +55,18 @@ class ReplayPlayer(private val track: List<Fix>) {
         }
         val passed = if (lo > next) track.subList(next, lo) else emptyList()
         next = lo
-        return SeekResult(track.getOrNull(lo - 1), passed)
+        val last = track.getOrNull(lo - 1) ?: return SeekResult(null, passed)
+        val from = last.timeMs - BEFORE_SPAN_MS
+        var b = lo - 1
+        while (b > 0 && track[b - 1].timeMs >= from) b--
+        return SeekResult(last, passed, track.subList(b, lo - 1))
     }
 
     /** 最後の Fix の時刻。トラックが空なら null。 */
     val endMs: Long? get() = track.lastOrNull()?.timeMs
+
+    companion object {
+        /** SeekResult.before の長さ [ms]: V/S の窓と、起点の前の Fix を探す余裕 */
+        const val BEFORE_SPAN_MS = Tuning.VS_WINDOW_SEC * 1000L + Tuning.RATE_BASE_MAX_LAG_MS
+    }
 }

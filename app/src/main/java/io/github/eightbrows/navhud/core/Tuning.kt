@@ -43,15 +43,30 @@ object Tuning {
     /** GPS の更新間隔 [ms] */
     const val GPS_INTERVAL_MS = 1_000L
 
-    // ---- RATE・ETA（§5.3・§5.4） ----
+    // ---- V/S・ETA（§5.3・§5.4） ----
 
-    /** RATE: base が窓の起点よりこれを超えて古ければ欠損とみなす [ms] */
+    /** ファイルの画面の「最近のファイル」の数（20261104-D03。WP リストと軌跡で別々に、新しい順にこの数まで） */
+    const val RECENT_FILES_MAX = 5
+
+    /** V/S: 高さの変化を測る時間 [秒]（20261104-D03。60 秒で固定。前の RATE の窓 10 / 30 / 60 秒の切り替えはなくした） */
+    const val VS_WINDOW_SEC = 60
+
+    /** V/S の表示の上限 [m/min]（数値の欄の幅を「+999 m/min」で取るので、これを超える値はこの値で出す） */
+    const val VS_DISPLAY_MAX_MPM = 999
+
+    /**
+     * ETA の平均速度を測る時間 [秒]（20261104-D03。前は RATE の窓（初期値 10 秒）と同じだった。RATE の窓の設定をなくしたので、
+     * 前の初期値の 10 秒で固定）
+     */
+    const val ETA_WINDOW_SEC = 10
+
+    /** V/S・ETA: base が窓の起点よりこれを超えて古ければ欠損とみなす [ms] */
     const val RATE_BASE_MAX_LAG_MS = 2_000L
 
-    /** RATE: この間隔を超える区間は欠損として直線距離で数える [ms] */
+    /** ETA: この間隔を超える区間は欠損として直線距離で数える [ms] */
     const val RATE_GAP_SEGMENT_MS = 2_000L
 
-    /** RATE: 履歴を窓より余分に持つ時間 [ms] */
+    /** V/S・ETA: 履歴を窓より余分に持つ時間 [ms] */
     const val RATE_KEEP_MARGIN_MS = 3_000L
 
     /** ETA: 窓に足りない履歴で ETA を出すときの最低の長さ [秒] */

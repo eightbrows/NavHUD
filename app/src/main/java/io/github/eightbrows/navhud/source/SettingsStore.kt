@@ -11,10 +11,18 @@ class SettingsStore(context: Context) {
 
     private val prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
-    fun load(): NavSettings = SettingsCodec.decode(prefs.all.mapValues { it.value?.toString() })
+    fun load(): NavSettings {
+        // もう使わない値は読まずに消す（20261104-D03: RATE の窓）
+        if (SettingsCodec.OBSOLETE_KEYS.any(prefs::contains)) prefs.edit { SettingsCodec.OBSOLETE_KEYS.forEach { remove(it) } }
+        return SettingsCodec.decode(prefs.all.mapValues { it.value?.toString() })
+    }
 
     fun save(s: NavSettings) {
-        prefs.edit { SettingsCodec.encode(s).forEach { (k, v) -> putString(k, v) } }
+        prefs.edit {
+            SettingsCodec.encode(s).forEach { (k, v) -> putString(k, v) }
+            // もう使わない値は消す（20261104-D03: RATE の窓）
+            SettingsCodec.OBSOLETE_KEYS.forEach { remove(it) }
+        }
     }
 
     /** INPUT（LIVE / REPLAY）。既定は LIVE。 */

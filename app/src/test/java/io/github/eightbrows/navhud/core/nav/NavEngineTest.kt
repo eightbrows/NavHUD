@@ -62,14 +62,12 @@ class NavEngineTest {
         assertEquals(30, s.panReturnSec)
         assertEquals(0.5, s.initialRangeKm, 0.0)
         assertEquals(0.5, s.autoMaxRangeKm, 0.0)
-        assertEquals(10, s.rateWindowSec)
         assertEquals(125, s.ringLabelScalePct)
         assertEquals(100, s.trackBrightnessPct)
         assertTrue(s.autoOpenLastList)
         assertTrue(s.autoRange)
         assertTrue(s.rangeStepsKm.all { it in RangeAuto.ALL_STEPS_KM })
         assertTrue(s.reachRadiusM in NavSettings.REACH_RADIUS_CHOICES_M)
-        assertTrue(s.rateWindowSec in NavSettings.RATE_WINDOW_CHOICES_SEC)
     }
 
     @Test
@@ -110,8 +108,8 @@ class NavEngineTest {
             var s = e.state
             for (i in 0..60) s = e.onFix(fix(t0 + i * 1_000L, lat = TestGeo.lat(10.0 * i, 33.0)), t0 + i * 1_000L + skew)
             assertFalse("skew $skew", s.noFix)
-            // RATE は Fix の時刻（GPS の時刻）で計算したまま
-            assertNotNull("skew $skew", s.rate)
+            // V/S は Fix の時刻（GPS の時刻）で計算したまま（60 秒分そろっている）
+            assertNotNull("skew $skew", s.verticalSpeedMpm)
             val last = t0 + 60_000L + skew
             assertFalse("skew $skew", e.onTick(last + 10_000).noFix)
             assertTrue("skew $skew", e.onTick(last + 10_001).noFix)
@@ -150,7 +148,6 @@ class NavEngineTest {
         assertEquals(0, s.nextWpIndex)
         assertEquals(0.0, s.nextWpBearingDeg!!, 1e-6)
         assertEquals(1000.0, s.nextWpDistanceM!!, 0.5)
-        assertEquals(10.0, s.rate!!.avgSpeedMps, 1e-9)
         assertEquals((t0 + 60_000 + 100_000).toDouble(), s.etaMs!!.toDouble(), 100.0)
     }
 
@@ -158,13 +155,13 @@ class NavEngineTest {
     fun etaFromShortHistory() {
         val e = engine()
         e.setWaypoints(listOf(Waypoint("N", TestGeo.lat(2000.0, 33.0), 133.0)))
-        // 走り始めて 9 秒: RATE（60 秒）はまだなく、ETA も出さない
+        // 走り始めて 9 秒: ETA の平均速度（10 秒）はまだなく、ETA も出さない。V/S（60 秒）もまだ
         for (s in 0..9) e.onFix(fix(t0 + s * 1000L, lat = TestGeo.lat(10.0 * s, 33.0)), t0 + s * 1000L)
-        assertNull(e.state.rate)
+        assertNull(e.state.verticalSpeedMpm)
         assertNull(e.state.etaMs)
         // 10 秒分たまれば、その平均速度（10 m/s）で ETA。残り 1900m → 190 秒後
         val s = e.onFix(fix(t0 + 10_000, lat = TestGeo.lat(100.0, 33.0)), t0 + 10_000)
-        assertNull(s.rate)
+        assertNull(s.verticalSpeedMpm)
         assertEquals((t0 + 10_000 + 190_000).toDouble(), s.etaMs!!.toDouble(), 100.0)
     }
 
@@ -215,9 +212,9 @@ class NavEngineTest {
     fun timeGoingBackwardsClearsHistory() {
         val e = engine()
         for (s in 0..60) e.onFix(fix(t0 + s * 1000L), t0 + s * 1000L)
-        assertNotNull(e.state.rate)
+        assertNotNull(e.state.verticalSpeedMpm)
         val s = e.onFix(fix(t0 - 100_000), t0 - 100_000)
-        assertNull(s.rate)
+        assertNull(s.verticalSpeedMpm)
         assertEquals(t0 - 100_000, s.fix!!.timeMs)
     }
 
@@ -240,13 +237,13 @@ class NavEngineTest {
         e.setWaypoints(listOf(Waypoint("A", 33.0, 133.0), Waypoint("B", 33.1, 133.0)))
         for (s in 0..60) e.onFix(fix(t0 + s * 1000L, lat = TestGeo.lat(10.0 * s, 33.0)), t0 + s * 1000L)
         assertTrue(e.state.waypoints[0].reached)
-        assertNotNull(e.state.rate)
+        assertNotNull(e.state.verticalSpeedMpm)
 
         val live = e.switchSource(SourceKind.LIVE, playing = true)
         assertEquals(SourceKind.LIVE, live.sourceKind)
         assertTrue(live.playing)
-        // RATE の履歴・位置・時刻はリセット、WP の到達状態は残る
-        assertNull(live.rate)
+        // V/S の履歴・位置・時刻はリセット、WP の到達状態は残る
+        assertNull(live.verticalSpeedMpm)
         assertNull(live.fix)
         assertNull(live.nowMs)
         assertTrue(live.noFix)
@@ -310,7 +307,7 @@ class NavEngineTest {
         assertEquals(100.0, e.zoomOut().rangeM, 0.0)
         // ほかの設定を変えても、ピンチで選んだ使う段にない段のまま（段が変わったときだけ近い段に合わせる）
         e.zoomBy(-20)
-        assertEquals(200_000.0, e.updateSettings(e.settings.copy(rateWindowSec = 10)).rangeM, 0.0)
+        assertEquals(200_000.0, e.updateSettings(e.settings.copy(panReturnSec = 20)).rangeM, 0.0)
         assertEquals(20_000.0, e.updateSettings(e.settings.copy(rangeStepsKm = listOf(0.1, 1.0, 20.0))).rangeM, 0.0)
     }
 

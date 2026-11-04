@@ -94,10 +94,10 @@ class ReplaySeekSpeedTest {
     fun resultsDoNotDependOnSpeed() {
         val (x1, noFix1) = run(1)
         val (x30, noFix30) = run(30)
-        // 到達（A は半径、B は通過判定）・RATE・最後の位置が同じ。欠損中の NO FIX もどちらでも出る
+        // 到達（A は半径、B は通過判定）・V/S・最後の位置が同じ。欠損中の NO FIX もどちらでも出る
         assertEquals(listOf(true, true, false), x1.waypoints.map { it.reached })
         assertEquals(x1.waypoints, x30.waypoints)
-        assertEquals(x1.rate, x30.rate)
+        assertEquals(x1.verticalSpeedMpm, x30.verticalSpeedMpm)
         assertEquals(x1.fix, x30.fix)
         assertTrue(noFix1)
         assertTrue(noFix30)
@@ -109,11 +109,11 @@ class ReplaySeekSpeedTest {
         e.setWaypoints(wps)
         e.onFixes(track.take(61), track[60].timeMs)
         assertTrue(e.state.waypoints[0].reached)
-        assertTrue(e.state.rate != null)
-        // 少し先へシーク: RATE は消え、到達は残る
+        assertTrue(e.state.verticalSpeedMpm != null)
+        // 少し先へシーク: V/S は消え（シーク先の前の記録を入れなければ）、到達は残る
         e.seekReset(toStart = false)
         val after = e.onFix(track[100], track[100].timeMs)
-        assertNull(after.rate)
+        assertNull(after.verticalSpeedMpm)
         assertTrue(after.waypoints[0].reached)
         // 先頭まで戻す: すべて未到達
         e.seekReset(toStart = true)
@@ -128,7 +128,7 @@ class ReplaySeekSpeedTest {
         track.take(150).forEach { a.onFix(it, it.timeMs) }
         b.onFixes(track.take(150), track[149].timeMs)
         assertEquals(a.state.waypoints, b.state.waypoints)
-        assertEquals(a.state.rate, b.state.rate)
+        assertEquals(a.state.verticalSpeedMpm, b.state.verticalSpeedMpm)
         assertEquals(a.state.heading, b.state.heading)
     }
 
@@ -159,8 +159,8 @@ class ReplaySeekSpeedTest {
         assertEquals(listOf(true, true, false), s.waypoints.map { it.reached })
         // 次の WP はシーク先より先の C
         assertEquals(2, s.nextWpIndex)
-        // 記録はリセット（RATE なし）
-        assertNull(s.rate)
+        // 記録はリセット（シーク先の前の記録を入れていないので V/S なし）
+        assertNull(s.verticalSpeedMpm)
         // 後方へ（100 秒）: 到達状態は残す
         val back = player.seek(t0 + 100_000)
         assertTrue(back.passed.isEmpty())

@@ -11,13 +11,21 @@ import io.github.eightbrows.navhud.core.io.FileKind
 import io.github.eightbrows.navhud.core.io.FileKindException
 import io.github.eightbrows.navhud.core.io.FileKinds
 import io.github.eightbrows.navhud.core.io.LastFileMemory
+import io.github.eightbrows.navhud.core.io.RecentFile
+import io.github.eightbrows.navhud.core.io.RecentFiles
 import io.github.eightbrows.navhud.core.io.SessionZip
 import io.github.eightbrows.navhud.core.io.TrackCsv
 import io.github.eightbrows.navhud.core.io.TrackParseResult
 import io.github.eightbrows.navhud.core.io.ZipSession
 
-/** 読み込んだトラック。 */
-data class LoadedTrack(val uri: Uri, val displayName: String, val result: TrackParseResult)
+/**
+ * 読み込んだトラック。displayName は画面のひとことに出す名前（zip は「ファイル名 / セッションの名前」）。
+ * fileName はファイルの名前だけ、session は zip のセッションの名前（zip でなければ null。20261104-D03）
+ */
+data class LoadedTrack(
+    val uri: Uri, val displayName: String, val result: TrackParseResult,
+    val fileName: String = displayName, val session: String? = null,
+)
 
 /** GpsLogger の zip の中のセッションの一覧（どれを再生するか選んでもらう）。 */
 data class ZipSessions(val uri: Uri, val displayName: String, val sessions: List<ZipSession>)
@@ -56,18 +64,29 @@ class TrackDocumentStore(context: Context) {
         memory.remember(uri.toString())
     }
 
-    /** 前回のファイルを忘れる（読めなかったとき・クリアしたとき）。次の起動では自動で開かない（20261102-D01）。keep: もう一方（WP リスト）が覚えているファイル */
-    fun forget(keep: Uri? = null) {
-        // WP リストが同じファイルを覚えていれば、読み取りの権限は返さない（20261103-D01。軌跡として WP リストを選んで読めなかったとき、
-        // WP リストまで読めなくなっていた）
-        savedUri?.takeIf { LastFileMemory.shouldRelease(it.toString(), keep?.toString()) }?.let { uri ->
-            try {
-                appContext.contentResolver.releasePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            } catch (_: SecurityException) {
-            }
-        }
+    /**
+     * 前回のファイルを忘れる（読めなかったとき・クリアしたとき）。次の起動では自動で開かない（20261102-D01）。
+     * 忘れたファイル（URI の文字）を返す。読み取りの権限は呼び出し側が、まだ使っているか確かめてから返す（20261104-D03）
+     */
+    fun forget(): String? {
+        val uri = memory.uri
         memory.forget()
+        return uri
     }
+
+    private val recentFiles = RecentFiles(PrefsKeyValueStore(appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)), KEY_RECENT)
+
+    /** 最近のファイル（新しい順。20261104-D03） */
+    val recent: List<RecentFile> get() = recentFiles.list()
+
+    /** 開いた結果を最近のファイルに反映する（RecentFiles.recordOpen）。履歴から外れたファイル（URI の文字）を返す */
+    fun recordRecent(file: RecentFile, error: Throwable?): List<String> = recentFiles.recordOpen(file, error)
+
+    /** 最近のファイルから消す（✕） */
+    fun removeRecent(uri: String) = recentFiles.remove(uri) != null
+
+    /** このストアが使っているファイル（最近のファイルと前回のファイル）。読み取りの権限を返すか決めるのに使う */
+    fun inUse(): Set<String> = recent.map { it.uri }.toSet() + listOfNotNull(memory.uri)
 
     /**
      * URI のファイルを開く。ファイル削除・権限失効などで読めなければ例外を投げる。WP リストのファイルなら FileKindException（20261103-D01）。ブロッキングなので IO スレッドで呼ぶ。
@@ -87,7 +106,7 @@ class TrackDocumentStore(context: Context) {
         if (entryName != null) {
             stream(uri).use { SessionZip.read(it, entryName) }?.let { result ->
                 val session = SessionZip.sessionName(entryName)
-                return OpenedTrack.Track(LoadedTrack(uri, if (session.isEmpty()) name else "$name / $session", result))
+                return OpenedTrack.Track(LoadedTrack(uri, if (session.isEmpty()) name else "$name / $session", result, name, session.ifEmpty { null }))
             }
         }
         return OpenedTrack.Sessions(ZipSessions(uri, name, stream(uri).use { SessionZip.list(it) }))
@@ -123,6 +142,7 @@ class TrackDocumentStore(context: Context) {
         private const val PREFS = "replay"
         private const val KEY_URI = "track_uri"
         private const val KEY_ENTRY = "track_zip_entry"
+        private const val KEY_RECENT = "track_recent"
 
         /** CSV は端末によって MIME が違うので広めに受ける。GpsLogger の zip も選べる。 */
         val MIME_TYPES = arrayOf(

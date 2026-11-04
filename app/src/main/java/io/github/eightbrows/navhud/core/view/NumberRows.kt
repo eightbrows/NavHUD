@@ -2,11 +2,12 @@ package io.github.eightbrows.navhud.core.view
 
 import kotlin.math.min
 
-/** 数値の表示（§6.1）の欄。caption は値の左に小さく出す見出し（RATE は窓の秒数を付けて出す）。 */
+/** 数値の表示（§6.1）の欄。caption は値の左に小さく出す見出し。 */
 enum class NumberField(val caption: String) {
     TIME("TIME"),
     ALT("ALT"),
-    RATE("RATE"),
+    /** 昇降率（直前 60 秒の高さの変化 [m/min]。20261104-D03 で RATE を置き換えた） */
+    VS("V/S"),
     HDG("HDG"),
     GS("GS"),
     ETA("ETA"),
@@ -25,20 +26,20 @@ enum class NumberField(val caption: String) {
 data class NumberSample(val caption: String, val value: String, val small: String = "")
 
 /**
- * 数値の表示の4行（20261025-D09 から。左の列 = 時刻と WP、右 = 自機の値）。各行の先頭が左の列の欄、そのあとが右の欄。
+ * 数値の表示の4行（20261025-D09 から。20261104-D03 で 3 行目を ALT・V/S、4 行目を AGL に。左の列 = 時刻と WP、右 = 自機の値）。各行の先頭が左の列の欄、そのあとが右の欄。
  * 画面（MainScreen の NumbersPanel）はこの順に並べる。
  */
 object NumberRows {
     val ROWS: List<List<NumberField>> = listOf(
         listOf(NumberField.TIME, NumberField.LAT_LON),
         listOf(NumberField.ETA, NumberField.GS, NumberField.HDG),
-        listOf(NumberField.TGT, NumberField.ALT, NumberField.AGL),
-        listOf(NumberField.DDL, NumberField.RATE),
+        listOf(NumberField.TGT, NumberField.ALT, NumberField.VS),
+        listOf(NumberField.DDL, NumberField.AGL),
     )
 
     /**
      * 欄ごとの、いちばん長くなる見出しと値。TGT・DDL は ±12 時間まで（"+11:59:59"）、LAT/LON は日本の緯度経度、ALT は 4 桁、
-     * AGL は負の 3 桁、RATE は 60 秒の窓で 10 km 近く・高低差 3 桁。HDG は方位と、方位ソースとコンパスの印 1 つ
+     * AGL は負の 3 桁、V/S は符号つきの 3 桁（Tuning.VS_DISPLAY_MAX_MPM）。HDG は方位と、方位ソースとコンパスの印 1 つ
      * （印が MAG と CAL の 2 つとも出るときは欄の端が切れる。今までと同じ）
      */
     val SAMPLES: Map<NumberField, NumberSample> = mapOf(
@@ -51,7 +52,7 @@ object NumberRows {
         NumberField.HDG to NumberSample("HDG", "888°", " CMP CAL"),
         NumberField.ALT to NumberSample("ALT", "8888 m"),
         NumberField.AGL to NumberSample("AGL", "-888 m"),
-        NumberField.RATE to NumberSample("RATE 60s", "88.8 km  +888 m"),
+        NumberField.VS to NumberSample("V/S", "+888 m/min"),
     )
 }
 

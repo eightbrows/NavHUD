@@ -3,13 +3,14 @@ package io.github.eightbrows.navhud.core.view
 import io.github.eightbrows.navhud.core.model.ReachInfo
 import io.github.eightbrows.navhud.core.model.ReachReason
 import io.github.eightbrows.navhud.core.nav.AglNegative
-import io.github.eightbrows.navhud.core.nav.Rate
+import io.github.eightbrows.navhud.core.Tuning
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import kotlin.math.roundToLong
 
 /** 画面に出す文字の整形。値がないときは "---"。 */
 object HudFormat {
@@ -117,10 +118,18 @@ object HudFormat {
         return "%s%d:%02d:%02d".format(Locale.US, if (sec < 0) "-" else "+", a / 3600, a / 60 % 60, a % 60)
     }
 
-    /** RATE: "1.20 km  +35 m"。値がなければ "---"。 */
-    fun rate(r: Rate?): String {
-        if (r == null) return NONE
-        val alt = r.altDiffM?.let { "%+.0f m".format(Locale.US, it) } ?: NONE
-        return "${distance(r.distanceM)}  $alt"
+    /**
+     * V/S [m/min]（20261104-D03）: "+42 m/min"・"-15 m/min"・"0 m/min"。整数に丸め、上りは +、下りは - を付ける（0 は付けない）。
+     * ±999 を超える値は ±999（数値の欄の幅）。値がなければ "---"
+     */
+    fun verticalSpeed(mpm: Double?): String {
+        if (mpm == null || mpm.isNaN()) return NONE
+        val max = Tuning.VS_DISPLAY_MAX_MPM
+        val v = mpm.roundToLong().coerceIn(-max.toLong(), max.toLong())
+        return when {
+            v > 0 -> "+$v m/min"
+            v < 0 -> "$v m/min"
+            else -> "0 m/min"
+        }
     }
 }

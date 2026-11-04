@@ -101,16 +101,7 @@ fun DebugScreen(
         Line("GS", state.groundSpeedMps?.let { "%.1f km/h".format(Locale.US, it * 3.6) } ?: "---", value)
         Line("HDG", state.heading.deg?.let { "%03.0f°".format(Locale.US, it) } ?: "---", value)
         Line("HDG SRC", "${state.heading.src}  (mode ${state.sourceMode})", value)
-        val rate = state.rate
-        Line(
-            "RATE",
-            rate?.let {
-                "%ds  %.0f m  %+.0f m  %.1f km/h".format(
-                    Locale.US, it.windowSec, it.distanceM, it.altDiffM ?: 0.0, it.avgSpeedMps * 3.6,
-                )
-            } ?: "---",
-            value,
-        )
+        Line("V/S", state.verticalSpeedMpm?.let { "%+.1f m/min".format(Locale.US, it) } ?: "---", value)
 
         val next = state.nextWpIndex
         Line("NEXT WP", next?.let { state.waypoints[it].name } ?: "---", value)

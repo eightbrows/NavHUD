@@ -25,7 +25,7 @@ enum class SettingsSectionId(val key: String) {
 /** 設定画面の項目（1 行、または表や欄のまとまり）。画面はこの並びのとおりに描く */
 enum class SettingKey {
     // 測位と方位
-    HEADING_SOURCE, RATE_WINDOW,
+    HEADING_SOURCE,
     HOLD_ENTER, HOLD_EXIT, MAX_GPS_ACC, MAX_GPS_BEARING_ACC, NO_FIX_TIMEOUT, ALT_OFFSET,
 
     // 縮尺
@@ -63,7 +63,7 @@ object SettingsOutline {
     val SECTIONS: List<SettingsSectionDef> = listOf(
         SettingsSectionDef(
             SettingsSectionId.POSITION_HEADING,
-            listOf(SettingKey.HEADING_SOURCE, SettingKey.RATE_WINDOW),
+            listOf(SettingKey.HEADING_SOURCE),
             listOf(SettingKey.HOLD_ENTER, SettingKey.HOLD_EXIT, SettingKey.MAX_GPS_ACC, SettingKey.MAX_GPS_BEARING_ACC, SettingKey.NO_FIX_TIMEOUT, SettingKey.ALT_OFFSET),
         ),
         SettingsSectionDef(

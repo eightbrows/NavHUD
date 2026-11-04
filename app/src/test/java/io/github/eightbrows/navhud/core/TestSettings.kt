@@ -11,8 +11,8 @@ import io.github.eightbrows.navhud.core.nav.OwnshipPosition
 object TestSettings {
     /**
      * 20261010-D02 までの初期値のうち、縮尺と RATE に関わるもの（使う段 100m〜20km、起動時 1km、AUTO の広域の限度 1km の段、
-     * ARC の自機の位置 高め、HUD に描く WP の数 15、RATE 60 秒）。表示モードはそのころの初期値の ARC（20261025-D01 で初期値が North Up になったので書いた）。
-     * D03 で初期値を変えたあとも、AUTO 縮尺・RATE の計算の決まりを、前と同じ値で確かめるために使う。
+     * ARC の自機の位置 高め、HUD に描く WP の数 15。RATE 60 秒は 20261104-D03 で設定がなくなった）。表示モードはそのころの初期値の ARC（20261025-D01 で初期値が North Up になったので書いた）。
+     * D03 で初期値を変えたあとも、AUTO 縮尺の計算の決まりを、前と同じ値で確かめるために使う。
      */
     val BEFORE_D03 = NavSettings(
         displayMode = DisplayMode.ARC,
@@ -21,7 +21,6 @@ object TestSettings {
         autoMaxRangeKm = 1.0,
         ownshipPosition = OwnshipPosition.HIGH,
         hudWpCount = 15,
-        rateWindowSec = 60,
     )
 
     /** 20261024-D09 までの背景地図の項目の初期値（高速道路・国道は「〜100k」、ほかは OFF） */

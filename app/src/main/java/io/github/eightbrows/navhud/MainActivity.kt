@@ -45,7 +45,12 @@ import io.github.eightbrows.navhud.source.AppLanguage
 import io.github.eightbrows.navhud.source.AppPermissions
 import io.github.eightbrows.navhud.source.TrackDocumentStore
 import io.github.eightbrows.navhud.source.WaypointDocumentStore
+import io.github.eightbrows.navhud.core.view.LoadSummary
 import io.github.eightbrows.navhud.ui.DebugScreen
+import io.github.eightbrows.navhud.ui.FileSheet
+import io.github.eightbrows.navhud.ui.FileSheetKind
+import io.github.eightbrows.navhud.ui.ReplayUiState
+import io.github.eightbrows.navhud.ui.SheetCurrentFile
 import io.github.eightbrows.navhud.ui.HudColors
 import io.github.eightbrows.navhud.ui.HudPalette
 import io.github.eightbrows.navhud.ui.LocationPermission
@@ -98,10 +103,11 @@ class MainActivity : ComponentActivity() {
                     ActivityResultContracts.CreateDocument(WaypointDocumentStore.EXPORT_MIME_TYPE),
                 ) { vm.exportWaypoints(it) }
                 val onPickTrack = { pickTrack.launch(TrackDocumentStore.MIME_TYPES) }
-                // FILE（20261102-D01）: トラックを読み込んでいれば「ファイルを選ぶ / クリア」を出す。読み込んでいなければすぐファイル選択
-                var trackMenu by remember { mutableStateOf(false) }
+                // FILE（20261104-D03）: いつもファイルの画面（軌跡）を開く。前の「ファイルを選ぶ / クリア」の画面は置き換えた
+                val fileSheet by vm.fileSheet.collectAsState()
                 var confirmTrackClear by remember { mutableStateOf(false) }
-                val onFileButton = { if (replay.fileName != null) trackMenu = true else onPickTrack() }
+                var confirmWpClear by remember { mutableStateOf(false) }
+                val onFileButton = { vm.openFileSheet(FileSheetKind.TRACK) }
 
                 // 通知の権限（Android 13 以降）。拒否されても動作は続ける
                 val requestNotifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
@@ -141,6 +147,8 @@ class MainActivity : ComponentActivity() {
                     onDispose {}
                 }
                 val onImport = { importWaypoints.launch(WaypointDocumentStore.IMPORT_MIME_TYPES) }
+                // WP設定のインポート（20261104-D03）: ファイルの画面（WP リスト）を開く
+                val onImportSheet = { vm.openFileSheet(FileSheetKind.WAYPOINTS) }
 
                 BackHandler(enabled = screen != Screen.MAIN) { screen = Screen.MAIN }
 
@@ -154,7 +162,6 @@ class MainActivity : ComponentActivity() {
                             onTogglePlay = vm::togglePlay,
                             onCycleSource = vm::cycleSourceMode,
                             onToggleDisplay = vm::toggleDisplayMode,
-                            onCycleRate = vm::cycleRateWindow,
                             onOpenDebug = { screen = Screen.DEBUG },
                             wpUi = wpUi,
                             onToggleWpButtons = vm::toggleWaypointButtons,
@@ -197,7 +204,7 @@ class MainActivity : ComponentActivity() {
                             onMove = vm::moveWaypoint,
                             onSetEnabled = vm::setWaypointEnabled,
                             onPaste = { vm.pasteCoordinates(clipboardText(context)) },
-                            onImport = onImport,
+                            onImport = onImportSheet,
                             onExport = { exportWaypoints.launch(WaypointDocumentStore.EXPORT_DEFAULT_NAME) },
                             onReverse = vm::reverseWaypoints,
                             onAdjustTimes = vm::adjustWaypointTimes,
@@ -254,19 +261,42 @@ class MainActivity : ComponentActivity() {
                         ZipSessionDialog(zip, java.time.ZoneId.systemDefault(), vm::onZipSessionPicked, vm::onZipSessionDismissed)
                     }
                 }
-                // FILE を押したとき（トラックを読み込んでいるとき）: ファイルを選ぶ / クリア（20261102-D01）
-                if (trackMenu) {
-                    TrackFileDialog(
-                        fileName = replay.fileName.orEmpty(),
-                        onChoose = {
-                            trackMenu = false
-                            onPickTrack()
-                        },
+                // ファイルの画面（20261104-D03）: 軌跡（FILE）・WP リスト（WP設定のインポート）
+                fileSheet?.let { sheet ->
+                    val zone = java.time.ZoneId.systemDefault()
+                    val isTrack = sheet.kind == FileSheetKind.TRACK
+                    val current = if (isTrack) trackCurrent(replay, zone) else waypointCurrent(wpUi, state.waypoints)
+                    FileSheet(
+                        sheet = sheet,
+                        dot = if (isTrack) HudColors.trackFull(state.settings.trackColor) else HudColors.Active,
+                        current = current,
+                        zone = zone,
+                        onOpen = { vm.openRecent(sheet.kind, it) },
+                        onRemove = { vm.removeRecent(sheet.kind, it) },
+                        // クリアは今までと同じ確認を出す（画面は閉じる）
                         onClear = {
-                            trackMenu = false
-                            confirmTrackClear = true
+                            vm.closeFileSheet()
+                            if (isTrack) confirmTrackClear = true else confirmWpClear = true
                         },
-                        onDismiss = { trackMenu = false },
+                        onChoose = {
+                            vm.closeFileSheet()
+                            if (isTrack) onPickTrack() else onImport()
+                        },
+                        onDismiss = vm::closeFileSheet,
+                    )
+                }
+                if (confirmWpClear) {
+                    AlertDialog(
+                        onDismissRequest = { confirmWpClear = false },
+                        title = { Text(stringResource(R.string.wp_clear_title)) },
+                        text = { Text(stringResource(R.string.wp_clear_confirm)) },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                vm.clearWaypoints()
+                                confirmWpClear = false
+                            }) { Text(stringResource(R.string.wp_clear)) }
+                        },
+                        dismissButton = { TextButton(onClick = { confirmWpClear = false }) { Text(stringResource(R.string.cancel)) } },
                     )
                 }
                 if (confirmTrackClear) {
@@ -338,22 +368,33 @@ private fun StartupDialog(wpUi: WaypointUiState, onPrevious: () -> Unit, onChoos
     )
 }
 
-/** FILE（トラックを読み込んでいるとき。20261102-D01）: 読み込んでいるファイルの名前と、ファイルを選ぶ / クリア / 閉じる。 */
+/**
+ * ファイルの画面の「読み込み中」（軌跡。20261104-D03）: ファイルの名前と「11,172 点・2026-10-17 7:52〜11:02」。
+ * zip はその上にセッションの名前。読み込んでいなければ null（「なし」）
+ */
 @Composable
-private fun TrackFileDialog(fileName: String, onChoose: () -> Unit, onClear: () -> Unit, onDismiss: () -> Unit) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.track_file_title)) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(stringResource(R.string.track_file_current, fileName))
-                TextButton(onClick = onChoose) { Text(stringResource(R.string.track_file_choose)) }
-                TextButton(onClick = onClear) { Text(stringResource(R.string.track_clear)) }
-            }
-        },
-        confirmButton = {},
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) } },
+private fun trackCurrent(replay: ReplayUiState, zone: java.time.ZoneId): SheetCurrentFile? {
+    val file = replay.file ?: return null
+    val start = replay.startMs
+    val end = replay.endMs
+    val lines = listOfNotNull(
+        replay.session?.let { stringResource(R.string.sheet_session, it) },
+        if (start != null && end != null) stringResource(R.string.sheet_track_summary, LoadSummary.points(replay.fixCount), LoadSummary.trackSpan(start, end, zone)) else null,
     )
+    return SheetCurrentFile(file, lines)
+}
+
+/**
+ * ファイルの画面の「読み込み中」（WP リスト。20261104-D03）: ファイルの名前と「6 件（うち無効 1）」（今の WP の数。編集したあとはその数）。
+ * リストを読み込んでいなくて WP もなければ null（「なし」）
+ */
+@Composable
+private fun waypointCurrent(wpUi: WaypointUiState, wps: List<io.github.eightbrows.navhud.core.model.Waypoint>): SheetCurrentFile? {
+    if (wpUi.listName == null && wps.isEmpty()) return null
+    val sum = LoadSummary.waypoints(wps)
+    val line = if (sum.disabled > 0) stringResource(R.string.sheet_wp_summary_disabled, sum.count.toString(), sum.disabled.toString())
+    else stringResource(R.string.sheet_wp_summary, sum.count.toString())
+    return SheetCurrentFile(wpUi.listName ?: stringResource(R.string.sheet_no_file), listOf(line))
 }
 
 /** クリップボードの文字列（なければ null）。 */

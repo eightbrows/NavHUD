@@ -26,7 +26,11 @@ data class NavState(
      * NO FIX・高さがない・範囲外・unknown・最高標高のファイルがまだないときは null。負になってもそのまま
      */
     val aglM: Double? = null,
-    val rate: Rate? = null,
+    /**
+     * V/S（昇降率）[m/min]（20261104-D03 で RATE を置き換えた）: 直前 60 秒の高さ（ALT と同じ）の変化を 1 分あたりで。上りが正。
+     * NO FIX・60 秒分そろっていない・途中で途切れた・高さがないときは null（表示 "---"）
+     */
+    val verticalSpeedMpm: Double? = null,
     val waypoints: List<Waypoint> = emptyList(),
     val nextWpIndex: Int? = null,
     /** 次WPへの方位（真北, 0..360） */
@@ -41,7 +45,7 @@ data class NavState(
     val sourceKind: SourceKind = SourceKind.REPLAY,
     /** 再生中なら true、一時停止中なら false（LIVE では常に true） */
     val playing: Boolean = false,
-    /** 表示に使う設定（表示モード、距離環、RATE 窓など） */
+    /** 表示に使う設定（表示モード、距離環など） */
     val settings: NavSettings = NavSettings(),
     /** コンパスの状態（CAL / MAG の印）。コンパスの値がなければ null */
     val compass: CompassQuality? = null,

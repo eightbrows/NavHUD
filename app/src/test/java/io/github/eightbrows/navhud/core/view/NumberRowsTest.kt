@@ -1,14 +1,13 @@
 package io.github.eightbrows.navhud.core.view
 
 import io.github.eightbrows.navhud.core.nav.AglNegative
-import io.github.eightbrows.navhud.core.nav.Rate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.ZoneId
 
-/** 数値の表示の4行（§6.1。20261025-D09 の並び）と、欄の幅の見本、入りきらないときの縮め方。 */
+/** 数値の表示の4行（§6.1。20261025-D09 の並び、20261104-D03 で 3・4 行目を変えた）と、欄の幅の見本、入りきらないときの縮め方。 */
 class NumberRowsTest {
 
     @Test
@@ -16,8 +15,9 @@ class NumberRowsTest {
         assertEquals(4, NumberRows.ROWS.size)
         assertEquals(listOf(NumberField.TIME, NumberField.LAT_LON), NumberRows.ROWS[0])
         assertEquals(listOf(NumberField.ETA, NumberField.GS, NumberField.HDG), NumberRows.ROWS[1])
-        assertEquals(listOf(NumberField.TGT, NumberField.ALT, NumberField.AGL), NumberRows.ROWS[2])
-        assertEquals(listOf(NumberField.DDL, NumberField.RATE), NumberRows.ROWS[3])
+        assertEquals(listOf(NumberField.TGT, NumberField.ALT, NumberField.VS), NumberRows.ROWS[2])
+        assertEquals(listOf(NumberField.DDL, NumberField.AGL), NumberRows.ROWS[3])
+        assertEquals("V/S", NumberField.VS.caption)
         // 左の列は時刻と WP の欄だけ
         assertEquals(listOf(NumberField.TIME, NumberField.ETA, NumberField.TGT, NumberField.DDL), NumberRows.ROWS.map { it[0] })
         assertFalse(NumberRows.ROWS.flatten().any { it.caption == "NEXT" })
@@ -52,12 +52,9 @@ class NumberRowsTest {
         for (m in listOf(3_776.0, -99.0, 0.0)) fits(NumberField.ALT, HudFormat.altitude(m))
         // AGL: 負の 3 桁（負のまま出す設定）と、正の 3 桁
         for (m in listOf(-999.0, 999.0, 0.0)) fits(NumberField.AGL, HudFormat.agl(m, AglNegative.SHOW).text)
-        // RATE: 60 秒の窓で 10 km 近く（時速 600 km）・高低差 3 桁まで
-        for (r in listOf(Rate(60, 9_994.0, -999.0, 166.0), Rate(60, 0.0, 0.0, 0.0), Rate(60, 1_234.0, null, 20.0))) {
-            fits(NumberField.RATE, HudFormat.rate(r))
-        }
-        // RATE の見出しは窓の秒数を付けても長さが同じ（10s / 30s / 60s）
-        assertTrue(listOf(10, 30, 60).all { "${NumberField.RATE.caption} ${it}s".length == sample(NumberField.RATE).caption.length })
+        // V/S: 符号つきの 3 桁まで（それより大きい値は ±999 で出す）
+        for (v in listOf(999.0, -999.0, 5_000.0, -5_000.0, 0.0, 42.0)) fits(NumberField.VS, HudFormat.verticalSpeed(v))
+        assertEquals(sample(NumberField.VS).value.length, HudFormat.verticalSpeed(-999.0).length)
         // HDG の小さな文字: 方位ソース 1 つとコンパスの印 1 つ
         assertTrue(listOf("GPS", "HLD", "CMP").all { " $it CAL".length <= sample(NumberField.HDG).small.length })
     }

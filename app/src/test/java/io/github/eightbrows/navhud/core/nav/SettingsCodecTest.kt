@@ -2,6 +2,7 @@ package io.github.eightbrows.navhud.core.nav
 
 import io.github.eightbrows.navhud.core.model.SourceMode
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -19,7 +20,6 @@ class SettingsCodecTest {
             holdExitSpeedMps = NavSettings.kmhToMps(15),
             maxGpsAccM = 20f,
             maxGpsBearingAccDeg = 30f,
-            rateWindowSec = 30,
             noFixTimeoutSec = 15,
             altOffsetM = 35.5,
             displayMode = DisplayMode.NORTH_UP,
@@ -120,10 +120,9 @@ class SettingsCodecTest {
         }
         // 20〜100 の外・読めない値は、その項目だけ既定値
         for (bad in listOf("10", "110", "19", "x", "")) {
-            val s = SettingsCodec.decode(mapOf("buttonOpacityPct" to bad, "numbersOpacityPct" to bad, "rateWindowSec" to "30"))
+            val s = SettingsCodec.decode(mapOf("buttonOpacityPct" to bad, "numbersOpacityPct" to bad))
             assertEquals(80, s.buttonOpacityPct)
             assertEquals(100, s.numbersOpacityPct)
-            assertEquals(30, s.rateWindowSec)
         }
     }
 
@@ -318,7 +317,6 @@ class SettingsCodecTest {
             mapOf(
                 "sourceMode" to "RADAR",
                 "holdEnterSpeedMps" to "abc",
-                "rateWindowSec" to "45",
                 "rangeStepsKm" to "3,7,x",
                 "wpButtonsMax" to "99",
                 "hudWpCount" to "0",
@@ -328,7 +326,6 @@ class SettingsCodecTest {
         val d = NavSettings()
         assertEquals(d.sourceMode, s.sourceMode)
         assertEquals(d.holdEnterSpeedMps, s.holdEnterSpeedMps)
-        assertEquals(d.rateWindowSec, s.rateWindowSec)
         assertEquals(d.rangeStepsKm, s.rangeStepsKm)
         assertEquals(6, s.wpButtonsMax)
         assertEquals(1, s.hudWpCount)
@@ -451,5 +448,18 @@ class SettingsCodecTest {
             ),
         )
         assertEquals(car.copy(reachRadiusM = 200.0, passMaxApproachM = 1000.0, passDepartM = 20.0, passHoldSec = 10), ok.customReach[2])
+    }
+
+    @Test
+    fun rateWindowIsDiscarded() {
+        // 20261104-D03: RATE の窓（変化を測る時間）の設定はなくした。前の保存（rateWindowSec）は読まずに捨て、ほかの設定は変わらない
+        assertTrue("rateWindowSec" in SettingsCodec.OBSOLETE_KEYS)
+        assertFalse(SettingsCodec.encode(NavSettings()).containsKey("rateWindowSec"))
+        val saved = SettingsCodec.encode(NavSettings(noFixTimeoutSec = 15, panReturnSec = 20))
+        for (old in listOf("10", "30", "60", "45", "x")) {
+            assertEquals(SettingsCodec.decode(saved), SettingsCodec.decode(saved + ("rateWindowSec" to old)))
+        }
+        // 前の保存で捨てる名前は、今の保存の名前と重ならない
+        assertTrue(SettingsCodec.OBSOLETE_KEYS.none { it in SettingsCodec.encode(NavSettings()).keys })
     }
 }

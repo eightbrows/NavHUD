@@ -102,8 +102,6 @@ data class NavSettings(
     val passDepartM: Double = Tuning.CAR_PASS_DEPART_M,
     /** 通過判定: 離れた状態がこれだけ続いたら到達 [秒] */
     val passHoldSec: Int = Tuning.CAR_PASS_HOLD_SEC,
-    /** RATE の窓 [秒]。10 / 30 / 60 から選ぶ（§5.3） */
-    val rateWindowSec: Int = 10,
     /** NO FIX とみなす秒数（§5.5）。3 / 5 / 10 / 15 / 20 / 30 / 60 / 120 から選ぶ */
     val noFixTimeoutSec: Int = 10,
     /** 標高オフセット [m]。標高 = 楕円体高 − これ（§6.8） */
@@ -271,7 +269,6 @@ data class NavSettings(
 
         val ALT_OFFSET_M_RANGE = -200.0..200.0
         val AUTO_RANGE_ZOOM_IN_DELAY_SEC_RANGE = 0..30
-        val RATE_WINDOW_CHOICES_SEC = listOf(10, 30, 60)
 
         /** 不透明度・読み込んだ軌跡の明るさ・距離環の明るさ [%] の選べる値（20 / 40 / 60 / 80 / 100。20261104-D01） */
         val OPACITY_CHOICES_PCT = Tuning.PCT_CHOICES

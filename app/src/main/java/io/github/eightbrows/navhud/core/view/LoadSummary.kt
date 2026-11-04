@@ -24,6 +24,26 @@ object LoadSummary {
 
     fun waypoints(wps: List<Waypoint>): Waypoints = Waypoints(wps.size, wps.count { !it.enabled })
 
+    private val DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale.US)
+    private val DATE_HM = DateTimeFormatter.ofPattern("yyyy-MM-dd H:mm", Locale.US)
+
+    /**
+     * ファイルの画面の、読み込み中の軌跡の期間（20261104-D03）: 同じ日なら "2026-10-17 7:52〜11:02"、日をまたぐなら
+     * "2026-10-17 23:10〜2026-10-18 1:05"
+     */
+    fun trackSpan(startMs: Long, endMs: Long, zone: ZoneId): String {
+        val s = Instant.ofEpochMilli(startMs).atZone(zone)
+        val e = Instant.ofEpochMilli(endMs).atZone(zone)
+        val end = if (s.toLocalDate() == e.toLocalDate()) e.format(TIME) else e.format(DATE_HM)
+        return "${s.format(DATE)} ${s.format(TIME)}〜$end"
+    }
+
+    /** 点の数（3 桁ごとにカンマ） */
+    fun points(n: Int): String = "%,d".format(Locale.US, n)
+
+    /** 最近のファイルの、最後に開いた日時（20261104-D03）: "2026-11-04 21:30" */
+    fun openedAt(ms: Long, zone: ZoneId): String = Instant.ofEpochMilli(ms).atZone(zone).format(DATE_HM)
+
     /** 点がなければ null */
     fun track(fixes: List<Fix>, zone: ZoneId): Track? {
         if (fixes.isEmpty()) return null

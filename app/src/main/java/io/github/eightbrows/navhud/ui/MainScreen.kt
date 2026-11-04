@@ -108,7 +108,6 @@ fun MainScreen(
     onTogglePlay: () -> Unit,
     onCycleSource: () -> Unit,
     onToggleDisplay: () -> Unit,
-    onCycleRate: () -> Unit,
     onOpenDebug: () -> Unit,
     wpUi: WaypointUiState,
     onToggleWpButtons: () -> Unit,
@@ -194,7 +193,7 @@ fun MainScreen(
                     onToggleDisplay, onOpenSettings, onOpenDebug,
                 )
             }
-            NumbersPanel(state, zone, valueColor, onCycleRate)
+            NumbersPanel(state, zone, valueColor)
         }
         // 下: WP ボタン列・標高プロファイル・ナビゲーションバー
         Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().onSizeChanged { bottomPx = it.height }) {
@@ -706,7 +705,7 @@ private fun compassMarks(state: NavState): String {
 
 /**
  * 数値の表示（上部バーの下、4行。20261025-D09 から。左の列 = 時刻と WP、右 = 自機の値）。見出しは値の左に小さく並べる。箱なしで、文字に黒の縁取り。
- * 1行目: TIME ｜ LAT/LON、2行目: ETA ｜ GS・HDG、3行目: TGT ｜ ALT・AGL、4行目: DDL ｜ RATE（タップで窓の切替）。
+ * 1行目: TIME ｜ LAT/LON、2行目: ETA ｜ GS・HDG、3行目: TGT ｜ ALT・V/S、4行目: DDL ｜ AGL（20261104-D03。前は 3 行目が ALT・AGL、4 行目が RATE）。
  * 次の WP の名前・方位・距離は地図上の WP の文字で見る（§6.1）。
  * 幅は欄ごとのいちばん長くなる値（NumberRows.SAMPLES）を先に取り、左の列は全部の行で同じ幅（core の NumberLayout）。
  * 幅が足りない画面では、全部の行の文字を同じ倍率で縮める。
@@ -714,7 +713,7 @@ private fun compassMarks(state: NavState): String {
  * 負のまま出す設定の負の AGL）は常に 100%。
  */
 @Composable
-private fun NumbersPanel(state: NavState, zone: ZoneId, valueColor: Color, onCycleRate: () -> Unit) {
+private fun NumbersPanel(state: NavState, zone: ZoneId, valueColor: Color) {
     val alpha = state.settings.numbersOpacityPct / 100f
     val tm = rememberTextMeasurer()
     val density = LocalDensity.current
@@ -740,7 +739,7 @@ private fun NumbersPanel(state: NavState, zone: ZoneId, valueColor: Color, onCyc
             NumberRows.ROWS.forEachIndexed { i, row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(gap.dp)) {
                     row.forEachIndexed { j, field ->
-                        NumberFieldCell(state, zone, field, valueColor, alpha, onCycleRate, Modifier.width(fit.widths[i][j].dp), fit.scale)
+                        NumberFieldCell(state, zone, field, valueColor, alpha, Modifier.width(fit.widths[i][j].dp), fit.scale)
                     }
                 }
             }
@@ -756,7 +755,6 @@ private fun NumberFieldCell(
     field: NumberField,
     valueColor: Color,
     alpha: Float,
-    onCycleRate: () -> Unit,
     modifier: Modifier,
     textScale: Float,
 ) {
@@ -794,11 +792,8 @@ private fun NumberFieldCell(
             val agl = HudFormat.agl(state.aglM, state.settings.aglNegative)
             NumberCell(c, AnnotatedString(agl.text), if (agl.warning) HudColors.Warning else valueColor, if (agl.warning) modifier else modifier.then(n), textScale)
         }
-        // RATE: タップで窓（10 / 30 / 60 秒）を切り替える
-        NumberField.RATE -> NumberCell(
-            "$c ${state.settings.rateWindowSec}s", AnnotatedString(HudFormat.rate(state.rate)), valueColor,
-            modifier.clickable(onClick = onCycleRate).then(n), textScale,
-        )
+        // V/S（20261104-D03。前の RATE。タップで窓を切り替える決まりはなくした）
+        NumberField.VS -> NumberCell(c, AnnotatedString(HudFormat.verticalSpeed(state.verticalSpeedMpm)), valueColor, modifier.then(n), textScale)
     }
 }
 

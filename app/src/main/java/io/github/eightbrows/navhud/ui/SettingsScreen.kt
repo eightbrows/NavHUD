@@ -150,10 +150,6 @@ fun SettingsScreen(
                 note = stringResource(R.string.heading_source_note),
                 default = def.sourceMode,
             ) { v -> onChange { it.copy(sourceMode = v) } }
-            SettingKey.RATE_WINDOW -> Choice(
-                stringResource(R.string.rate_window), NavSettings.RATE_WINDOW_CHOICES_SEC.map { seconds(it) to it }, s.rateWindowSec,
-                note = stringResource(R.string.rate_window_note), default = def.rateWindowSec,
-            ) { v -> onChange { it.copy(rateWindowSec = v) } }
             // 方位を止める・戻す速度: km/h の整数（1〜36）、1 km/h 刻み。戻す速度は止める速度より 1 km/h 以上大きい。保存は m/s
             SettingKey.HOLD_ENTER -> Stepper(
                 stringResource(R.string.hold_enter), kmh(NavSettings.holdSpeedKmh(s.holdEnterSpeedMps)),

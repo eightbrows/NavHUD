@@ -35,7 +35,8 @@ class SettingsOutlineTest {
     fun itemsOfEachSection() {
         fun sec(id: SettingsSectionId) = sections.single { it.id == id }
         with(sec(SettingsSectionId.POSITION_HEADING)) {
-            assertEquals(listOf(SettingKey.HEADING_SOURCE, SettingKey.RATE_WINDOW), items)
+            // 変化を測る時間（前の RATE の窓）は 20261104-D03 でなくした
+            assertEquals(listOf(SettingKey.HEADING_SOURCE), items)
             assertEquals(
                 listOf(SettingKey.HOLD_ENTER, SettingKey.HOLD_EXIT, SettingKey.MAX_GPS_ACC, SettingKey.MAX_GPS_BEARING_ACC, SettingKey.NO_FIX_TIMEOUT, SettingKey.ALT_OFFSET),
                 fine,

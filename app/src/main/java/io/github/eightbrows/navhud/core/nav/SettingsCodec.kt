@@ -10,6 +10,11 @@ import io.github.eightbrows.navhud.core.model.SourceMode
  */
 object SettingsCodec {
 
+    /**
+     * もう使わない保存の名前（保存のときに消す。読まない）。rateWindowSec: RATE の窓（20261104-D03 で RATE を V/S にして、設定をなくした）
+     */
+    val OBSOLETE_KEYS: Set<String> = setOf("rateWindowSec")
+
     fun encode(s: NavSettings): Map<String, String> = mapOf(
         "sourceMode" to s.sourceMode.name,
         "holdEnterSpeedMps" to s.holdEnterSpeedMps.toString(),
@@ -25,7 +30,6 @@ object SettingsCodec {
         "passMaxApproachM" to s.passMaxApproachM.toString(),
         "passDepartM" to s.passDepartM.toString(),
         "passHoldSec" to s.passHoldSec.toString(),
-        "rateWindowSec" to s.rateWindowSec.toString(),
         "noFixTimeoutSec" to s.noFixTimeoutSec.toString(),
         "altOffsetM" to s.altOffsetM.toString(),
         "aglNegative" to s.aglNegative.name,
@@ -160,7 +164,6 @@ object SettingsCodec {
             passMaxApproachM = flat.passMaxApproachM,
             passDepartM = flat.passDepartM,
             passHoldSec = flat.passHoldSec,
-            rateWindowSec = int("rateWindowSec", d.rateWindowSec).takeIf { it in NavSettings.RATE_WINDOW_CHOICES_SEC } ?: d.rateWindowSec,
             noFixTimeoutSec = NavSettings.nearestInt(NavSettings.NO_FIX_TIMEOUT_CHOICES_SEC, int("noFixTimeoutSec", d.noFixTimeoutSec)),
             altOffsetM = dbl("altOffsetM", d.altOffsetM).inOr(NavSettings.ALT_OFFSET_M_RANGE, d.altOffsetM),
             // 地上高の負の値（20261025-D08）: 保存がない（前の版）・読めない名前なら初期値の ZERO（0 にする）

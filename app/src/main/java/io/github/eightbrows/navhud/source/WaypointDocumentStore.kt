@@ -9,6 +9,8 @@ import io.github.eightbrows.navhud.core.io.FileKind
 import io.github.eightbrows.navhud.core.io.FileKindException
 import io.github.eightbrows.navhud.core.io.FileKinds
 import io.github.eightbrows.navhud.core.io.LastFileMemory
+import io.github.eightbrows.navhud.core.io.RecentFile
+import io.github.eightbrows.navhud.core.io.RecentFiles
 import io.github.eightbrows.navhud.core.io.WaypointCsv
 import io.github.eightbrows.navhud.core.io.WaypointGpx
 import io.github.eightbrows.navhud.core.io.WaypointParseResult
@@ -45,19 +47,29 @@ class WaypointDocumentStore(context: Context) {
         memory.remember(uri.toString())
     }
 
-    /** 前回のリストを忘れる（読めなかったとき・クリアしたとき）。次の起動では自動で開かない。永続化した権限も返す（20261102-D01）。keep: もう一方（軌跡）が覚えているファイル */
-    fun forget(keep: Uri? = null) {
-        // 軌跡が同じファイルを覚えていれば、権限は返さない（20261103-D01）
-        savedUri?.takeIf { LastFileMemory.shouldRelease(it.toString(), keep?.toString()) }?.let { uri ->
-            for (flag in listOf(Intent.FLAG_GRANT_READ_URI_PERMISSION, Intent.FLAG_GRANT_WRITE_URI_PERMISSION)) {
-                try {
-                    appContext.contentResolver.releasePersistableUriPermission(uri, flag)
-                } catch (_: SecurityException) {
-                }
-            }
-        }
+    /**
+     * 前回のリストを忘れる（読めなかったとき・クリアしたとき）。次の起動では自動で開かない（20261102-D01）。
+     * 忘れたファイル（URI の文字）を返す。権限は呼び出し側が、まだ使っているか確かめてから返す（20261104-D03）
+     */
+    fun forget(): String? {
+        val uri = memory.uri
         memory.forget()
+        return uri
     }
+
+    private val recentFiles = RecentFiles(PrefsKeyValueStore(appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)), KEY_RECENT)
+
+    /** 最近のファイル（新しい順。20261104-D03） */
+    val recent: List<RecentFile> get() = recentFiles.list()
+
+    /** 開いた結果を最近のファイルに反映する（RecentFiles.recordOpen）。履歴から外れたファイル（URI の文字）を返す */
+    fun recordRecent(file: RecentFile, error: Throwable?): List<String> = recentFiles.recordOpen(file, error)
+
+    /** 最近のファイルから消す（✕） */
+    fun removeRecent(uri: String) = recentFiles.remove(uri) != null
+
+    /** このストアが使っているファイル（最近のファイルと前回のファイル）。権限を返すか決めるのに使う */
+    fun inUse(): Set<String> = recent.map { it.uri }.toSet() + listOfNotNull(memory.uri)
 
     /**
      * CSV か GPX を読む。中身で見分ける。軌跡のファイルなら FileKindException（20261103-D01）。ブロッキングなので IO スレッドで呼ぶ。
@@ -87,6 +99,7 @@ class WaypointDocumentStore(context: Context) {
     companion object {
         private const val PREFS = "waypoints"
         private const val KEY_URI = "list_uri"
+        private const val KEY_RECENT = "list_recent"
 
         /** インポートで受ける MIME。GPX / CSV は端末によって MIME が違うので広めに受ける。 */
         val IMPORT_MIME_TYPES = arrayOf(
