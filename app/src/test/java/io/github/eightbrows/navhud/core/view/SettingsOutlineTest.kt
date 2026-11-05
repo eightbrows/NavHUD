@@ -1,10 +1,13 @@
 package io.github.eightbrows.navhud.core.view
 
+import io.github.eightbrows.navhud.core.nav.DisplayMode
 import io.github.eightbrows.navhud.core.nav.LandmarkItem
 import io.github.eightbrows.navhud.core.nav.MapItem
 import io.github.eightbrows.navhud.core.nav.MapRange
 import io.github.eightbrows.navhud.core.nav.NavSettings
 import io.github.eightbrows.navhud.core.nav.RangeAuto
+import io.github.eightbrows.navhud.core.nav.SettingsCodec
+import io.github.eightbrows.navhud.core.nav.resetKeepingCustomReach
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -35,8 +38,8 @@ class SettingsOutlineTest {
     fun itemsOfEachSection() {
         fun sec(id: SettingsSectionId) = sections.single { it.id == id }
         with(sec(SettingsSectionId.POSITION_HEADING)) {
-            // 変化を測る時間（前の RATE の窓）は 20261104-D03 でなくした
-            assertEquals(listOf(SettingKey.HEADING_SOURCE), items)
+            // 変化を測る時間（前の RATE の窓）は 20261104-D03 でなくした。地上高の負の値は 20261105-D01 で画面から移した
+            assertEquals(listOf(SettingKey.HEADING_SOURCE, SettingKey.AGL_NEGATIVE), items)
             assertEquals(
                 listOf(SettingKey.HOLD_ENTER, SettingKey.HOLD_EXIT, SettingKey.MAX_GPS_ACC, SettingKey.MAX_GPS_BEARING_ACC, SettingKey.NO_FIX_TIMEOUT, SettingKey.ALT_OFFSET),
                 fine,
@@ -47,7 +50,11 @@ class SettingsOutlineTest {
             assertEquals(listOf(SettingKey.ZOOM_IN_DELAY, SettingKey.HOLD_AFTER_WP, SettingKey.ZOOM_IN_RATIO, SettingKey.PAN_RETURN), fine)
         }
         with(sec(SettingsSectionId.WP)) {
-            assertEquals(listOf(SettingKey.TRAVEL_MODE, SettingKey.WP_BUTTONS, SettingKey.HUD_WP_COUNT), items)
+            // 20261105-D01: 前回の WP リストを自動で開く（その他から）・標高プロファイル（画面から）を足し、到達判定のプリセットを最後に
+            assertEquals(
+                listOf(SettingKey.AUTO_OPEN_LAST, SettingKey.WP_BUTTONS, SettingKey.HUD_WP_COUNT, SettingKey.PROFILE, SettingKey.TRAVEL_MODE),
+                items,
+            )
             // 到達の判定は前と同じ並び
             assertEquals(
                 listOf(
@@ -58,10 +65,8 @@ class SettingsOutlineTest {
             )
         }
         assertEquals(
-            listOf(
-                SettingKey.DISPLAY_MODE, SettingKey.UI_COLOR, SettingKey.MAP_COLOR, SettingKey.BUTTON_OPACITY, SettingKey.NUMBERS_OPACITY,
-                SettingKey.OWNSHIP_POSITION, SettingKey.PROFILE, SettingKey.AGL_NEGATIVE,
-            ),
+            // 20261105-D01: 表示モードはなくした（上部バーだけ）
+            listOf(SettingKey.UI_COLOR, SettingKey.MAP_COLOR, SettingKey.BUTTON_OPACITY, SettingKey.NUMBERS_OPACITY, SettingKey.OWNSHIP_POSITION),
             sec(SettingsSectionId.DISPLAY).items,
         )
         assertEquals(
@@ -70,7 +75,7 @@ class SettingsOutlineTest {
         )
         assertEquals(listOf(SettingKey.BASE_MAP, SettingKey.MAP_LINE_WIDTH, SettingKey.MAP_LINE_BRIGHTNESS, SettingKey.MAP_TABLE), sec(SettingsSectionId.MAP).items)
         assertEquals(listOf(SettingKey.LANDMARK_BRIGHTNESS, SettingKey.LANDMARK_TABLE), sec(SettingsSectionId.LANDMARKS).items)
-        assertEquals(listOf(SettingKey.KEEP_SCREEN_ON, SettingKey.AUTO_OPEN_LAST, SettingKey.APP_LANGUAGE), sec(SettingsSectionId.OTHER).items)
+        assertEquals(listOf(SettingKey.KEEP_SCREEN_ON, SettingKey.APP_LANGUAGE), sec(SettingsSectionId.OTHER).items)
         assertEquals(listOf(SettingKey.PERMISSIONS, SettingKey.ABOUT, SettingKey.SOURCES), sec(SettingsSectionId.INFO).items)
         // 「細かい調整」があるのは測位と方位・縮尺・WP だけ
         assertEquals(
@@ -86,6 +91,16 @@ class SettingsOutlineTest {
         assertEquals(SettingKey.entries.toSet(), all.toSet())
         // INPUT（LIVE / REPLAY）は設定画面にない（上部バーで切り替える）
         assertFalse(SettingKey.entries.any { it.name.contains("INPUT") })
+    }
+
+    @Test
+    fun displayModeIsOnlyOnTheTopBar() {
+        // 20261105-D01: 表示モード（ARC / North Up）は設定画面にない。前のモードを覚える決まりと、設定を初期値に戻すと ARC になる決まりは今のまま
+        assertFalse(SettingKey.entries.any { it.name.contains("DISPLAY_MODE") })
+        val nu = NavSettings(displayMode = DisplayMode.NORTH_UP)
+        assertEquals(DisplayMode.NORTH_UP, SettingsCodec.decode(SettingsCodec.encode(nu)).displayMode)
+        assertEquals(DisplayMode.ARC, nu.resetKeepingCustomReach().displayMode)
+        assertEquals(DisplayMode.ARC, NavSettings().displayMode)
     }
 
     @Test

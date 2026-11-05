@@ -24,20 +24,20 @@ enum class SettingsSectionId(val key: String) {
 
 /** 設定画面の項目（1 行、または表や欄のまとまり）。画面はこの並びのとおりに描く */
 enum class SettingKey {
-    // 測位と方位
-    HEADING_SOURCE,
+    // 測位と方位（20261105-D01: 地上高の負の値を画面から移した）
+    HEADING_SOURCE, AGL_NEGATIVE,
     HOLD_ENTER, HOLD_EXIT, MAX_GPS_ACC, MAX_GPS_BEARING_ACC, NO_FIX_TIMEOUT, ALT_OFFSET,
 
     // 縮尺
     RANGE_STEPS, INITIAL_RANGE, AUTO_ON_START, AUTO_MIN, AUTO_MAX,
     ZOOM_IN_DELAY, HOLD_AFTER_WP, ZOOM_IN_RATIO, PAN_RETURN,
 
-    // WP
-    TRAVEL_MODE, WP_BUTTONS, HUD_WP_COUNT,
+    // WP（20261105-D01: 前回の WP リストを自動で開くをその他から、標高プロファイルを画面から移した。TRAVEL_MODE の名前は「到達判定のプリセット」）
+    AUTO_OPEN_LAST, WP_BUTTONS, HUD_WP_COUNT, PROFILE, TRAVEL_MODE,
     ARRIVAL_RADIUS, SIDE_PASS, SIDE_PASS_MAX, SIDE_PASS_DEPART, PASS_DETECTION, PASS_MAX, PASS_DEPART, PASS_HOLD,
 
-    // 画面
-    DISPLAY_MODE, UI_COLOR, MAP_COLOR, BUTTON_OPACITY, NUMBERS_OPACITY, OWNSHIP_POSITION, PROFILE, AGL_NEGATIVE,
+    // 画面（20261105-D01: 表示モードは設定画面からなくした。切り替えは上部バーだけ）
+    UI_COLOR, MAP_COLOR, BUTTON_OPACITY, NUMBERS_OPACITY, OWNSHIP_POSITION,
 
     // 距離環と軌跡
     RING_BRIGHTNESS, RING_LABEL_SIZE, TRACK_COLOR, TRACK_BRIGHTNESS,
@@ -49,7 +49,7 @@ enum class SettingKey {
     LANDMARK_BRIGHTNESS, LANDMARK_TABLE,
 
     // その他
-    KEEP_SCREEN_ON, AUTO_OPEN_LAST, APP_LANGUAGE,
+    KEEP_SCREEN_ON, APP_LANGUAGE,
 
     // 権限・情報・データの出典（中身は 20261104-D01 までと同じ）
     PERMISSIONS, ABOUT, SOURCES,
@@ -63,7 +63,7 @@ object SettingsOutline {
     val SECTIONS: List<SettingsSectionDef> = listOf(
         SettingsSectionDef(
             SettingsSectionId.POSITION_HEADING,
-            listOf(SettingKey.HEADING_SOURCE),
+            listOf(SettingKey.HEADING_SOURCE, SettingKey.AGL_NEGATIVE),
             listOf(SettingKey.HOLD_ENTER, SettingKey.HOLD_EXIT, SettingKey.MAX_GPS_ACC, SettingKey.MAX_GPS_BEARING_ACC, SettingKey.NO_FIX_TIMEOUT, SettingKey.ALT_OFFSET),
         ),
         SettingsSectionDef(
@@ -73,7 +73,7 @@ object SettingsOutline {
         ),
         SettingsSectionDef(
             SettingsSectionId.WP,
-            listOf(SettingKey.TRAVEL_MODE, SettingKey.WP_BUTTONS, SettingKey.HUD_WP_COUNT),
+            listOf(SettingKey.AUTO_OPEN_LAST, SettingKey.WP_BUTTONS, SettingKey.HUD_WP_COUNT, SettingKey.PROFILE, SettingKey.TRAVEL_MODE),
             // 到達の判定（並び・名前は 20261104-D01 までと同じ）
             listOf(
                 SettingKey.ARRIVAL_RADIUS, SettingKey.SIDE_PASS, SettingKey.SIDE_PASS_MAX, SettingKey.SIDE_PASS_DEPART,
@@ -82,10 +82,7 @@ object SettingsOutline {
         ),
         SettingsSectionDef(
             SettingsSectionId.DISPLAY,
-            listOf(
-                SettingKey.DISPLAY_MODE, SettingKey.UI_COLOR, SettingKey.MAP_COLOR, SettingKey.BUTTON_OPACITY, SettingKey.NUMBERS_OPACITY,
-                SettingKey.OWNSHIP_POSITION, SettingKey.PROFILE, SettingKey.AGL_NEGATIVE,
-            ),
+            listOf(SettingKey.UI_COLOR, SettingKey.MAP_COLOR, SettingKey.BUTTON_OPACITY, SettingKey.NUMBERS_OPACITY, SettingKey.OWNSHIP_POSITION),
         ),
         SettingsSectionDef(
             SettingsSectionId.RINGS_TRACK,
@@ -93,7 +90,7 @@ object SettingsOutline {
         ),
         SettingsSectionDef(SettingsSectionId.MAP, listOf(SettingKey.BASE_MAP, SettingKey.MAP_LINE_WIDTH, SettingKey.MAP_LINE_BRIGHTNESS, SettingKey.MAP_TABLE)),
         SettingsSectionDef(SettingsSectionId.LANDMARKS, listOf(SettingKey.LANDMARK_BRIGHTNESS, SettingKey.LANDMARK_TABLE)),
-        SettingsSectionDef(SettingsSectionId.OTHER, listOf(SettingKey.KEEP_SCREEN_ON, SettingKey.AUTO_OPEN_LAST, SettingKey.APP_LANGUAGE)),
+        SettingsSectionDef(SettingsSectionId.OTHER, listOf(SettingKey.KEEP_SCREEN_ON, SettingKey.APP_LANGUAGE)),
         SettingsSectionDef(SettingsSectionId.INFO, listOf(SettingKey.PERMISSIONS, SettingKey.ABOUT, SettingKey.SOURCES)),
     )
 

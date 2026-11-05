@@ -89,7 +89,6 @@
     <string name="sec_rings_track">距離環と軌跡</string>
     <string name="sec_info">権限・情報・データの出典</string>
     <string name="sec_display">画面</string>
-    <string name="display_mode">表示モード</string>
     <string name="color_white">白</string>
     <string name="color_green">緑</string>
     <string name="color_amber">琥珀</string>
@@ -150,12 +149,12 @@
     <string name="zoom_in_ratio_note">次の WP が 1 つ目の距離環の何倍以内なら詳しくするか</string>
     <string name="pan_return">地図をスクロールした後に現在地へ戻るまでの時間</string>
     <string name="sec_wp">WP</string>
-    <string name="travel_mode">移動手段</string>
+    <string name="travel_mode">到達判定のプリセット</string>
     <string name="travel_car">自動車</string>
     <string name="travel_custom1">カスタム1</string>
     <string name="travel_custom2">カスタム2</string>
     <string name="travel_custom3">カスタム3</string>
-    <string name="travel_mode_note">到達の判定の値の組。自動車は値が決まっている</string>
+    <string name="travel_mode_note">到達の判定の値の組を切り替える。自動車は値が決まっている</string>
     <string name="reset_to_car">自動車の値に戻す</string>
     <string name="arrival_radius">到着半径（全体）</string>
     <string name="side_pass">真横通過</string>

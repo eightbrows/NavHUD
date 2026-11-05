@@ -91,7 +91,6 @@
     <string name="sec_rings_track">Range rings &amp; track</string>
     <string name="sec_info">Permissions, about &amp; sources</string>
     <string name="sec_display">Display</string>
-    <string name="display_mode">Display mode</string>
     <string name="color_white">White</string>
     <string name="color_green">Green</string>
     <string name="color_amber">Amber</string>
@@ -152,12 +151,12 @@
     <string name="zoom_in_ratio_note">Goes to Detail when the next WP is within this multiple of the first ring</string>
     <string name="pan_return">Return to position after scrolling the map</string>
     <string name="sec_wp">WP</string>
-    <string name="travel_mode">Travel mode</string>
+    <string name="travel_mode">Arrival preset</string>
     <string name="travel_car">Car</string>
     <string name="travel_custom1">Custom 1</string>
     <string name="travel_custom2">Custom 2</string>
     <string name="travel_custom3">Custom 3</string>
-    <string name="travel_mode_note">A set of arrival values. Car uses fixed values</string>
+    <string name="travel_mode_note">Switches the set of arrival values. Car uses fixed values</string>
     <string name="reset_to_car">Reset to Car values</string>
     <string name="arrival_radius">Arrival radius (all)</string>
     <string name="side_pass">Abeam pass</string>

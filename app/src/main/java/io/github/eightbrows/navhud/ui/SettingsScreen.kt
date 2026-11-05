@@ -57,7 +57,6 @@ import io.github.eightbrows.navhud.core.Tuning
 import io.github.eightbrows.navhud.core.model.SourceMode
 import io.github.eightbrows.navhud.core.nav.AglNegative
 import io.github.eightbrows.navhud.core.nav.ColorTheme
-import io.github.eightbrows.navhud.core.nav.DisplayMode
 import io.github.eightbrows.navhud.core.nav.LandmarkItem
 import io.github.eightbrows.navhud.core.nav.LanguageMode
 import io.github.eightbrows.navhud.core.nav.MapItem
@@ -295,9 +294,6 @@ fun SettingsScreen(
             }
 
             // ---- 画面 ----
-            SettingKey.DISPLAY_MODE -> Choice(
-                stringResource(R.string.display_mode), listOf("ARC" to DisplayMode.ARC, "North Up" to DisplayMode.NORTH_UP), s.displayMode, default = def.displayMode,
-            ) { v -> onChange { it.copy(displayMode = v) } }
             SettingKey.UI_COLOR -> Choice(stringResource(R.string.ui_color), colors, s.uiTheme, note = stringResource(R.string.ui_color_note), default = def.uiTheme) { v ->
                 onChange { it.copy(uiTheme = v) }
             }
