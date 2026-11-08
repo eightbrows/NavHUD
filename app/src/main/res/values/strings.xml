@@ -25,7 +25,7 @@
 
     <!-- メイン画面 -->
     <string name="side_here">Here</string>
-    <string name="wp_settings_button">Edit</string>
+    <string name="wp_settings_button">WP</string>
     <string name="hint_waiting_permission">Waiting for location permission</string>
     <string name="hint_gps_off">Device location (GPS) is off. Turn it on in Settings.</string>
     <string name="hint_acquiring_gps">Acquiring GPS…</string>

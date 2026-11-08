@@ -3,8 +3,21 @@ package io.github.eightbrows.navhud.core.view
 /** 横並びの WP ボタン列（§6.4）の並べ方。Android に依存しない。 */
 object WpStripLayout {
 
+    /** 列のボタン: 左端の「WP」（WP設定の画面を開く）と、WP の番号 */
+    sealed interface Item {
+        data object Settings : Item
+        data class Wp(val index: Int) : Item
+    }
+
     /**
-     * 左端（「WP設定」を除く）に来るボタンの番号。次の WP が左から2番目に来るようにする（1番目は1つ前の WP）。
+     * 列に並べるボタン（20261108-D02）: 列はいつも出す（オンオフはない）。左端はいつも「WP」、その右に WP1, WP2…。
+     * WP リストがない（0 件）ときは「WP」だけ
+     */
+    fun items(waypointCount: Int): List<Item> =
+        listOf<Item>(Item.Settings) + (0 until waypointCount.coerceAtLeast(0)).map { Item.Wp(it) }
+
+    /**
+     * 左端（「WP」を除く）に来るボタンの番号。次の WP が左から2番目に来るようにする（1番目は1つ前の WP）。
      * 次の WP がリストの最初なら 0（左詰め）。次の WP がなければ null（動かさない）。
      */
     fun firstIndex(next: Int?): Int? = next?.let { (it - 1).coerceAtLeast(0) }

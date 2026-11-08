@@ -348,16 +348,17 @@ object Tuning {
     const val SIDE_COLUMN_PADDING_V_DP = 6f
 
     /**
-     * 左の再生の操作列（REPLAY のときだけ。数値の下から WP ボタン列の上まで）: 幅は右の操作列と同じ（SIDE_COLUMN_WIDTH_DP）。
-     * 左端の「戻る」ジェスチャーの範囲（システムの値）からさらにこれだけ内側に置く、倍速の ＋ / − の高さ、
-     * 縦のスライダーの線の太さ・つまみの直径
+     * 左の列（軌跡の操作。20261108-D02 から。数値の欄の下。LIVE は ⇄ だけ、REPLAY は WP ボタン列の上まで）:
+     * 幅は右の操作列と同じ（SIDE_COLUMN_WIDTH_DP）。左端の「戻る」ジェスチャーの範囲（システムの値）からさらにこれだけ内側に置く、
+     * 倍速の ＋ / − の高さ、⇄・FILE の高さ、縦のスライダーの線の太さ・つまみの直径
      */
     const val REPLAY_COLUMN_EDGE_MARGIN_DP = 8f
     const val REPLAY_SPEED_BUTTON_HEIGHT_DP = 44f
+    const val TRACK_BUTTON_HEIGHT_DP = 40f
     const val REPLAY_SEEK_TRACK_DP = 8f
     const val REPLAY_SEEK_THUMB_DP = 26f
 
-    /** 横並びの WP ボタン列: 高さ、左端の「WP設定」の幅、ボタンの間隔 */
+    /** 横並びの WP ボタン列（20261108-D02 からいつも出す）: 高さ、左端の「WP」の幅、ボタンの間隔 */
     const val WP_STRIP_HEIGHT_DP = 40f
     const val WP_SETTINGS_WIDTH_DP = 64f
     const val WP_BUTTON_GAP_DP = 6f
@@ -365,14 +366,23 @@ object Tuning {
     /** WP ボタン列の上下の余白（ボタンの高さ = 列の高さ − 2 × これ） */
     const val WP_STRIP_PADDING_V_DP = 3f
 
-    /** 読み込んだ結果のひとこと（20261103-D01）: 出しておく時間 [ms] と、WP ボタン列の上の余白 [dp] */
+    /**
+     * 読み込んだ結果のひとこと（20261103-D01）: 出しておく時間 [ms]、WP ボタン列の上の余白 [dp]、左の列・画面の右端との間 [dp]、
+     * NO FIX のときの案内（20261108-D02 から同じ所）との間 [dp]
+     */
     const val NOTICE_MS = 4_000L
     const val NOTICE_MARGIN_BOTTOM_DP = 8f
+    const val NOTICE_MARGIN_H_DP = 8f
+    const val NOTICE_GAP_DP = 4f
 
     /** 上部バー（20261025-D09）: 左右の余白 [dp]、ボタンの間 [dp]、ボタンの内側の左右の余白の倍率（ほかの画面のボタンに対して） */
     const val TOP_BAR_PADDING_H_DP = 8f
     const val TOP_BAR_GAP_DP = 4f
     const val TOP_BAR_BUTTON_PAD_SCALE = 0.6f
+
+    /** 上部バーのボタンと、まん中の NO FIX の枠の高さ [dp]（20261108-D02。全部そろえる）。NO FIX の枠の太さ [dp] */
+    const val TOP_BAR_BUTTON_HEIGHT_DP = 30f
+    const val TOP_BAR_NO_FIX_BORDER_DP = 2f
 
     /** 数値の表示（上部バーの下、4行）: 上下の余白と、行の間隔 */
     const val NUMBERS_PADDING_V_DP = 4f
@@ -447,14 +457,6 @@ object Tuning {
     /** 縮尺のボタン（操作列の真ん中）: 距離の文字の大きさの上限 [sp]（ボタンの幅に収まるよう縮める）と、文字の左右の余白 [dp] */
     const val RANGE_BUTTON_MAX_SP = 22f
     const val RANGE_BUTTON_TEXT_PAD_DP = 4f
-
-    /**
-     * NO FIX の枠: 数値の欄の下端から下げる量・画面の左端から離す量 [dp]（左寄せで置く）と、枠の内側の余白（左右・上下）[dp]
-     */
-    const val NO_FIX_MARGIN_TOP_DP = 12f
-    const val NO_FIX_MARGIN_START_DP = 12f
-    const val NO_FIX_PADDING_H_DP = 18f
-    const val NO_FIX_PADDING_V_DP = 10f
 
     /** 数値の表示: 欄の間のすき間 [dp]、見出しと値の間 [dp] */
     const val NUMBERS_CELL_GAP_DP = 10f

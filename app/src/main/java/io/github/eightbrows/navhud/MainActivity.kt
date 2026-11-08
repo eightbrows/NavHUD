@@ -163,8 +163,6 @@ class MainActivity : ComponentActivity() {
                             onCycleSource = vm::cycleSourceMode,
                             onToggleDisplay = vm::toggleDisplayMode,
                             onOpenDebug = { screen = Screen.DEBUG },
-                            wpUi = wpUi,
-                            onToggleWpButtons = vm::toggleWaypointButtons,
                             onOpenWpSettings = {
                                 vm.clearWaypointMessage()
                                 screen = Screen.WAYPOINTS

@@ -97,16 +97,14 @@ data class WaypointUiState(
     val hasSavedList: Boolean = false,
     /** 起動時の選択（前回のリスト / リストを選ぶ / リストなし）をまだしていない */
     val startupPending: Boolean = true,
-    /** WP ボタン列を出す */
-    val showButtons: Boolean = true,
     val loading: Boolean = false,
 ) {
     /**
      * WP リストをクリアしたあと（20261102-D01）: リストを読み込んでいないとき（起動時に「リストなし」を選んだとき）と同じ。
-     * 前回のリストはない。WP ボタン列の表示 / 非表示はそのまま
+     * 前回のリストはない
      */
     fun cleared(message: UiText?): WaypointUiState =
-        WaypointUiState(hasSavedList = false, startupPending = false, showButtons = showButtons, message = message)
+        WaypointUiState(hasSavedList = false, startupPending = false, message = message)
 }
 
 /** ファイルの画面（20261104-D03）: 軌跡か WP リストか */
@@ -617,10 +615,6 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
         forgetWaypointFile()
         publish(engine.setWaypoints(emptyList()))
         _wp.value = _wp.value.cleared(uiText(R.string.msg_wp_cleared))
-    }
-
-    fun toggleWaypointButtons() {
-        _wp.value = _wp.value.copy(showButtons = !_wp.value.showButtons)
     }
 
 

@@ -23,7 +23,7 @@
 
     <!-- メイン画面 -->
     <string name="side_here">現在地</string>
-    <string name="wp_settings_button">WP設定</string>
+    <string name="wp_settings_button">WP</string>
     <string name="hint_waiting_permission">位置情報の許可を待っています</string>
     <string name="hint_gps_off">端末の位置情報（GPS）がオフです。設定でオンにしてください</string>
     <string name="hint_acquiring_gps">GPS を受信しています…</string>
