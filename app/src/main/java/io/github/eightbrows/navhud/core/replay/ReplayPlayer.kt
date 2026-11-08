@@ -9,7 +9,7 @@ import io.github.eightbrows.navhud.core.model.Fix
  */
 /**
  * シークの結果。last はシーク先の Fix、passed は前方へのシークで飛ばした Fix（時刻順）。
- * before は last の前の V/S の窓（60 秒）＋余裕の分の Fix（時刻順。last は含まない）。シークのすぐあとから V/S を出すために使う（20261104-D03）
+ * before は last の前の Tuning.VS_PRIME_MS（τ の 10 倍）の Fix（時刻順。last は含まない）。シークのすぐあとから V/S を出すために使う（20261104-D03・20261108-D01）
  */
 data class SeekResult(val last: Fix?, val passed: List<Fix>, val before: List<Fix> = emptyList())
 
@@ -66,7 +66,7 @@ class ReplayPlayer(private val track: List<Fix>) {
     val endMs: Long? get() = track.lastOrNull()?.timeMs
 
     companion object {
-        /** SeekResult.before の長さ [ms]: V/S の窓と、起点の前の Fix を探す余裕 */
-        const val BEFORE_SPAN_MS = Tuning.VS_WINDOW_SEC * 1000L + Tuning.RATE_BASE_MAX_LAG_MS
+        /** SeekResult.before の長さ [ms]: V/S を作っておく長さ（τ の 10 倍。20261108-D01） */
+        const val BEFORE_SPAN_MS = Tuning.VS_PRIME_MS
     }
 }

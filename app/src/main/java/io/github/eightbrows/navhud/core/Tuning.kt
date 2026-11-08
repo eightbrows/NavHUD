@@ -48,8 +48,21 @@ object Tuning {
     /** ファイルの画面の「最近のファイル」の数（20261104-D03。WP リストと軌跡で別々に、新しい順にこの数まで） */
     const val RECENT_FILES_MAX = 5
 
-    /** V/S: 高さの変化を測る時間 [秒]（20261104-D03。60 秒で固定。前の RATE の窓 10 / 30 / 60 秒の切り替えはなくした） */
-    const val VS_WINDOW_SEC = 60
+    /**
+     * V/S の時定数 τ [秒]（20261108-D01）。点ごとの傾き r を一次遅れ V ← V + (1 − e^(−間/τ))(r − V) でなまらせる（計器の針と同じ形）。
+     * 測り始めから τ 秒たつまでは出さない。20261105-R02-VS の比べのおすすめ（遅れ約 8 秒・ずれがいちばん小さい）
+     */
+    const val VS_TAU_SEC = 8.0
+
+    /**
+     * REPLAY のシーク・REPLAY への切り替えのあと、V/S を作っておくために入れる、シーク先の前の記録の長さ [ms]（20261108-D01）。
+     * τ の 10 倍（測り始めの値の影響が e^(−10) ≈ 0.005% まで小さくなる。5 倍（0.7%）では、続けて再生したときと 0.2 m/min ほど違い、
+     * 5 m/min の丸めの境目で表示が変わることがあった）
+     */
+    const val VS_PRIME_MS = (VS_TAU_SEC * 10 * 1000).toLong()
+
+    /** V/S の表示の丸め [m/min]（20261108-D01。5 m/min 単位。数字のちらつきを抑える） */
+    const val VS_DISPLAY_STEP_MPM = 5
 
     /** V/S の表示の上限 [m/min]（数値の欄の幅を「+999 m/min」で取るので、これを超える値はこの値で出す） */
     const val VS_DISPLAY_MAX_MPM = 999
@@ -60,13 +73,13 @@ object Tuning {
      */
     const val ETA_WINDOW_SEC = 10
 
-    /** V/S・ETA: base が窓の起点よりこれを超えて古ければ欠損とみなす [ms] */
+    /** ETA: base が窓の起点よりこれを超えて古ければ欠損とみなす [ms] */
     const val RATE_BASE_MAX_LAG_MS = 2_000L
 
     /** ETA: この間隔を超える区間は欠損として直線距離で数える [ms] */
     const val RATE_GAP_SEGMENT_MS = 2_000L
 
-    /** V/S・ETA: 履歴を窓より余分に持つ時間 [ms] */
+    /** ETA: 履歴を窓より余分に持つ時間 [ms] */
     const val RATE_KEEP_MARGIN_MS = 3_000L
 
     /** ETA: 窓に足りない履歴で ETA を出すときの最低の長さ [秒] */

@@ -67,13 +67,13 @@ class HudFormatTest {
         assertEquals("52 km/h", HudFormat.speedKmh(14.48f))
         assertEquals("1285 m", HudFormat.altitude(1284.7))
         assertEquals("33.47407, 133.00035", HudFormat.latLon(33.47406592, 133.00034867))
-        // V/S（20261104-D03）: 整数に丸め、上りは +、下りは -、0 は符号なし。±999 まで。値がなければ "---"
-        assertEquals("+42 m/min", HudFormat.verticalSpeed(42.4))
+        // V/S（20261104-D03・20261108-D01）: 5 m/min 単位に丸め、上りは +、下りは -、0 は符号なし。±999 まで。値がなければ "---"（細かい丸めは VerticalSpeedTest）
+        assertEquals("+40 m/min", HudFormat.verticalSpeed(42.4))
         assertEquals("-15 m/min", HudFormat.verticalSpeed(-14.6))
         assertEquals("0 m/min", HudFormat.verticalSpeed(0.0))
         assertEquals("0 m/min", HudFormat.verticalSpeed(0.4))
         assertEquals("0 m/min", HudFormat.verticalSpeed(-0.4))
-        assertEquals("+1 m/min", HudFormat.verticalSpeed(0.5))
+        assertEquals("+5 m/min", HudFormat.verticalSpeed(2.5))
         assertEquals("+999 m/min", HudFormat.verticalSpeed(1_500.0))
         assertEquals("-999 m/min", HudFormat.verticalSpeed(-2_000.0))
         assertEquals("---", HudFormat.verticalSpeed(null))

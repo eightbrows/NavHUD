@@ -27,8 +27,8 @@ data class NavState(
      */
     val aglM: Double? = null,
     /**
-     * V/S（昇降率）[m/min]（20261104-D03 で RATE を置き換えた）: 直前 60 秒の高さ（ALT と同じ）の変化を 1 分あたりで。上りが正。
-     * NO FIX・60 秒分そろっていない・途中で途切れた・高さがないときは null（表示 "---"）
+     * V/S（昇降率）[m/min]（20261104-D03 で RATE を置き換えた）: 高さ（ALT と同じ）の点ごとの傾きを時定数 τ = 8 秒でなまらせた値（20261108-D01）。上りが正。
+     * NO FIX・測り始め（測り直し）から τ 秒たっていないときは null（表示 "---"）
      */
     val verticalSpeedMpm: Double? = null,
     val waypoints: List<Waypoint> = emptyList(),

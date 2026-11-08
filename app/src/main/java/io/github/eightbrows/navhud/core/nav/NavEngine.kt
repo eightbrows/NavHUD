@@ -35,8 +35,11 @@ class NavEngine(
     /** ETA の平均速度（Tuning.ETA_WINDOW_SEC 秒。20261104-D03 から RATE の表示はなく、ETA だけに使う） */
     private val rateTracker = RateTracker(maxWindowSec = Tuning.ETA_WINDOW_SEC)
 
-    /** V/S（20261104-D03。直前 60 秒の高さの変化） */
+    /** V/S（20261104-D03。20261108-D01 から、点ごとの傾きを時定数 τ でなまらせる） */
     private val vsTracker = VerticalSpeedTracker()
+
+    /** V/S に点を入れる。高さは ALT と同じ。点の間が「測位が途切れたとみなす時間」を超えたら測り直す */
+    private fun addVerticalSpeed(fix: Fix) = vsTracker.add(fix, settings.noFixTimeoutSec * 1000L, ::seaLevelM)
     private val passDetector = PassDetector()
     private val sidePassDetector = SidePassDetector()
 
@@ -132,7 +135,7 @@ class NavEngine(
         lastFix = fix
         headingSelector.update(fix)
         rateTracker.add(fix)
-        vsTracker.add(fix)
+        addVerticalSpeed(fix)
         val nextBefore = WaypointNav.nextIndex(waypoints)
         reachedNow = null
         checkRadius(fix)
@@ -164,6 +167,8 @@ class NavEngine(
     fun updateSettings(s: NavSettings): NavState {
         // 表示モードが変わったら PAN をやめる（画面の上の向きの決め方が変わるため）
         if (s.displayMode != settings.displayMode) pan = null
+        // 標高オフセットが変わると高さが跳ぶ（楕円体高 − オフセットのとき）ので、V/S は測り直す（20261108-D01）
+        if (s.altOffsetM != settings.altOffsetM) vsTracker.clear()
         settings = s
         applySettings(s)
         return recompute()
@@ -411,19 +416,20 @@ class NavEngine(
     }
 
     /**
+     * V/S に、シーク先の前の Fix（ReplayPlayer の SeekResult.before。τ の 10 倍の長さ）を入れて、V を作っておく（20261104-D03。20261108-D01 から一次遅れ）。
+     * seekReset・REPLAY への切り替えのあと、シーク先の Fix を入れる前に呼ぶ。V/S だけで、到達の判定・方位などには使わない
+     * （シークのすぐあとから、続けて再生したときとほぼ同じ値が出る）
+     */
+    fun primeVerticalSpeed(before: List<Fix>) {
+        before.forEach(::addVerticalSpeed)
+    }
+
+    /**
      * リプレイのシーク: RATE の履歴・通過判定の記録・GPS 方位の保持・PAN をリセットする。このあと呼び出し側がシーク先の Fix を入れる。
      * - 前方へのシーク: 飛ばした区間の Fix（passed）を先に通常どおりの到達判定（WP ごとの半径・到達半径・真横通過・通過判定）にかけ、
      *   トラックが通った WP を到達にする。
      * - 後方へのシーク: WP の到達状態は残す。トラックの先頭まで戻したとき（toStart）だけ、すべて未到達に戻す。
      */
-    /**
-     * V/S の履歴に、シーク先の前の Fix（ReplayPlayer の SeekResult.before）を入れる（20261104-D03）。seekReset・REPLAY への切り替えのあと、
-     * シーク先の Fix を入れる前に呼ぶ。V/S の履歴だけで、到達の判定・方位などには使わない（記録の時刻で 60 秒前からの変化が、シークのすぐあとから出る）
-     */
-    fun primeVerticalSpeed(before: List<Fix>) {
-        before.forEach(vsTracker::add)
-    }
-
     fun seekReset(toStart: Boolean, passed: List<Fix> = emptyList()): NavState {
         seeking = true
         passed.forEach(::ingest)
@@ -553,8 +559,8 @@ class NavEngine(
         val noFix = now == null || isNoFix(now, lastFixMs, settings.noFixTimeoutSec * 1000L)
         // NO FIX 中の古い Fix の方位は「今使える GPS 方位」として扱わない
         val heading = headingSelector.select(settings.sourceMode, noFix, compassDeg, compassQuality.lowAccuracy)
-        // V/S: NO FIX のときは出さない。途中で途切れた（Fix の間が「測位が途切れたとみなす時間」を超えた）ときも出さない
-        val vs = if (noFix) null else vsTracker.metersPerMinute(settings.noFixTimeoutSec * 1000L, ::seaLevelM)
+        // V/S: NO FIX のときは出さない。測り始め・測り直しから τ 秒は出さない
+        val vs = if (noFix) null else vsTracker.metersPerMinute()
 
         val next = WaypointNav.nextIndex(waypoints)
         val wp = next?.let { waypoints[it] }

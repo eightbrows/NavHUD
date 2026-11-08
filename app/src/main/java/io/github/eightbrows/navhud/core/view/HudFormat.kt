@@ -119,13 +119,16 @@ object HudFormat {
     }
 
     /**
-     * V/S [m/min]（20261104-D03）: "+42 m/min"・"-15 m/min"・"0 m/min"。整数に丸め、上りは +、下りは - を付ける（0 は付けない）。
+     * V/S [m/min]（20261104-D03）: "+45 m/min"・"-15 m/min"・"0 m/min"。5 m/min 単位に丸め（20261108-D01。Tuning.VS_DISPLAY_STEP_MPM。
+     * 真ん中は 0 から遠い方。上りと下りで同じ丸め方）、上りは +、下りは - を付ける（0 は付けない）。
      * ±999 を超える値は ±999（数値の欄の幅）。値がなければ "---"
      */
     fun verticalSpeed(mpm: Double?): String {
         if (mpm == null || mpm.isNaN()) return NONE
-        val max = Tuning.VS_DISPLAY_MAX_MPM
-        val v = mpm.roundToLong().coerceIn(-max.toLong(), max.toLong())
+        val max = Tuning.VS_DISPLAY_MAX_MPM.toLong()
+        val step = Tuning.VS_DISPLAY_STEP_MPM
+        val rounded = (abs(mpm) / step).roundToLong() * step
+        val v = (if (mpm < 0) -rounded else rounded).coerceIn(-max, max)
         return when {
             v > 0 -> "+$v m/min"
             v < 0 -> "$v m/min"

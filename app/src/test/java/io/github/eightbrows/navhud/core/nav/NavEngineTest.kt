@@ -155,13 +155,12 @@ class NavEngineTest {
     fun etaFromShortHistory() {
         val e = engine()
         e.setWaypoints(listOf(Waypoint("N", TestGeo.lat(2000.0, 33.0), 133.0)))
-        // 走り始めて 9 秒: ETA の平均速度（10 秒）はまだなく、ETA も出さない。V/S（60 秒）もまだ
+        // 走り始めて 9 秒: ETA の平均速度（10 秒）はまだなく、ETA も出さない（V/S は 20261108-D01 から 8 秒で出る。高さが一定なので 0）
         for (s in 0..9) e.onFix(fix(t0 + s * 1000L, lat = TestGeo.lat(10.0 * s, 33.0)), t0 + s * 1000L)
-        assertNull(e.state.verticalSpeedMpm)
+        assertEquals(0.0, e.state.verticalSpeedMpm!!, 1e-9)
         assertNull(e.state.etaMs)
         // 10 秒分たまれば、その平均速度（10 m/s）で ETA。残り 1900m → 190 秒後
         val s = e.onFix(fix(t0 + 10_000, lat = TestGeo.lat(100.0, 33.0)), t0 + 10_000)
-        assertNull(s.verticalSpeedMpm)
         assertEquals((t0 + 10_000 + 190_000).toDouble(), s.etaMs!!.toDouble(), 100.0)
     }
 
