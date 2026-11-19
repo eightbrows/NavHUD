@@ -136,11 +136,48 @@ class ReachJudgeTest {
 
     @Test
     fun sidePassSpeedLimitIsInclusive() {
-        // 速度がちょうど HLD を解く速度（3.0 m/s）なら使う。それ未満は使わない（位置は 15 m/s で進めたまま、速度の値だけ変える）
+        // 速度がちょうど判定を始める速さ（11 km/h）なら使う。それ未満は使わない（位置は 15 m/s で進めたまま、速度の値だけ変える）
         val s = NavSettings()
         val w = wp(500.0, 80.0)
         fun drive(v: Float) = driveNorth().map { it.copy(speedMps = v) }
-        assertEquals(37L, sidePassAt(w, drive(s.holdExitSpeedMps)))
-        assertNull(sidePassAt(w, drive(s.holdExitSpeedMps - 0.1f)))
+        val min = NavSettings.kmhToMps(s.sidePassMinKmh)
+        assertEquals(11 / 3.6f, min, 1e-6f)
+        assertEquals(37L, sidePassAt(w, drive(min)))
+        assertNull(sidePassAt(w, drive(min - 0.1f)))
+    }
+
+    /** 20261119-D01: 真横通過の速さは、方位を止める / 戻す速度と別の値（sidePassMinKmh）。方位の値を変えても判定は変わらない */
+    @Test
+    fun sidePassSpeedIsSeparateFromHeadingHold() {
+        val w = wp(500.0, 80.0)
+        fun drive(v: Float) = driveNorth().map { it.copy(speedMps = v) }
+        fun hold(enter: Int, exit: Int) =
+            NavSettings(holdEnterSpeedMps = NavSettings.kmhToMps(enter), holdExitSpeedMps = NavSettings.kmhToMps(exit))
+        val atMin = drive(NavSettings.kmhToMps(11))
+        val below = drive(NavSettings.kmhToMps(11) - 0.1f)
+        // 戻す速度が 6・11・30 km/h のどれでも、11 km/h ちょうどなら判定し、それ未満はしない
+        for ((enter, exit) in listOf(4 to 6, 7 to 11, 20 to 30)) {
+            assertEquals("$enter / $exit", 37L, sidePassAt(w, atMin, hold(enter, exit)))
+            assertNull("$enter / $exit", sidePassAt(w, below, hold(enter, exit)))
+        }
+        // 判定を始める速さを変えれば、それに従う（20 km/h なら 15 km/h では判定しない）
+        val s20 = NavSettings(sidePassMinKmh = 20)
+        assertNull(sidePassAt(w, drive(NavSettings.kmhToMps(15)), s20))
+        assertEquals(37L, sidePassAt(w, drive(NavSettings.kmhToMps(20)), s20))
+    }
+
+    /** AUTO の「通り過ぎたか」（updatePassed）も同じ速さを使う */
+    @Test
+    fun passedForAutoUsesTheSameSpeed() {
+        val w = wp(500.0, 80.0)
+        fun passedAt(fixes: List<Fix>, s: NavSettings): Long? {
+            val d = SidePassDetector()
+            return fixes.firstOrNull { d.updatePassed(it, w, "W", s) }?.let { it.timeMs / 1_000 }
+        }
+        fun drive(v: Float) = driveNorth().map { it.copy(speedMps = v) }
+        val s = NavSettings(holdEnterSpeedMps = NavSettings.kmhToMps(20), holdExitSpeedMps = NavSettings.kmhToMps(30))
+        assertEquals(37L, passedAt(drive(NavSettings.kmhToMps(11)), s))
+        assertNull(passedAt(drive(NavSettings.kmhToMps(11) - 0.1f), s))
+        assertNull(passedAt(drive(NavSettings.kmhToMps(11)), s.copy(sidePassMinKmh = 12)))
     }
 }

@@ -40,9 +40,11 @@ class NavEngineTest {
     fun defaultSettings() {
         val s = NavSettings()
         assertEquals(SourceMode.GPS, s.sourceMode)
-        // 保持に入る / 解く速度は 7 / 11 km/h（D04 から。前は 2.0 / 3.0 m/s）
-        assertEquals(7 / 3.6f, s.holdEnterSpeedMps, 1e-6f)
-        assertEquals(11 / 3.6f, s.holdExitSpeedMps, 1e-6f)
+        // 保持に入る / 解く速度は 4 / 6 km/h（20261119-D01 から。D04〜は 7 / 11 km/h、前は 2.0 / 3.0 m/s）
+        assertEquals(4 / 3.6f, s.holdEnterSpeedMps, 1e-6f)
+        assertEquals(6 / 3.6f, s.holdExitSpeedMps, 1e-6f)
+        // 真横通過の判定を始める速さは 11 km/h（20261119-D01。前は保持を解く速度を使っていた）
+        assertEquals(11, s.sidePassMinKmh)
         assertEquals(15f, s.maxGpsAccM)
         assertEquals(20f, s.maxGpsBearingAccDeg)
         assertEquals(10, s.noFixTimeoutSec)

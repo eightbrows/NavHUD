@@ -144,6 +144,11 @@ object Tuning {
     const val CAR_SIDE_PASS = true
     const val CAR_SIDE_PASS_MAX_M = 150.0
     const val CAR_SIDE_PASS_DEPART_M = 10.0
+    /**
+     * 真横通過: 判定を始める速さ [km/h]（20261119-D01。これ以上の速さで、GPS 方位があるときだけ判定する）。
+     * 前は「方位を戻す速度」（既定 11 km/h）を使っていた。方位の値を変えても到達の判定が変わらないよう、到達判定の値に切り離した
+     */
+    const val CAR_SIDE_PASS_MIN_SPEED_KMH = 11
     /** 通過判定（予備。方位が取れない場面用）: ON / OFF、最接近距離の上限 [m]、離れたとみなす距離 [m]、離れた状態が続く時間 [秒] */
     const val CAR_PASS_DETECTION = true
     const val CAR_PASS_MAX_APPROACH_M = 300.0
@@ -168,9 +173,15 @@ object Tuning {
     const val HUD_ARC_ORIGIN_HIGH_DP = 84f
     const val HUD_ARC_ORIGIN_HIGHER_DP = 144f
 
-    /** GPS 方位の保持に入る / 解く速度の既定 [km/h]（設定画面では km/h の整数で選ぶ。D03 までは 2.0 / 3.0 m/s = 7.2 / 10.8 km/h） */
-    const val HOLD_ENTER_SPEED_DEFAULT_KMH = 7
-    const val HOLD_EXIT_SPEED_DEFAULT_KMH = 11
+    /**
+     * GPS 方位の保持に入る / 解く速度の既定 [km/h]（設定画面では km/h の整数で選ぶ）。20261119-D01 から 4 / 6 km/h
+     * （止める / 戻す速度の調べ 20261108-R03-HOLD-SPEED。前は 7 / 11 km/h、D03 までは 2.0 / 3.0 m/s = 7.2 / 10.8 km/h）
+     */
+    const val HOLD_ENTER_SPEED_DEFAULT_KMH = 4
+    const val HOLD_EXIT_SPEED_DEFAULT_KMH = 6
+
+    /** 保持を解く速度は、保持に入る速度よりこれ以上大きい [km/h]（20261119-D01。差が 1 km/h だと保持と GPS の行き来が増えたため。前は 1） */
+    const val HOLD_SPEED_MIN_GAP_KMH = 2
     /** North Up: 縮尺の距離環と画面の端・回避枠の上下の間の余白（方位サークルはその1つ外側の距離環で、画面からはみ出してよい） */
     const val HUD_NORTH_UP_EDGE_MARGIN_DP = 8f
     /** 方位マーカー（三角）の大きさ */

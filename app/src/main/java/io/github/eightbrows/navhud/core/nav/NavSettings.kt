@@ -51,6 +51,8 @@ data class ReachProfile(
     val passMaxApproachM: Double,
     val passDepartM: Double,
     val passHoldSec: Int,
+    /** 真横通過: 判定を始める速さ [km/h]（20261119-D01。前は方位を戻す速度を使っていた） */
+    val sidePassMinKmh: Int = Tuning.CAR_SIDE_PASS_MIN_SPEED_KMH,
 ) {
     companion object {
         /** 自動車の推奨値 */
@@ -63,6 +65,7 @@ data class ReachProfile(
             passMaxApproachM = Tuning.CAR_PASS_MAX_APPROACH_M,
             passDepartM = Tuning.CAR_PASS_DEPART_M,
             passHoldSec = Tuning.CAR_PASS_HOLD_SEC,
+            sidePassMinKmh = Tuning.CAR_SIDE_PASS_MIN_SPEED_KMH,
         )
     }
 }
@@ -71,9 +74,12 @@ data class ReachProfile(
 data class NavSettings(
     /** 方位ソース（§5.2）。既定は GPS（車内ではコンパスが不安定なため。HYBRID と COMPASS は歩行用） */
     val sourceMode: SourceMode = SourceMode.GPS,
-    /** GPS 方位の保持に入る速度 [m/s]（これ未満で保持）。設定画面では km/h の整数（1〜36、既定 7 km/h）で選ぶ */
+    /** GPS 方位の保持に入る速度 [m/s]（これ未満で保持）。設定画面では km/h の整数（1〜34、既定 4 km/h。20261119-D01 まで 7 km/h）で選ぶ */
     val holdEnterSpeedMps: Float = kmhToMps(Tuning.HOLD_ENTER_SPEED_DEFAULT_KMH),
-    /** GPS 方位の保持を解く速度 [m/s]（これを超えたら GPS 方位に戻る）。km/h の整数（既定 11 km/h。保持に入る速度より大きい） */
+    /**
+     * GPS 方位の保持を解く速度 [m/s]（これを超えたら GPS 方位に戻る）。km/h の整数（既定 6 km/h。20261119-D01 まで 11 km/h）。
+     * 保持に入る速度より Tuning.HOLD_SPEED_MIN_GAP_KMH（2 km/h）以上大きい。真横通過の判定には使わない（sidePassMinKmh）
+     */
     val holdExitSpeedMps: Float = kmhToMps(Tuning.HOLD_EXIT_SPEED_DEFAULT_KMH),
     /** GPS 方位を使う最大の水平精度 [m]（§5.2）。3 / 5 / 10 / 15 / 20 / 30 / 50 / 100 から選ぶ */
     val maxGpsAccM: Float = 15f,
@@ -94,6 +100,8 @@ data class NavSettings(
     val sidePassMaxM: Double = Tuning.CAR_SIDE_PASS_MAX_M,
     /** 真横通過: いちばん近づいた距離からこれだけ離れたら到達 [m] */
     val sidePassDepartM: Double = Tuning.CAR_SIDE_PASS_DEPART_M,
+    /** 真横通過: 判定を始める速さ [km/h]（20261119-D01。前は方位を戻す速度。AUTO の「通り過ぎたか」も同じ値） */
+    val sidePassMinKmh: Int = Tuning.CAR_SIDE_PASS_MIN_SPEED_KMH,
     /** 通過判定（§5.4 の予備。方位が取れない場面用）。最接近後に離れていったら到達とみなす */
     val passDetection: Boolean = Tuning.CAR_PASS_DETECTION,
     /** 通過判定: 最接近距離の上限 [m] */
@@ -236,10 +244,26 @@ data class NavSettings(
 
         // 設定画面のステッパーで変えられる範囲。読み込み（SettingsCodec）でも、範囲外の値はその項目だけ初期値にする（§6.9）
         /**
-         * 保持に入る / 解く速度 [km/h]: 1〜36 の整数、1 km/h 刻み。解く速度は入る速度より 1 km/h 以上大きい
-         * （入る速度は 1〜35、解く速度は 入る速度 + 1〜36）。保存は m/s のままで、読むときに一番近い km/h の整数に合わせる
+         * 保持に入る / 解く速度 [km/h]: 1〜36 の整数、1 km/h 刻み。解く速度は入る速度より Tuning.HOLD_SPEED_MIN_GAP_KMH（2 km/h）以上大きい
+         * （入る速度は 1〜34、解く速度は 入る速度 + 2〜36。20261119-D01 まで差は 1 km/h 以上）。保存は m/s のままで、読むときに一番近い km/h の整数に合わせる
          */
         val HOLD_SPEED_KMH_RANGE = 1..36
+
+        /** 保持に入る速度と解く速度の差の最小 [km/h] */
+        const val HOLD_SPEED_MIN_GAP_KMH = Tuning.HOLD_SPEED_MIN_GAP_KMH
+
+        /**
+         * 保持に入る / 解く速度 [km/h] を、範囲と差の決まりに合わせる（設定画面・読み込み共通）。入る速度は 1〜34 に収め、
+         * 解く速度は 入る速度 + 2〜36 に収める（差が足りなければ解く速度を上げる）
+         */
+        fun holdSpeedsKmh(enterKmh: Int, exitKmh: Int): Pair<Int, Int> {
+            val r = HOLD_SPEED_KMH_RANGE
+            val enter = enterKmh.coerceIn(r.first, r.last - HOLD_SPEED_MIN_GAP_KMH)
+            return enter to exitKmh.coerceIn(enter + HOLD_SPEED_MIN_GAP_KMH, r.last)
+        }
+
+        /** 真横通過: 判定を始める速さ [km/h] の範囲（1 km/h 刻み） */
+        val SIDE_PASS_MIN_SPEED_KMH_RANGE = 1..36
 
         /** km/h の整数 → m/s */
         fun kmhToMps(kmh: Int): Float = kmh / 3.6f
@@ -312,7 +336,7 @@ fun NavSettings.resetKeepingCustomReach(): NavSettings = NavSettings(customReach
 
 /** 今の到達判定の値（選んでいる移動手段の値）。 */
 val NavSettings.reachProfile: ReachProfile
-    get() = ReachProfile(reachRadiusM, sidePass, sidePassMaxM, sidePassDepartM, passDetection, passMaxApproachM, passDepartM, passHoldSec)
+    get() = ReachProfile(reachRadiusM, sidePass, sidePassMaxM, sidePassDepartM, passDetection, passMaxApproachM, passDepartM, passHoldSec, sidePassMinKmh)
 
 /** 到達判定の値を p にする（移動手段・カスタムの枠は変えない）。 */
 fun NavSettings.withReachValues(p: ReachProfile): NavSettings = copy(
@@ -324,6 +348,7 @@ fun NavSettings.withReachValues(p: ReachProfile): NavSettings = copy(
     passMaxApproachM = p.passMaxApproachM,
     passDepartM = p.passDepartM,
     passHoldSec = p.passHoldSec,
+    sidePassMinKmh = p.sidePassMinKmh,
 )
 
 /** カスタムの枠の番号（0〜2）。自動車なら null。 */

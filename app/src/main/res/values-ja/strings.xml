@@ -162,6 +162,8 @@
     <string name="side_pass_max">真横通過: WP までの距離</string>
     <string name="within_meters">%1$s 以内</string>
     <string name="side_pass_depart">真横通過: 離れたとみなす距離</string>
+    <string name="side_pass_min_speed">真横通過: 判定を始める速さ</string>
+    <string name="side_pass_min_speed_note">これ以上の速さで走っているときだけ判定する（方位を止める・戻す速度とは別）</string>
     <string name="pass_detection">通過判定（予備）</string>
     <string name="pass_detection_note">近づいてから離れたら到達</string>
     <string name="pass_max">通過判定: 最接近距離の上限</string>

@@ -11,9 +11,9 @@ class SettingsCodecTest {
     @Test
     fun roundTripOfEveryValue() {
         // 既定値とすべて違う値にする
-        val p1 = ReachProfile(50.0, false, 100.0, 15.0, false, 250.0, 40.0, 4)
-        val p2 = ReachProfile(200.0, false, 200.0, 20.0, false, 450.0, 80.0, 8)
-        val p3 = ReachProfile(100.0, false, 300.0, 30.0, false, 500.0, 60.0, 10)
+        val p1 = ReachProfile(50.0, false, 100.0, 15.0, false, 250.0, 40.0, 4, sidePassMinKmh = 8)
+        val p2 = ReachProfile(200.0, false, 200.0, 20.0, false, 450.0, 80.0, 8, sidePassMinKmh = 15)
+        val p3 = ReachProfile(100.0, false, 300.0, 30.0, false, 500.0, 60.0, 10, sidePassMinKmh = 20)
         val s = NavSettings(
             sourceMode = SourceMode.HYBRID,
             holdEnterSpeedMps = NavSettings.kmhToMps(5),
@@ -385,36 +385,47 @@ class SettingsCodecTest {
 
     @Test
     fun holdSpeedsAreWholeKmhAndInOrder() {
-        // 保持に入る / 解く速度（D04 から）: 1〜36 km/h の整数、1 km/h 刻み。初期値は 7 km/h と 11 km/h。保存は m/s のまま
+        // 保持に入る / 解く速度（D04 から）: 1〜36 km/h の整数、1 km/h 刻み。初期値は 4 km/h と 6 km/h（20261119-D01。前は 7 / 11 km/h）。
+        // 保存は m/s のまま
         fun kmh(s: NavSettings) = NavSettings.holdSpeedKmh(s.holdEnterSpeedMps) to NavSettings.holdSpeedKmh(s.holdExitSpeedMps)
         fun decode(enter: String?, exit: String?) =
             SettingsCodec.decode(listOfNotNull(enter?.let { "holdEnterSpeedMps" to it }, exit?.let { "holdExitSpeedMps" to it }, "travelMode" to "CAR").toMap())
         val d = NavSettings()
-        assertEquals(7 to 11, kmh(d))
-        assertEquals(7 / 3.6f, d.holdEnterSpeedMps, 1e-6f)
-        assertEquals(11 / 3.6f, d.holdExitSpeedMps, 1e-6f)
+        assertEquals(4 to 6, kmh(d))
+        assertEquals(4 / 3.6f, d.holdEnterSpeedMps, 1e-6f)
+        assertEquals(6 / 3.6f, d.holdExitSpeedMps, 1e-6f)
         assertEquals(1..36, NavSettings.HOLD_SPEED_KMH_RANGE)
         // 前の版の保存値（m/s、0.1 刻み）は、一番近い km/h の整数に合わせる: 前の初期値 2.0 / 3.0 m/s（7.2 / 10.8 km/h）→ 7 / 11 km/h
         assertEquals(7 to 11, kmh(decode("2.0", "3.0")))
-        assertEquals(d, decode("2.0", "3.0"))
+        // 20261119-D01: 前の初期値（7 / 11 km/h）を保存してある端末は、そのまま 7 / 11 km/h（新しい初期値にはしない）
+        assertEquals(7 to 11, kmh(decode((7 / 3.6f).toString(), (11 / 3.6f).toString())))
+        assertEquals(d.copy(holdEnterSpeedMps = NavSettings.kmhToMps(7), holdExitSpeedMps = NavSettings.kmhToMps(11)), decode("2.0", "3.0"))
         // 1.5 m/s = 5.4 → 5、4.2 m/s = 15.12 → 15、2.5 m/s = 9.0 → 9、4.0 m/s = 14.4 → 14、6.0 m/s = 21.6 → 22
         assertEquals(5 to 15, kmh(decode("1.5", "4.2")))
         assertEquals(14 to 22, kmh(decode("4.0", "6.0")))
         // 読んだ値は、ちょうど km/h の整数（m/s にしたもの）
         assertEquals(5 / 3.6f, decode("1.5", "4.2").holdEnterSpeedMps, 1e-6f)
         assertEquals(15 / 3.6f, decode("1.5", "4.2").holdExitSpeedMps, 1e-6f)
-        // 範囲の外は端に寄せる（前の版の下限 0.5 m/s = 1.8 km/h → 2、上限 10 / 15 m/s = 36 / 54 km/h → 35 / 36）
-        assertEquals(2 to 11, kmh(decode("0.5", null)))
-        assertEquals(1 to 11, kmh(decode("0.1", null)))
-        assertEquals(35 to 36, kmh(decode("10.0", "15.0")))
-        // 解く速度は入る速度より 1 km/h 以上大きい: 同じ・小さいなら 入る速度 + 1
-        assertEquals(9 to 10, kmh(decode("2.5", "2.5")))
-        assertEquals(29 to 30, kmh(decode("8.0", "3.0")))
+        // 範囲の外は端に寄せる（前の版の下限 0.5 m/s = 1.8 km/h → 2、上限 10 / 15 m/s = 36 / 54 km/h → 34 / 36）。
+        // 解く速度の保存がなければ初期値（6 km/h）
+        assertEquals(2 to 6, kmh(decode("0.5", null)))
+        assertEquals(1 to 6, kmh(decode("0.1", null)))
+        assertEquals(34 to 36, kmh(decode("10.0", "15.0")))
+        // 解く速度は入る速度より 2 km/h 以上大きい（20261119-D01 から。前は 1 km/h）: 足りなければ 入る速度 + 2
+        assertEquals(2, NavSettings.HOLD_SPEED_MIN_GAP_KMH)
+        assertEquals(9 to 11, kmh(decode("2.5", "2.5")))
+        assertEquals(29 to 31, kmh(decode("8.0", "3.0")))
+        // 前の版で差を 1 km/h にして保存していた値（6 / 7 km/h）は、解く速度を 1 上げて 6 / 8 km/h で読む
+        assertEquals(6 to 8, kmh(decode((6 / 3.6f).toString(), (7 / 3.6f).toString())))
+        assertEquals(6 to 8, NavSettings.holdSpeedsKmh(6, 7))
+        assertEquals(6 to 8, NavSettings.holdSpeedsKmh(6, 8))
+        assertEquals(34 to 36, NavSettings.holdSpeedsKmh(35, 36))
+        assertEquals(1 to 3, NavSettings.holdSpeedsKmh(0, 0))
         // 数でない値・保存がないときは初期値
-        assertEquals(7 to 11, kmh(decode("abc", "")))
-        assertEquals(7 to 11, kmh(decode(null, null)))
-        // 保存して読み直しても同じ（1〜36 km/h のどの組でも）
-        for (enter in 1..35) for (exit in listOf(enter + 1, 36)) {
+        assertEquals(4 to 6, kmh(decode("abc", "")))
+        assertEquals(4 to 6, kmh(decode(null, null)))
+        // 保存して読み直しても同じ（差が 2 km/h 以上のどの組でも）
+        for (enter in 1..34) for (exit in listOf(enter + 2, 36)) {
             val s = NavSettings(holdEnterSpeedMps = NavSettings.kmhToMps(enter), holdExitSpeedMps = NavSettings.kmhToMps(exit))
             val back = SettingsCodec.decode(SettingsCodec.encode(s))
             assertEquals(enter to exit, kmh(back))

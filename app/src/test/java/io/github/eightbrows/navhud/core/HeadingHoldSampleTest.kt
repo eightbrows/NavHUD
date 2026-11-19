@@ -33,9 +33,12 @@ class HeadingHoldSampleTest {
     private val fixes: List<Fix>
         get() = SampleTrack.fixes()
 
-    /** 既定の設定（方位ソース GPS）でトラック全体を流したときの、Fix ごとの方位。 */
+    /** 既定の設定（方位ソース GPS。20261119-D01 から止める / 戻す速度は 4 / 6 km/h） */
+    private val settings = NavSettings()
+
+    /** 既定の設定でトラック全体を流したときの、Fix ごとの方位。 */
     private val headings: List<Heading> by lazy {
-        val e = NavEngine(NavSettings(), ZoneId.of("Asia/Tokyo"), SourceKind.REPLAY)
+        val e = NavEngine(settings, ZoneId.of("Asia/Tokyo"), SourceKind.REPLAY)
         fixes.map { e.onFix(it, it.timeMs).heading }
     }
 
@@ -66,6 +69,21 @@ class HeadingHoldSampleTest {
 
     private fun time(i: Int) = Instant.ofEpochMilli(fixes[i].timeMs).toString()
 
+    /**
+     * 既定の設定での Fix ごとの HDG を app/build/heading-check.txt に書き出す（20261119-D01。調べの計算と比べるため。build は git 管理外）。
+     * 書き出すだけで、確かめは上と下のテスト
+     */
+    @Test
+    fun headingsAreWrittenForChecking() {
+        val dir = java.io.File("build").takeIf { it.isDirectory } ?: return
+        val text = fixes.indices.joinToString("\n") { i ->
+            val h = headings[i]
+            "${fixes[i].timeMs} ${h.deg ?: "-"} ${h.src} ${h.held}"
+        }
+        java.io.File(dir, "heading-check.txt").writeText(text + "\n")
+        assertTrue(headings.size == fixes.size)
+    }
+
     @Test
     fun trackHasStops() {
         assertTrue("停止区間が少なすぎる: ${stops().size}", stops().size >= 10)
@@ -88,36 +106,51 @@ class HeadingHoldSampleTest {
     fun heldHeadingIsCloseToHeadingBeforeTheStop() {
         val results = mutableListOf<String>()
         var checked = 0
+        var worst = 0.0
         for (stop in stops()) {
             val held = headings[stop.first].deg ?: continue
             val t0 = fixes[stop.first].timeMs
-            // 停止前 5 秒で、保持解除速度（3 m/s）以上で走っていた間の方位
+            // 停止前 5 秒で、保持解除速度（既定の設定の値。20261119-D01 から 6 km/h、前は 11 km/h ≒ 3 m/s）以上で走っていた間の方位
             val before = (0 until stop.first)
                 .filter { t0 - fixes[it].timeMs in 1..BEFORE_STOP_MS }
                 .map { fixes[it] }
-                .filter { (it.speedMps ?: 0f) >= 3.0f && it.bearingDeg != null && (it.bearingAccDeg ?: 0f) <= 20f }
+                .filter { (it.speedMps ?: 0f) >= settings.holdExitSpeedMps && it.bearingDeg != null && (it.bearingAccDeg ?: 0f) <= 20f }
                 .map { it.bearingDeg!!.toDouble() }
             if (before.size < 2) continue
             checked++
             val ref = circularMean(before)
             val d = angleDist(held.toDouble(), ref)
             if (d > 15.0) results += "${time(stop.first)} 保持 %.0f° / 停止前 %.0f° / 差 %.0f°".format(held, ref, d)
+            worst = maxOf(worst, d)
         }
         assertTrue("確認できた停止区間が少ない: $checked", checked >= 5)
-        assertTrue("±15° を超えた停止区間:\n" + results.joinToString("\n"), results.isEmpty())
+        // 20261119-D01（戻す速度 6 km/h）から、6〜11 km/h で這うように止まる所では、そのときの GPS の向き（精度 20° 以内）を保持する。
+        // D05 の 00:06:10 は 8.6 km/h の点の向きが外れていて 36° ずれる。こういう停止は 1 割まで、ずれも 60° 以内であることを確かめる
+        assertTrue("±15° を超えた停止区間が多い（$checked 回中）:\n" + results.joinToString("\n"), results.size * 10 <= checked)
+        assertTrue("60° を超えてずれた停止区間:\n" + results.joinToString("\n"), worst <= 60.0)
     }
 
     @Test
     fun noRapidToggleAroundStops() {
-        // 停止の 10 秒前から停止の終わりの 5 秒後までで、GPS ⇔ HLD の切り替わりは多くても 2 回（入る・出る）。
-        // 窓を広げると、渋滞などで本当に停止と発進を繰り返した分まで数えてしまう
+        // 停止の 10 秒前から停止の終わりの 5 秒後までで、GPS ⇔ HLD の切り替わりはふつう多くても 2 回（入る・出る）。
+        // 20261119-D01（戻す速度 6 km/h）から、止まる直前に 6 km/h を超えて這うように動く所（D05 の 23:00:36 ごろ、6.6 km/h）では
+        // 本当に動いているので 4 回になることがある。そういう停止は 1 割まで、切り替わりは速さの決まりどおり（戻すのは 6 km/h を超えたとき、
+        // 止めるのは 4 km/h 未満のとき）であることを確かめる
         val bad = mutableListOf<String>()
+        val many = mutableListOf<String>()
+        val n = stops().size
         for (stop in stops()) {
             val from = (stop.first - 10).coerceAtLeast(1)
             val to = (stop.last + 5).coerceAtMost(fixes.lastIndex)
-            val toggles = (from..to).count { headings[it].held != headings[it - 1].held }
-            if (toggles > 2) bad += "${time(stop.first)} 切り替わり $toggles 回"
+            val toggles = (from..to).filter { headings[it].held != headings[it - 1].held }
+            for (i in toggles) {
+                val v = fixes[i].speedMps ?: continue
+                if (headings[i].held && v >= settings.holdEnterSpeedMps) bad += "${time(i)} ${v * 3.6f} km/h で止めた"
+                if (!headings[i].held && v <= settings.holdExitSpeedMps) bad += "${time(i)} ${v * 3.6f} km/h で戻した"
+            }
+            if (toggles.size > 2) many += "${time(stop.first)} 切り替わり ${toggles.size} 回"
         }
         assertTrue(bad.joinToString("\n"), bad.isEmpty())
+        assertTrue("切り替わりが多い停止が多すぎる（$n 回中）:\n" + many.joinToString("\n"), many.size * 10 <= n)
     }
 }

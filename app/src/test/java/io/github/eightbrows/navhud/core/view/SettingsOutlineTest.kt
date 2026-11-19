@@ -58,7 +58,7 @@ class SettingsOutlineTest {
             // 到達の判定は前と同じ並び
             assertEquals(
                 listOf(
-                    SettingKey.ARRIVAL_RADIUS, SettingKey.SIDE_PASS, SettingKey.SIDE_PASS_MAX, SettingKey.SIDE_PASS_DEPART,
+                    SettingKey.ARRIVAL_RADIUS, SettingKey.SIDE_PASS, SettingKey.SIDE_PASS_MAX, SettingKey.SIDE_PASS_DEPART, SettingKey.SIDE_PASS_MIN_SPEED,
                     SettingKey.PASS_DETECTION, SettingKey.PASS_MAX, SettingKey.PASS_DEPART, SettingKey.PASS_HOLD,
                 ),
                 fine,

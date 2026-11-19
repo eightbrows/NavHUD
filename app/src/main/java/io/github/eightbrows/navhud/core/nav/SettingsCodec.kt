@@ -79,6 +79,8 @@ object SettingsCodec {
         "${prefix}passMaxApproachM" to p.passMaxApproachM.toString(),
         "${prefix}passDepartM" to p.passDepartM.toString(),
         "${prefix}passHoldSec" to p.passHoldSec.toString(),
+        // 真横通過: 判定を始める速さ [km/h]（20261119-D01。保存がない前の版は 11 km/h。前は方位を戻す速度を使っていた）
+        "${prefix}sidePassMinKmh" to p.sidePassMinKmh.toString(),
     )
 
     /** 設定の項目のキー（今の版と、前の版の colorTheme）。移行の判定に使う */
@@ -130,6 +132,7 @@ object SettingsCodec {
             passMaxApproachM = dbl("${pre}passMaxApproachM", base.passMaxApproachM).inOr(NavSettings.PASS_MAX_APPROACH_M_RANGE, base.passMaxApproachM),
             passDepartM = dbl("${pre}passDepartM", base.passDepartM).inOr(NavSettings.PASS_DEPART_M_RANGE, base.passDepartM),
             passHoldSec = int("${pre}passHoldSec", base.passHoldSec).inOr(NavSettings.PASS_HOLD_SEC_RANGE, base.passHoldSec),
+            sidePassMinKmh = int("${pre}sidePassMinKmh", base.sidePassMinKmh).inOr(NavSettings.SIDE_PASS_MIN_SPEED_KMH_RANGE, base.sidePassMinKmh),
         )
         val flat = reach("", ReachProfile.CAR)
         fun profile(n: Int): ReachProfile {
@@ -140,10 +143,12 @@ object SettingsCodec {
         val customReach = (1..3).map(::profile)
 
         // 保持の速度: 保存は m/s。一番近い km/h の整数（1〜36）に合わせる（前の版の 2.0 / 3.0 m/s は 7 / 11 km/h）。
-        // 入る速度は 1〜35、解く速度は 入る速度 + 1〜36（解く速度は入る速度より大きいこと）
-        val kmh = NavSettings.HOLD_SPEED_KMH_RANGE
-        val enterKmh = NavSettings.holdSpeedKmh(f("holdEnterSpeedMps", d.holdEnterSpeedMps)).coerceAtMost(kmh.last - 1)
-        val exitKmh = NavSettings.holdSpeedKmh(f("holdExitSpeedMps", d.holdExitSpeedMps)).coerceIn(enterKmh + 1, kmh.last)
+        // 保存の値はそのまま使う（20261119-D01 で初期値を 4 / 6 km/h にしたが、保存してある 7 / 11 km/h は変えない）。
+        // 入る速度は 1〜34、解く速度は 入る速度 + 2〜36（20261119-D01 から差は 2 km/h 以上。差が 1 km/h の保存は解く速度を 1 上げる）
+        val (enterKmh, exitKmh) = NavSettings.holdSpeedsKmh(
+            NavSettings.holdSpeedKmh(f("holdEnterSpeedMps", d.holdEnterSpeedMps)),
+            NavSettings.holdSpeedKmh(f("holdExitSpeedMps", d.holdExitSpeedMps)),
+        )
         val holdEnter = NavSettings.kmhToMps(enterKmh)
         val holdExit = NavSettings.kmhToMps(exitKmh)
 
@@ -164,6 +169,7 @@ object SettingsCodec {
             passMaxApproachM = flat.passMaxApproachM,
             passDepartM = flat.passDepartM,
             passHoldSec = flat.passHoldSec,
+            sidePassMinKmh = flat.sidePassMinKmh,
             noFixTimeoutSec = NavSettings.nearestInt(NavSettings.NO_FIX_TIMEOUT_CHOICES_SEC, int("noFixTimeoutSec", d.noFixTimeoutSec)),
             altOffsetM = dbl("altOffsetM", d.altOffsetM).inOr(NavSettings.ALT_OFFSET_M_RANGE, d.altOffsetM),
             // 地上高の負の値（20261025-D08）: 保存がない（前の版）・読めない名前なら初期値の ZERO（0 にする）

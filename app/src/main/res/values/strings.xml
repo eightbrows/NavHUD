@@ -164,6 +164,8 @@
     <string name="side_pass_max">Abeam: max distance to WP</string>
     <string name="within_meters">within %1$s</string>
     <string name="side_pass_depart">Abeam: moved away by</string>
+    <string name="side_pass_min_speed">Abeam: minimum speed</string>
+    <string name="side_pass_min_speed_note">Judged only while moving at this speed or faster (separate from the heading hold / resume speeds)</string>
     <string name="pass_detection">Pass detection (backup)</string>
     <string name="pass_detection_note">Reached after you get close and then move away</string>
     <string name="pass_max">Pass: max closest approach</string>

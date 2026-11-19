@@ -149,15 +149,17 @@ fun SettingsScreen(
                 note = stringResource(R.string.heading_source_note),
                 default = def.sourceMode,
             ) { v -> onChange { it.copy(sourceMode = v) } }
-            // 方位を止める・戻す速度: km/h の整数（1〜36）、1 km/h 刻み。戻す速度は止める速度より 1 km/h 以上大きい。保存は m/s
+            // 方位を止める・戻す速度: km/h の整数（1〜36）、1 km/h 刻み。戻す速度は止める速度より 2 km/h 以上大きい（20261119-D01。
+            // 前は 1 km/h 以上。止める速度を上げて差が足りなくなれば、戻す速度も上げる。NavSettings.holdSpeedsKmh）。保存は m/s
             SettingKey.HOLD_ENTER -> Stepper(
                 stringResource(R.string.hold_enter), kmh(NavSettings.holdSpeedKmh(s.holdEnterSpeedMps)),
                 note = stringResource(R.string.hold_enter_note), defaultText = kmh(NavSettings.holdSpeedKmh(def.holdEnterSpeedMps)),
             ) { d ->
                 onChange {
-                    val r = NavSettings.HOLD_SPEED_KMH_RANGE
-                    val enter = (NavSettings.holdSpeedKmh(it.holdEnterSpeedMps) + d).coerceIn(r.first, r.last - 1)
-                    val exit = maxOf(NavSettings.holdSpeedKmh(it.holdExitSpeedMps), enter + 1)
+                    val (enter, exit) = NavSettings.holdSpeedsKmh(
+                        NavSettings.holdSpeedKmh(it.holdEnterSpeedMps) + d,
+                        NavSettings.holdSpeedKmh(it.holdExitSpeedMps),
+                    )
                     it.copy(holdEnterSpeedMps = NavSettings.kmhToMps(enter), holdExitSpeedMps = NavSettings.kmhToMps(exit))
                 }
             }
@@ -166,8 +168,11 @@ fun SettingsScreen(
                 note = stringResource(R.string.hold_exit_note), defaultText = kmh(NavSettings.holdSpeedKmh(def.holdExitSpeedMps)),
             ) { d ->
                 onChange {
-                    val enter = NavSettings.holdSpeedKmh(it.holdEnterSpeedMps)
-                    val exit = (NavSettings.holdSpeedKmh(it.holdExitSpeedMps) + d).coerceIn(enter + 1, NavSettings.HOLD_SPEED_KMH_RANGE.last)
+                    // 戻す速度は止める速度 + 2 より下げない（止める速度は動かさない）
+                    val (_, exit) = NavSettings.holdSpeedsKmh(
+                        NavSettings.holdSpeedKmh(it.holdEnterSpeedMps),
+                        NavSettings.holdSpeedKmh(it.holdExitSpeedMps) + d,
+                    )
                     it.copy(holdExitSpeedMps = NavSettings.kmhToMps(exit))
                 }
             }
@@ -280,6 +285,11 @@ fun SettingsScreen(
                 stringResource(R.string.side_pass_depart), "+%.0f".format(Locale.US, s.sidePassDepartM),
                 defaultText = "+%.0f".format(Locale.US, def.sidePassDepartM), enabled = custom,
             ) { d -> judge { it.copy(sidePassDepartM = (it.sidePassDepartM + d * 5).coerceIn(NavSettings.SIDE_PASS_DEPART_M_RANGE)) } }
+            // 真横通過: 判定を始める速さ（20261119-D01。km/h の整数、1 km/h 刻み。前は方位を戻す速度を使っていた）
+            SettingKey.SIDE_PASS_MIN_SPEED -> Stepper(
+                stringResource(R.string.side_pass_min_speed), kmh(s.sidePassMinKmh),
+                note = stringResource(R.string.side_pass_min_speed_note), defaultText = kmh(def.sidePassMinKmh), enabled = custom,
+            ) { d -> judge { it.copy(sidePassMinKmh = (it.sidePassMinKmh + d).coerceIn(NavSettings.SIDE_PASS_MIN_SPEED_KMH_RANGE)) } }
             SettingKey.PASS_DETECTION -> Toggle(
                 stringResource(R.string.pass_detection), s.passDetection, note = stringResource(R.string.pass_detection_note), enabled = custom, default = def.passDetection,
             ) { v -> judge { it.copy(passDetection = v) } }

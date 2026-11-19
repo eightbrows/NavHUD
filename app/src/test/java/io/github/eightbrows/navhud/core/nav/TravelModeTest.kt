@@ -88,4 +88,33 @@ class TravelModeTest {
         // 保存なし（新しく入れた端末）は自動車
         assertEquals(NavSettings(), SettingsCodec.decode(emptyMap()))
     }
+
+    /** 20261119-D01: 真横通過の判定を始める速さは到達判定の値。自動車は 11 km/h で決まった値、カスタムの初期値も 11 km/h */
+    @Test
+    fun sidePassMinSpeedIsAReachValue() {
+        assertEquals(11, ReachProfile.CAR.sidePassMinKmh)
+        val s0 = NavSettings()
+        assertEquals(11, s0.sidePassMinKmh)
+        assertEquals(listOf(11, 11, 11), s0.customReach.map { it.sidePassMinKmh })
+        // 自動車では変えられない
+        assertEquals(s0, s0.editReach { it.copy(sidePassMinKmh = 20) })
+        // カスタムでは変えられ、枠に残る。自動車に戻すと 11 km/h
+        val c1 = s0.selectTravelMode(TravelMode.CUSTOM1).editReach { it.copy(sidePassMinKmh = 20) }
+        assertEquals(20, c1.sidePassMinKmh)
+        assertEquals(11, c1.selectTravelMode(TravelMode.CAR).sidePassMinKmh)
+        assertEquals(20, c1.selectTravelMode(TravelMode.CAR).selectTravelMode(TravelMode.CUSTOM1).sidePassMinKmh)
+        // 保存して読み直しても同じ
+        val back = SettingsCodec.decode(SettingsCodec.encode(c1))
+        assertEquals(c1, back)
+        // 前の版の保存（この項目がない）: 自動車もカスタムも 11 km/h。範囲（1〜36）の外は 11 km/h
+        val old = SettingsCodec.encode(c1).filterKeys { !it.endsWith("sidePassMinKmh") }
+        val r = SettingsCodec.decode(old)
+        assertEquals(11, r.sidePassMinKmh)
+        assertEquals(listOf(11, 11, 11), r.customReach.map { it.sidePassMinKmh })
+        assertEquals(11, SettingsCodec.decode(SettingsCodec.encode(c1) + ("custom1.sidePassMinKmh" to "0")).sidePassMinKmh)
+        assertEquals(36, SettingsCodec.decode(SettingsCodec.encode(c1) + ("custom1.sidePassMinKmh" to "36")).sidePassMinKmh)
+        // 方位を止める / 戻す速度を変えても、真横通過の速さは変わらない
+        val h = c1.copy(holdEnterSpeedMps = NavSettings.kmhToMps(2), holdExitSpeedMps = NavSettings.kmhToMps(30))
+        assertEquals(20, h.sidePassMinKmh)
+    }
 }

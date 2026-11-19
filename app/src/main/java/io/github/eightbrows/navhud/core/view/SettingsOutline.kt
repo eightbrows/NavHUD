@@ -34,7 +34,7 @@ enum class SettingKey {
 
     // WP（20261105-D01: 前回の WP リストを自動で開くをその他から、標高プロファイルを画面から移した。TRAVEL_MODE の名前は「到達判定のプリセット」）
     AUTO_OPEN_LAST, WP_BUTTONS, HUD_WP_COUNT, PROFILE, TRAVEL_MODE,
-    ARRIVAL_RADIUS, SIDE_PASS, SIDE_PASS_MAX, SIDE_PASS_DEPART, PASS_DETECTION, PASS_MAX, PASS_DEPART, PASS_HOLD,
+    ARRIVAL_RADIUS, SIDE_PASS, SIDE_PASS_MAX, SIDE_PASS_DEPART, SIDE_PASS_MIN_SPEED, PASS_DETECTION, PASS_MAX, PASS_DEPART, PASS_HOLD,
 
     // 画面（20261105-D01: 表示モードは設定画面からなくした。切り替えは上部バーだけ）
     UI_COLOR, MAP_COLOR, BUTTON_OPACITY, NUMBERS_OPACITY, OWNSHIP_POSITION,
@@ -74,9 +74,9 @@ object SettingsOutline {
         SettingsSectionDef(
             SettingsSectionId.WP,
             listOf(SettingKey.AUTO_OPEN_LAST, SettingKey.WP_BUTTONS, SettingKey.HUD_WP_COUNT, SettingKey.PROFILE, SettingKey.TRAVEL_MODE),
-            // 到達の判定（並び・名前は 20261104-D01 までと同じ）
+            // 到達の判定（並び・名前は 20261104-D01 までと同じ。20261119-D01 で真横通過の後ろに「判定を始める速さ」を足した）
             listOf(
-                SettingKey.ARRIVAL_RADIUS, SettingKey.SIDE_PASS, SettingKey.SIDE_PASS_MAX, SettingKey.SIDE_PASS_DEPART,
+                SettingKey.ARRIVAL_RADIUS, SettingKey.SIDE_PASS, SettingKey.SIDE_PASS_MAX, SettingKey.SIDE_PASS_DEPART, SettingKey.SIDE_PASS_MIN_SPEED,
                 SettingKey.PASS_DETECTION, SettingKey.PASS_MAX, SettingKey.PASS_DEPART, SettingKey.PASS_HOLD,
             ),
         ),
