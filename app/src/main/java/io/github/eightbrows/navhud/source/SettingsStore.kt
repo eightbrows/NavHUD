@@ -2,6 +2,7 @@ package io.github.eightbrows.navhud.source
 
 import android.content.Context
 import androidx.core.content.edit
+import io.github.eightbrows.navhud.core.nav.HoldDefaultsMigration
 import io.github.eightbrows.navhud.core.nav.NavSettings
 import io.github.eightbrows.navhud.core.nav.SettingsCodec
 import io.github.eightbrows.navhud.core.nav.SourceKind
@@ -14,6 +15,8 @@ class SettingsStore(context: Context) {
     fun load(): NavSettings {
         // もう使わない値は読まずに消す（20261104-D03: RATE の窓）
         if (SettingsCodec.OBSOLETE_KEYS.any(prefs::contains)) prefs.edit { SettingsCodec.OBSOLETE_KEYS.forEach { remove(it) } }
+        // 前の初期値（方位を止める / 戻す速度 7 / 11 km/h）を一度だけ新しい初期値（4 / 6 km/h）に移す（20261119-D02）
+        HoldDefaultsMigration.run(PrefsKeyValueStore(prefs))
         return SettingsCodec.decode(prefs.all.mapValues { it.value?.toString() })
     }
 
