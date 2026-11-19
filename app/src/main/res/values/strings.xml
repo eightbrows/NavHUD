@@ -130,6 +130,7 @@
     <string name="hold_enter_note">Below this, the heading is held (HLD)</string>
     <string name="hold_exit">Heading resume speed</string>
     <string name="hold_exit_note">Above this, the GPS direction is used again</string>
+    <string name="preset_value_note">Value of the arrival preset (%1$s)</string>
     <string name="max_gps_acc">Position accuracy limit</string>
     <string name="max_gps_acc_note">Positions worse than this are not used</string>
     <string name="max_gps_bearing_acc">Heading accuracy limit</string>

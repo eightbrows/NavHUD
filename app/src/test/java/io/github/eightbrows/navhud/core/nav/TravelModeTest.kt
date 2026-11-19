@@ -117,4 +117,32 @@ class TravelModeTest {
         val h = c1.copy(holdEnterSpeedMps = NavSettings.kmhToMps(2), holdExitSpeedMps = NavSettings.kmhToMps(30))
         assertEquals(20, h.sidePassMinKmh)
     }
+
+    /** 20261119-D03: 方位を止める / 戻す速度は到達判定の値。自動車は 4 / 6 km/h で決まった値、カスタムの初期値も 4 / 6 km/h */
+    @Test
+    fun holdSpeedsAreReachValues() {
+        fun kmh(s: NavSettings) = NavSettings.holdSpeedKmh(s.holdEnterSpeedMps) to NavSettings.holdSpeedKmh(s.holdExitSpeedMps)
+        val s0 = NavSettings()
+        assertEquals(4 to 6, kmh(s0))
+        assertEquals(listOf(4 to 6, 4 to 6, 4 to 6), s0.customReach.map { it.holdEnterKmh to it.holdExitKmh })
+        // 自動車では変えられない
+        assertEquals(s0, s0.editReach { it.copy(holdEnterKmh = 9, holdExitKmh = 20) })
+        // カスタムでは変えられ、枠に残る。プリセットを切り替えると、すぐにその値になる
+        val c1 = s0.selectTravelMode(TravelMode.CUSTOM1).editReach { it.copy(holdEnterKmh = 9, holdExitKmh = 20) }
+        assertEquals(9 to 20, kmh(c1))
+        assertEquals(4 to 6, kmh(c1.selectTravelMode(TravelMode.CAR)))
+        assertEquals(4 to 6, kmh(c1.selectTravelMode(TravelMode.CUSTOM2)))
+        assertEquals(9 to 20, kmh(c1.selectTravelMode(TravelMode.CAR).selectTravelMode(TravelMode.CUSTOM1)))
+        // 今の値（reachProfile）にも入る
+        assertEquals(9 to 20, c1.reachProfile.holdEnterKmh to c1.reachProfile.holdExitKmh)
+        // 「設定を初期値に戻す」: 自動車の 4 / 6 km/h に戻り、カスタムの枠の値は残る
+        val r = c1.resetKeepingCustomReach()
+        assertEquals(4 to 6, kmh(r))
+        assertEquals(9 to 20, kmh(r.selectTravelMode(TravelMode.CUSTOM1)))
+        // 保存して読み直しても同じ
+        assertEquals(c1, SettingsCodec.decode(SettingsCodec.encode(c1)))
+        // NavEngine に渡ると、その値で保持する（HeadingSelector は NavSettings の m/s の値を使う）
+        assertEquals(NavSettings.kmhToMps(9), c1.holdEnterSpeedMps, 1e-6f)
+        assertEquals(NavSettings.kmhToMps(20), c1.holdExitSpeedMps, 1e-6f)
+    }
 }

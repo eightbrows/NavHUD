@@ -13,12 +13,16 @@ object SettingsCodec {
     /**
      * もう使わない保存の名前（保存のときに消す。読まない）。rateWindowSec: RATE の窓（20261104-D03 で RATE を V/S にして、設定をなくした）
      */
-    val OBSOLETE_KEYS: Set<String> = setOf("rateWindowSec")
+    val OBSOLETE_KEYS: Set<String> = setOf(
+        "rateWindowSec",
+        // 20261119-D03: 方位を止める / 戻す速度を到達判定のプリセットの値にした。前の全体の値は使わずに消す
+        OLD_KEY_HOLD_ENTER, OLD_KEY_HOLD_EXIT,
+        // 20261119-D02 の一度だけの移し替えの印（移し替えは 20261119-D03 で外した）
+        "holdDefaultsMigrated",
+    )
 
     fun encode(s: NavSettings): Map<String, String> = mapOf(
         "sourceMode" to s.sourceMode.name,
-        "holdEnterSpeedMps" to s.holdEnterSpeedMps.toString(),
-        "holdExitSpeedMps" to s.holdExitSpeedMps.toString(),
         "maxGpsAccM" to s.maxGpsAccM.toString(),
         "maxGpsBearingAccDeg" to s.maxGpsBearingAccDeg.toString(),
         "travelMode" to s.travelMode.name,
@@ -81,10 +85,17 @@ object SettingsCodec {
         "${prefix}passHoldSec" to p.passHoldSec.toString(),
         // 真横通過: 判定を始める速さ [km/h]（20261119-D01。保存がない前の版は 11 km/h。前は方位を戻す速度を使っていた）
         "${prefix}sidePassMinKmh" to p.sidePassMinKmh.toString(),
+        // 方位を止める / 戻す速度 [km/h]（20261119-D03 からプリセットの値。保存がなければ 4 / 6 km/h）
+        "${prefix}holdEnterKmh" to p.holdEnterKmh.toString(),
+        "${prefix}holdExitKmh" to p.holdExitKmh.toString(),
     )
 
     /** 設定の項目のキー（今の版と、前の版の colorTheme）。移行の判定に使う */
-    private val SETTINGS_KEYS: Set<String> by lazy { encode(NavSettings()).keys + "colorTheme" + OLD_KEY_ZOOM_IN_RATIO }
+    private val SETTINGS_KEYS: Set<String> by lazy { encode(NavSettings()).keys + "colorTheme" + OLD_KEY_ZOOM_IN_RATIO + OLD_KEY_HOLD_ENTER + OLD_KEY_HOLD_EXIT }
+
+    /** 20261119-D03 までの全体の方位を止める / 戻す速度（m/s）。読まない（前の版の設定かどうかの見分けにだけ使う） */
+    private const val OLD_KEY_HOLD_ENTER = "holdEnterSpeedMps"
+    private const val OLD_KEY_HOLD_EXIT = "holdExitSpeedMps"
 
     /** AUTO で詳細へ切り替える距離の倍率（今の段の R1 が基準。D10 から） */
     private const val KEY_ZOOM_IN_RATIO = "autoZoomInR1Ratio"
@@ -122,18 +133,23 @@ object SettingsCodec {
             m.keys.none { it in SETTINGS_KEYS } -> d.travelMode
             else -> TravelMode.CUSTOM1
         }
-        // 到達判定の値（キーの頭 pre）。範囲外の値は base の値にする
-        fun reach(pre: String, base: ReachProfile) = ReachProfile(
-            reachRadiusM = dbl("${pre}reachRadiusM", base.reachRadiusM).takeIf { it in NavSettings.REACH_RADIUS_CHOICES_M } ?: base.reachRadiusM,
-            sidePass = bool("${pre}sidePass", base.sidePass),
-            sidePassMaxM = dbl("${pre}sidePassMaxM", base.sidePassMaxM).inOr(NavSettings.SIDE_PASS_MAX_M_RANGE, base.sidePassMaxM),
-            sidePassDepartM = dbl("${pre}sidePassDepartM", base.sidePassDepartM).inOr(NavSettings.SIDE_PASS_DEPART_M_RANGE, base.sidePassDepartM),
-            passDetection = bool("${pre}passDetection", base.passDetection),
-            passMaxApproachM = dbl("${pre}passMaxApproachM", base.passMaxApproachM).inOr(NavSettings.PASS_MAX_APPROACH_M_RANGE, base.passMaxApproachM),
-            passDepartM = dbl("${pre}passDepartM", base.passDepartM).inOr(NavSettings.PASS_DEPART_M_RANGE, base.passDepartM),
-            passHoldSec = int("${pre}passHoldSec", base.passHoldSec).inOr(NavSettings.PASS_HOLD_SEC_RANGE, base.passHoldSec),
-            sidePassMinKmh = int("${pre}sidePassMinKmh", base.sidePassMinKmh).inOr(NavSettings.SIDE_PASS_MIN_SPEED_KMH_RANGE, base.sidePassMinKmh),
-        )
+        // 到達判定の値（キーの頭 pre）。範囲外の値は base の値にする。方位を止める / 戻す速度は差 2 km/h 以上にそろえる
+        fun reach(pre: String, base: ReachProfile): ReachProfile {
+            val (enter, exit) = NavSettings.holdSpeedsKmh(int("${pre}holdEnterKmh", base.holdEnterKmh), int("${pre}holdExitKmh", base.holdExitKmh))
+            return ReachProfile(
+                reachRadiusM = dbl("${pre}reachRadiusM", base.reachRadiusM).takeIf { it in NavSettings.REACH_RADIUS_CHOICES_M } ?: base.reachRadiusM,
+                sidePass = bool("${pre}sidePass", base.sidePass),
+                sidePassMaxM = dbl("${pre}sidePassMaxM", base.sidePassMaxM).inOr(NavSettings.SIDE_PASS_MAX_M_RANGE, base.sidePassMaxM),
+                sidePassDepartM = dbl("${pre}sidePassDepartM", base.sidePassDepartM).inOr(NavSettings.SIDE_PASS_DEPART_M_RANGE, base.sidePassDepartM),
+                passDetection = bool("${pre}passDetection", base.passDetection),
+                passMaxApproachM = dbl("${pre}passMaxApproachM", base.passMaxApproachM).inOr(NavSettings.PASS_MAX_APPROACH_M_RANGE, base.passMaxApproachM),
+                passDepartM = dbl("${pre}passDepartM", base.passDepartM).inOr(NavSettings.PASS_DEPART_M_RANGE, base.passDepartM),
+                passHoldSec = int("${pre}passHoldSec", base.passHoldSec).inOr(NavSettings.PASS_HOLD_SEC_RANGE, base.passHoldSec),
+                sidePassMinKmh = int("${pre}sidePassMinKmh", base.sidePassMinKmh).inOr(NavSettings.SIDE_PASS_MIN_SPEED_KMH_RANGE, base.sidePassMinKmh),
+                holdEnterKmh = enter,
+                holdExitKmh = exit,
+            )
+        }
         val flat = reach("", ReachProfile.CAR)
         fun profile(n: Int): ReachProfile {
             // 枠の保存がない（前の版）: カスタム1 には保存してあった値（移行）、カスタム2・3 は自動車の値
@@ -142,15 +158,10 @@ object SettingsCodec {
         }
         val customReach = (1..3).map(::profile)
 
-        // 保持の速度: 保存は m/s。一番近い km/h の整数（1〜36）に合わせる（前の版の 2.0 / 3.0 m/s は 7 / 11 km/h）。
-        // 保存の値はそのまま使う（20261119-D01 で初期値を 4 / 6 km/h にしたが、保存してある 7 / 11 km/h は変えない）。
-        // 入る速度は 1〜34、解く速度は 入る速度 + 2〜36（20261119-D01 から差は 2 km/h 以上。差が 1 km/h の保存は解く速度を 1 上げる）
-        val (enterKmh, exitKmh) = NavSettings.holdSpeedsKmh(
-            NavSettings.holdSpeedKmh(f("holdEnterSpeedMps", d.holdEnterSpeedMps)),
-            NavSettings.holdSpeedKmh(f("holdExitSpeedMps", d.holdExitSpeedMps)),
-        )
-        val holdEnter = NavSettings.kmhToMps(enterKmh)
-        val holdExit = NavSettings.kmhToMps(exitKmh)
+        // 方位を止める / 戻す速度（20261119-D03 から到達判定のプリセットの値。最後の selectTravelMode で選んでいるプリセットの値になる）。
+        // 前の全体の保存（holdEnterSpeedMps / holdExitSpeedMps）は読まない
+        val holdEnter = NavSettings.kmhToMps(flat.holdEnterKmh)
+        val holdExit = NavSettings.kmhToMps(flat.holdExitKmh)
 
         return NavSettings(
             sourceMode = enum("sourceMode", SourceMode.entries.toTypedArray(), d.sourceMode),

@@ -329,4 +329,29 @@ class NavEngineTest {
         val live = e.setSource(SourceKind.LIVE, playing = true)
         assertEquals(SourceKind.LIVE, live.sourceKind)
     }
+
+    /** 20261119-D03: 方位を止める / 戻す速度は到達判定のプリセットの値。プリセットを切り替えると、次の Fix からその値で保持する */
+    @Test
+    fun holdSpeedsFollowThePreset() {
+        // 8 km/h で北へ走り続ける
+        val v = 8f / 3.6f
+        val custom = NavSettings().selectTravelMode(TravelMode.CUSTOM1).editReach { it.copy(holdEnterKmh = 9, holdExitKmh = 20) }
+        val car = custom.selectTravelMode(TravelMode.CAR)
+        val e = NavEngine(car, jst, SourceKind.REPLAY)
+        var t = t0
+        fun step(): Heading {
+            t += 1_000
+            return e.onFix(fix(t, lat = 33.0 + (t - t0) / 1_000.0 * v / 111_195.0, speed = v, bearing = 0f).copy(bearingAccDeg = 2f), t).heading
+        }
+        // 自動車（4 / 6 km/h）: 8 km/h は GPS の向きをそのまま使う
+        repeat(3) { step() }
+        assertEquals(HeadingSrc.GPS, step().src)
+        assertFalse(step().held)
+        // カスタム1（9 / 20 km/h）に切り替えると、次の Fix から保持（8 km/h は 9 km/h 未満）
+        e.updateSettings(custom.selectTravelMode(TravelMode.CUSTOM1))
+        assertTrue(step().held)
+        // 自動車に戻すと、次の Fix から GPS の向き（8 km/h は 6 km/h より速い）
+        e.updateSettings(car)
+        assertFalse(step().held)
+    }
 }

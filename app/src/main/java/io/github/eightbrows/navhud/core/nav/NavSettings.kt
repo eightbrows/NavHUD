@@ -53,6 +53,12 @@ data class ReachProfile(
     val passHoldSec: Int,
     /** 真横通過: 判定を始める速さ [km/h]（20261119-D01。前は方位を戻す速度を使っていた） */
     val sidePassMinKmh: Int = Tuning.CAR_SIDE_PASS_MIN_SPEED_KMH,
+    /**
+     * 方位を止める / 戻す速度 [km/h]（20261119-D03 からプリセットの値。前は全体の値）。
+     * 戻す速度は止める速度より 2 km/h 以上大きい（NavSettings.holdSpeedsKmh）
+     */
+    val holdEnterKmh: Int = Tuning.HOLD_ENTER_SPEED_DEFAULT_KMH,
+    val holdExitKmh: Int = Tuning.HOLD_EXIT_SPEED_DEFAULT_KMH,
 ) {
     companion object {
         /** 自動車の推奨値 */
@@ -66,6 +72,8 @@ data class ReachProfile(
             passDepartM = Tuning.CAR_PASS_DEPART_M,
             passHoldSec = Tuning.CAR_PASS_HOLD_SEC,
             sidePassMinKmh = Tuning.CAR_SIDE_PASS_MIN_SPEED_KMH,
+            holdEnterKmh = Tuning.HOLD_ENTER_SPEED_DEFAULT_KMH,
+            holdExitKmh = Tuning.HOLD_EXIT_SPEED_DEFAULT_KMH,
         )
     }
 }
@@ -74,11 +82,16 @@ data class ReachProfile(
 data class NavSettings(
     /** 方位ソース（§5.2）。既定は GPS（車内ではコンパスが不安定なため。HYBRID と COMPASS は歩行用） */
     val sourceMode: SourceMode = SourceMode.GPS,
-    /** GPS 方位の保持に入る速度 [m/s]（これ未満で保持）。設定画面では km/h の整数（1〜34、既定 4 km/h。20261119-D01 まで 7 km/h）で選ぶ */
+    /**
+     * GPS 方位の保持に入る速度 [m/s]（これ未満で保持）。設定画面では km/h の整数（1〜34、既定 4 km/h。20261119-D01 まで 7 km/h）で選ぶ。
+     * 20261119-D03 から到達判定のプリセットの値（ReachProfile.holdEnterKmh。自動車は 4 km/h で決まった値）。
+     * ここには選んでいるプリセットの値が入る（selectTravelMode / editReach で変える）
+     */
     val holdEnterSpeedMps: Float = kmhToMps(Tuning.HOLD_ENTER_SPEED_DEFAULT_KMH),
     /**
      * GPS 方位の保持を解く速度 [m/s]（これを超えたら GPS 方位に戻る）。km/h の整数（既定 6 km/h。20261119-D01 まで 11 km/h）。
-     * 保持に入る速度より Tuning.HOLD_SPEED_MIN_GAP_KMH（2 km/h）以上大きい。真横通過の判定には使わない（sidePassMinKmh）
+     * 保持に入る速度より Tuning.HOLD_SPEED_MIN_GAP_KMH（2 km/h）以上大きい。真横通過の判定には使わない（sidePassMinKmh）。
+     * 20261119-D03 から到達判定のプリセットの値（ReachProfile.holdExitKmh。自動車は 6 km/h で決まった値）
      */
     val holdExitSpeedMps: Float = kmhToMps(Tuning.HOLD_EXIT_SPEED_DEFAULT_KMH),
     /** GPS 方位を使う最大の水平精度 [m]（§5.2）。3 / 5 / 10 / 15 / 20 / 30 / 50 / 100 から選ぶ */
@@ -336,7 +349,10 @@ fun NavSettings.resetKeepingCustomReach(): NavSettings = NavSettings(customReach
 
 /** 今の到達判定の値（選んでいる移動手段の値）。 */
 val NavSettings.reachProfile: ReachProfile
-    get() = ReachProfile(reachRadiusM, sidePass, sidePassMaxM, sidePassDepartM, passDetection, passMaxApproachM, passDepartM, passHoldSec, sidePassMinKmh)
+    get() = ReachProfile(
+        reachRadiusM, sidePass, sidePassMaxM, sidePassDepartM, passDetection, passMaxApproachM, passDepartM, passHoldSec, sidePassMinKmh,
+        holdEnterKmh = NavSettings.holdSpeedKmh(holdEnterSpeedMps), holdExitKmh = NavSettings.holdSpeedKmh(holdExitSpeedMps),
+    )
 
 /** 到達判定の値を p にする（移動手段・カスタムの枠は変えない）。 */
 fun NavSettings.withReachValues(p: ReachProfile): NavSettings = copy(
@@ -349,6 +365,8 @@ fun NavSettings.withReachValues(p: ReachProfile): NavSettings = copy(
     passDepartM = p.passDepartM,
     passHoldSec = p.passHoldSec,
     sidePassMinKmh = p.sidePassMinKmh,
+    holdEnterSpeedMps = NavSettings.kmhToMps(p.holdEnterKmh),
+    holdExitSpeedMps = NavSettings.kmhToMps(p.holdExitKmh),
 )
 
 /** カスタムの枠の番号（0〜2）。自動車なら null。 */

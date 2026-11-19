@@ -7,6 +7,9 @@ import io.github.eightbrows.navhud.core.nav.Heading
 import io.github.eightbrows.navhud.core.nav.NavEngine
 import io.github.eightbrows.navhud.core.nav.NavSettings
 import io.github.eightbrows.navhud.core.nav.SourceKind
+import io.github.eightbrows.navhud.core.nav.TravelMode
+import io.github.eightbrows.navhud.core.nav.editReach
+import io.github.eightbrows.navhud.core.nav.selectTravelMode
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.Instant
@@ -82,6 +85,28 @@ class HeadingHoldSampleTest {
         }
         java.io.File(dir, "heading-check.txt").writeText(text + "\n")
         assertTrue(headings.size == fixes.size)
+    }
+
+    /**
+     * 20261119-D03: カスタムのプリセットで方位を止める / 戻す速度を変えると、HDG はその値に従う。
+     * カスタム1 を 9 / 20 km/h にしたときの HDG を app/build/heading-check-custom.txt に書き出す（調べの計算と比べるため）。
+     * 同じ値を NavSettings に直接入れたときと同じで、既定（自動車 4 / 6 km/h）とは違うことを確かめる
+     */
+    @Test
+    fun customPresetHoldSpeedsDriveTheHeading() {
+        val custom = NavSettings().selectTravelMode(TravelMode.CUSTOM1).editReach { it.copy(holdEnterKmh = 9, holdExitKmh = 20) }
+        fun run(s: NavSettings): List<Heading> {
+            val e = NavEngine(s, ZoneId.of("Asia/Tokyo"), SourceKind.REPLAY)
+            return fixes.map { e.onFix(it, it.timeMs).heading }
+        }
+        val h = run(custom)
+        val direct = run(NavSettings(holdEnterSpeedMps = NavSettings.kmhToMps(9), holdExitSpeedMps = NavSettings.kmhToMps(20)))
+        assertTrue(h == direct)
+        assertTrue(h != headings)
+        java.io.File("build").takeIf { it.isDirectory }?.let { dir ->
+            val text = fixes.indices.joinToString("\n") { i -> "${fixes[i].timeMs} ${h[i].deg ?: "-"} ${h[i].src} ${h[i].held}" }
+            java.io.File(dir, "heading-check-custom.txt").writeText(text + "\n")
+        }
     }
 
     @Test

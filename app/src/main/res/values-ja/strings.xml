@@ -128,6 +128,7 @@
     <string name="hold_enter_note">これより遅いと方位を止めて保つ（HLD）</string>
     <string name="hold_exit">方位を戻す速度</string>
     <string name="hold_exit_note">これより速くなると、また GPS の向きを使う</string>
+    <string name="preset_value_note">到達判定のプリセット（%1$s）の値</string>
     <string name="max_gps_acc">使用する位置精度の上限</string>
     <string name="max_gps_acc_note">これより悪い位置は使わない</string>
     <string name="max_gps_bearing_acc">使用する方位精度の上限</string>

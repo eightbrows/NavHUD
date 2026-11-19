@@ -133,6 +133,15 @@ fun SettingsScreen(
     val item: @Composable (SettingKey) -> Unit = { key ->
         val custom = s.travelMode != TravelMode.CAR
         fun judge(f: (ReachProfile) -> ReachProfile) = onChange { it.editReach(f) }
+        // 今選んでいる到達判定のプリセットの名前（方位を止める / 戻す速度の説明に出す。20261119-D03）
+        val presetName = stringResource(
+            when (s.travelMode) {
+                TravelMode.CAR -> R.string.travel_car
+                TravelMode.CUSTOM1 -> R.string.travel_custom1
+                TravelMode.CUSTOM2 -> R.string.travel_custom2
+                TravelMode.CUSTOM3 -> R.string.travel_custom3
+            },
+        )
         val colors = listOf(
             stringResource(R.string.color_white) to ColorTheme.WHITE,
             stringResource(R.string.color_green) to ColorTheme.GREEN,
@@ -150,30 +159,27 @@ fun SettingsScreen(
                 default = def.sourceMode,
             ) { v -> onChange { it.copy(sourceMode = v) } }
             // 方位を止める・戻す速度: km/h の整数（1〜36）、1 km/h 刻み。戻す速度は止める速度より 2 km/h 以上大きい（20261119-D01。
-            // 前は 1 km/h 以上。止める速度を上げて差が足りなくなれば、戻す速度も上げる。NavSettings.holdSpeedsKmh）。保存は m/s
+            // 前は 1 km/h 以上。止める速度を上げて差が足りなくなれば、戻す速度も上げる。NavSettings.holdSpeedsKmh）。
+            // 20261119-D03 から到達判定のプリセットの値: 選んでいるプリセットの値を出し、自動車では変えられない（真横通過の項目と同じ）
             SettingKey.HOLD_ENTER -> Stepper(
                 stringResource(R.string.hold_enter), kmh(NavSettings.holdSpeedKmh(s.holdEnterSpeedMps)),
-                note = stringResource(R.string.hold_enter_note), defaultText = kmh(NavSettings.holdSpeedKmh(def.holdEnterSpeedMps)),
+                note = stringResource(R.string.hold_enter_note) + "\n" + stringResource(R.string.preset_value_note, presetName),
+                defaultText = kmh(NavSettings.holdSpeedKmh(def.holdEnterSpeedMps)), enabled = custom,
             ) { d ->
-                onChange {
-                    val (enter, exit) = NavSettings.holdSpeedsKmh(
-                        NavSettings.holdSpeedKmh(it.holdEnterSpeedMps) + d,
-                        NavSettings.holdSpeedKmh(it.holdExitSpeedMps),
-                    )
-                    it.copy(holdEnterSpeedMps = NavSettings.kmhToMps(enter), holdExitSpeedMps = NavSettings.kmhToMps(exit))
+                judge {
+                    val (enter, exit) = NavSettings.holdSpeedsKmh(it.holdEnterKmh + d, it.holdExitKmh)
+                    it.copy(holdEnterKmh = enter, holdExitKmh = exit)
                 }
             }
             SettingKey.HOLD_EXIT -> Stepper(
                 stringResource(R.string.hold_exit), kmh(NavSettings.holdSpeedKmh(s.holdExitSpeedMps)),
-                note = stringResource(R.string.hold_exit_note), defaultText = kmh(NavSettings.holdSpeedKmh(def.holdExitSpeedMps)),
+                note = stringResource(R.string.hold_exit_note) + "\n" + stringResource(R.string.preset_value_note, presetName),
+                defaultText = kmh(NavSettings.holdSpeedKmh(def.holdExitSpeedMps)), enabled = custom,
             ) { d ->
-                onChange {
-                    // 戻す速度は止める速度 + 2 より下げない（止める速度は動かさない）
-                    val (_, exit) = NavSettings.holdSpeedsKmh(
-                        NavSettings.holdSpeedKmh(it.holdEnterSpeedMps),
-                        NavSettings.holdSpeedKmh(it.holdExitSpeedMps) + d,
-                    )
-                    it.copy(holdExitSpeedMps = NavSettings.kmhToMps(exit))
+                // 戻す速度は止める速度 + 2 より下げない（止める速度は動かさない）
+                judge {
+                    val (_, exit) = NavSettings.holdSpeedsKmh(it.holdEnterKmh, it.holdExitKmh + d)
+                    it.copy(holdExitKmh = exit)
                 }
             }
             // 決まった値から選ぶ（＋ / − で次の値へ）: 3 / 5 / 10 / 15 / 20 / 30 / 50 / 100 m
