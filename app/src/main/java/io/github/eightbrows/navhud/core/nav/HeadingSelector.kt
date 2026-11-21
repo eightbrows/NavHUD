@@ -95,6 +95,9 @@ class HeadingSelector(
             HeadingMethod.GPS_TRACK -> live?.takeIf { gpsFresh }
                 ?: trackDeg?.let { Heading(it, HeadingSrc.TRACK) }
                 ?: live ?: held ?: Heading.NONE
+            // 位置だけ（20261121-D04）: いつも位置から求めた向き。まだなければ GPS ＋ 位置で向きがまだないときと同じ
+            HeadingMethod.TRACK_ONLY -> trackDeg?.let { Heading(it, HeadingSrc.TRACK) }
+                ?: live ?: held ?: Heading.NONE
         }
     }
 

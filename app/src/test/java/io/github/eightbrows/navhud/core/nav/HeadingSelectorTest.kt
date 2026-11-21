@@ -164,4 +164,21 @@ class HeadingSelectorTest {
         assertFalse(s.holding)
         assertEquals(100f, s.liveGpsDeg)
     }
+
+    /** 20261121-D04: 位置だけ。GPS の方位は使わず、いつも位置から求めた向き。まだなければ GPS ＋ 位置で向きがまだないときと同じ */
+    @Test
+    fun trackOnlyAlwaysUsesTrack() {
+        val s = HeadingSelector()
+        // GPS の方位がそのまま使えるときも TRK
+        s.feed(fix(10f, 90f))
+        assertTrue(s.gpsFresh)
+        assertEquals(Heading(track, HeadingSrc.TRACK), s.select(HeadingMethod.TRACK_ONLY, false, track))
+        // 位置から求めた向きがまだなければ、GPS ＋ 位置と同じ（GPS の値・保持の値）
+        assertEquals(s.select(HeadingMethod.GPS_TRACK, false, null), s.select(HeadingMethod.TRACK_ONLY, false, null))
+        assertEquals(Heading(90f, HeadingSrc.GPS), s.select(HeadingMethod.TRACK_ONLY, false, null))
+        s.feed(fix(0f, null, bearingAcc = null))
+        assertEquals(Heading(90f, HeadingSrc.GPS, held = true), s.select(HeadingMethod.TRACK_ONLY, false, null))
+        assertEquals(Heading(track, HeadingSrc.TRACK), s.select(HeadingMethod.TRACK_ONLY, true, track))
+        assertEquals(Heading.NONE, HeadingSelector().select(HeadingMethod.TRACK_ONLY, false, null))
+    }
 }

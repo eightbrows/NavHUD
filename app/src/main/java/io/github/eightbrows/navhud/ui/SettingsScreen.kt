@@ -37,6 +37,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
+import io.github.eightbrows.navhud.core.nav.resetAllConfirm
+import io.github.eightbrows.navhud.core.nav.copyConfirm
+import io.github.eightbrows.navhud.core.nav.commonChangedCount
+import io.github.eightbrows.navhud.core.nav.bandResetConfirm
+import io.github.eightbrows.navhud.core.nav.ConfirmKind
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.runtime.CompositionLocalProvider
 import io.github.eightbrows.navhud.core.nav.resetPreset
 import io.github.eightbrows.navhud.core.nav.resetCustom
 import io.github.eightbrows.navhud.core.nav.defaultsForDisplay
@@ -159,7 +166,12 @@ fun SettingsScreen(
             // 方位の出し方（20261121-D01）: GPS / GPS＋位置
             SettingKey.HEADING_METHOD -> Choice(
                 stringResource(R.string.heading_method),
-                listOf("GPS" to HeadingMethod.GPS, stringResource(R.string.heading_method_gps_track) to HeadingMethod.GPS_TRACK),
+                listOf(
+                    "GPS" to HeadingMethod.GPS,
+                    stringResource(R.string.heading_method_gps_track) to HeadingMethod.GPS_TRACK,
+                    // 位置だけ（20261121-D04）
+                    stringResource(R.string.heading_method_track_only) to HeadingMethod.TRACK_ONLY,
+                ),
                 s.headingMethod,
                 note = stringResource(R.string.heading_method_note),
                 default = def.headingMethod,
@@ -549,11 +561,12 @@ fun SettingsScreen(
     // 囲み（測位と方位の「GPS の向き」「位置から求める向き」。20261121-D03）か、1 項目
     val renderKey: @Composable (SettingKey) -> Unit = { k ->
         when (k) {
-            SettingKey.GPS_BOX -> HeadingBox(stringResource(R.string.box_gps), "GPS", HudColors.HeadingGps, used = true) {
+            // 方位の出し方が「位置だけ」のときは薄くして「使わない」（20261121-D04。変えることはできる）
+            SettingKey.GPS_BOX -> HeadingBox(stringResource(R.string.box_gps), "GPS", HudColors.HeadingGps, used = s.headingMethod != HeadingMethod.TRACK_ONLY) {
                 for (inner in SettingsOutline.GPS_BOX_ITEMS) item(inner)
             }
             // 方位の出し方が GPS のときは薄くして「使わない」（変えることはできる）
-            SettingKey.TRK_BOX -> HeadingBox(stringResource(R.string.box_trk), "TRK", HudColors.HeadingTrack, used = s.headingMethod == HeadingMethod.GPS_TRACK) {
+            SettingKey.TRK_BOX -> HeadingBox(stringResource(R.string.box_trk), "TRK", HudColors.HeadingTrack, used = s.headingMethod != HeadingMethod.GPS) {
                 for (inner in SettingsOutline.TRK_BOX_ITEMS) item(inner)
             }
             else -> item(k)
@@ -578,8 +591,9 @@ fun SettingsScreen(
             // 移動のプリセットの帯（スクロールしても見える。20261121-D03）
             PresetBand(
                 s,
+                language,
                 onSelect = { m -> onChange { it.selectTravelMode(m) } },
-                onReset = { dialog = PresetDialog.ResetFixed(s.travelMode, s.changedCount(s.travelMode)) },
+                onReset = { if (s.bandResetConfirm() != null) dialog = PresetDialog.ResetFixed(s.travelMode, s.changedCount(s.travelMode)) },
                 onResetCustom = { dialog = PresetDialog.ResetCustom(s.travelMode) },
                 onCopy = { dialog = PresetDialog.Copy(s.travelMode) },
             )
@@ -634,17 +648,23 @@ fun SettingsScreen(
                         // 共通の値
                         if (sec.common.isNotEmpty()) {
                             SubHeading(stringResource(R.string.settings_common_values), first = sec.preset.isEmpty())
-                            for (k in sec.common) item(k)
-                            if (sec.commonFine.isNotEmpty()) {
-                                MiniHeading(stringResource(R.string.settings_fine))
-                                for (k in sec.commonFine) item(k)
+                            // 共通の値で変えた値は黄色の枠と黄色の文字（20261121-D04。プリセットの値は黄色の反転）
+                            CompositionLocalProvider(LocalCommonValue provides true) {
+                                for (k in sec.common) item(k)
+                                if (sec.commonFine.isNotEmpty()) {
+                                    MiniHeading(stringResource(R.string.settings_fine))
+                                    for (k in sec.commonFine) item(k)
+                                }
                             }
                         }
                         for (k in sec.plain) item(k)
                     }
                 }
-                // 設定を初期値に戻す（いちばん下。全部のプリセットと共通の値。言語・閉じたセクション・スクロール位置は変えない）
-                Row(Modifier.padding(top = 4.dp, bottom = 8.dp)) { HudButton(stringResource(R.string.reset_settings), onReset) }
+                // 設定を初期値に戻す（いちばん下。全部のプリセットと共通の値。言語・閉じたセクション・スクロール位置は変えない）。
+                // 20261121-D04 から、ほかの「初期値に戻す」と同じ形の確かめの枠を出してから
+                Row(Modifier.padding(top = 4.dp, bottom = 8.dp)) {
+                    HudButton(stringResource(R.string.reset_settings), { if (s.resetAllConfirm() == ConfirmKind.RESET_ALL) dialog = PresetDialog.ResetAll })
+                }
             }
         }
         // 確かめの枠（画面の中。20261121-D03）
@@ -652,6 +672,7 @@ fun SettingsScreen(
             PresetDialogBox(d, s, onDismiss = { dialog = null }) { next ->
                 when (next) {
                     is PresetAction.Apply -> { onChange(next.f); dialog = null }
+                    is PresetAction.ResetAll -> { onReset(); dialog = null }
                     is PresetAction.Ask -> dialog = next.dialog
                 }
             }
@@ -703,7 +724,7 @@ private fun sectionTitle(id: SettingsSectionId): String = stringResource(
  * 3 行目: 自動車・歩行は「初期値に戻す」（変えた所がないときは押せない）、カスタムは「コピーする…」「初期値に戻す…」
  */
 @Composable
-private fun PresetBand(s: NavSettings, onSelect: (TravelMode) -> Unit, onReset: () -> Unit, onResetCustom: () -> Unit, onCopy: () -> Unit) {
+private fun PresetBand(s: NavSettings, language: LanguageMode, onSelect: (TravelMode) -> Unit, onReset: () -> Unit, onResetCustom: () -> Unit, onCopy: () -> Unit) {
     val mode = s.travelMode
     val count = s.changedCount(mode)
     val custom = mode.customIndex != null
@@ -729,8 +750,20 @@ private fun PresetBand(s: NavSettings, onSelect: (TravelMode) -> Unit, onReset: 
                     style = RowNote.copy(fontSize = 12.sp), modifier = Modifier.align(Alignment.CenterVertically),
                 )
             }
+        }
+        // 変えた所の数（20261121-D04）: 「歩行 変えた所 2 ｜ 共通 変えた所 3」。プリセットは黄色の反転、共通は黄色の枠。0 なら「初期値のまま」
+        val common = s.commonChangedCount(language)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(presetName(mode), style = RowNote.copy(fontSize = 12.sp, color = HudColors.Scale), modifier = Modifier.align(Alignment.CenterVertically))
             if (count > 0) {
                 ChangedText(stringResource(R.string.band_changed, count), Modifier.align(Alignment.CenterVertically))
+            } else {
+                Text(stringResource(R.string.band_unchanged), style = RowNote.copy(fontSize = 12.sp), modifier = Modifier.align(Alignment.CenterVertically))
+            }
+            Text("｜", style = RowNote.copy(fontSize = 12.sp), modifier = Modifier.align(Alignment.CenterVertically))
+            Text(stringResource(R.string.band_common), style = RowNote.copy(fontSize = 12.sp, color = HudColors.Scale), modifier = Modifier.align(Alignment.CenterVertically))
+            if (common > 0) {
+                ChangedText(stringResource(R.string.band_changed, common), Modifier.align(Alignment.CenterVertically), outline = true)
             } else {
                 Text(stringResource(R.string.band_unchanged), style = RowNote.copy(fontSize = 12.sp), modifier = Modifier.align(Alignment.CenterVertically))
             }
@@ -763,13 +796,24 @@ private fun PresetButton(text: String, on: Boolean, color: Color, changed: Boole
     }
 }
 
-/** 変えた値の強調（黄色の地に黒の太字）の文字 */
+/**
+ * 共通の値の項目を描いている間 true（20261121-D04）。変えた値の強調を、プリセットの値の黄色の反転ではなく、黄色の枠と黄色の文字にする
+ */
+private val LocalCommonValue = staticCompositionLocalOf { false }
+
+/**
+ * 変えた値の強調の文字: プリセットの値は黄色の地に黒の太字、共通の値（outline）は黄色の枠に黄色の太字（地は塗らない。20261121-D04）
+ */
 @Composable
-private fun ChangedText(text: String, modifier: Modifier = Modifier, style: TextStyle = ValueText.copy(fontSize = 13.sp)) {
+private fun ChangedText(
+    text: String, modifier: Modifier = Modifier, style: TextStyle = ValueText.copy(fontSize = 13.sp), outline: Boolean = LocalCommonValue.current,
+) {
+    val shape = RoundedCornerShape(3.dp)
     Text(
         text,
-        style = style.copy(color = Color.Black, fontWeight = FontWeight.Bold),
-        modifier = modifier.background(HudColors.Changed, RoundedCornerShape(3.dp)).padding(horizontal = 5.dp, vertical = 1.dp),
+        style = style.copy(color = if (outline) HudColors.Changed else Color.Black, fontWeight = FontWeight.Bold),
+        modifier = (if (outline) modifier.border(1.5.dp, HudColors.Changed, shape) else modifier.background(HudColors.Changed, shape))
+            .padding(horizontal = 5.dp, vertical = 1.dp),
     )
 }
 
@@ -783,12 +827,16 @@ private sealed interface PresetDialog {
     data class Copy(val mode: TravelMode) : PresetDialog
     /** コピーするとき、そのカスタムに変えた所があれば上書きの確かめ */
     data class CopyOverwrite(val mode: TravelMode, val src: TravelMode, val count: Int) : PresetDialog
+    /** 設定を初期値に戻す（全部のプリセットと共通の値。20261121-D04） */
+    data object ResetAll : PresetDialog
 }
 
 /** 確かめの枠のボタンを押したとき: 設定を変えて閉じる（Apply）か、次の確かめへ（Ask） */
 private sealed interface PresetAction {
     data class Apply(val f: (NavSettings) -> NavSettings) : PresetAction
     data class Ask(val dialog: PresetDialog) : PresetAction
+    /** 設定を初期値に戻す（NavViewModel.resetSettings） */
+    data object ResetAll : PresetAction
 }
 
 /** 確かめの枠（画面の中に重ねる）: 文と、縦に並べたボタン（いちばん下は「やめる」） */
@@ -810,9 +858,15 @@ private fun PresetDialogBox(d: PresetDialog, s: NavSettings, onDismiss: () -> Un
             ) {
                 // そのカスタムに変えた所があれば、上書きの確かめ。なければそのまま入れる
                 val mine = s.changedCount(d.mode)
-                onAction(if (mine > 0) PresetAction.Ask(PresetDialog.CopyOverwrite(d.mode, src, mine)) else PresetAction.Apply { it.copyToCustom(d.mode, src) })
+                onAction(
+                    if (s.copyConfirm(d.mode) == ConfirmKind.COPY_OVERWRITE) PresetAction.Ask(PresetDialog.CopyOverwrite(d.mode, src, mine))
+                    else PresetAction.Apply { it.copyToCustom(d.mode, src) },
+                )
             }
         }
+        PresetDialog.ResetAll -> stringResource(R.string.dialog_reset_all) to listOf(
+            DialogButtonSpec(stringResource(R.string.band_reset), null) { onAction(PresetAction.ResetAll) },
+        )
         is PresetDialog.CopyOverwrite -> stringResource(R.string.dialog_copy_overwrite, name, d.count, presetName(d.src)) to listOf(
             DialogButtonSpec(stringResource(R.string.dialog_copy_ok), null) { onAction(PresetAction.Apply { it.copyToCustom(d.mode, d.src) }) },
         )
@@ -829,7 +883,7 @@ private fun PresetDialogBox(d: PresetDialog, s: NavSettings, onDismiss: () -> Un
                 .padding(horizontal = 24.dp)
                 .fillMaxWidth()
                 .background(HudColors.Background, RoundedCornerShape(8.dp))
-                .border(1.dp, presetColor(d.modeOf()), RoundedCornerShape(8.dp))
+                .border(1.dp, if (d == PresetDialog.ResetAll) HudColors.Scale else presetColor(d.modeOf()), RoundedCornerShape(8.dp))
                 .clickable(enabled = false) {}
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -842,6 +896,7 @@ private fun PresetDialogBox(d: PresetDialog, s: NavSettings, onDismiss: () -> Un
 }
 
 private fun PresetDialog.modeOf(): TravelMode = when (this) {
+    PresetDialog.ResetAll -> TravelMode.CAR
     is PresetDialog.ResetFixed -> mode
     is PresetDialog.ResetCustom -> mode
     is PresetDialog.Copy -> mode
@@ -1300,8 +1355,13 @@ private fun RadioCell(selected: Boolean, isDefault: Boolean, enabled: Boolean, c
                     .background(if (enabled) HudColors.SettingsDefaultCell else HudColors.SettingsDefaultCellDim, RoundedCornerShape(4.dp)),
             )
         }
-        // 初期値から変えた行の選んでいるマス（20261121-D03）: 黄色の地に黒の点（ほかの強調と同じ形）
-        if (changed) {
+        // 初期値から変えた行の選んでいるマス（20261121-D03）: 黄色の地に黒の点（ほかの強調と同じ形）。
+        // 共通の値なら黄色の枠に黄色の点（20261121-D04。今は表は全部プリセットの値）
+        if (changed && LocalCommonValue.current) {
+            Box(Modifier.size(22.dp).border(2.dp, HudColors.Changed, RoundedCornerShape(4.dp)), contentAlignment = Alignment.Center) {
+                Box(Modifier.size(9.dp).background(HudColors.Changed, CircleShape))
+            }
+        } else if (changed) {
             Box(Modifier.size(22.dp).background(HudColors.Changed, RoundedCornerShape(4.dp)), contentAlignment = Alignment.Center) {
                 Box(Modifier.size(9.dp).background(Color.Black, CircleShape))
             }
@@ -1350,6 +1410,8 @@ private fun Chip(
     onClick: () -> Unit,
 ) {
     val hi = changed && on
+    // 共通の値（20261121-D04）: 黄色の枠と黄色の文字（地は塗らない）。プリセットの値: 黄色の地に黒の太字
+    val outline = hi && LocalCommonValue.current
     val shape = RoundedCornerShape(4.dp)
     val c = if (enabled) HudColors.Scale else HudColors.WpReached
     val mark = if (enabled) HudColors.SettingsSelected else HudColors.SettingsSelectedDim
@@ -1361,14 +1423,14 @@ private fun Chip(
     Box(if (fillWidth) Modifier.fillMaxWidth() else Modifier) {
         Box(
             (if (fillWidth) Modifier.fillMaxWidth() else Modifier)
-                .border(if (on) SelectedFrame else 1.dp, frame, shape)
-                .background(if (hi) HudColors.Changed else if (isDefault) defaultFill(c) else HudColors.Background, shape)
+                .border(if (on) SelectedFrame else 1.dp, if (outline) HudColors.Changed else frame, shape)
+                .background(if (hi && !outline) HudColors.Changed else if (isDefault) defaultFill(c) else HudColors.Background, shape)
                 .clickable(enabled = enabled, onClick = onClick)
                 .padding(horizontal = if (compact) 7.dp else 9.dp, vertical = 4.dp),
             contentAlignment = Alignment.Center,
         ) {
             val style = ValueText.copy(
-                color = if (hi) Color.Black else if (isDefault) HudColors.Background else c,
+                color = if (outline) HudColors.Changed else if (hi) Color.Black else if (isDefault) HudColors.Background else c,
                 fontSize = if (compact) 12.sp else 13.sp,
                 fontWeight = if (hi) FontWeight.Bold else FontWeight.Normal,
             )
@@ -1428,6 +1490,11 @@ private fun MarkLegend() {
             Box(Modifier.size(18.dp, 12.dp).background(HudColors.Changed, shape))
             Text(stringResource(R.string.settings_mark_changed), style = RowNote)
         }
+        // 共通の値で変えた値は黄色の枠（20261121-D04）
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            Box(Modifier.size(18.dp, 12.dp).border(1.5.dp, HudColors.Changed, shape))
+            Text(stringResource(R.string.settings_mark_changed_common), style = RowNote)
+        }
     }
 }
 
@@ -1468,7 +1535,17 @@ private fun SettingsSwitch(on: Boolean, enabled: Boolean, changed: Boolean = fal
         checked = on,
         onCheckedChange = onChange,
         enabled = enabled,
-        colors = if (changed) {
+        colors = if (changed && LocalCommonValue.current) {
+            // 共通の値（20261121-D04）: 黄色の枠と黄色のつまみ（地は塗らない）
+            SwitchDefaults.colors(
+                checkedThumbColor = HudColors.Changed,
+                checkedTrackColor = HudColors.Background,
+                checkedBorderColor = HudColors.Changed,
+                uncheckedThumbColor = HudColors.Changed,
+                uncheckedTrackColor = HudColors.Background,
+                uncheckedBorderColor = HudColors.Changed,
+            )
+        } else if (changed) {
             SwitchDefaults.colors(
                 checkedThumbColor = Color.Black,
                 checkedTrackColor = HudColors.Changed,

@@ -409,4 +409,27 @@ class NavEngineTest {
         assertEquals(HeadingSrc.TRACK, e.state.heading.src)
         assertEquals(HeadingSrc.NONE, e.onFix(Fix(timeMs = t0 - 1000, lat = 33.0, lon = 133.0, speedMps = 0f), t0 - 1000).heading.src)
     }
+
+    /** 20261121-D04: 位置だけ。GPS の方位が使えても TRK。保存して読み直しても位置だけ */
+    @Test
+    fun trackOnlyInEngine() {
+        val s = NavSettings().selectTravelMode(TravelMode.CUSTOM1).editReach { it.copy(headingMethod = HeadingMethod.TRACK_ONLY) }
+        val e = engine(s)
+        var st: NavState? = null
+        // 東へ 1.5 m/s。GPS の方位は北・精度 3°（使える）
+        for (i in 0..12) {
+            val f = Fix(timeMs = t0 + i * 1000L, lat = 33.0, lon = TestGeo.lon(1.5 * i, 33.0, 133.0), speedMps = 1.5f, bearingDeg = 0f, bearingAccDeg = 3f, horizAccM = 4f)
+            st = e.onFix(f, f.timeMs)
+            // 8 m 歩くまでは GPS ＋ 位置と同じ（GPS の向き）
+            if (i == 2) assertEquals(HeadingSrc.GPS, st.heading.src)
+        }
+        assertEquals(HeadingSrc.TRACK, st!!.heading.src)
+        assertEquals(90.0, st.heading.deg!!.toDouble(), 0.5)
+        assertEquals(s, SettingsCodec.decode(SettingsCodec.encode(s)))
+        assertEquals("TRACK_ONLY", SettingsCodec.encode(s)["custom1.headingMethod"])
+        // 初期値は変えない（自動車 GPS・歩行 GPS ＋ 位置）
+        assertEquals(HeadingMethod.GPS, ReachProfile.CAR.headingMethod)
+        assertEquals(HeadingMethod.GPS_TRACK, ReachProfile.WALK.headingMethod)
+        assertEquals(listOf(HeadingMethod.GPS, HeadingMethod.GPS_TRACK, HeadingMethod.TRACK_ONLY), HeadingMethod.entries)
+    }
 }

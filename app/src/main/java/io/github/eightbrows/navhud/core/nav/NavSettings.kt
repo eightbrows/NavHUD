@@ -43,9 +43,11 @@ enum class TravelMode { CAR, WALK, CUSTOM1, CUSTOM2, CUSTOM3 }
 
 /**
  * 方位の出し方（20261121-D01。移動のプリセットの値）。GPS = GPS の方位だけ（遅いときは保持。前からの出し方）、
- * GPS_TRACK = GPS の方位が使えないとき（保持の間と、方位精度が上限を超えて前の値のままの間）は、位置から求める向き（TRK）。保存は名前
+ * GPS_TRACK = GPS の方位が使えないとき（保持の間と、方位精度が上限を超えて前の値のままの間）は、位置から求める向き（TRK）、
+ * TRACK_ONLY = GPS の方位は使わず、いつも位置から求める向き（TRK。20261121-D04）。向きがまだないとき（起動直後・欠けのあと、
+ * 決めた距離を歩くまで）は GPS_TRACK と同じ扱い（GPS の値・保持の値）。保存は名前
  */
-enum class HeadingMethod { GPS, GPS_TRACK }
+enum class HeadingMethod { GPS, GPS_TRACK, TRACK_ONLY }
 
 /**
  * 移動のプリセットの値の組（§5.4。到達の判定・方位・数値の平均・縮尺・地図とランドマークの表・標高プロファイル）。名前は前からの ReachProfile のまま。

@@ -140,6 +140,15 @@ object SettingsCodec {
     }
 
     /**
+     * 共通の値のうち、初期値 d.common から変えた所の保存の名前（帯の「共通 変えた所 3」。20261121-D04）。
+     * 表示言語は NavSettings の外なので入らない
+     */
+    fun commonChanges(s: NavSettings, d: SettingsDefaults = SettingsDefaults.CURRENT): List<String> {
+        val def = encodeCommon(d.common)
+        return encodeCommon(s).filter { (k, v) -> def[k] != v }.keys.toList()
+    }
+
+    /**
      * この保存の名前が設定のものか（保存のときに、変えた所でなくなった名前を消すため。SettingsStore.save）。
      * 設定以外の名前（INPUT・スクロール位置・閉じた欄・前回の位置・表示言語）は false
      */

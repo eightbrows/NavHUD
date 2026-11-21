@@ -125,7 +125,8 @@
     <string name="agl_negative_note">Shown in red when left negative</string>
     <string name="heading_method">Heading method</string>
     <string name="heading_method_gps_track">GPS+position</string>
-    <string name="heading_method_note">GPS+position: when the GPS direction cannot be used (while HLD, or heading accuracy worse than the limit), shows the direction from the walked positions (TRK)</string>
+    <string name="heading_method_track_only">Position only</string>
+    <string name="heading_method_note">GPS+position: when the GPS direction cannot be used (while HLD, or heading accuracy worse than the limit), shows the direction from the walked positions (TRK). Position only: always shows the direction from the walked positions (TRK)</string>
     <string name="hold_enter">Heading hold speed</string>
     <string name="hold_enter_note">Below this, the heading is held (HLD)</string>
     <string name="hold_exit">Heading resume speed</string>
@@ -159,12 +160,15 @@
     <string name="sec_reach">Arrival detection</string>
     <string name="settings_preset_values">%1$s values</string>
     <string name="settings_common_values">Common values</string>
-    <string name="settings_mark_changed">Yellow = changed from the default</string>
+    <string name="settings_mark_changed">Yellow fill = preset value changed from the default</string>
+    <string name="settings_mark_changed_common">Yellow frame = common value changed from the default</string>
     <string name="band_now">Now: %1$s</string>
     <string name="band_origin_default">(from: %1$s defaults)</string>
     <string name="band_origin_copied">(from: current %1$s)</string>
     <string name="band_changed">Changed: %1$d</string>
     <string name="band_unchanged">Defaults</string>
+    <string name="band_common">Common</string>
+    <string name="dialog_reset_all">Resets all presets (including custom ones) and the common values to the defaults.</string>
     <string name="band_reset">Reset to defaults</string>
     <string name="band_reset_custom">Reset to defaults…</string>
     <string name="band_copy">Copy…</string>

@@ -92,6 +92,33 @@ fun ReachProfile.changesFrom(base: ReachProfile): List<String> = PresetFields.AL
 fun NavSettings.changedCount(m: TravelMode, d: SettingsDefaults = SettingsDefaults.CURRENT): Int =
     profileOf(m).changesFrom(defaultProfileOf(m, d)).size
 
+/**
+ * 共通の値の変えた所の数（アプリの初期値と比べる。20261121-D04）。
+ * 表示言語（NavSettings の外。初期値は端末に合わせる）も、設定画面で共通の値として強調するので数に入れる
+ */
+fun NavSettings.commonChangedCount(language: LanguageMode = LanguageMode.SYSTEM, d: SettingsDefaults = SettingsDefaults.CURRENT): Int =
+    SettingsCodec.commonChanges(this, d).size + if (language != LanguageMode.SYSTEM) 1 else 0
+
+/**
+ * 確かめの枠の種類（20261121-D04 で、設定画面の決まりを core に移した）。
+ * RESET_PRESET: 自動車・歩行を初期値に戻す、RESET_CUSTOM: カスタムを自動車 / 歩行の初期値に、COPY: カスタムにコピー、
+ * COPY_OVERWRITE: コピーで変えた所を消すときの確かめ、RESET_ALL: 設定を初期値に戻す（全部のプリセットと共通の値）
+ */
+enum class ConfirmKind { RESET_PRESET, RESET_CUSTOM, COPY, COPY_OVERWRITE, RESET_ALL }
+
+/** 帯の「初期値に戻す」を押したときの確かめ。自動車・歩行で変えた所がなければ null（押せない） */
+fun NavSettings.bandResetConfirm(): ConfirmKind? = when {
+    travelMode.customIndex != null -> ConfirmKind.RESET_CUSTOM
+    changedCount(travelMode) > 0 -> ConfirmKind.RESET_PRESET
+    else -> null
+}
+
+/** コピーで今の値を入れるときの確かめ。そのカスタムに変えた所があれば上書きの確かめ、なければ null（そのまま入れる） */
+fun NavSettings.copyConfirm(m: TravelMode): ConfirmKind? = if (changedCount(m) > 0) ConfirmKind.COPY_OVERWRITE else null
+
+/** 「設定を初期値に戻す」の確かめ（全部のプリセットと共通の値を消すので、いつも出す。20261121-D04） */
+fun NavSettings.resetAllConfirm(): ConfirmKind = ConfirmKind.RESET_ALL
+
 /** 自動車・歩行を初期値に戻す（共通の値・ほかのプリセットは変えない）。カスタムは resetCustom を使う */
 fun NavSettings.resetPreset(m: TravelMode, d: SettingsDefaults = SettingsDefaults.CURRENT): NavSettings {
     require(m == TravelMode.CAR || m == TravelMode.WALK)

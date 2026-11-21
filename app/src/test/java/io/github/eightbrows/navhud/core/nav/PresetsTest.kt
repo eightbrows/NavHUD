@@ -260,4 +260,46 @@ class PresetsTest {
         assertEquals(car.rangeStepsKm, s.selectTravelMode(TravelMode.CAR).rangeStepsKm)
         assertEquals(listOf(0.1, 0.5), s.selectTravelMode(TravelMode.CAR).selectTravelMode(TravelMode.WALK).rangeStepsKm)
     }
+
+    /** 20261121-D04: 共通の値の変えた所の数（アプリの初期値と比べる。プリセットの値は入れない） */
+    @Test
+    fun commonChangedCount() {
+        assertEquals(0, NavSettings().commonChangedCount())
+        val s = NavSettings(uiTheme = ColorTheme.GREEN, noFixTimeoutSec = 30, keepScreenOn = false)
+            .editReach { it.copy(reachRadiusM = 50.0) }
+        assertEquals(3, s.commonChangedCount())
+        assertEquals(setOf("uiTheme", "noFixTimeoutSec", "keepScreenOn"), SettingsCodec.commonChanges(s).toSet())
+        assertEquals(1, s.changedCount(TravelMode.CAR))
+        // 初期値に戻すと数から外れる
+        assertEquals(2, s.copy(keepScreenOn = true).commonChangedCount())
+        // プリセットの「初期値に戻す」は共通の値を変えない
+        assertEquals(3, s.resetPreset(TravelMode.CAR).commonChangedCount())
+        // 設定を初期値に戻すと 0
+        assertEquals(0, s.resetAll().commonChangedCount())
+        // 初期値を差し替えると、その初期値と比べる
+        val d = SettingsDefaults(NavSettings(uiTheme = ColorTheme.GREEN), ReachProfile.CAR, ReachProfile.WALK)
+        assertEquals(2, s.commonChangedCount(d = d))
+        // 表示言語（NavSettings の外）も、端末に合わせる以外なら 1 つ
+        assertEquals(4, s.commonChangedCount(LanguageMode.ENGLISH))
+        assertEquals(1, NavSettings().commonChangedCount(LanguageMode.JAPANESE))
+        assertEquals(0, NavSettings().commonChangedCount(LanguageMode.SYSTEM))
+    }
+
+    /** 20261121-D04: 確かめの枠を出す決まり（設定画面はこのとおりに出す） */
+    @Test
+    fun confirmations() {
+        val s = NavSettings()
+        // 帯の「初期値に戻す」: 変えた所がない自動車・歩行は押せない（確かめなし）、あれば確かめ。カスタムはいつも（初期値の選択）
+        assertEquals(null, s.bandResetConfirm())
+        assertEquals(ConfirmKind.RESET_PRESET, s.editReach { it.copy(reachRadiusM = 50.0) }.bandResetConfirm())
+        assertEquals(null, s.selectTravelMode(TravelMode.WALK).bandResetConfirm())
+        assertEquals(ConfirmKind.RESET_CUSTOM, s.selectTravelMode(TravelMode.CUSTOM2).bandResetConfirm())
+        // コピー: そのカスタムに変えた所があれば上書きの確かめ、なければそのまま
+        assertEquals(null, s.copyConfirm(TravelMode.CUSTOM1))
+        val c = s.selectTravelMode(TravelMode.CUSTOM1).editReach { it.copy(passHoldSec = 9) }
+        assertEquals(ConfirmKind.COPY_OVERWRITE, c.copyConfirm(TravelMode.CUSTOM1))
+        // 設定を初期値に戻す: 全部のプリセットと共通の値を消すので、いつも確かめ
+        assertEquals(ConfirmKind.RESET_ALL, s.resetAllConfirm())
+        assertEquals(ConfirmKind.RESET_ALL, c.copy(uiTheme = ColorTheme.AMBER).resetAllConfirm())
+    }
 }

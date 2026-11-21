@@ -123,7 +123,8 @@
     <string name="agl_negative_note">負のままにすると赤で出す</string>
     <string name="heading_method">方位の出し方</string>
     <string name="heading_method_gps_track">GPS＋位置</string>
-    <string name="heading_method_note">GPS＋位置: GPS の向きが使えないとき（HLD の間・方位精度が上限より悪い点）は、歩いた位置から求めた向き（TRK）を出す</string>
+    <string name="heading_method_track_only">位置だけ</string>
+    <string name="heading_method_note">GPS＋位置: GPS の向きが使えないとき（HLD の間・方位精度が上限より悪い点）は、歩いた位置から求めた向き（TRK）を出す。位置だけ: いつも歩いた位置から求めた向き（TRK）を出す</string>
     <string name="hold_enter">方位を止める速度</string>
     <string name="hold_enter_note">これより遅いと方位を止めて保つ（HLD）</string>
     <string name="hold_exit">方位を戻す速度</string>
@@ -157,12 +158,15 @@
     <string name="sec_reach">到達の判定</string>
     <string name="settings_preset_values">%1$sの値</string>
     <string name="settings_common_values">共通の値</string>
-    <string name="settings_mark_changed">黄色の反転 ＝ 初期値から変えた値</string>
+    <string name="settings_mark_changed">黄色の反転 ＝ 初期値から変えたプリセットの値</string>
+    <string name="settings_mark_changed_common">黄色の枠 ＝ 初期値から変えた共通の値</string>
     <string name="band_now">今：%1$s</string>
     <string name="band_origin_default">（元：%1$sの初期値）</string>
     <string name="band_origin_copied">（元：今の%1$s）</string>
     <string name="band_changed">変えた所 %1$d</string>
     <string name="band_unchanged">初期値のまま</string>
+    <string name="band_common">共通</string>
+    <string name="dialog_reset_all">全部のプリセット（カスタムも）と共通の値を初期値にします。</string>
     <string name="band_reset">初期値に戻す</string>
     <string name="band_reset_custom">初期値に戻す…</string>
     <string name="band_copy">コピーする…</string>
