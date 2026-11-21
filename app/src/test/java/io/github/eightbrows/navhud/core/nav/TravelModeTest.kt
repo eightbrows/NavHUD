@@ -167,14 +167,16 @@ class TravelModeTest {
         assertEquals(10.0, w.passDepartM, 0.0)
         assertEquals(3, w.passHoldSec)
         assertEquals(1 to 3, w.holdEnterKmh to w.holdExitKmh)
-        assertEquals(HeadingMethod.GPS_TRACK, w.headingMethod)
+        // 20261121-D06 から位置だけ（前は GPS ＋ 位置）。向きを求める距離は 8 m のまま
+        assertEquals(HeadingMethod.TRACK_ONLY, w.headingMethod)
+        assertEquals(8, w.trackDistanceM)
         assertEquals(30f, w.maxBearingAccDeg)
         assertEquals(5, w.gsAverageSec)
         assertEquals(60, w.etaAverageSec)
         // 選ぶと今の値が全部歩行の値になる。変えると歩行の値に残る（20261121-D03）
         val s = NavSettings().selectTravelMode(TravelMode.WALK)
         assertEquals(w, s.reachProfile)
-        assertEquals(HeadingMethod.GPS_TRACK, s.headingMethod)
+        assertEquals(HeadingMethod.TRACK_ONLY, s.headingMethod)
         assertEquals(30f, s.maxGpsBearingAccDeg)
         assertEquals(5, s.gsAverageSec)
         assertEquals(60, s.etaAverageSec)

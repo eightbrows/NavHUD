@@ -120,14 +120,18 @@ data class FileSheetState(val kind: FileSheetKind, val recent: List<RecentFileRo
  */
 class NavViewModel(app: Application) : AndroidViewModel(app) {
 
-    private val zone: ZoneId = ZoneId.systemDefault()
+    /**
+     * 端末のタイムゾーン。使うたびに読む（20261121-D06。前は起動時に一度だけ取っていたので、アプリを開いている間に
+     * ゾーンが変わると、TGT・DDL のカウントダウンだけ前のゾーンのままだった。TIME・ETA の表示は MainScreen で毎回読んでいる）
+     */
+    private val zone: ZoneId get() = ZoneId.systemDefault()
     private val store = TrackDocumentStore(app)
     private val wpStore = WaypointDocumentStore(app)
     private val clock = ReplayClock { SystemClock.elapsedRealtime() }
     private val settingsStore = SettingsStore(app)
 
     // 保存した設定と INPUT（LIVE / REPLAY）で始める
-    private val engine = NavEngine(settingsStore.load(), zone, settingsStore.input)
+    private val engine = NavEngine(settingsStore.load(), { ZoneId.systemDefault() }, settingsStore.input)
 
     private val _state = MutableStateFlow(engine.state)
     val state: StateFlow<NavState> = _state.asStateFlow()

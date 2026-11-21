@@ -302,4 +302,38 @@ class PresetsTest {
         assertEquals(ConfirmKind.RESET_ALL, s.resetAllConfirm())
         assertEquals(ConfirmKind.RESET_ALL, c.copy(uiTheme = ColorTheme.AMBER).resetAllConfirm())
     }
+
+    /**
+     * 20261121-D06: 歩行の方位の出し方の初期値を GPS ＋ 位置 → 位置だけ に変えた。
+     * 20261121-D05 の保存で歩行の方位の出し方を変えていない端末（walk.headingMethod がない）は新しい初期値に付いていき、
+     * 変えた端末はそのまま。自動車は変わらない
+     */
+    @Test
+    fun walkHeadingDefaultFollowsTheNewDefault() {
+        // 20261121-D05 の保存（形 2）。歩行は到着半径だけ変えてある。カスタム1 は元が歩行で何も変えていない
+        val unchanged = mapOf("settingsFormat" to "2", "travelMode" to "WALK", "walk.reachRadiusM" to "20",
+            "custom1.base" to "WALK", "custom2.base" to "CAR", "custom3.base" to "CAR")
+        val a = SettingsCodec.decode(unchanged)
+        assertEquals(HeadingMethod.TRACK_ONLY, a.walkProfile.headingMethod)
+        assertEquals(HeadingMethod.TRACK_ONLY, a.headingMethod)
+        assertEquals(HeadingMethod.TRACK_ONLY, a.profileOf(TravelMode.CUSTOM1).headingMethod)
+        assertEquals(HeadingMethod.GPS, a.carProfile.headingMethod)
+        assertEquals(20.0, a.walkProfile.reachRadiusM, 0.0)
+        assertEquals(1, a.changedCount(TravelMode.WALK))
+        // 歩行の方位の出し方を GPS に変えていた端末は GPS のまま（変えた所として残る）
+        val gps = SettingsCodec.decode(unchanged + ("walk.headingMethod" to "GPS"))
+        assertEquals(HeadingMethod.GPS, gps.walkProfile.headingMethod)
+        assertEquals(HeadingMethod.GPS, gps.headingMethod)
+        assertEquals(2, gps.changedCount(TravelMode.WALK))
+        assertEquals("GPS", SettingsCodec.encode(gps)["walk.headingMethod"])
+        // 前に位置だけを選んでいた端末は、新しい初期値と同じになるので変えた所から外れ、次の保存で書かれない
+        val trk = SettingsCodec.decode(unchanged + ("walk.headingMethod" to "TRACK_ONLY"))
+        assertEquals(HeadingMethod.TRACK_ONLY, trk.walkProfile.headingMethod)
+        assertEquals(1, trk.changedCount(TravelMode.WALK))
+        assertEquals(null, SettingsCodec.encode(trk)["walk.headingMethod"])
+        // 前の初期値（GPS ＋ 位置）に戻したい端末は、選べば変えた所として保存される
+        val back = a.editReach { it.copy(headingMethod = HeadingMethod.GPS_TRACK) }
+        assertEquals("GPS_TRACK", SettingsCodec.encode(back)["walk.headingMethod"])
+        assertEquals(HeadingMethod.GPS_TRACK, SettingsCodec.decode(SettingsCodec.encode(back)).walkProfile.headingMethod)
+    }
 }

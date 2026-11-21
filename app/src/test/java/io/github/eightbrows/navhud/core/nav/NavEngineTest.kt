@@ -3,6 +3,7 @@ package io.github.eightbrows.navhud.core.nav
 import io.github.eightbrows.navhud.core.TestSettings
 import io.github.eightbrows.navhud.core.TestGeo
 import io.github.eightbrows.navhud.core.model.Fix
+import io.github.eightbrows.navhud.core.view.HudFormat
 import io.github.eightbrows.navhud.core.model.HeadingSrc
 import io.github.eightbrows.navhud.core.model.Waypoint
 import org.junit.Assert.assertEquals
@@ -429,7 +430,43 @@ class NavEngineTest {
         assertEquals("TRACK_ONLY", SettingsCodec.encode(s)["custom1.headingMethod"])
         // 初期値は変えない（自動車 GPS・歩行 GPS ＋ 位置）
         assertEquals(HeadingMethod.GPS, ReachProfile.CAR.headingMethod)
-        assertEquals(HeadingMethod.GPS_TRACK, ReachProfile.WALK.headingMethod)
+        // 20261121-D06 から歩行は位置だけ
+        assertEquals(HeadingMethod.TRACK_ONLY, ReachProfile.WALK.headingMethod)
         assertEquals(listOf(HeadingMethod.GPS, HeadingMethod.GPS_TRACK, HeadingMethod.TRACK_ONLY), HeadingMethod.entries)
+    }
+
+    /**
+     * 20261121-D06: 途中で端末のタイムゾーンが変わっても、TGT・DDL のカウントダウンは TIME（その時のゾーンの時刻）と合う。
+     * 前はエンジンを作ったときのゾーンのままだった
+     */
+    @Test
+    fun countdownFollowsTheCurrentZone() {
+        var zone = jst
+        val e = NavEngine(TestSettings.BEFORE_D03, { zone }, SourceKind.REPLAY)
+        // t0 は JST 10:00:00。目標 10:10、締切 10:05（WP の時刻はその土地の時刻）
+        e.setWaypoints(listOf(Waypoint("A", 33.1, 133.0, targetTime = LocalTime.of(10, 10), deadlineTime = LocalTime.of(10, 5))))
+        fun timeOf(ms: Long) = HudFormat.time(ms, zone)
+        fun expect(ms: Long, target: LocalTime) = WaypointNav.countdownSec(LocalTime.parse(timeOf(ms)), target)
+        val a = e.onTick(t0)
+        assertEquals("10:00:00", timeOf(t0))
+        assertEquals(600L, a.targetCountdownSec)
+        assertEquals(expect(t0, LocalTime.of(10, 10)), a.targetCountdownSec)
+        // 端末のゾーンが GMT に変わる（TIME は 01:00:00）。カウントダウンも GMT の時刻で数える
+        zone = ZoneId.of("GMT")
+        val b = e.onTick(t0 + 60_000)
+        assertEquals("01:01:00", timeOf(t0 + 60_000))
+        assertEquals(expect(t0 + 60_000, LocalTime.of(10, 10)), b.targetCountdownSec)
+        assertEquals(expect(t0 + 60_000, LocalTime.of(10, 5)), b.deadlineCountdownSec)
+        // JST に戻ると、また JST の時刻で数える
+        zone = jst
+        val c = e.onTick(t0 + 120_000)
+        assertEquals(480L, c.targetCountdownSec)
+        assertEquals(180L, c.deadlineCountdownSec)
+        assertEquals(expect(t0 + 120_000, LocalTime.of(10, 5)), c.deadlineCountdownSec)
+        // 決まったゾーンで作ったエンジンは、そのゾーンのまま（テスト用の作り方）
+        val fixed = NavEngine(TestSettings.BEFORE_D03, jst, SourceKind.REPLAY)
+        fixed.setWaypoints(listOf(Waypoint("A", 33.1, 133.0, targetTime = LocalTime.of(10, 10))))
+        zone = ZoneId.of("GMT")
+        assertEquals(600L, fixed.onTick(t0).targetCountdownSec)
     }
 }

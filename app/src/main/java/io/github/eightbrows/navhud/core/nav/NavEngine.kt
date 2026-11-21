@@ -15,13 +15,17 @@ import java.time.ZoneId
  * 入力は「Fix 到着」「時刻の tick」の2種類（20261121-D01 でコンパスを外した）。時刻は常に呼び出し側が渡す。
  * スレッドセーフではないので、1つのスレッドから呼ぶこと。
  *
- * @param zone 目標/締切時刻（ローカル時刻）を解釈するタイムゾーン
+ * @param zoneOf 目標/締切時刻（ローカル時刻）を解釈するタイムゾーン。計算のたびに読む（20261121-D06。
+ *   前は作ったときに一度だけ取っていたので、途中で端末のタイムゾーンが変わると、TIME・ETA の表示とずれた）
  */
 class NavEngine(
     settings: NavSettings = NavSettings(),
-    private val zone: ZoneId = ZoneId.systemDefault(),
+    private val zoneOf: () -> ZoneId = { ZoneId.systemDefault() },
     sourceKind: SourceKind = SourceKind.REPLAY,
 ) {
+    /** 決まったタイムゾーンで作る（テストなど） */
+    constructor(settings: NavSettings, zone: ZoneId, sourceKind: SourceKind = SourceKind.REPLAY) : this(settings, { zone }, sourceKind)
+
     var settings: NavSettings = settings
         private set
 
@@ -665,5 +669,5 @@ class NavEngine(
     }
 
     private fun countdown(now: Long?, target: LocalTime?): Long? =
-        if (now != null && target != null) WaypointNav.countdownSec(now, target, zone) else null
+        if (now != null && target != null) WaypointNav.countdownSec(now, target, zoneOf()) else null
 }

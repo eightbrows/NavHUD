@@ -129,7 +129,8 @@ data class ReachProfile(
             sidePassMinKmh = Tuning.WALK_SIDE_PASS_MIN_SPEED_KMH,
             holdEnterKmh = Tuning.WALK_HOLD_ENTER_KMH,
             holdExitKmh = Tuning.WALK_HOLD_EXIT_KMH,
-            headingMethod = HeadingMethod.GPS_TRACK,
+            // 20261121-D06 から位置だけ（調べ 20261121-D05-HDGWALK の 4.1。前は GPS ＋ 位置）。向きを求める距離は 8 m のまま
+            headingMethod = HeadingMethod.TRACK_ONLY,
             maxBearingAccDeg = Tuning.WALK_MAX_BEARING_ACC_DEG,
             gsAverageSec = Tuning.WALK_GS_AVERAGE_SEC,
             etaAverageSec = Tuning.WALK_ETA_AVERAGE_SEC,
