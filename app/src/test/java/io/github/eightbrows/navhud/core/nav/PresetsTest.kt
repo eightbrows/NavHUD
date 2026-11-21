@@ -233,20 +233,21 @@ class PresetsTest {
         assertEquals(s, r)
     }
 
-    /** 位置から求める向きの距離（20261121-D03）: 3〜20 m、1 m 刻み。初期値は自動車・歩行とも 8 m */
+    /** 位置から求める向きの距離（20261121-D03）: 3〜20 m、1 m 刻み。初期値は自動車 8 m・歩行 4 m（20261122-D01 から。前は 8 m） */
     @Test
     fun trackDistanceSetting() {
         assertEquals(3..20, NavSettings.TRACK_DISTANCE_M_RANGE)
         assertEquals(8, car.trackDistanceM)
-        assertEquals(8, walk.trackDistanceM)
+        assertEquals(4, walk.trackDistanceM)
         assertEquals(8, NavSettings().trackDistanceM)
+        assertEquals(4, NavSettings().selectTravelMode(TravelMode.WALK).trackDistanceM)
         val s = NavSettings().selectTravelMode(TravelMode.WALK).editReach { it.copy(trackDistanceM = 12) }
         assertEquals(12, s.trackDistanceM)
         assertEquals("12", SettingsCodec.encode(s)["walk.trackDistanceM"])
         assertEquals(s, SettingsCodec.decode(SettingsCodec.encode(s)))
-        // 範囲の外は初期値
-        assertEquals(8, SettingsCodec.decode(SettingsCodec.encode(s) + ("walk.trackDistanceM" to "25")).trackDistanceM)
-        assertEquals(8, SettingsCodec.decode(SettingsCodec.encode(s) + ("walk.trackDistanceM" to "2")).trackDistanceM)
+        // 範囲の外は、そのプリセットの初期値（歩行は 4 m）
+        assertEquals(4, SettingsCodec.decode(SettingsCodec.encode(s) + ("walk.trackDistanceM" to "25")).trackDistanceM)
+        assertEquals(4, SettingsCodec.decode(SettingsCodec.encode(s) + ("walk.trackDistanceM" to "2")).trackDistanceM)
     }
 
     /** 今の値（縮尺・表など）を変えると、選んでいるプリセットに残る（storeActive。NavViewModel.updateSettings が呼ぶ） */
@@ -335,5 +336,41 @@ class PresetsTest {
         val back = a.editReach { it.copy(headingMethod = HeadingMethod.GPS_TRACK) }
         assertEquals("GPS_TRACK", SettingsCodec.encode(back)["walk.headingMethod"])
         assertEquals(HeadingMethod.GPS_TRACK, SettingsCodec.decode(SettingsCodec.encode(back)).walkProfile.headingMethod)
+    }
+
+    /**
+     * 20261122-D01: 歩行の向きを求める距離の初期値を 8 m → 4 m に変えた。
+     * 20261121-D06 の保存で歩行の距離を変えていない端末（walk.trackDistanceM がない）は 4 m に付いていき、変えた端末はそのまま。自動車は 8 m のまま
+     */
+    @Test
+    fun walkTrackDistanceFollowsTheNewDefault() {
+        // 20261121-D06 の保存（形 2）。歩行は到着半径だけ変えてある。カスタム1 は元が歩行、カスタム2 は元が自動車で何も変えていない
+        val d06 = mapOf("settingsFormat" to "2", "travelMode" to "WALK", "walk.reachRadiusM" to "20",
+            "custom1.base" to "WALK", "custom2.base" to "CAR", "custom3.base" to "CAR")
+        val a = SettingsCodec.decode(d06)
+        assertEquals(4, a.walkProfile.trackDistanceM)
+        assertEquals(4, a.trackDistanceM)
+        assertEquals(4, a.profileOf(TravelMode.CUSTOM1).trackDistanceM)
+        assertEquals(8, a.profileOf(TravelMode.CUSTOM2).trackDistanceM)
+        assertEquals(8, a.carProfile.trackDistanceM)
+        assertEquals(HeadingMethod.TRACK_ONLY, a.walkProfile.headingMethod)
+        assertEquals(1, a.changedCount(TravelMode.WALK))
+        // 歩行の距離を 10 m に変えていた端末は 10 m のまま（変えた所として残る）
+        val ten = SettingsCodec.decode(d06 + ("walk.trackDistanceM" to "10"))
+        assertEquals(10, ten.walkProfile.trackDistanceM)
+        assertEquals(2, ten.changedCount(TravelMode.WALK))
+        assertEquals("10", SettingsCodec.encode(ten)["walk.trackDistanceM"])
+        // 前に 4 m を選んでいた端末は、新しい初期値と同じになるので変えた所から外れ、次の保存で書かれない
+        val four = SettingsCodec.decode(d06 + ("walk.trackDistanceM" to "4"))
+        assertEquals(4, four.walkProfile.trackDistanceM)
+        assertEquals(1, four.changedCount(TravelMode.WALK))
+        assertEquals(null, SettingsCodec.encode(four)["walk.trackDistanceM"])
+        // 前の初期値（8 m）に戻したい端末は、選べば変えた所として保存される
+        val eight = a.editReach { it.copy(trackDistanceM = 8) }
+        assertEquals("8", SettingsCodec.encode(eight)["walk.trackDistanceM"])
+        assertEquals(8, SettingsCodec.decode(SettingsCodec.encode(eight)).walkProfile.trackDistanceM)
+        // 自動車で 4 m にすると、自動車では変えた所（自動車の初期値は 8 m）
+        val car4 = NavSettings().editReach { it.copy(trackDistanceM = 4) }
+        assertEquals("4", SettingsCodec.encode(car4)["car.trackDistanceM"])
     }
 }

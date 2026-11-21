@@ -167,9 +167,9 @@ class TravelModeTest {
         assertEquals(10.0, w.passDepartM, 0.0)
         assertEquals(3, w.passHoldSec)
         assertEquals(1 to 3, w.holdEnterKmh to w.holdExitKmh)
-        // 20261121-D06 から位置だけ（前は GPS ＋ 位置）。向きを求める距離は 8 m のまま
+        // 20261121-D06 から位置だけ（前は GPS ＋ 位置）。向きを求める距離は 20261122-D01 から 4 m（前は 8 m）
         assertEquals(HeadingMethod.TRACK_ONLY, w.headingMethod)
-        assertEquals(8, w.trackDistanceM)
+        assertEquals(4, w.trackDistanceM)
         assertEquals(30f, w.maxBearingAccDeg)
         assertEquals(5, w.gsAverageSec)
         assertEquals(60, w.etaAverageSec)
@@ -184,12 +184,14 @@ class TravelModeTest {
         val e = s.editReach { it.copy(reachRadiusM = 100.0, maxBearingAccDeg = 45f) }
         assertEquals(100.0, e.walkProfile.reachRadiusM, 0.0)
         assertEquals(2, e.changedCount(TravelMode.WALK))
-        // 足した値（縮尺・表・標高プロファイル・向きを求める距離）は自動車と同じ
+        // 足した値（縮尺・表・標高プロファイル）は自動車と同じ
         assertEquals(car.rangeStepsKm, w.rangeStepsKm)
         assertEquals(car.mapItems, w.mapItems)
         assertEquals(car.landmarks, w.landmarks)
         assertEquals(car.profileSize, w.profileSize)
-        assertEquals(8, w.trackDistanceM)
+        // 向きを求める距離は 20261122-D01 から歩行 4 m・自動車 8 m（前は両方 8 m）
+        assertEquals(4, w.trackDistanceM)
+        assertEquals(8, car.trackDistanceM)
         // 歩行の値は選べる値・範囲の中（設定画面・保存と同じ決まり）
         assertTrue(w.reachRadiusM in NavSettings.REACH_RADIUS_CHOICES_M)
         assertTrue(w.gsAverageSec in NavSettings.GS_AVERAGE_CHOICES_SEC)

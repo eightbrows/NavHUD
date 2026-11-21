@@ -175,6 +175,11 @@ object Tuning {
 
     // ---- 移動のプリセット「歩行」（20261121-D01。調べ 20261119-D03-WALK の案）。値は決まっていて変えられない ----
 
+    /**
+     * 位置から求める向きの距離 [m]（20261122-D01。調べ 20261122-HDGCORNER の案。曲がり角を一番にし、建物の多い所の揺れに余裕を見て
+     * 3 m ではなく 4 m。前は自動車と同じ 8 m）。自動車は TRACK_HEADING_DISTANCE_M（8 m）のまま
+     */
+    const val WALK_TRACK_DISTANCE_M = 4
     /** 方位を止める / 戻す速度 [km/h]（歩く速さ 4〜6 km/h より下に戻す速度を置く） */
     const val WALK_HOLD_ENTER_KMH = 1
     const val WALK_HOLD_EXIT_KMH = 3

@@ -31,6 +31,7 @@ import csv
 import json
 import math
 import os
+import struct
 import sys
 import time
 
@@ -77,6 +78,12 @@ def fnum(s):
         return None
 
 
+def f32(x):
+    """アプリの Fix と同じ 32 ビットの Float に丸める（速さ・精度・方位。20261122-D01）。
+    丸めないと、歩いた距離がちょうど D になる所で、アプリと結ぶ相手が 1 点ずれることがある"""
+    return None if x is None else struct.unpack('f', struct.pack('f', x))[0]
+
+
 # ---------------------------------------------------------------- 読み込みと下ごしらえ
 
 def load_track(path):
@@ -85,8 +92,9 @@ def load_track(path):
     P = []
     with open(path, encoding='utf-8-sig', newline='') as h:
         for r in csv.DictReader(h):
+            # 緯度・経度は Double、速さ・水平精度・方位・方位精度は Float（アプリの Fix と同じ）
             p = dict(t=int(r['epoch_ms']) / 1000.0, lat=fnum(r['latitude']), lon=fnum(r['longitude']),
-                     h=fnum(r['horizontal_acc_m']), v=fnum(r['speed_mps']), brg0=fnum(r['bearing_deg']), ba0=fnum(r['bearing_acc_deg']))
+                     h=f32(fnum(r['horizontal_acc_m'])), v=f32(fnum(r['speed_mps'])), brg0=f32(fnum(r['bearing_deg'])), ba0=f32(fnum(r['bearing_acc_deg'])))
             if p['lat'] is None or p['lon'] is None:
                 continue
             ok = p['ba0'] is not None and p['ba0'] > 0
@@ -458,6 +466,7 @@ def stops_turns(recs, H):
     e = []
     te = []
     delays = []
+    per_turn = []
     cens = 0
     nturn = 0
     for r, h in zip(recs, H):
@@ -487,7 +496,10 @@ def stops_turns(recs, H):
                 cens += 1
             else:
                 delays.append(th - tr)
-    return dict(stop95=pct(e, 95), nstop=len(e), turn95=pct(te, 95), nturn=nturn, d50=pct(delays, 50), d90=pct(delays, 90), cens=cens)
+            ev_e = [abs(ang(h[k][0], P[k]['ref'])) for k in range(ev['i'], ev['j'] + 1) if P[k]['ref'] is not None and h[k][0] is not None]
+            # 曲がり角ごと（20261122-HDGCORNER）: 遅れ [秒]（入らなければ None）と、その角の中の誤差の最大
+            per_turn.append(dict(delay=None if th is None else th - tr, emax=max(ev_e) if ev_e else None))
+    return dict(stop95=pct(e, 95), nstop=len(e), turn95=pct(te, 95), nturn=nturn, d50=pct(delays, 50), d90=pct(delays, 90), cens=cens, per_turn=per_turn)
 
 
 def switches(recs, H):
@@ -597,8 +609,8 @@ def search(recs, quick=False):
                     continue
                 T = T_of(None, (k, lo, hi))
                 add('TRACK_ONLY_ACC', dict(k=k, lo=lo, hi=hi), [track_only(r['P'], t) for r, t in zip(recs, T)])
-    # GPS＋位置: D・止める / 戻す速度・方位精度の上限
-    for D in (5, 8, 10, 12):
+    # GPS＋位置: D・止める / 戻す速度・方位精度の上限（20261122-HDGCORNER で D 3・4・6 m を足した）
+    for D in (3, 4, 5, 6, 8, 10, 12):
         T = T_of(D)
         for en, ex in ((1, 2), (1, 3), (2, 3), (2, 4), (3, 5), (4, 6)):
             for mb in (20.0, 30.0, 45.0):
@@ -626,6 +638,9 @@ def summary(recs):
             ba_bins=[sum(1 for p in P if p['brg'] is not None and lo <= p['ba'] < hi) for lo, hi in BA_BINS],
             h50=pct([p['h'] for p in P if p['h'] is not None], 50), h95=pct([p['h'] for p in P if p['h'] is not None], 95),
             kmh50=pct([p['kmh'] for p in P if p['kmh'] >= 2], 50),
+            # 曲がり角（20261122-HDGCORNER）: 記録の始めからの秒・曲がった角度・その間のいちばん速い速さ（位置は入れない）
+            turn_list=[dict(t=P[t['i']]['t'] - P[0]['t'], angle=t['turn'], dur=P[t['j']]['t'] - P[t['i']]['t'],
+                            kmh=max(p['kmh'] for p in P[t['i']:t['j'] + 1])) for t in r['C']['turns']],
         ))
     # 答え 2 の確かめ: GPS の方位精度 5° 以内の点で、答え 2 と GPS の方位の差
     d = [abs(ang(p['brg'], p['line'])) for r in recs for p in r['P'] if p['line'] is not None and p['brg'] is not None and p['ba'] < 5 and p['kmh'] >= 2]
@@ -635,9 +650,12 @@ def summary(recs):
 
 # 見比べる組（20261121-D05-HDGWALK のまとめの表と同じ組）
 CANDIDATES = [
-    # 20261121-D06 から歩行の初期値は「位置だけ・8 m」（その前は GPS＋位置・1 / 3 km/h・30°・8 m）
-    ('前の歩行の初期値（GPS＋位置・1 / 3 km/h・30°・8 m）', 'GPS_TRACK', dict(D=8, en=1, ex=3, mb=30.0)),
-    ('今の歩行の初期値（位置だけ・8 m）', 'TRACK_ONLY', dict(D=8)),
+    # 歩行の初期値: 20261122-D01 から「位置だけ・4 m」、20261121-D06 は「位置だけ・8 m」、その前は「GPS＋位置・1 / 3 km/h・30°・8 m」。
+    # 記録が増えたら 3 m まで詰めるかを決めるので、3 m も並べる（20261122-HDGCORNER）
+    ('今の歩行の初期値（位置だけ・4 m）', 'TRACK_ONLY', dict(D=4)),
+    ('位置だけ・3 m', 'TRACK_ONLY', dict(D=3)),
+    ('20261121-D06 の歩行の初期値（位置だけ・8 m）', 'TRACK_ONLY', dict(D=8)),
+    ('20261121-D05 までの歩行の初期値（GPS＋位置・1 / 3 km/h・30°・8 m）', 'GPS_TRACK', dict(D=8, en=1, ex=3, mb=30.0)),
     ('位置だけ・10 m', 'TRACK_ONLY', dict(D=10)),
     ('位置だけ・D = 水平精度 × 1.5（3〜10 m）', 'TRACK_ONLY_ACC', dict(k=1.5, lo=3, hi=10)),
     ('GPS＋位置・4 / 6 km/h・30°・10 m', 'GPS_TRACK', dict(D=10, en=4, ex=6, mb=30.0)),
