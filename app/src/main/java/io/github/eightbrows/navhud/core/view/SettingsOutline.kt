@@ -7,57 +7,53 @@ import io.github.eightbrows.navhud.core.nav.RangeAuto
 import kotlin.math.abs
 
 /**
- * 設定画面のセクション（20261104-D02）。この並びで目次と本文を作る。
- * key は閉じたセクションを覚えるときの名前（保存に使うので変えない）。
+ * 設定画面のセクション（20261104-D02。20261121-D03 で並べ直し、到達の判定の欄を足し、移動のプリセットの欄をなくした）。
+ * この並びで目次と本文を作る。key は閉じたセクションを覚えるときの名前（保存に使うので、前からの名前は変えない）。
  */
 enum class SettingsSectionId(val key: String) {
-    /** 移動のプリセット（20261121-D02 で、いちばん上に作った。プリセットの選択と、プリセットの値の項目を全部まとめた） */
-    TRAVEL_PRESET("travelPreset"),
     POSITION_HEADING("position"),
+    /** 到達の判定（20261121-D03。前は WP の欄の細かい調整、20261121-D02 は移動のプリセットの欄） */
+    REACH("reach"),
     RANGE("range"),
-    WP("wp"),
-    DISPLAY("display"),
-    RINGS_TRACK("ringsTrack"),
     MAP("map"),
     LANDMARKS("landmarks"),
+    DISPLAY("display"),
+    WP("wp"),
+    RINGS_TRACK("ringsTrack"),
     OTHER("other"),
     INFO("info"),
 }
 
 /** 設定画面の項目（1 行、または表や欄のまとまり）。画面はこの並びのとおりに描く */
 enum class SettingKey {
-    // 移動のプリセット（20261121-D02）: 選択・「自動車の値にする」「歩行の値にする」（カスタムのときだけ）
-    TRAVEL_MODE, PRESET_BUTTONS,
-    // 移動のプリセット: 方位（20261121-D02 で測位と方位から移した）
-    HEADING_METHOD, HOLD_ENTER, HOLD_EXIT, MAX_GPS_BEARING_ACC,
-    // 移動のプリセット: 到達の判定（20261121-D02 で WP から移した）
+    // 測位と方位: プリセットの値（方位の出し方と、GPS の向き・位置から求める向きの 2 つの囲み。20261121-D03）
+    HEADING_METHOD, GPS_BOX, TRK_BOX,
+    HOLD_ENTER, HOLD_EXIT, MAX_GPS_BEARING_ACC, TRACK_DISTANCE,
+    // 測位と方位: 共通の値
+    AGL_NEGATIVE, MAX_GPS_ACC, NO_FIX_TIMEOUT, ALT_OFFSET,
+
+    // 到達の判定（プリセットの値）
     ARRIVAL_RADIUS, SIDE_PASS, SIDE_PASS_MAX, SIDE_PASS_DEPART, SIDE_PASS_MIN_SPEED, PASS_DETECTION, PASS_MAX, PASS_DEPART, PASS_HOLD,
-    // 移動のプリセット: 数値の平均（20261121-D02 で画面から移した）
-    GS_AVERAGE, ETA_AVERAGE,
 
-    // 測位と方位（20261105-D01: 地上高の負の値を画面から移した。20261121-D02: プリセットの値の項目を移動のプリセットへ移した）
-    AGL_NEGATIVE,
-    MAX_GPS_ACC, NO_FIX_TIMEOUT, ALT_OFFSET,
-
-    // 縮尺
+    // 縮尺（プリセットの値。地図を動かしたあと戻るまでは共通）
     RANGE_STEPS, INITIAL_RANGE, AUTO_ON_START, AUTO_MIN, AUTO_MAX,
     ZOOM_IN_DELAY, HOLD_AFTER_WP, ZOOM_IN_RATIO, PAN_RETURN,
 
-    // WP（20261105-D01: 前回の WP リストを自動で開くをその他から、標高プロファイルを画面から移した。
-    // 20261121-D02: 移動のプリセットと到達の判定を移動のプリセットの欄へ移した。WP リストに関わる項目だけ）
-    AUTO_OPEN_LAST, WP_BUTTONS, HUD_WP_COUNT, PROFILE,
+    // 地図（表はプリセットの値、背景地図・線の太さ・明るさは共通）
+    MAP_TABLE, BASE_MAP, MAP_LINE_WIDTH, MAP_LINE_BRIGHTNESS,
 
-    // 画面（20261105-D01: 表示モードは設定画面からなくした。切り替えは上部バーだけ）
+    // ランドマーク（表はプリセットの値、明るさは共通）
+    LANDMARK_TABLE, LANDMARK_BRIGHTNESS,
+
+    // 画面（標高プロファイル・GS の平均・ETA の平均速度はプリセットの値。20261105-D01: 表示モードは設定画面からなくした）
+    PROFILE, GS_AVERAGE, ETA_AVERAGE,
     UI_COLOR, MAP_COLOR, BUTTON_OPACITY, NUMBERS_OPACITY, OWNSHIP_POSITION,
+
+    // WP（共通の値だけ）
+    AUTO_OPEN_LAST, WP_BUTTONS, HUD_WP_COUNT,
 
     // 距離環と軌跡
     RING_BRIGHTNESS, RING_LABEL_SIZE, TRACK_COLOR, TRACK_BRIGHTNESS,
-
-    // 地図
-    BASE_MAP, MAP_LINE_WIDTH, MAP_LINE_BRIGHTNESS, MAP_TABLE,
-
-    // ランドマーク
-    LANDMARK_BRIGHTNESS, LANDMARK_TABLE,
 
     // その他
     KEEP_SCREEN_ON, APP_LANGUAGE,
@@ -66,77 +62,88 @@ enum class SettingKey {
     PERMISSIONS, ABOUT, SOURCES,
 }
 
-/** セクションの中の小見出し（移動のプリセットの欄。20261121-D02） */
-enum class SettingsGroupHeading { HEADING, REACH, AVERAGE }
-
-/** 小見出しと、その下の項目 */
-data class SettingsGroup(val heading: SettingsGroupHeading, val items: List<SettingKey>)
-
 /**
- * セクションの中身: 上の項目 items、小見出しごとの項目 groups（移動のプリセットの欄）、「細かい調整」の見出しの下の項目 fine
- * （なければ空。たたまない）。並びは items → groups → fine
+ * セクションの中身（20261121-D03）: 上に今のプリセットの値（preset。小見出し「自動車の値」など）、下に共通の値（common。小見出し「共通の値」）。
+ * それぞれの「細かい調整」（presetFine・commonFine）は、その下に小さな見出しで続ける。値でない項目（権限・情報）は plain（小見出しなし）。
+ * 片方しかないセクションは、その小見出しだけ
  */
 data class SettingsSectionDef(
     val id: SettingsSectionId,
-    val items: List<SettingKey>,
-    val fine: List<SettingKey> = emptyList(),
-    val groups: List<SettingsGroup> = emptyList(),
+    val preset: List<SettingKey> = emptyList(),
+    val presetFine: List<SettingKey> = emptyList(),
+    val common: List<SettingKey> = emptyList(),
+    val commonFine: List<SettingKey> = emptyList(),
+    val plain: List<SettingKey> = emptyList(),
 ) {
-    /** この欄の全部の項目（並びのとおり） */
-    val allItems: List<SettingKey> get() = items + groups.flatMap { it.items } + fine
+    /** この欄の全部の項目（並びのとおり。囲みの中の項目も入れる） */
+    val allItems: List<SettingKey>
+        get() = (preset + presetFine + common + commonFine + plain).flatMap { k -> listOf(k) + SettingsOutline.boxItems(k) }
+
+    /** プリセットの値の項目（囲みの中の項目も入れる） */
+    val presetItems: List<SettingKey> get() = (preset + presetFine).flatMap { k -> listOf(k) + SettingsOutline.boxItems(k) }.filter { it !in SettingsOutline.BOXES }
 }
 
 object SettingsOutline {
 
+    /** 測位と方位の囲み（20261121-D03）: GPS の向き（止める / 戻す速度・方位精度の上限）と、位置から求める向き（向きを求める距離） */
+    val GPS_BOX_ITEMS = listOf(SettingKey.HOLD_ENTER, SettingKey.HOLD_EXIT, SettingKey.MAX_GPS_BEARING_ACC)
+    val TRK_BOX_ITEMS = listOf(SettingKey.TRACK_DISTANCE)
+    val BOXES = setOf(SettingKey.GPS_BOX, SettingKey.TRK_BOX)
+
+    /** 囲みの中の項目（囲みでなければ空） */
+    fun boxItems(k: SettingKey): List<SettingKey> = when (k) {
+        SettingKey.GPS_BOX -> GPS_BOX_ITEMS
+        SettingKey.TRK_BOX -> TRK_BOX_ITEMS
+        else -> emptyList()
+    }
+
     val SECTIONS: List<SettingsSectionDef> = listOf(
-        // 移動のプリセット（20261121-D02）: 選択とボタンの下に、方位 → 到達の判定 → 数値の平均 の小見出しで、プリセットの値の項目を全部
         SettingsSectionDef(
-            SettingsSectionId.TRAVEL_PRESET,
-            listOf(SettingKey.TRAVEL_MODE, SettingKey.PRESET_BUTTONS),
-            groups = listOf(
-                SettingsGroup(
-                    SettingsGroupHeading.HEADING,
-                    listOf(SettingKey.HEADING_METHOD, SettingKey.HOLD_ENTER, SettingKey.HOLD_EXIT, SettingKey.MAX_GPS_BEARING_ACC),
-                ),
-                // 到達の判定（並び・名前は 20261104-D01 までと同じ。20261119-D01 で真横通過の後ろに「判定を始める速さ」を足した）
-                SettingsGroup(
-                    SettingsGroupHeading.REACH,
-                    listOf(
-                        SettingKey.ARRIVAL_RADIUS, SettingKey.SIDE_PASS, SettingKey.SIDE_PASS_MAX, SettingKey.SIDE_PASS_DEPART, SettingKey.SIDE_PASS_MIN_SPEED,
-                        SettingKey.PASS_DETECTION, SettingKey.PASS_MAX, SettingKey.PASS_DEPART, SettingKey.PASS_HOLD,
-                    ),
-                ),
-                SettingsGroup(SettingsGroupHeading.AVERAGE, listOf(SettingKey.GS_AVERAGE, SettingKey.ETA_AVERAGE)),
+            SettingsSectionId.POSITION_HEADING,
+            preset = listOf(SettingKey.HEADING_METHOD, SettingKey.GPS_BOX, SettingKey.TRK_BOX),
+            common = listOf(SettingKey.AGL_NEGATIVE),
+            commonFine = listOf(SettingKey.MAX_GPS_ACC, SettingKey.NO_FIX_TIMEOUT, SettingKey.ALT_OFFSET),
+        ),
+        // 到達の判定（並び・名前は 20261104-D01 までと同じ。20261119-D01 で真横通過の後ろに「判定を始める速さ」を足した）
+        SettingsSectionDef(
+            SettingsSectionId.REACH,
+            preset = listOf(
+                SettingKey.ARRIVAL_RADIUS, SettingKey.SIDE_PASS, SettingKey.SIDE_PASS_MAX, SettingKey.SIDE_PASS_DEPART, SettingKey.SIDE_PASS_MIN_SPEED,
+                SettingKey.PASS_DETECTION, SettingKey.PASS_MAX, SettingKey.PASS_DEPART, SettingKey.PASS_HOLD,
             ),
         ),
         SettingsSectionDef(
-            SettingsSectionId.POSITION_HEADING,
-            listOf(SettingKey.AGL_NEGATIVE),
-            listOf(SettingKey.MAX_GPS_ACC, SettingKey.NO_FIX_TIMEOUT, SettingKey.ALT_OFFSET),
-        ),
-        SettingsSectionDef(
             SettingsSectionId.RANGE,
-            listOf(SettingKey.RANGE_STEPS, SettingKey.INITIAL_RANGE, SettingKey.AUTO_ON_START, SettingKey.AUTO_MIN, SettingKey.AUTO_MAX),
-            listOf(SettingKey.ZOOM_IN_DELAY, SettingKey.HOLD_AFTER_WP, SettingKey.ZOOM_IN_RATIO, SettingKey.PAN_RETURN),
+            preset = listOf(SettingKey.RANGE_STEPS, SettingKey.INITIAL_RANGE, SettingKey.AUTO_ON_START, SettingKey.AUTO_MIN, SettingKey.AUTO_MAX),
+            presetFine = listOf(SettingKey.ZOOM_IN_DELAY, SettingKey.HOLD_AFTER_WP, SettingKey.ZOOM_IN_RATIO),
+            common = listOf(SettingKey.PAN_RETURN),
         ),
-        // WP リストに関わる項目だけ（20261121-D02 で移動のプリセットと到達の判定を移した）
         SettingsSectionDef(
-            SettingsSectionId.WP,
-            listOf(SettingKey.AUTO_OPEN_LAST, SettingKey.WP_BUTTONS, SettingKey.HUD_WP_COUNT, SettingKey.PROFILE),
+            SettingsSectionId.MAP,
+            preset = listOf(SettingKey.MAP_TABLE),
+            common = listOf(SettingKey.BASE_MAP, SettingKey.MAP_LINE_WIDTH, SettingKey.MAP_LINE_BRIGHTNESS),
         ),
+        SettingsSectionDef(SettingsSectionId.LANDMARKS, preset = listOf(SettingKey.LANDMARK_TABLE), common = listOf(SettingKey.LANDMARK_BRIGHTNESS)),
         SettingsSectionDef(
             SettingsSectionId.DISPLAY,
-            listOf(SettingKey.UI_COLOR, SettingKey.MAP_COLOR, SettingKey.BUTTON_OPACITY, SettingKey.NUMBERS_OPACITY, SettingKey.OWNSHIP_POSITION),
+            preset = listOf(SettingKey.PROFILE, SettingKey.GS_AVERAGE, SettingKey.ETA_AVERAGE),
+            common = listOf(SettingKey.UI_COLOR, SettingKey.MAP_COLOR, SettingKey.BUTTON_OPACITY, SettingKey.NUMBERS_OPACITY, SettingKey.OWNSHIP_POSITION),
         ),
+        SettingsSectionDef(SettingsSectionId.WP, common = listOf(SettingKey.AUTO_OPEN_LAST, SettingKey.WP_BUTTONS, SettingKey.HUD_WP_COUNT)),
         SettingsSectionDef(
             SettingsSectionId.RINGS_TRACK,
-            listOf(SettingKey.RING_BRIGHTNESS, SettingKey.RING_LABEL_SIZE, SettingKey.TRACK_COLOR, SettingKey.TRACK_BRIGHTNESS),
+            common = listOf(SettingKey.RING_BRIGHTNESS, SettingKey.RING_LABEL_SIZE, SettingKey.TRACK_COLOR, SettingKey.TRACK_BRIGHTNESS),
         ),
-        SettingsSectionDef(SettingsSectionId.MAP, listOf(SettingKey.BASE_MAP, SettingKey.MAP_LINE_WIDTH, SettingKey.MAP_LINE_BRIGHTNESS, SettingKey.MAP_TABLE)),
-        SettingsSectionDef(SettingsSectionId.LANDMARKS, listOf(SettingKey.LANDMARK_BRIGHTNESS, SettingKey.LANDMARK_TABLE)),
-        SettingsSectionDef(SettingsSectionId.OTHER, listOf(SettingKey.KEEP_SCREEN_ON, SettingKey.APP_LANGUAGE)),
-        SettingsSectionDef(SettingsSectionId.INFO, listOf(SettingKey.PERMISSIONS, SettingKey.ABOUT, SettingKey.SOURCES)),
+        SettingsSectionDef(SettingsSectionId.OTHER, common = listOf(SettingKey.KEEP_SCREEN_ON, SettingKey.APP_LANGUAGE)),
+        SettingsSectionDef(SettingsSectionId.INFO, plain = listOf(SettingKey.PERMISSIONS, SettingKey.ABOUT, SettingKey.SOURCES)),
     )
+
+    /**
+     * 使う縮尺の初期値の短い書き方（20261121-D03。「（初期値：全部）」「（初期値：25〜2.5k）」）: 全部の段なら null（「全部」と書く）、
+     * そうでなければ いちばん詳細の段と いちばん広域の段の組 [km]
+     */
+    fun rangeStepsSpan(stepsKm: List<Double>): Pair<Double, Double>? =
+        if (RangeAuto.ALL_STEPS_KM.all { a -> stepsKm.any { abs(it - a) < 1e-9 } }) null else stepsKm.min() to stepsKm.max()
 
     // ---- 閉じたセクションの覚え（スクロール位置と同じ、画面の状態。NavSettings の外なので「設定を初期値に戻す」では変わらない）----
 

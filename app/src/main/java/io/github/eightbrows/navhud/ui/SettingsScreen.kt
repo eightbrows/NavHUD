@@ -37,6 +37,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
+import io.github.eightbrows.navhud.core.nav.resetPreset
+import io.github.eightbrows.navhud.core.nav.resetCustom
+import io.github.eightbrows.navhud.core.nav.defaultsForDisplay
+import io.github.eightbrows.navhud.core.nav.copyToCustom
+import io.github.eightbrows.navhud.core.nav.changedCount
+import io.github.eightbrows.navhud.core.nav.baseOf
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.FirstBaseline
@@ -73,7 +82,6 @@ import io.github.eightbrows.navhud.core.nav.editReach
 import io.github.eightbrows.navhud.core.nav.selectTravelMode
 import io.github.eightbrows.navhud.core.view.HudFormat
 import io.github.eightbrows.navhud.core.view.SettingKey
-import io.github.eightbrows.navhud.core.view.SettingsGroupHeading
 import io.github.eightbrows.navhud.core.view.SettingsOutline
 import io.github.eightbrows.navhud.core.view.SettingsSectionId
 import io.github.eightbrows.navhud.source.AppPermission
@@ -91,11 +99,14 @@ private val ValueText get() = TextStyle(fontFamily = FontFamily.Monospace, fontS
 
 /**
  * 設定画面。NavSettings のすべての値を変えられる。変えたらすぐ画面に反映し、保存する。
- * セクション（20261104-D02 で作り直した）: 測位と方位 / 縮尺 / WP / 画面 / 距離環と軌跡 / 地図 / ランドマーク / その他 / 権限・情報・データの出典。
+ *
+ * 20261121-D03: いちばん上に、スクロールしても見える移動のプリセットの帯（PresetBand。プリセットのボタン・今のプリセット・変えた所の数・
+ * 初期値に戻す / コピーする）。その下のセクション（測位と方位 / 到達の判定 / 縮尺 / 地図 / ランドマーク / 画面 / WP / 距離環と軌跡 / その他 /
+ * 権限・情報・データの出典）の中を、小見出しで「自動車の値」（今のプリセットの値。プリセットの色）と「共通の値」に分ける。
  * 並びと中身の項目は core の SettingsOutline。各セクションは枠で囲み、見出しを押すと開く・閉じる（閉じたセクションは覚える）。
- * いちばん上に目次（押すとそのセクションを開いてそこへ）と「▼ 全て開く」「▲ 全て閉じる」。各セクションの見出しの右に「▲ 目次」。
- * 「設定を初期値に戻す」はいちばん下（セクションの外。全部閉じていても押せる）。
- * INPUT（LIVE / REPLAY）は上部バーで切り替える（20261104-D02 で設定画面からは外した）。
+ * どの項目にも「（初期値：…）」を出す（プリセットの値は今のプリセットの元の初期値、共通の値はアプリの初期値）。
+ * 初期値から変えた値は、黄色の地に黒の太字で強調する（項目名は変えない）。
+ * 「設定を初期値に戻す」はいちばん下（全部のプリセットと共通の値を初期値にする）。
  */
 @Composable
 fun SettingsScreen(
@@ -123,18 +134,18 @@ fun SettingsScreen(
     onClosedChange: (Set<SettingsSectionId>) -> Unit = {},
 ) {
     val s = settings
-    // 数値を設定する項目の名前の行に書く初期値（NavSettings の既定値。到達の判定は自動車の値）
-    val def = remember { NavSettings() }
+    // 初期値（20261121-D03）: プリセットの値は今のプリセットの元の初期値（自動車・歩行・カスタムの元）、共通の値はアプリの初期値
+    val def = s.defaultsForDisplay()
     val latestOnClosed by rememberUpdatedState(onClosedChange)
     var closed by remember { mutableStateOf(initialClosed) }
     fun setClosed(v: Set<SettingsSectionId>) {
         if (v != closed) { closed = v; latestOnClosed(v) }
     }
+    // 確かめの枠（初期値に戻す・コピーする。20261121-D03）
+    var dialog by remember { mutableStateOf<PresetDialog?>(null) }
 
-    // 1 項目を描く（項目の並びは SettingsOutline.SECTIONS）
+    // 1 項目を描く（項目の並びは SettingsOutline.SECTIONS）。changed: 初期値から変えた値（黄色の反転で強調）
     val item: @Composable (SettingKey) -> Unit = { key ->
-        // カスタムのときだけ、移動のプリセットの値を変えられる（自動車・歩行は値が決まっている）
-        val custom = s.travelMode.customIndex != null
         fun judge(f: (ReachProfile) -> ReachProfile) = onChange { it.editReach(f) }
         val colors = listOf(
             stringResource(R.string.color_white) to ColorTheme.WHITE,
@@ -144,97 +155,123 @@ fun SettingsScreen(
         val levels = NavSettings.MAP_LINE_LEVELS.map { it.toString() to it }
         val (lo, hi) = RangeAuto.limitsKm(s.rangeStepsKm, s.autoMinRangeKm, s.autoMaxRangeKm)
         when (key) {
-            // ---- 測位と方位 ----
-            // 方位の出し方（20261121-D01。移動のプリセットの値。前の「方位の求め方」（GPS / HYBRID / COMPASS）はコンパスとともになくした）
+            // ---- 測位と方位（プリセットの値）----
+            // 方位の出し方（20261121-D01）: GPS / GPS＋位置
             SettingKey.HEADING_METHOD -> Choice(
                 stringResource(R.string.heading_method),
                 listOf("GPS" to HeadingMethod.GPS, stringResource(R.string.heading_method_gps_track) to HeadingMethod.GPS_TRACK),
                 s.headingMethod,
                 note = stringResource(R.string.heading_method_note),
-                enabled = custom,
                 default = def.headingMethod,
+                changed = s.headingMethod != def.headingMethod,
             ) { v -> judge { it.copy(headingMethod = v) } }
-            // 方位を止める・戻す速度: km/h の整数（1〜36）、1 km/h 刻み。戻す速度は止める速度より 2 km/h 以上大きい（20261119-D01。
-            // 前は 1 km/h 以上。止める速度を上げて差が足りなくなれば、戻す速度も上げる。NavSettings.holdSpeedsKmh）。
-            // 20261119-D03 から到達判定のプリセットの値: 選んでいるプリセットの値を出し、自動車では変えられない（真横通過の項目と同じ）
-            SettingKey.HOLD_ENTER -> Stepper(
-                stringResource(R.string.hold_enter), kmh(NavSettings.holdSpeedKmh(s.holdEnterSpeedMps)),
-                note = stringResource(R.string.hold_enter_note),
-                defaultText = kmh(NavSettings.holdSpeedKmh(def.holdEnterSpeedMps)), enabled = custom,
-            ) { d ->
-                judge {
-                    val (enter, exit) = NavSettings.holdSpeedsKmh(it.holdEnterKmh + d, it.holdExitKmh)
-                    it.copy(holdEnterKmh = enter, holdExitKmh = exit)
+            // 方位を止める・戻す速度: km/h の整数（1〜36）、1 km/h 刻み。戻す速度は止める速度より 2 km/h 以上大きい（NavSettings.holdSpeedsKmh）
+            SettingKey.HOLD_ENTER -> {
+                val now = NavSettings.holdSpeedKmh(s.holdEnterSpeedMps)
+                val d0 = NavSettings.holdSpeedKmh(def.holdEnterSpeedMps)
+                Stepper(stringResource(R.string.hold_enter), kmh(now), note = stringResource(R.string.hold_enter_note), defaultText = kmh(d0), changed = now != d0) { d ->
+                    judge {
+                        val (enter, exit) = NavSettings.holdSpeedsKmh(it.holdEnterKmh + d, it.holdExitKmh)
+                        it.copy(holdEnterKmh = enter, holdExitKmh = exit)
+                    }
                 }
             }
-            SettingKey.HOLD_EXIT -> Stepper(
-                stringResource(R.string.hold_exit), kmh(NavSettings.holdSpeedKmh(s.holdExitSpeedMps)),
-                note = stringResource(R.string.hold_exit_note),
-                defaultText = kmh(NavSettings.holdSpeedKmh(def.holdExitSpeedMps)), enabled = custom,
-            ) { d ->
-                // 戻す速度は止める速度 + 2 より下げない（止める速度は動かさない）
-                judge {
-                    val (_, exit) = NavSettings.holdSpeedsKmh(it.holdEnterKmh, it.holdExitKmh + d)
-                    it.copy(holdExitKmh = exit)
+            SettingKey.HOLD_EXIT -> {
+                val now = NavSettings.holdSpeedKmh(s.holdExitSpeedMps)
+                val d0 = NavSettings.holdSpeedKmh(def.holdExitSpeedMps)
+                Stepper(stringResource(R.string.hold_exit), kmh(now), note = stringResource(R.string.hold_exit_note), defaultText = kmh(d0), changed = now != d0) { d ->
+                    // 戻す速度は止める速度 + 2 より下げない（止める速度は動かさない）
+                    judge {
+                        val (_, exit) = NavSettings.holdSpeedsKmh(it.holdEnterKmh, it.holdExitKmh + d)
+                        it.copy(holdExitKmh = exit)
+                    }
                 }
             }
-            // 決まった値から選ぶ（＋ / − で次の値へ）: 3 / 5 / 10 / 15 / 20 / 30 / 50 / 100 m
-            SettingKey.MAX_GPS_ACC -> Stepper(
-                stringResource(R.string.max_gps_acc), meters(s.maxGpsAccM),
-                note = stringResource(R.string.max_gps_acc_note), defaultText = meters(def.maxGpsAccM),
-            ) { d -> onChange { it.copy(maxGpsAccM = stepChoice(NavSettings.MAX_GPS_ACC_CHOICES_M, it.maxGpsAccM, d)) } }
             // 方位精度の上限（20261121-D01 から移動のプリセットの値。5° 刻み）
             SettingKey.MAX_GPS_BEARING_ACC -> Stepper(
                 stringResource(R.string.max_gps_bearing_acc), deg(s.maxGpsBearingAccDeg),
                 note = stringResource(R.string.max_gps_bearing_acc_note),
-                defaultText = deg(def.maxGpsBearingAccDeg), enabled = custom,
+                defaultText = deg(def.maxGpsBearingAccDeg), changed = s.maxGpsBearingAccDeg != def.maxGpsBearingAccDeg,
             ) { d -> judge { it.copy(maxBearingAccDeg = (it.maxBearingAccDeg + d * 5).coerceIn(NavSettings.MAX_GPS_BEARING_ACC_DEG_RANGE)) } }
+            // 位置から求める向きの距離（20261121-D03。3〜20 m、1 m 刻み）
+            SettingKey.TRACK_DISTANCE -> Stepper(
+                stringResource(R.string.track_distance), "${s.trackDistanceM} m",
+                note = stringResource(R.string.track_distance_note),
+                defaultText = "${def.trackDistanceM} m", changed = s.trackDistanceM != def.trackDistanceM,
+            ) { d -> judge { it.copy(trackDistanceM = (it.trackDistanceM + d).coerceIn(NavSettings.TRACK_DISTANCE_M_RANGE)) } }
+            SettingKey.GPS_BOX, SettingKey.TRK_BOX -> Unit // 囲みはセクションの描き方で（renderKey）
+
+            // ---- 測位と方位（共通の値）----
+            // 決まった値から選ぶ（＋ / − で次の値へ）: 3 / 5 / 10 / 15 / 20 / 30 / 50 / 100 m
+            SettingKey.MAX_GPS_ACC -> Stepper(
+                stringResource(R.string.max_gps_acc), meters(s.maxGpsAccM),
+                note = stringResource(R.string.max_gps_acc_note), defaultText = meters(def.maxGpsAccM), changed = s.maxGpsAccM != def.maxGpsAccM,
+            ) { d -> onChange { it.copy(maxGpsAccM = stepChoice(NavSettings.MAX_GPS_ACC_CHOICES_M, it.maxGpsAccM, d)) } }
             // 決まった値から選ぶ: 3 / 5 / 10 / 15 / 20 / 30 / 60 / 120 秒
             SettingKey.NO_FIX_TIMEOUT -> Stepper(
                 stringResource(R.string.no_fix_timeout), seconds(s.noFixTimeoutSec),
-                note = stringResource(R.string.no_fix_timeout_note), defaultText = seconds(def.noFixTimeoutSec),
+                note = stringResource(R.string.no_fix_timeout_note), defaultText = seconds(def.noFixTimeoutSec), changed = s.noFixTimeoutSec != def.noFixTimeoutSec,
             ) { d -> onChange { it.copy(noFixTimeoutSec = stepChoice(NavSettings.NO_FIX_TIMEOUT_CHOICES_SEC, it.noFixTimeoutSec, d)) } }
             SettingKey.ALT_OFFSET -> Stepper(
                 stringResource(R.string.alt_offset), "%.0f".format(Locale.US, s.altOffsetM),
-                note = stringResource(R.string.alt_offset_note), defaultText = meters(def.altOffsetM),
+                note = stringResource(R.string.alt_offset_note), defaultText = meters(def.altOffsetM), changed = s.altOffsetM != def.altOffsetM,
             ) { d -> onChange { it.copy(altOffsetM = (it.altOffsetM + d).coerceIn(NavSettings.ALT_OFFSET_M_RANGE)) } }
+            // 地上高の負の値（20261025-D08）: 0 にする（初期値）/ 負のまま出す（警告の色）
+            SettingKey.AGL_NEGATIVE -> Choice(
+                stringResource(R.string.agl_negative),
+                listOf(stringResource(R.string.agl_negative_zero) to AglNegative.ZERO, stringResource(R.string.agl_negative_show) to AglNegative.SHOW),
+                s.aglNegative,
+                note = stringResource(R.string.agl_negative_note),
+                default = def.aglNegative,
+                changed = s.aglNegative != def.aglNegative,
+            ) { v -> onChange { it.copy(aglNegative = v) } }
 
-            // ---- 縮尺（段は 6 列のマス。表示は自機から 1 つ目の距離環の距離）----
+            // ---- 縮尺（プリセットの値。段は 6 列のマス。表示は自機から 1 つ目の距離環の距離）----
             SettingKey.RANGE_STEPS -> RangeGrid(
                 stringResource(R.string.range_steps), stringResource(R.string.range_steps_note), RangeAuto.ALL_STEPS_KM,
                 isOn = { km -> s.rangeStepsKm.any { abs(it - km) < 1e-9 } }, isDefault = { km -> def.rangeStepsKm.any { abs(it - km) < 1e-9 } },
+                // 使う縮尺の初期値は短く（「全部」「25〜2.5k」。20261121-D03）
+                defaultText = SettingsOutline.rangeStepsSpan(def.rangeStepsKm)?.let { (a, b) -> "${r1Label(a * 1000)}〜${r1Label(b * 1000)}" }
+                    ?: stringResource(R.string.range_steps_all),
+                changed = s.rangeStepsKm != def.rangeStepsKm,
             ) { km -> onChange { it.copy(rangeStepsKm = SettingsOutline.toggleRangeStep(it.rangeStepsKm, km)) } }
             SettingKey.INITIAL_RANGE -> {
                 val now = s.rangeStepsKm.minByOrNull { abs(it - s.initialRangeKm) }
                 RangeGrid(
                     stringResource(R.string.initial_range), null, s.rangeStepsKm,
                     isOn = { it == now }, isDefault = { abs(it - def.initialRangeKm) < 1e-9 },
+                    defaultText = r1Label(def.initialRangeKm * 1000), changed = s.initialRangeKm != def.initialRangeKm,
                 ) { km -> onChange { it.copy(initialRangeKm = km) } }
             }
-            SettingKey.AUTO_ON_START -> Toggle(stringResource(R.string.auto_on_start), s.autoRange, default = def.autoRange) { v ->
+            SettingKey.AUTO_ON_START -> Toggle(stringResource(R.string.auto_on_start), s.autoRange, default = def.autoRange, changed = s.autoRange != def.autoRange) { v ->
                 onChange { it.copy(autoRange = v) }
             }
             // 詳細の下限は使う段のうち広域の上限と同じか、それより詳細（少ないので、ほかの選ぶ項目と同じボタンの列）
             SettingKey.AUTO_MIN -> Choice(
                 stringResource(R.string.auto_min), s.rangeStepsKm.filter { it <= hi }.map { r1Label(it * 1000) to it }, lo, default = def.autoMinRangeKm,
+                defaultText = r1Label(def.autoMinRangeKm * 1000), changed = s.autoMinRangeKm != def.autoMinRangeKm,
             ) { v -> onChange { it.copy(autoMinRangeKm = v) } }
             // 広域の上限は詳細の下限から上（6 列のマス。選べない段のマスは空ける）
             SettingKey.AUTO_MAX -> RangeGrid(
                 stringResource(R.string.auto_max), stringResource(R.string.auto_max_note), s.rangeStepsKm.filter { it >= lo },
                 isOn = { it == hi }, isDefault = { abs(it - def.autoMaxRangeKm) < 1e-9 },
+                defaultText = r1Label(def.autoMaxRangeKm * 1000), changed = s.autoMaxRangeKm != def.autoMaxRangeKm,
             ) { km -> onChange { it.copy(autoMaxRangeKm = km) } }
             SettingKey.ZOOM_IN_DELAY -> Stepper(
                 stringResource(R.string.zoom_in_delay), seconds(s.autoRangeZoomInDelaySec),
                 note = stringResource(R.string.zoom_in_delay_note), defaultText = seconds(def.autoRangeZoomInDelaySec),
+                changed = s.autoRangeZoomInDelaySec != def.autoRangeZoomInDelaySec,
             ) { d -> onChange { it.copy(autoRangeZoomInDelaySec = (it.autoRangeZoomInDelaySec + d).coerceIn(NavSettings.AUTO_RANGE_ZOOM_IN_DELAY_SEC_RANGE)) } }
             // 決まった値から選ぶ: 0 / 5 / 10 / 15 / 20 / 30 / 60 秒
             SettingKey.HOLD_AFTER_WP -> Stepper(
                 stringResource(R.string.hold_after_wp), seconds(s.autoHoldAfterWpSec), defaultText = seconds(def.autoHoldAfterWpSec),
+                changed = s.autoHoldAfterWpSec != def.autoHoldAfterWpSec,
             ) { d -> onChange { it.copy(autoHoldAfterWpSec = stepChoice(NavSettings.AUTO_HOLD_AFTER_WP_CHOICES_SEC, it.autoHoldAfterWpSec, d)) } }
             SettingKey.ZOOM_IN_RATIO -> Stepper(
                 stringResource(R.string.zoom_in_ratio), stringResource(R.string.zoom_in_ratio_value, "%.1f".format(Locale.US, s.autoZoomInDistRatio)),
                 note = stringResource(R.string.zoom_in_ratio_note),
                 defaultText = stringResource(R.string.zoom_in_ratio_value, "%.1f".format(Locale.US, def.autoZoomInDistRatio)),
+                changed = abs(s.autoZoomInDistRatio - def.autoZoomInDistRatio) > 1e-9,
             ) { d ->
                 onChange {
                     val c = NavSettings.AUTO_ZOOM_IN_DIST_RATIO_CHOICES
@@ -242,105 +279,109 @@ fun SettingsScreen(
                     it.copy(autoZoomInDistRatio = c[(i + d).coerceIn(0, c.lastIndex)])
                 }
             }
-            SettingKey.PAN_RETURN -> Stepper(stringResource(R.string.pan_return), seconds(s.panReturnSec), defaultText = seconds(def.panReturnSec)) { d ->
-                onChange { it.copy(panReturnSec = (it.panReturnSec + d * 5).coerceIn(NavSettings.PAN_RETURN_SEC_RANGE)) }
-            }
+            // 地図を動かしたあと戻るまで（共通の値）
+            SettingKey.PAN_RETURN -> Stepper(
+                stringResource(R.string.pan_return), seconds(s.panReturnSec), defaultText = seconds(def.panReturnSec), changed = s.panReturnSec != def.panReturnSec,
+            ) { d -> onChange { it.copy(panReturnSec = (it.panReturnSec + d * 5).coerceIn(NavSettings.PAN_RETURN_SEC_RANGE)) } }
 
-            // ---- WP（到達の判定の値: 自動車は推奨値で固定（表示だけ）、カスタム1〜3 は枠ごとに保存する）----
-            SettingKey.TRAVEL_MODE -> Choice(
-                stringResource(R.string.travel_mode),
-                listOf(
-                    stringResource(R.string.travel_car) to TravelMode.CAR,
-                    stringResource(R.string.travel_walk) to TravelMode.WALK,
-                    stringResource(R.string.travel_custom1) to TravelMode.CUSTOM1,
-                    stringResource(R.string.travel_custom2) to TravelMode.CUSTOM2,
-                    stringResource(R.string.travel_custom3) to TravelMode.CUSTOM3,
-                ),
-                s.travelMode,
-                note = stringResource(R.string.travel_mode_note),
-                default = def.travelMode,
-            ) { v -> onChange { it.selectTravelMode(v) } }
-            SettingKey.WP_BUTTONS -> Stepper(stringResource(R.string.wp_buttons), count(s.wpButtonsMax), defaultText = count(def.wpButtonsMax)) { d ->
-                onChange { it.copy(wpButtonsMax = (it.wpButtonsMax + d).coerceIn(NavSettings.WP_BUTTONS_MAX_RANGE)) }
-            }
-            SettingKey.HUD_WP_COUNT -> Stepper(stringResource(R.string.hud_wp_count), count(s.hudWpCount), defaultText = count(def.hudWpCount)) { d ->
-                onChange { it.copy(hudWpCount = (it.hudWpCount + d).coerceIn(NavSettings.HUD_WP_COUNT_RANGE)) }
-            }
-            // カスタムのときだけ、移動のプリセットの値を全部、自動車の値・歩行の値にするボタン（選択のすぐ下。20261121-D02 で到達の判定の上から移した）
-            SettingKey.PRESET_BUTTONS -> if (custom) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    HudButton(stringResource(R.string.reset_to_car), { onChange { it.editReach { ReachProfile.CAR } } })
-                    HudButton(stringResource(R.string.set_walk_values), { onChange { it.editReach { ReachProfile.WALK } } })
-                }
-            }
+            // ---- WP（共通の値）----
+            SettingKey.WP_BUTTONS -> Stepper(
+                stringResource(R.string.wp_buttons), count(s.wpButtonsMax), defaultText = count(def.wpButtonsMax), changed = s.wpButtonsMax != def.wpButtonsMax,
+            ) { d -> onChange { it.copy(wpButtonsMax = (it.wpButtonsMax + d).coerceIn(NavSettings.WP_BUTTONS_MAX_RANGE)) } }
+            SettingKey.HUD_WP_COUNT -> Stepper(
+                stringResource(R.string.hud_wp_count), count(s.hudWpCount), defaultText = count(def.hudWpCount), changed = s.hudWpCount != def.hudWpCount,
+            ) { d -> onChange { it.copy(hudWpCount = (it.hudWpCount + d).coerceIn(NavSettings.HUD_WP_COUNT_RANGE)) } }
+            SettingKey.AUTO_OPEN_LAST -> Toggle(
+                stringResource(R.string.auto_open_last), s.autoOpenLastList, default = def.autoOpenLastList, changed = s.autoOpenLastList != def.autoOpenLastList,
+            ) { v -> onChange { it.copy(autoOpenLastList = v) } }
+
+            // ---- 到達の判定（プリセットの値）----
             SettingKey.ARRIVAL_RADIUS -> Choice(
                 stringResource(R.string.arrival_radius),
                 NavSettings.REACH_RADIUS_CHOICES_M.map { "%.0f".format(Locale.US, it) to it },
                 s.reachRadiusM,
                 default = def.reachRadiusM,
-                enabled = custom,
+                changed = s.reachRadiusM != def.reachRadiusM,
             ) { v -> judge { it.copy(reachRadiusM = v) } }
-            SettingKey.SIDE_PASS -> Toggle(stringResource(R.string.side_pass), s.sidePass, note = stringResource(R.string.side_pass_note), enabled = custom, default = def.sidePass) { v ->
-                judge { it.copy(sidePass = v) }
-            }
+            SettingKey.SIDE_PASS -> Toggle(
+                stringResource(R.string.side_pass), s.sidePass, note = stringResource(R.string.side_pass_note), default = def.sidePass, changed = s.sidePass != def.sidePass,
+            ) { v -> judge { it.copy(sidePass = v) } }
             SettingKey.SIDE_PASS_MAX -> Stepper(
                 stringResource(R.string.side_pass_max),
                 stringResource(R.string.within_meters, "%.0f".format(Locale.US, s.sidePassMaxM)),
                 defaultText = stringResource(R.string.within_meters, "%.0f".format(Locale.US, def.sidePassMaxM)),
-                enabled = custom,
+                changed = s.sidePassMaxM != def.sidePassMaxM,
             ) { d -> judge { it.copy(sidePassMaxM = (it.sidePassMaxM + d * 10).coerceIn(NavSettings.SIDE_PASS_MAX_M_RANGE)) } }
             SettingKey.SIDE_PASS_DEPART -> Stepper(
                 stringResource(R.string.side_pass_depart), "+%.0f".format(Locale.US, s.sidePassDepartM),
-                defaultText = "+%.0f".format(Locale.US, def.sidePassDepartM), enabled = custom,
+                defaultText = "+%.0f".format(Locale.US, def.sidePassDepartM), changed = s.sidePassDepartM != def.sidePassDepartM,
             ) { d -> judge { it.copy(sidePassDepartM = (it.sidePassDepartM + d * 5).coerceIn(NavSettings.SIDE_PASS_DEPART_M_RANGE)) } }
-            // 真横通過: 判定を始める速さ（20261119-D01。km/h の整数、1 km/h 刻み。前は方位を戻す速度を使っていた）
+            // 真横通過: 判定を始める速さ（20261119-D01。km/h の整数、1 km/h 刻み）
             SettingKey.SIDE_PASS_MIN_SPEED -> Stepper(
                 stringResource(R.string.side_pass_min_speed), kmh(s.sidePassMinKmh),
-                note = stringResource(R.string.side_pass_min_speed_note), defaultText = kmh(def.sidePassMinKmh), enabled = custom,
+                note = stringResource(R.string.side_pass_min_speed_note), defaultText = kmh(def.sidePassMinKmh), changed = s.sidePassMinKmh != def.sidePassMinKmh,
             ) { d -> judge { it.copy(sidePassMinKmh = (it.sidePassMinKmh + d).coerceIn(NavSettings.SIDE_PASS_MIN_SPEED_KMH_RANGE)) } }
             SettingKey.PASS_DETECTION -> Toggle(
-                stringResource(R.string.pass_detection), s.passDetection, note = stringResource(R.string.pass_detection_note), enabled = custom, default = def.passDetection,
+                stringResource(R.string.pass_detection), s.passDetection, note = stringResource(R.string.pass_detection_note), default = def.passDetection,
+                changed = s.passDetection != def.passDetection,
             ) { v -> judge { it.copy(passDetection = v) } }
             SettingKey.PASS_MAX -> Stepper(
-                stringResource(R.string.pass_max), "%.0f".format(Locale.US, s.passMaxApproachM), defaultText = meters(def.passMaxApproachM), enabled = custom,
+                stringResource(R.string.pass_max), "%.0f".format(Locale.US, s.passMaxApproachM), defaultText = meters(def.passMaxApproachM),
+                changed = s.passMaxApproachM != def.passMaxApproachM,
             ) { d -> judge { it.copy(passMaxApproachM = (it.passMaxApproachM + d * 50).coerceIn(NavSettings.PASS_MAX_APPROACH_M_RANGE)) } }
             SettingKey.PASS_DEPART -> Stepper(
-                stringResource(R.string.pass_depart), "+%.0f".format(Locale.US, s.passDepartM), defaultText = "+%.0f".format(Locale.US, def.passDepartM), enabled = custom,
+                stringResource(R.string.pass_depart), "+%.0f".format(Locale.US, s.passDepartM), defaultText = "+%.0f".format(Locale.US, def.passDepartM),
+                changed = s.passDepartM != def.passDepartM,
             ) { d -> judge { it.copy(passDepartM = (it.passDepartM + d * 10).coerceIn(NavSettings.PASS_DEPART_M_RANGE)) } }
-            SettingKey.PASS_HOLD -> Stepper(stringResource(R.string.pass_hold), seconds(s.passHoldSec), defaultText = seconds(def.passHoldSec), enabled = custom) { d ->
-                judge { it.copy(passHoldSec = (it.passHoldSec + d).coerceIn(NavSettings.PASS_HOLD_SEC_RANGE)) }
-            }
+            SettingKey.PASS_HOLD -> Stepper(
+                stringResource(R.string.pass_hold), seconds(s.passHoldSec), defaultText = seconds(def.passHoldSec), changed = s.passHoldSec != def.passHoldSec,
+            ) { d -> judge { it.copy(passHoldSec = (it.passHoldSec + d).coerceIn(NavSettings.PASS_HOLD_SEC_RANGE)) } }
 
-            // ---- 画面 ----
-            // 数値の平均（20261121-D01。移動のプリセットの値。自動車は GS 1 秒（今の点の速さ）・ETA 10 秒、歩行は 5 秒・60 秒）
+            // ---- 画面: プリセットの値（標高プロファイル・数値の平均）----
+            SettingKey.PROFILE -> Choice(
+                stringResource(R.string.profile),
+                listOf(
+                    "OFF" to ProfileSize.OFF,
+                    stringResource(R.string.size_small) to ProfileSize.SMALL,
+                    stringResource(R.string.size_medium) to ProfileSize.MEDIUM,
+                    stringResource(R.string.size_large) to ProfileSize.LARGE,
+                ),
+                s.profileSize,
+                note = stringResource(R.string.profile_note),
+                default = def.profileSize,
+                changed = s.profileSize != def.profileSize,
+            ) { v -> onChange { it.copy(profileSize = v) } }
+            // 数値の平均（20261121-D01。自動車は GS 1 秒（今の点の速さ）・ETA 10 秒、歩行は 5 秒・60 秒）
             SettingKey.GS_AVERAGE -> Choice(
                 stringResource(R.string.gs_average),
                 NavSettings.GS_AVERAGE_CHOICES_SEC.map { seconds(it) to it },
                 s.gsAverageSec,
                 note = stringResource(R.string.gs_average_note),
-                enabled = custom,
                 default = def.gsAverageSec,
+                changed = s.gsAverageSec != def.gsAverageSec,
             ) { v -> judge { it.copy(gsAverageSec = v) } }
             SettingKey.ETA_AVERAGE -> Choice(
                 stringResource(R.string.eta_average),
                 NavSettings.ETA_AVERAGE_CHOICES_SEC.map { seconds(it) to it },
                 s.etaAverageSec,
                 note = stringResource(R.string.eta_average_note),
-                enabled = custom,
                 default = def.etaAverageSec,
+                changed = s.etaAverageSec != def.etaAverageSec,
             ) { v -> judge { it.copy(etaAverageSec = v) } }
-            SettingKey.UI_COLOR -> Choice(stringResource(R.string.ui_color), colors, s.uiTheme, note = stringResource(R.string.ui_color_note), default = def.uiTheme) { v ->
-                onChange { it.copy(uiTheme = v) }
-            }
-            SettingKey.MAP_COLOR -> Choice(stringResource(R.string.map_color), colors, s.mapTheme, note = stringResource(R.string.map_color_note), default = def.mapTheme) { v ->
-                onChange { it.copy(mapTheme = v) }
-            }
+            // ---- 画面: 共通の値 ----
+            SettingKey.UI_COLOR -> Choice(
+                stringResource(R.string.ui_color), colors, s.uiTheme, note = stringResource(R.string.ui_color_note), default = def.uiTheme, changed = s.uiTheme != def.uiTheme,
+            ) { v -> onChange { it.copy(uiTheme = v) } }
+            SettingKey.MAP_COLOR -> Choice(
+                stringResource(R.string.map_color), colors, s.mapTheme, note = stringResource(R.string.map_color_note), default = def.mapTheme, changed = s.mapTheme != def.mapTheme,
+            ) { v -> onChange { it.copy(mapTheme = v) } }
             SettingKey.BUTTON_OPACITY -> Choice(
                 stringResource(R.string.button_opacity), percentChoices(NavSettings.OPACITY_CHOICES_PCT), s.buttonOpacityPct, default = def.buttonOpacityPct,
+                changed = s.buttonOpacityPct != def.buttonOpacityPct,
             ) { v -> onChange { it.copy(buttonOpacityPct = v) } }
             SettingKey.NUMBERS_OPACITY -> Choice(
                 stringResource(R.string.numbers_opacity), percentChoices(NavSettings.OPACITY_CHOICES_PCT), s.numbersOpacityPct,
-                note = stringResource(R.string.numbers_opacity_note), default = def.numbersOpacityPct,
+                note = stringResource(R.string.numbers_opacity_note), default = def.numbersOpacityPct, changed = s.numbersOpacityPct != def.numbersOpacityPct,
             ) { v -> onChange { it.copy(numbersOpacityPct = v) } }
             SettingKey.OWNSHIP_POSITION -> Choice(
                 stringResource(R.string.ownship_position),
@@ -356,35 +397,18 @@ fun SettingsScreen(
                 s.ownshipPosition,
                 note = stringResource(R.string.ownship_position_note),
                 default = def.ownshipPosition,
+                changed = s.ownshipPosition != def.ownshipPosition,
             ) { v -> onChange { it.copy(ownshipPosition = v) } }
-            SettingKey.PROFILE -> Choice(
-                stringResource(R.string.profile),
-                listOf(
-                    "OFF" to ProfileSize.OFF,
-                    stringResource(R.string.size_small) to ProfileSize.SMALL,
-                    stringResource(R.string.size_medium) to ProfileSize.MEDIUM,
-                    stringResource(R.string.size_large) to ProfileSize.LARGE,
-                ),
-                s.profileSize,
-                note = stringResource(R.string.profile_note),
-                default = def.profileSize,
-            ) { v -> onChange { it.copy(profileSize = v) } }
-            // 地上高の負の値（20261025-D08）: 0 にする（初期値）/ 負のまま出す（警告の色）
-            SettingKey.AGL_NEGATIVE -> Choice(
-                stringResource(R.string.agl_negative),
-                listOf(stringResource(R.string.agl_negative_zero) to AglNegative.ZERO, stringResource(R.string.agl_negative_show) to AglNegative.SHOW),
-                s.aglNegative,
-                note = stringResource(R.string.agl_negative_note),
-                default = def.aglNegative,
-            ) { v -> onChange { it.copy(aglNegative = v) } }
 
-            // ---- 距離環と軌跡 ----
+            // ---- 距離環と軌跡（共通の値）----
             // 距離環の明るさ [%]（20261103-D01・D02 は段、20261104-D01 から %）。距離環の線だけ
             SettingKey.RING_BRIGHTNESS -> Choice(
                 stringResource(R.string.ring_brightness), percentChoices(NavSettings.RING_BRIGHTNESS_CHOICES_PCT), s.ringBrightnessPct, default = def.ringBrightnessPct,
+                changed = s.ringBrightnessPct != def.ringBrightnessPct,
             ) { v -> onChange { it.copy(ringBrightnessPct = v) } }
             SettingKey.RING_LABEL_SIZE -> Choice(
                 stringResource(R.string.ring_label_size), percentChoices(NavSettings.RING_LABEL_SCALE_CHOICES_PCT), s.ringLabelScalePct, default = def.ringLabelScalePct,
+                changed = s.ringLabelScalePct != def.ringLabelScalePct,
             ) { v -> onChange { it.copy(ringLabelScalePct = v) } }
             SettingKey.TRACK_COLOR -> Choice(
                 stringResource(R.string.track_color),
@@ -399,24 +423,17 @@ fun SettingsScreen(
                 s.trackColor,
                 note = stringResource(R.string.track_color_note),
                 default = def.trackColor,
+                changed = s.trackColor != def.trackColor,
             ) { v -> onChange { it.copy(trackColor = v) } }
             SettingKey.TRACK_BRIGHTNESS -> Choice(
                 stringResource(R.string.track_brightness), percentChoices(NavSettings.TRACK_BRIGHTNESS_CHOICES_PCT), s.trackBrightnessPct, default = def.trackBrightnessPct,
+                changed = s.trackBrightnessPct != def.trackBrightnessPct,
             ) { v -> onChange { it.copy(trackBrightnessPct = v) } }
 
-            // ---- 地図（§8）: まとめて消すスイッチ、線の太さ・明るさ、項目ごとの「どの縮尺まで描くか」の表 ----
-            // 背景地図が OFF のときは、下の項目は押せない（値は残る）
-            SettingKey.BASE_MAP -> {
-                Text(stringResource(R.string.map_layers_note), style = RowNote)
-                Toggle(stringResource(R.string.base_map), s.baseMap, default = def.baseMap) { v -> onChange { it.copy(baseMap = v) } }
-            }
-            SettingKey.MAP_LINE_WIDTH -> Choice(stringResource(R.string.map_line_width), levels, s.mapLineWidth, enabled = s.baseMap, default = def.mapLineWidth) { v ->
-                onChange { it.copy(mapLineWidth = v) }
-            }
-            SettingKey.MAP_LINE_BRIGHTNESS -> Choice(stringResource(R.string.map_line_brightness), levels, s.mapLineBrightness, enabled = s.baseMap, default = def.mapLineBrightness) { v ->
-                onChange { it.copy(mapLineBrightness = v) }
-            }
+            // ---- 地図（§8）: 項目ごとの「どの縮尺まで描くか」の表（プリセットの値）、まとめて消すスイッチと線の太さ・明るさ（共通の値）----
+            // 背景地図が OFF のときは、表と線の項目は押せない（値は残る）
             SettingKey.MAP_TABLE -> {
+                Text(stringResource(R.string.map_layers_note), style = RowNote)
                 val rows = SettingsOutline.MAP_TABLE_ROWS
                 RangeTable(
                     labels = rows.map { stringResource(mapItemLabel(it)) },
@@ -425,15 +442,20 @@ fun SettingsScreen(
                     enabled = s.baseMap,
                 ) { i, v -> onChange { it.withMapRange(rows[i], v) } }
             }
+            SettingKey.BASE_MAP -> Toggle(stringResource(R.string.base_map), s.baseMap, default = def.baseMap, changed = s.baseMap != def.baseMap) { v ->
+                onChange { it.copy(baseMap = v) }
+            }
+            SettingKey.MAP_LINE_WIDTH -> Choice(
+                stringResource(R.string.map_line_width), levels, s.mapLineWidth, enabled = s.baseMap, default = def.mapLineWidth, changed = s.mapLineWidth != def.mapLineWidth,
+            ) { v -> onChange { it.copy(mapLineWidth = v) } }
+            SettingKey.MAP_LINE_BRIGHTNESS -> Choice(
+                stringResource(R.string.map_line_brightness), levels, s.mapLineBrightness, enabled = s.baseMap, default = def.mapLineBrightness,
+                changed = s.mapLineBrightness != def.mapLineBrightness,
+            ) { v -> onChange { it.copy(mapLineBrightness = v) } }
 
             // ---- ランドマーク（20261021-D04）: 空港・山頂の記号。背景地図のスイッチによらず押せて、描く ----
-            SettingKey.LANDMARK_BRIGHTNESS -> {
-                Text(stringResource(R.string.landmarks_note), style = RowNote)
-                Choice(stringResource(R.string.landmark_brightness), levels, s.landmarkBrightness, default = def.landmarkBrightness) { v ->
-                    onChange { it.copy(landmarkBrightness = v) }
-                }
-            }
             SettingKey.LANDMARK_TABLE -> {
+                Text(stringResource(R.string.landmarks_note), style = RowNote)
                 val rows = SettingsOutline.LANDMARK_TABLE_ROWS
                 RangeTable(
                     labels = rows.map { stringResource(landmarkLabel(it)) },
@@ -442,12 +464,15 @@ fun SettingsScreen(
                     enabled = true,
                 ) { i, v -> onChange { it.withLandmarkRange(rows[i], v) } }
             }
+            SettingKey.LANDMARK_BRIGHTNESS -> Choice(
+                stringResource(R.string.landmark_brightness), levels, s.landmarkBrightness, default = def.landmarkBrightness,
+                changed = s.landmarkBrightness != def.landmarkBrightness,
+            ) { v -> onChange { it.copy(landmarkBrightness = v) } }
 
-            // ---- その他 ----
-            SettingKey.KEEP_SCREEN_ON -> Toggle(stringResource(R.string.keep_screen_on), s.keepScreenOn, default = def.keepScreenOn) { v -> onChange { it.copy(keepScreenOn = v) } }
-            SettingKey.AUTO_OPEN_LAST -> Toggle(stringResource(R.string.auto_open_last), s.autoOpenLastList, default = def.autoOpenLastList) { v ->
-                onChange { it.copy(autoOpenLastList = v) }
-            }
+            // ---- その他（共通の値）----
+            SettingKey.KEEP_SCREEN_ON -> Toggle(
+                stringResource(R.string.keep_screen_on), s.keepScreenOn, default = def.keepScreenOn, changed = s.keepScreenOn != def.keepScreenOn,
+            ) { v -> onChange { it.copy(keepScreenOn = v) } }
             // 選ぶと画面が作り直されて、すぐに切り替わる。「設定を初期値に戻す」では変えない（NavSettings の外）
             SettingKey.APP_LANGUAGE -> Choice(
                 stringResource(R.string.app_language),
@@ -458,6 +483,7 @@ fun SettingsScreen(
                 ),
                 language,
                 default = LanguageMode.SYSTEM,
+                changed = language != LanguageMode.SYSTEM,
                 onSelect = onLanguage,
             )
 
@@ -520,6 +546,20 @@ fun SettingsScreen(
         }
     }
 
+    // 囲み（測位と方位の「GPS の向き」「位置から求める向き」。20261121-D03）か、1 項目
+    val renderKey: @Composable (SettingKey) -> Unit = { k ->
+        when (k) {
+            SettingKey.GPS_BOX -> HeadingBox(stringResource(R.string.box_gps), "GPS", HudColors.HeadingGps, used = true) {
+                for (inner in SettingsOutline.GPS_BOX_ITEMS) item(inner)
+            }
+            // 方位の出し方が GPS のときは薄くして「使わない」（変えることはできる）
+            SettingKey.TRK_BOX -> HeadingBox(stringResource(R.string.box_trk), "TRK", HudColors.HeadingTrack, used = s.headingMethod == HeadingMethod.GPS_TRACK) {
+                for (inner in SettingsOutline.TRK_BOX_ITEMS) item(inner)
+            }
+            else -> item(k)
+        }
+    }
+
     // スクロール位置は、前に閉じたときの位置から始め、止まったとき・閉じたときに保存する（目次で飛んだあとも、止まったときに保存される）。
     // 閉じたセクションも同時に戻すので、本文の高さは前に閉じたときと同じになり、同じ位置に戻る
     val scroll = rememberScrollState(initialScrollY)
@@ -532,64 +572,90 @@ fun SettingsScreen(
     // セクションの枠の上端の位置（Column の中の y [px]）。目次を押したら、そこまでスクロールする
     val tops = remember { mutableMapOf<SettingsSectionId, Int>() }
     val sections = SettingsOutline.SECTIONS
-    Column(
-        modifier
-            .fillMaxSize()
-            .background(HudColors.Background)
-            .verticalScroll(scroll)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            HudButton(stringResource(R.string.back), onBack)
-            Text(stringResource(R.string.settings_title), style = SectionTitle.copy(fontSize = 18.sp))
-        }
-        Text(stringResource(R.string.settings_note), style = RowNote)
-        MarkLegend()
-        Toc(
-            titles = sections.map { sectionTitle(it.id) },
-            onJump = { i ->
-                val id = sections[i].id
-                // 閉じていれば開いてから、そのセクションへ（開いた中身が描かれて本文が伸びてから、スクロールする）
-                setClosed(SettingsOutline.openForJump(closed, id))
-                scope.launch {
-                    withFrameNanos { }
-                    withFrameNanos { }
-                    tops[id]?.let { scroll.animateScrollTo(it) }
-                }
-            },
-            onOpenAll = { setClosed(SettingsOutline.openAll()) },
-            onCloseAll = { setClosed(SettingsOutline.closeAll()) },
-        )
-        for (sec in sections) {
-            Section(
-                sectionTitle(sec.id),
-                open = sec.id !in closed,
-                onToggle = { setClosed(SettingsOutline.toggle(closed, sec.id)) },
-                onToc = { scope.launch { scroll.animateScrollTo(0) } },
-                modifier = Modifier.onGloballyPositioned { tops[sec.id] = it.positionInParent().y.roundToInt() },
+    val presetColor = presetColor(s.travelMode)
+    Box(modifier.fillMaxSize().background(HudColors.Background)) {
+        Column(Modifier.fillMaxSize()) {
+            // 移動のプリセットの帯（スクロールしても見える。20261121-D03）
+            PresetBand(
+                s,
+                onSelect = { m -> onChange { it.selectTravelMode(m) } },
+                onReset = { dialog = PresetDialog.ResetFixed(s.travelMode, s.changedCount(s.travelMode)) },
+                onResetCustom = { dialog = PresetDialog.ResetCustom(s.travelMode) },
+                onCopy = { dialog = PresetDialog.Copy(s.travelMode) },
+            )
+            Column(
+                Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .verticalScroll(scroll)
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                // 縮尺の見出しのすぐ下に 1 回だけ: 「自動縮尺」は画面の AUTO のこと
-                if (sec.id == SettingsSectionId.RANGE) Text(stringResource(R.string.range_auto_meaning), style = RowNote)
-                // 移動のプリセットの見出しのすぐ下: 今のプリセットの名前と、自動車・歩行は値が決まっていること（20261121-D02。
-                // 前は項目ごとの説明に「移動のプリセット（○○）の値」と書いていた）
-                if (sec.id == SettingsSectionId.TRAVEL_PRESET) {
-                    Text(stringResource(R.string.travel_preset_current, presetName(settings.travelMode)), style = RowNote)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    HudButton(stringResource(R.string.back), onBack)
+                    Text(stringResource(R.string.settings_title), style = SectionTitle.copy(fontSize = 18.sp))
                 }
-                for (k in sec.items) item(k)
-                // 小見出しで分けた項目（移動のプリセット: 方位 → 到達の判定 → 数値の平均）
-                for (g in sec.groups) {
-                    SubHeading(stringResource(groupTitle(g.heading)))
-                    for (k in g.items) item(k)
+                Text(stringResource(R.string.settings_note), style = RowNote)
+                MarkLegend()
+                Toc(
+                    titles = sections.map { sectionTitle(it.id) },
+                    onJump = { i ->
+                        val id = sections[i].id
+                        // 閉じていれば開いてから、そのセクションへ（開いた中身が描かれて本文が伸びてから、スクロールする）
+                        setClosed(SettingsOutline.openForJump(closed, id))
+                        scope.launch {
+                            withFrameNanos { }
+                            withFrameNanos { }
+                            tops[id]?.let { scroll.animateScrollTo(it) }
+                        }
+                    },
+                    onOpenAll = { setClosed(SettingsOutline.openAll()) },
+                    onCloseAll = { setClosed(SettingsOutline.closeAll()) },
+                )
+                for (sec in sections) {
+                    Section(
+                        sectionTitle(sec.id),
+                        open = sec.id !in closed,
+                        onToggle = { setClosed(SettingsOutline.toggle(closed, sec.id)) },
+                        onToc = { scope.launch { scroll.animateScrollTo(0) } },
+                        modifier = Modifier.onGloballyPositioned { tops[sec.id] = it.positionInParent().y.roundToInt() },
+                    ) {
+                        // 縮尺の見出しのすぐ下に 1 回だけ: 「自動縮尺」は画面の AUTO のこと
+                        if (sec.id == SettingsSectionId.RANGE) Text(stringResource(R.string.range_auto_meaning), style = RowNote)
+                        // プリセットの値（小見出し「自動車の値」など。プリセットの色）
+                        if (sec.preset.isNotEmpty()) {
+                            SubHeading(stringResource(R.string.settings_preset_values, presetName(s.travelMode)), first = true, color = presetColor)
+                            for (k in sec.preset) renderKey(k)
+                            if (sec.presetFine.isNotEmpty()) {
+                                MiniHeading(stringResource(R.string.settings_fine))
+                                for (k in sec.presetFine) renderKey(k)
+                            }
+                        }
+                        // 共通の値
+                        if (sec.common.isNotEmpty()) {
+                            SubHeading(stringResource(R.string.settings_common_values), first = sec.preset.isEmpty())
+                            for (k in sec.common) item(k)
+                            if (sec.commonFine.isNotEmpty()) {
+                                MiniHeading(stringResource(R.string.settings_fine))
+                                for (k in sec.commonFine) item(k)
+                            }
+                        }
+                        for (k in sec.plain) item(k)
+                    }
                 }
-                if (sec.fine.isNotEmpty()) {
-                    SubHeading(stringResource(R.string.settings_fine))
-                    for (k in sec.fine) item(k)
+                // 設定を初期値に戻す（いちばん下。全部のプリセットと共通の値。言語・閉じたセクション・スクロール位置は変えない）
+                Row(Modifier.padding(top = 4.dp, bottom = 8.dp)) { HudButton(stringResource(R.string.reset_settings), onReset) }
+            }
+        }
+        // 確かめの枠（画面の中。20261121-D03）
+        dialog?.let { d ->
+            PresetDialogBox(d, s, onDismiss = { dialog = null }) { next ->
+                when (next) {
+                    is PresetAction.Apply -> { onChange(next.f); dialog = null }
+                    is PresetAction.Ask -> dialog = next.dialog
                 }
             }
         }
-        // 設定を初期値に戻す（いちばん下。言語・閉じたセクション・スクロール位置は変えない）
-        Row(Modifier.padding(top = 4.dp, bottom = 8.dp)) { HudButton(stringResource(R.string.reset_settings), onReset) }
     }
 }
 
@@ -605,18 +671,18 @@ private fun presetName(m: TravelMode): String = stringResource(
     },
 )
 
-/** 移動のプリセットの欄の小見出し（20261121-D02） */
-private fun groupTitle(h: SettingsGroupHeading): Int = when (h) {
-    SettingsGroupHeading.HEADING -> R.string.preset_group_heading
-    SettingsGroupHeading.REACH -> R.string.preset_group_reach
-    SettingsGroupHeading.AVERAGE -> R.string.preset_group_average
+/** 移動のプリセットの色（20261121-D03。自動車 水色・歩行 緑・カスタム 紫） */
+private fun presetColor(m: TravelMode): Color = when (m) {
+    TravelMode.CAR -> HudColors.PresetCar
+    TravelMode.WALK -> HudColors.PresetWalk
+    else -> HudColors.PresetCustom
 }
 
 @Composable
 private fun sectionTitle(id: SettingsSectionId): String = stringResource(
     when (id) {
-        SettingsSectionId.TRAVEL_PRESET -> R.string.sec_travel_preset
         SettingsSectionId.POSITION_HEADING -> R.string.sec_position_heading
+        SettingsSectionId.REACH -> R.string.sec_reach
         SettingsSectionId.RANGE -> R.string.sec_range
         SettingsSectionId.WP -> R.string.sec_wp
         SettingsSectionId.DISPLAY -> R.string.sec_display
@@ -627,6 +693,211 @@ private fun sectionTitle(id: SettingsSectionId): String = stringResource(
         SettingsSectionId.INFO -> R.string.sec_info
     },
 )
+
+// ---- 移動のプリセットの帯と確かめの枠（20261121-D03）----
+
+/**
+ * 移動のプリセットの帯（設定画面のいちばん上。スクロールしても見える）。
+ * 1 行目: プリセットのボタン（変えた所があれば小さな「•」。選んでいるボタンの枠はプリセットの色）。
+ * 2 行目: 色の点・「今：自動車」・カスタムなら元・「変えた所 3」（黄色の反転）か「初期値のまま」。
+ * 3 行目: 自動車・歩行は「初期値に戻す」（変えた所がないときは押せない）、カスタムは「コピーする…」「初期値に戻す…」
+ */
+@Composable
+private fun PresetBand(s: NavSettings, onSelect: (TravelMode) -> Unit, onReset: () -> Unit, onResetCustom: () -> Unit, onCopy: () -> Unit) {
+    val mode = s.travelMode
+    val count = s.changedCount(mode)
+    val custom = mode.customIndex != null
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(HudColors.Background)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        verticalArrangement = Arrangement.spacedBy(5.dp),
+    ) {
+        // 幅 360dp でも 1 行に入るように、ボタンは小さめ（入らなければ折り返す）
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            for (m in TravelMode.entries) PresetButton(presetName(m), m == mode, presetColor(m), s.changedCount(m) > 0) { onSelect(m) }
+        }
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Box(Modifier.align(Alignment.CenterVertically).size(10.dp).background(presetColor(mode), CircleShape))
+            Text(stringResource(R.string.band_now, presetName(mode)), style = RowLabel, modifier = Modifier.align(Alignment.CenterVertically))
+            if (custom) {
+                val base = presetName(s.baseOf(mode))
+                val copied = s.customCopied.getOrNull(mode.customIndex!!) == true
+                Text(
+                    stringResource(if (copied) R.string.band_origin_copied else R.string.band_origin_default, base),
+                    style = RowNote.copy(fontSize = 12.sp), modifier = Modifier.align(Alignment.CenterVertically),
+                )
+            }
+            if (count > 0) {
+                ChangedText(stringResource(R.string.band_changed, count), Modifier.align(Alignment.CenterVertically))
+            } else {
+                Text(stringResource(R.string.band_unchanged), style = RowNote.copy(fontSize = 12.sp), modifier = Modifier.align(Alignment.CenterVertically))
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (custom) {
+                HudButton(stringResource(R.string.band_copy), onCopy, small = true)
+                HudButton(stringResource(R.string.band_reset_custom), onResetCustom, small = true)
+            } else {
+                HudButton(stringResource(R.string.band_reset), onReset, enabled = count > 0, small = true)
+            }
+        }
+        Box(Modifier.fillMaxWidth().height(1.dp).background(HudColors.Frame))
+    }
+}
+
+/** 帯のプリセットのボタン: 選んでいるときはプリセットの色の太い枠。変えた所があれば名前の右に小さな「•」 */
+@Composable
+private fun PresetButton(text: String, on: Boolean, color: Color, changed: Boolean, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(4.dp)
+    Row(
+        Modifier
+            .border(if (on) SelectedFrame else 1.dp, if (on) color else HudColors.WpDisabled, shape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 6.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(text, style = ValueText.copy(fontSize = 12.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.Normal))
+        if (changed) Text("•", style = ValueText.copy(fontSize = 12.sp, color = HudColors.Changed, fontWeight = FontWeight.Bold))
+    }
+}
+
+/** 変えた値の強調（黄色の地に黒の太字）の文字 */
+@Composable
+private fun ChangedText(text: String, modifier: Modifier = Modifier, style: TextStyle = ValueText.copy(fontSize = 13.sp)) {
+    Text(
+        text,
+        style = style.copy(color = Color.Black, fontWeight = FontWeight.Bold),
+        modifier = modifier.background(HudColors.Changed, RoundedCornerShape(3.dp)).padding(horizontal = 5.dp, vertical = 1.dp),
+    )
+}
+
+/** 確かめの枠の種類 */
+private sealed interface PresetDialog {
+    /** 自動車・歩行を初期値に戻す */
+    data class ResetFixed(val mode: TravelMode, val count: Int) : PresetDialog
+    /** カスタムを初期値に戻す（自動車の初期値・歩行の初期値を選ぶ） */
+    data class ResetCustom(val mode: TravelMode) : PresetDialog
+    /** カスタムにコピーする（今の自動車・今の歩行を選ぶ） */
+    data class Copy(val mode: TravelMode) : PresetDialog
+    /** コピーするとき、そのカスタムに変えた所があれば上書きの確かめ */
+    data class CopyOverwrite(val mode: TravelMode, val src: TravelMode, val count: Int) : PresetDialog
+}
+
+/** 確かめの枠のボタンを押したとき: 設定を変えて閉じる（Apply）か、次の確かめへ（Ask） */
+private sealed interface PresetAction {
+    data class Apply(val f: (NavSettings) -> NavSettings) : PresetAction
+    data class Ask(val dialog: PresetDialog) : PresetAction
+}
+
+/** 確かめの枠（画面の中に重ねる）: 文と、縦に並べたボタン（いちばん下は「やめる」） */
+@Composable
+private fun PresetDialogBox(d: PresetDialog, s: NavSettings, onDismiss: () -> Unit, onAction: (PresetAction) -> Unit) {
+    val name = presetName(d.modeOf())
+    val (text, buttons) = when (d) {
+        is PresetDialog.ResetFixed -> stringResource(R.string.dialog_reset_fixed, name, d.count) to listOf(
+            DialogButtonSpec(stringResource(R.string.band_reset), null) { onAction(PresetAction.Apply { it.resetPreset(d.mode) }) },
+        )
+        is PresetDialog.ResetCustom -> stringResource(R.string.dialog_reset_custom, name) to listOf(TravelMode.CAR, TravelMode.WALK).map { base ->
+            DialogButtonSpec(stringResource(R.string.dialog_defaults_of, presetName(base)), null) { onAction(PresetAction.Apply { it.resetCustom(d.mode, base) }) }
+        }
+        is PresetDialog.Copy -> stringResource(R.string.dialog_copy, name) to listOf(TravelMode.CAR, TravelMode.WALK).map { src ->
+            val n = s.changedCount(src)
+            DialogButtonSpec(
+                stringResource(R.string.dialog_copy_now, presetName(src)),
+                if (n > 0) stringResource(R.string.dialog_copy_with, n) else stringResource(R.string.dialog_copy_plain),
+            ) {
+                // そのカスタムに変えた所があれば、上書きの確かめ。なければそのまま入れる
+                val mine = s.changedCount(d.mode)
+                onAction(if (mine > 0) PresetAction.Ask(PresetDialog.CopyOverwrite(d.mode, src, mine)) else PresetAction.Apply { it.copyToCustom(d.mode, src) })
+            }
+        }
+        is PresetDialog.CopyOverwrite -> stringResource(R.string.dialog_copy_overwrite, name, d.count, presetName(d.src)) to listOf(
+            DialogButtonSpec(stringResource(R.string.dialog_copy_ok), null) { onAction(PresetAction.Apply { it.copyToCustom(d.mode, d.src) }) },
+        )
+    }
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(Color(0xB3000000))
+            .clickable(onClick = onDismiss),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            Modifier
+                .padding(horizontal = 24.dp)
+                .fillMaxWidth()
+                .background(HudColors.Background, RoundedCornerShape(8.dp))
+                .border(1.dp, presetColor(d.modeOf()), RoundedCornerShape(8.dp))
+                .clickable(enabled = false) {}
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(text, style = RowLabel.copy(lineHeight = 20.sp))
+            for (b in buttons) DialogButton(b)
+            DialogButton(DialogButtonSpec(stringResource(R.string.dialog_cancel), null, onDismiss))
+        }
+    }
+}
+
+private fun PresetDialog.modeOf(): TravelMode = when (this) {
+    is PresetDialog.ResetFixed -> mode
+    is PresetDialog.ResetCustom -> mode
+    is PresetDialog.Copy -> mode
+    is PresetDialog.CopyOverwrite -> mode
+}
+
+private class DialogButtonSpec(val text: String, val sub: String?, val onClick: () -> Unit)
+
+/** 確かめの枠のボタン（幅いっぱい。sub があれば下に小さく） */
+@Composable
+private fun DialogButton(b: DialogButtonSpec) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .border(1.dp, HudColors.Scale, RoundedCornerShape(4.dp))
+            .clickable(onClick = b.onClick)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(b.text, style = RowLabel.copy(fontWeight = FontWeight.Bold))
+        b.sub?.let { Text(it, style = RowNote.copy(fontSize = 12.sp)) }
+    }
+}
+
+/**
+ * 測位と方位の囲み（20261121-D03）: 左にその色の線と札（GPS / TRK。HUD の HDG の付記と同じ色）、題名、中に項目。
+ * used が false（方位の出し方が GPS のときの「位置から求める向き」）は薄くして「使わない」と出す（変えることはできる）
+ */
+@Composable
+private fun HeadingBox(title: String, tag: String, color: Color, used: Boolean, content: @Composable () -> Unit) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .alpha(if (used) 1f else 0.45f)
+            .drawBehind { drawRect(color, size = Size(3.dp.toPx(), size.height)) }
+            .padding(start = 10.dp, top = 2.dp, bottom = 2.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(
+                tag,
+                style = ValueText.copy(fontSize = 11.sp, color = color, fontWeight = FontWeight.Bold),
+                modifier = Modifier.border(1.dp, color, RoundedCornerShape(3.dp)).padding(horizontal = 4.dp),
+            )
+            Text(title, style = RowLabel.copy(fontWeight = FontWeight.Bold))
+            if (!used) Text(stringResource(R.string.box_not_used), style = RowNote.copy(fontSize = 12.sp))
+        }
+        content()
+    }
+}
+
+/** 「細かい調整」の小さな見出し（プリセットの値・共通の値の中。20261121-D03） */
+@Composable
+private fun MiniHeading(text: String) {
+    Text(text, style = RowNote.copy(fontSize = 12.sp), modifier = Modifier.padding(top = 4.dp))
+}
 
 /** GitHub のリポジトリ（「情報」の欄のライセンス・チートシート・ファイル形式の説明のリンク先）。ファイルは main ブランチのものを開く */
 private const val REPO_URL = "https://github.com/eightbrows/NavHUD"
@@ -772,13 +1043,13 @@ private fun Section(title: String, open: Boolean, onToggle: () -> Unit, onToc: (
 
 /** セクションの中の小見出し（「細かい調整」・権限・情報・データの出典）。右に細い線。たたまない */
 @Composable
-private fun SubHeading(text: String, first: Boolean = false) {
+private fun SubHeading(text: String, first: Boolean = false, color: Color = HudColors.ScaleDim) {
     Row(
         Modifier.fillMaxWidth().padding(top = if (first) 0.dp else 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text(text, style = SectionTitle.copy(fontSize = 13.sp, color = HudColors.ScaleDim))
+        Text(text, style = SectionTitle.copy(fontSize = 13.sp, color = color))
         Box(Modifier.weight(1f).height(1.dp).background(HudColors.WpReached))
     }
 }
@@ -885,22 +1156,27 @@ private fun <T> Choice(
     selected: T?,
     note: String? = null,
     enabled: Boolean = true,
-    /** 初期値（選ぶ項目）。そのボタンを塗る。null なら塗らない */
+    /** 初期値（選ぶ項目）。そのボタンを塗り、名前の行に「（初期値：…）」と書く。null なら塗らない */
     default: T? = null,
+    /** 名前の行の初期値の文字（null なら default のボタンの文字） */
+    defaultText: String? = null,
+    /** 初期値から変えた値（選んでいるボタンを黄色の反転。20261121-D03） */
+    changed: Boolean = false,
     onSelect: (T) -> Unit,
 ) {
     val mixed = mixedScripts(options.map { it.first })
+    val defText = defaultText ?: options.firstOrNull { it.second == default }?.first
     val buttons: @Composable () -> Unit = {
         // ボタンが 2 行以上になるときも、各行を右端にそろえる（20261104-D01）
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.End), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             for ((text, value) in options) {
-                Chip(text, value == selected, enabled, isDefault = default != null && value == default, cjkHeight = mixed) { onSelect(value) }
+                Chip(text, value == selected, enabled, isDefault = default != null && value == default, cjkHeight = mixed, changed = changed) { onSelect(value) }
             }
         }
     }
     Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
         // 名前は左、ボタンの列は右端。収まらないときは名前を上の行（左）に、ボタンの列をその下の行（右端）に置く（20261104-D01）
-        NameAndButtons(name = { NameLine(label, null, enabled) }, buttons = buttons)
+        NameAndButtons(name = { NameLine(label, defText, enabled) }, buttons = buttons)
         note?.let { Text(it, style = RowNote) }
     }
 }
@@ -944,16 +1220,21 @@ private val RangeCellWidth = 46.dp
 @Composable
 private fun RangeGrid(
     label: String, note: String?, choicesKm: List<Double>,
-    isOn: (Double) -> Boolean, isDefault: (Double) -> Boolean, onTap: (Double) -> Unit,
+    isOn: (Double) -> Boolean, isDefault: (Double) -> Boolean,
+    /** 名前の行の初期値の文字（20261121-D03） */
+    defaultText: String? = null,
+    /** 初期値から変えた値（選んでいるマスを黄色の反転） */
+    changed: Boolean = false,
+    onTap: (Double) -> Unit,
 ) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Label(label, note)
+        Label(label, note, defaultText = defaultText)
         Column(Modifier.align(Alignment.End), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             for (row in SettingsOutline.rangeGridSlots(choicesKm).chunked(SettingsOutline.RANGE_GRID_COLUMNS)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     for (km in row) {
                         Box(Modifier.width(RangeCellWidth)) {
-                            if (km != null) Chip(r1Label(km * 1000), isOn(km), compact = true, isDefault = isDefault(km), fillWidth = true) { onTap(km) }
+                            if (km != null) Chip(r1Label(km * 1000), isOn(km), compact = true, isDefault = isDefault(km), fillWidth = true, changed = changed) { onTap(km) }
                         }
                     }
                 }
@@ -986,13 +1267,17 @@ private fun RangeTable(labels: List<String>, current: List<MapRange>, defaults: 
         for (i in labels.indices) {
             Box(Modifier.fillMaxWidth().height(1.dp).background(HudColors.Frame))
             Row(Modifier.fillMaxWidth().heightIn(min = TableCellHeight), verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    labels[i],
-                    style = RowLabel.copy(fontSize = 13.sp, lineHeight = 16.sp, color = if (enabled) HudColors.Scale else HudColors.WpReached),
-                    modifier = Modifier.weight(1f).padding(end = 4.dp, top = 2.dp, bottom = 2.dp),
-                )
+                // 項目の名前と、その下に「（初期値：〜100k）」（20261121-D03）
+                Column(Modifier.weight(1f).padding(end = 4.dp, top = 2.dp, bottom = 2.dp)) {
+                    Text(
+                        labels[i],
+                        style = RowLabel.copy(fontSize = 13.sp, lineHeight = 16.sp, color = if (enabled) HudColors.Scale else HudColors.WpReached),
+                    )
+                    Text(stringResource(R.string.default_value, mapRangeLabel(defaults[i])), style = RowNote.copy(fontSize = 10.sp, lineHeight = 12.sp))
+                }
+                val changed = current[i] != defaults[i]
                 for (cell in SettingsOutline.tableRow(current[i], defaults[i])) {
-                    RadioCell(cell.selected, cell.isDefault, enabled) { onSelect(i, cell.column) }
+                    RadioCell(cell.selected, cell.isDefault, enabled, changed = changed && cell.selected) { onSelect(i, cell.column) }
                 }
             }
         }
@@ -1001,7 +1286,7 @@ private fun RangeTable(labels: List<String>, current: List<MapRange>, defaults: 
 
 /** 表の 1 マス: 丸（今の値は水色の太い輪と中の点）。初期値のマスは灰色で塗る */
 @Composable
-private fun RadioCell(selected: Boolean, isDefault: Boolean, enabled: Boolean, onClick: () -> Unit) {
+private fun RadioCell(selected: Boolean, isDefault: Boolean, enabled: Boolean, changed: Boolean = false, onClick: () -> Unit) {
     val mark = if (enabled) HudColors.SettingsSelected else HudColors.SettingsSelectedDim
     val ring = if (enabled) HudColors.WpDisabled else HudColors.WpReached
     Box(
@@ -1015,11 +1300,18 @@ private fun RadioCell(selected: Boolean, isDefault: Boolean, enabled: Boolean, o
                     .background(if (enabled) HudColors.SettingsDefaultCell else HudColors.SettingsDefaultCellDim, RoundedCornerShape(4.dp)),
             )
         }
-        Box(
-            Modifier.size(18.dp).border(if (selected) 2.dp else 1.dp, if (selected) mark else ring, CircleShape),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (selected) Box(Modifier.size(8.dp).background(mark, CircleShape))
+        // 初期値から変えた行の選んでいるマス（20261121-D03）: 黄色の地に黒の点（ほかの強調と同じ形）
+        if (changed) {
+            Box(Modifier.size(22.dp).background(HudColors.Changed, RoundedCornerShape(4.dp)), contentAlignment = Alignment.Center) {
+                Box(Modifier.size(9.dp).background(Color.Black, CircleShape))
+            }
+        } else {
+            Box(
+                Modifier.size(18.dp).border(if (selected) 2.dp else 1.dp, if (selected) mark else ring, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (selected) Box(Modifier.size(8.dp).background(mark, CircleShape))
+            }
         }
     }
 }
@@ -1053,8 +1345,11 @@ private fun Chip(
     cjkHeight: Boolean = false,
     /** 親の幅いっぱいにする（縮尺の段のマス。文字は真ん中） */
     fillWidth: Boolean = false,
+    /** 初期値から変えた値の項目（選んでいるボタンを黄色の地に黒の太字。20261121-D03） */
+    changed: Boolean = false,
     onClick: () -> Unit,
 ) {
+    val hi = changed && on
     val shape = RoundedCornerShape(4.dp)
     val c = if (enabled) HudColors.Scale else HudColors.WpReached
     val mark = if (enabled) HudColors.SettingsSelected else HudColors.SettingsSelectedDim
@@ -1067,12 +1362,16 @@ private fun Chip(
         Box(
             (if (fillWidth) Modifier.fillMaxWidth() else Modifier)
                 .border(if (on) SelectedFrame else 1.dp, frame, shape)
-                .background(if (isDefault) defaultFill(c) else HudColors.Background, shape)
+                .background(if (hi) HudColors.Changed else if (isDefault) defaultFill(c) else HudColors.Background, shape)
                 .clickable(enabled = enabled, onClick = onClick)
                 .padding(horizontal = if (compact) 7.dp else 9.dp, vertical = 4.dp),
             contentAlignment = Alignment.Center,
         ) {
-            val style = ValueText.copy(color = if (isDefault) HudColors.Background else c, fontSize = if (compact) 12.sp else 13.sp)
+            val style = ValueText.copy(
+                color = if (hi) Color.Black else if (isDefault) HudColors.Background else c,
+                fontSize = if (compact) 12.sp else 13.sp,
+                fontWeight = if (hi) FontWeight.Bold else FontWeight.Normal,
+            )
             // 日本語の画面では、英字だけのボタン（OFF・WP など）が、「〜5k」「小」など日本語の字体の文字を含むボタンより低く、上に寄っていた
             // （日本語の字体のほうが行が高い）。日本語の字体の行と同じ高さ・同じベースラインに置いて揃える（20261024-D08。英語の並びは英字だけなので変わらない）
             if (cjkHeight && !hasCjk(text)) CjkLineText(text, style) else Text(text, style = style)
@@ -1125,20 +1424,30 @@ private fun MarkLegend() {
             }
             Text(stringResource(R.string.settings_mark_selected), style = RowNote)
         }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            Box(Modifier.size(18.dp, 12.dp).background(HudColors.Changed, shape))
+            Text(stringResource(R.string.settings_mark_changed), style = RowNote)
+        }
     }
 }
 
 @Composable
-private fun Stepper(label: String, value: String, note: String? = null, defaultText: String? = null, enabled: Boolean = true, onStep: (Int) -> Unit) {
+private fun Stepper(
+    label: String, value: String, note: String? = null, defaultText: String? = null, enabled: Boolean = true,
+    /** 初期値から変えた値（値を黄色の地に黒の太字。20261121-D03） */
+    changed: Boolean = false,
+    onStep: (Int) -> Unit,
+) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         Box(Modifier.weight(1f)) { Label(label, note, enabled, defaultText) }
         HudButton("−", { onStep(-1) }, enabled = enabled, small = true)
-        Text(
-            value,
-            style = if (enabled) ValueText else ValueText.copy(color = HudColors.WpReached),
-            textAlign = TextAlign.Center,
-            modifier = Modifier.widthIn(min = 64.dp),
-        )
+        Box(Modifier.widthIn(min = 64.dp), contentAlignment = Alignment.Center) {
+            if (changed) {
+                ChangedText(value, style = ValueText)
+            } else {
+                Text(value, style = if (enabled) ValueText else ValueText.copy(color = HudColors.WpReached), textAlign = TextAlign.Center)
+            }
+        }
         HudButton("＋", { onStep(1) }, enabled = enabled, small = true)
     }
 }
@@ -1153,19 +1462,31 @@ private fun defaultFill(c: Color): Color {
 }
 
 @Composable
-private fun SettingsSwitch(on: Boolean, enabled: Boolean, onChange: (Boolean) -> Unit) {
+private fun SettingsSwitch(on: Boolean, enabled: Boolean, changed: Boolean = false, onChange: (Boolean) -> Unit) {
+    // 初期値から変えた値（20261121-D03）: 黄色の地に黒のつまみ（ほかの強調と同じ色）
     Switch(
         checked = on,
         onCheckedChange = onChange,
         enabled = enabled,
-        colors = SwitchDefaults.colors(
-            checkedThumbColor = HudColors.Background,
-            checkedTrackColor = HudColors.Scale,
-            checkedBorderColor = HudColors.Scale,
-            uncheckedThumbColor = HudColors.ScaleDim,
-            uncheckedTrackColor = HudColors.Background,
-            uncheckedBorderColor = HudColors.WpDisabled,
-        ),
+        colors = if (changed) {
+            SwitchDefaults.colors(
+                checkedThumbColor = Color.Black,
+                checkedTrackColor = HudColors.Changed,
+                checkedBorderColor = HudColors.Changed,
+                uncheckedThumbColor = Color.Black,
+                uncheckedTrackColor = HudColors.Changed,
+                uncheckedBorderColor = HudColors.Changed,
+            )
+        } else {
+            SwitchDefaults.colors(
+                checkedThumbColor = HudColors.Background,
+                checkedTrackColor = HudColors.Scale,
+                checkedBorderColor = HudColors.Scale,
+                uncheckedThumbColor = HudColors.ScaleDim,
+                uncheckedTrackColor = HudColors.Background,
+                uncheckedBorderColor = HudColors.WpDisabled,
+            )
+        },
     )
 }
 
@@ -1177,10 +1498,12 @@ private fun Toggle(
     enabled: Boolean = true,
     /** 初期値（ON / OFF）。名前の行に「（初期値：ON）」と書く。null なら書かない */
     default: Boolean? = null,
+    /** 初期値から変えた値（20261121-D03） */
+    changed: Boolean = false,
     onChange: (Boolean) -> Unit,
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.weight(1f)) { Label(label, note, enabled, default?.let { if (it) "ON" else "OFF" }) }
-        SettingsSwitch(on, enabled, onChange)
+        SettingsSwitch(on, enabled, changed, onChange)
     }
 }

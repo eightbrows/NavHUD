@@ -7,7 +7,7 @@ import io.github.eightbrows.navhud.core.nav.MapRange
 import io.github.eightbrows.navhud.core.nav.NavSettings
 import io.github.eightbrows.navhud.core.nav.RangeAuto
 import io.github.eightbrows.navhud.core.nav.SettingsCodec
-import io.github.eightbrows.navhud.core.nav.resetKeepingCustomReach
+import io.github.eightbrows.navhud.core.nav.resetAll
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -23,11 +23,11 @@ class SettingsOutlineTest {
 
     @Test
     fun tenSectionsInOrder() {
-        // 20261121-D02: いちばん上に「移動のプリセット」
+        // 20261121-D03: 測位と方位・到達の判定・縮尺・地図・ランドマーク・画面・WP・距離環と軌跡・その他・権限…（移動のプリセットの欄はやめて、帯にした）
         assertEquals(
             listOf(
-                SettingsSectionId.TRAVEL_PRESET, SettingsSectionId.POSITION_HEADING, SettingsSectionId.RANGE, SettingsSectionId.WP, SettingsSectionId.DISPLAY,
-                SettingsSectionId.RINGS_TRACK, SettingsSectionId.MAP, SettingsSectionId.LANDMARKS, SettingsSectionId.OTHER, SettingsSectionId.INFO,
+                SettingsSectionId.POSITION_HEADING, SettingsSectionId.REACH, SettingsSectionId.RANGE, SettingsSectionId.MAP, SettingsSectionId.LANDMARKS,
+                SettingsSectionId.DISPLAY, SettingsSectionId.WP, SettingsSectionId.RINGS_TRACK, SettingsSectionId.OTHER, SettingsSectionId.INFO,
             ),
             sections.map { it.id },
         )
@@ -35,69 +35,97 @@ class SettingsOutlineTest {
         assertEquals(SettingsSectionId.entries.toList(), sections.map { it.id })
     }
 
+    /** 20261121-D03: 欄の中は、プリセットの値（上）と共通の値（下）。片方しかない欄はその小見出しだけ */
     @Test
-    fun itemsOfEachSection() {
+    fun presetAndCommonItemsOfEachSection() {
         fun sec(id: SettingsSectionId) = sections.single { it.id == id }
-        with(sec(SettingsSectionId.TRAVEL_PRESET)) {
-            // 20261121-D02: プリセットの選択とボタン、その下に 方位 → 到達の判定 → 数値の平均 の小見出しで、プリセットの値の項目を全部
-            assertEquals(listOf(SettingKey.TRAVEL_MODE, SettingKey.PRESET_BUTTONS), items)
-            assertEquals(listOf(SettingsGroupHeading.HEADING, SettingsGroupHeading.REACH, SettingsGroupHeading.AVERAGE), groups.map { it.heading })
-            assertEquals(listOf(SettingKey.HEADING_METHOD, SettingKey.HOLD_ENTER, SettingKey.HOLD_EXIT, SettingKey.MAX_GPS_BEARING_ACC), groups[0].items)
-            // 到達の判定は前（WP の細かい調整）と同じ並び
+        with(sec(SettingsSectionId.POSITION_HEADING)) {
+            // 方位の出し方の下に、GPS の向き・位置から求める向きの 2 つの囲み
+            assertEquals(listOf(SettingKey.HEADING_METHOD, SettingKey.GPS_BOX, SettingKey.TRK_BOX), preset)
+            assertEquals(listOf(SettingKey.HOLD_ENTER, SettingKey.HOLD_EXIT, SettingKey.MAX_GPS_BEARING_ACC), SettingsOutline.boxItems(SettingKey.GPS_BOX))
+            assertEquals(listOf(SettingKey.TRACK_DISTANCE), SettingsOutline.boxItems(SettingKey.TRK_BOX))
+            assertEquals(listOf(SettingKey.AGL_NEGATIVE), common)
+            assertEquals(listOf(SettingKey.MAX_GPS_ACC, SettingKey.NO_FIX_TIMEOUT, SettingKey.ALT_OFFSET), commonFine)
+        }
+        with(sec(SettingsSectionId.REACH)) {
+            // 到達の判定は前と同じ並び
             assertEquals(
                 listOf(
                     SettingKey.ARRIVAL_RADIUS, SettingKey.SIDE_PASS, SettingKey.SIDE_PASS_MAX, SettingKey.SIDE_PASS_DEPART, SettingKey.SIDE_PASS_MIN_SPEED,
                     SettingKey.PASS_DETECTION, SettingKey.PASS_MAX, SettingKey.PASS_DEPART, SettingKey.PASS_HOLD,
                 ),
-                groups[1].items,
+                preset,
             )
-            assertEquals(listOf(SettingKey.GS_AVERAGE, SettingKey.ETA_AVERAGE), groups[2].items)
-            assertTrue(fine.isEmpty())
-        }
-        with(sec(SettingsSectionId.POSITION_HEADING)) {
-            // 変化を測る時間（前の RATE の窓）は 20261104-D03 でなくした。地上高の負の値は 20261105-D01 で画面から移した。
-            // 20261121-D02: 方位の出し方・止める / 戻す速度・方位精度の上限は移動のプリセットの欄へ移した（全体の値だけが残る）
-            assertEquals(listOf(SettingKey.AGL_NEGATIVE), items)
-            assertEquals(listOf(SettingKey.MAX_GPS_ACC, SettingKey.NO_FIX_TIMEOUT, SettingKey.ALT_OFFSET), fine)
+            assertTrue(common.isEmpty())
         }
         with(sec(SettingsSectionId.RANGE)) {
-            assertEquals(listOf(SettingKey.RANGE_STEPS, SettingKey.INITIAL_RANGE, SettingKey.AUTO_ON_START, SettingKey.AUTO_MIN, SettingKey.AUTO_MAX), items)
-            assertEquals(listOf(SettingKey.ZOOM_IN_DELAY, SettingKey.HOLD_AFTER_WP, SettingKey.ZOOM_IN_RATIO, SettingKey.PAN_RETURN), fine)
+            assertEquals(listOf(SettingKey.RANGE_STEPS, SettingKey.INITIAL_RANGE, SettingKey.AUTO_ON_START, SettingKey.AUTO_MIN, SettingKey.AUTO_MAX), preset)
+            assertEquals(listOf(SettingKey.ZOOM_IN_DELAY, SettingKey.HOLD_AFTER_WP, SettingKey.ZOOM_IN_RATIO), presetFine)
+            assertEquals(listOf(SettingKey.PAN_RETURN), common)
         }
-        with(sec(SettingsSectionId.WP)) {
-            // 20261105-D01: 前回の WP リストを自動で開く（その他から）・標高プロファイル（画面から）を足した。
-            // 20261121-D02: 移動のプリセットと到達の判定は移動のプリセットの欄へ移した（WP リストに関わる項目だけ）
-            assertEquals(listOf(SettingKey.AUTO_OPEN_LAST, SettingKey.WP_BUTTONS, SettingKey.HUD_WP_COUNT, SettingKey.PROFILE), items)
-            assertTrue(fine.isEmpty())
+        with(sec(SettingsSectionId.MAP)) {
+            assertEquals(listOf(SettingKey.MAP_TABLE), preset)
+            assertEquals(listOf(SettingKey.BASE_MAP, SettingKey.MAP_LINE_WIDTH, SettingKey.MAP_LINE_BRIGHTNESS), common)
         }
-        assertEquals(
+        with(sec(SettingsSectionId.LANDMARKS)) {
+            assertEquals(listOf(SettingKey.LANDMARK_TABLE), preset)
+            assertEquals(listOf(SettingKey.LANDMARK_BRIGHTNESS), common)
+        }
+        with(sec(SettingsSectionId.DISPLAY)) {
+            // 標高プロファイル・GS の平均・ETA の平均速度はプリセットの値（20261121-D03。前は WP・画面の細かい調整）
+            assertEquals(listOf(SettingKey.PROFILE, SettingKey.GS_AVERAGE, SettingKey.ETA_AVERAGE), preset)
             // 20261105-D01: 表示モードはなくした（上部バーだけ）
-            listOf(SettingKey.UI_COLOR, SettingKey.MAP_COLOR, SettingKey.BUTTON_OPACITY, SettingKey.NUMBERS_OPACITY, SettingKey.OWNSHIP_POSITION),
-            sec(SettingsSectionId.DISPLAY).items,
-        )
-        // 画面の細かい調整（数値の平均。20261121-D01）は 20261121-D02 で移動のプリセットの欄へ移した
-        assertTrue(sec(SettingsSectionId.DISPLAY).fine.isEmpty())
+            assertEquals(listOf(SettingKey.UI_COLOR, SettingKey.MAP_COLOR, SettingKey.BUTTON_OPACITY, SettingKey.NUMBERS_OPACITY, SettingKey.OWNSHIP_POSITION), common)
+        }
+        // WP は共通の値だけ
+        with(sec(SettingsSectionId.WP)) {
+            assertTrue(preset.isEmpty())
+            assertEquals(listOf(SettingKey.AUTO_OPEN_LAST, SettingKey.WP_BUTTONS, SettingKey.HUD_WP_COUNT), common)
+        }
         assertEquals(
             listOf(SettingKey.RING_BRIGHTNESS, SettingKey.RING_LABEL_SIZE, SettingKey.TRACK_COLOR, SettingKey.TRACK_BRIGHTNESS),
-            sec(SettingsSectionId.RINGS_TRACK).items,
+            sec(SettingsSectionId.RINGS_TRACK).common,
         )
-        assertEquals(listOf(SettingKey.BASE_MAP, SettingKey.MAP_LINE_WIDTH, SettingKey.MAP_LINE_BRIGHTNESS, SettingKey.MAP_TABLE), sec(SettingsSectionId.MAP).items)
-        assertEquals(listOf(SettingKey.LANDMARK_BRIGHTNESS, SettingKey.LANDMARK_TABLE), sec(SettingsSectionId.LANDMARKS).items)
-        assertEquals(listOf(SettingKey.KEEP_SCREEN_ON, SettingKey.APP_LANGUAGE), sec(SettingsSectionId.OTHER).items)
-        assertEquals(listOf(SettingKey.PERMISSIONS, SettingKey.ABOUT, SettingKey.SOURCES), sec(SettingsSectionId.INFO).items)
-        // 「細かい調整」があるのは測位と方位・縮尺だけ（20261121-D02 から。WP・画面の細かい調整は移動のプリセットへ移した）
+        assertEquals(listOf(SettingKey.KEEP_SCREEN_ON, SettingKey.APP_LANGUAGE), sec(SettingsSectionId.OTHER).common)
+        assertEquals(listOf(SettingKey.PERMISSIONS, SettingKey.ABOUT, SettingKey.SOURCES), sec(SettingsSectionId.INFO).plain)
+        // プリセットの値がある欄・共通の値がある欄
         assertEquals(
-            setOf(SettingsSectionId.POSITION_HEADING, SettingsSectionId.RANGE),
-            sections.filter { it.fine.isNotEmpty() }.map { it.id }.toSet(),
+            listOf(SettingsSectionId.POSITION_HEADING, SettingsSectionId.REACH, SettingsSectionId.RANGE, SettingsSectionId.MAP, SettingsSectionId.LANDMARKS, SettingsSectionId.DISPLAY),
+            sections.filter { it.preset.isNotEmpty() }.map { it.id },
         )
-        // 小見出しで分けるのは移動のプリセットだけ
-        assertEquals(listOf(SettingsSectionId.TRAVEL_PRESET), sections.filter { it.groups.isNotEmpty() }.map { it.id })
+        assertEquals(
+            listOf(
+                SettingsSectionId.POSITION_HEADING, SettingsSectionId.RANGE, SettingsSectionId.MAP, SettingsSectionId.LANDMARKS, SettingsSectionId.DISPLAY,
+                SettingsSectionId.WP, SettingsSectionId.RINGS_TRACK, SettingsSectionId.OTHER,
+            ),
+            sections.filter { it.common.isNotEmpty() }.map { it.id },
+        )
+    }
+
+    /** プリセットの値の項目は、プリセットの値の数え方（PresetFields）と合う（表は行ごと、止める / 戻す速度は 2 つ） */
+    @Test
+    fun presetItemsMatchThePresetFields() {
+        val items = sections.flatMap { it.presetItems }.toSet()
+        assertEquals(
+            setOf(
+                SettingKey.HEADING_METHOD, SettingKey.HOLD_ENTER, SettingKey.HOLD_EXIT, SettingKey.MAX_GPS_BEARING_ACC, SettingKey.TRACK_DISTANCE,
+                SettingKey.ARRIVAL_RADIUS, SettingKey.SIDE_PASS, SettingKey.SIDE_PASS_MAX, SettingKey.SIDE_PASS_DEPART, SettingKey.SIDE_PASS_MIN_SPEED,
+                SettingKey.PASS_DETECTION, SettingKey.PASS_MAX, SettingKey.PASS_DEPART, SettingKey.PASS_HOLD,
+                SettingKey.RANGE_STEPS, SettingKey.INITIAL_RANGE, SettingKey.AUTO_ON_START, SettingKey.AUTO_MIN, SettingKey.AUTO_MAX,
+                SettingKey.ZOOM_IN_DELAY, SettingKey.HOLD_AFTER_WP, SettingKey.ZOOM_IN_RATIO,
+                SettingKey.MAP_TABLE, SettingKey.LANDMARK_TABLE, SettingKey.PROFILE, SettingKey.GS_AVERAGE, SettingKey.ETA_AVERAGE,
+            ),
+            items,
+        )
+        // 数え方: 表の行（11 + 11）を 1 つずつ、ほかは 1 項目 1 つ（止める / 戻す速度は 2 つ）
+        assertEquals(items.size - 2 + 11 + 11, io.github.eightbrows.navhud.core.nav.PresetFields.ALL.size)
+        assertEquals(11, SettingsOutline.MAP_TABLE_ROWS.size)
+        assertEquals(11, SettingsOutline.LANDMARK_TABLE_ROWS.size)
     }
 
     @Test
     fun everyItemAppearsExactlyOnce() {
         val all = sections.flatMap { it.allItems }
-        assertEquals(sections.flatMap { it.items + it.groups.flatMap { g -> g.items } + it.fine }, all)
         assertEquals(all.size, all.toSet().size)
         assertEquals(SettingKey.entries.toSet(), all.toSet())
         // INPUT（LIVE / REPLAY）は設定画面にない（上部バーで切り替える）
@@ -110,7 +138,7 @@ class SettingsOutlineTest {
         assertFalse(SettingKey.entries.any { it.name.contains("DISPLAY_MODE") })
         val nu = NavSettings(displayMode = DisplayMode.NORTH_UP)
         assertEquals(DisplayMode.NORTH_UP, SettingsCodec.decode(SettingsCodec.encode(nu)).displayMode)
-        assertEquals(DisplayMode.ARC, nu.resetKeepingCustomReach().displayMode)
+        assertEquals(DisplayMode.ARC, nu.resetAll().displayMode)
         assertEquals(DisplayMode.ARC, NavSettings().displayMode)
     }
 
@@ -129,15 +157,15 @@ class SettingsOutlineTest {
         assertEquals(setOf(SettingsSectionId.WP, SettingsSectionId.OTHER), SettingsOutline.decodeClosed(" wp ,old,,other"))
         // 保存の名前は変えない（前のバージョンで閉じたセクションがそのまま戻るように）
         assertEquals(
-            listOf("travelPreset", "position", "range", "wp", "display", "ringsTrack", "map", "landmarks", "other", "info"),
+            listOf("position", "reach", "range", "map", "landmarks", "display", "wp", "ringsTrack", "other", "info"),
             SettingsSectionId.entries.map { it.key },
         )
-        // 20261121-D02: 前の版の覚え（移動のプリセットの欄がない）では、新しい欄は開いた状態。前に閉じた欄は閉じたまま
-        assertEquals(setOf(SettingsSectionId.POSITION_HEADING, SettingsSectionId.WP), SettingsOutline.decodeClosed("position,wp"))
-        assertFalse(SettingsSectionId.TRAVEL_PRESET in SettingsOutline.decodeClosed("position,range,wp,display,ringsTrack,map,landmarks,other,info"))
+        // 20261121-D03: 前の版の「移動のプリセット」の欄の覚え（travelPreset）は読み飛ばす。新しい到達の判定の欄は、前の覚えでは開いている
+        assertEquals(setOf(SettingsSectionId.POSITION_HEADING, SettingsSectionId.WP), SettingsOutline.decodeClosed("travelPreset,position,wp"))
+        assertFalse(SettingsSectionId.REACH in SettingsOutline.decodeClosed("travelPreset,position,range,wp,display,ringsTrack,map,landmarks,other,info"))
         // 閉じれば覚える。全部閉じるにも入る
-        assertEquals("travelPreset,map", SettingsOutline.encodeClosed(setOf(SettingsSectionId.MAP, SettingsSectionId.TRAVEL_PRESET)))
-        assertTrue(SettingsSectionId.TRAVEL_PRESET in SettingsOutline.closeAll())
+        assertEquals("reach,map", SettingsOutline.encodeClosed(setOf(SettingsSectionId.MAP, SettingsSectionId.REACH)))
+        assertTrue(SettingsSectionId.REACH in SettingsOutline.closeAll())
         // 設定の保存（NavSettings）とは別: 設定を初期値に戻しても変わらない（SettingsCodec の保存の名前に入っていない）
         assertFalse(io.github.eightbrows.navhud.core.nav.SettingsCodec.encode(NavSettings()).keys.any { it.contains("Closed") || it.contains("closed") })
     }
@@ -156,7 +184,7 @@ class SettingsOutlineTest {
         // 全て開く・全て閉じる
         assertEquals(emptySet<SettingsSectionId>(), SettingsOutline.openAll())
         assertEquals(SettingsSectionId.entries.toSet(), SettingsOutline.closeAll())
-        assertEquals("travelPreset,position,range,wp,display,ringsTrack,map,landmarks,other,info", SettingsOutline.encodeClosed(SettingsOutline.closeAll()))
+        assertEquals("position,reach,range,map,landmarks,display,wp,ringsTrack,other,info", SettingsOutline.encodeClosed(SettingsOutline.closeAll()))
     }
 
     @Test

@@ -48,8 +48,10 @@ enum class TravelMode { CAR, WALK, CUSTOM1, CUSTOM2, CUSTOM3 }
 enum class HeadingMethod { GPS, GPS_TRACK }
 
 /**
- * 移動のプリセットの値の組（§5.4。到達の判定・方位・数値の平均）。名前は前からの ReachProfile のまま。
- * 20261121-D01 で、方位の出し方・方位精度の上限・GS の平均・ETA の平均速度を足した
+ * 移動のプリセットの値の組（§5.4。到達の判定・方位・数値の平均・縮尺・地図とランドマークの表・標高プロファイル）。名前は前からの ReachProfile のまま。
+ * 20261121-D01 で、方位の出し方・方位精度の上限・GS の平均・ETA の平均速度を足した。
+ * 20261121-D03 で、位置から求める向きの距離・縮尺（使う縮尺・起動時の縮尺・起動時に自動縮尺・自動縮尺の限度 2 つ・細かい調整 3 つ）・
+ * 地図の項目の表・ランドマークの表・標高プロファイルを足した（歩行の初期値は自動車と同じ）
  */
 data class ReachProfile(
     val reachRadiusM: Double,
@@ -76,6 +78,21 @@ data class ReachProfile(
     val gsAverageSec: Int = Tuning.CAR_GS_AVERAGE_SEC,
     /** ETA の平均速度を測る時間 [秒]（20261121-D01 からプリセットの値。前は 10 秒で固定） */
     val etaAverageSec: Int = Tuning.CAR_ETA_AVERAGE_SEC,
+    /** 位置から求める向きの距離 [m]（20261121-D03。3〜20 m） */
+    val trackDistanceM: Int = Tuning.TRACK_HEADING_DISTANCE_M.toInt(),
+    /** 縮尺（20261121-D03 からプリセットの値。意味は NavSettings の同じ名前の値） */
+    val rangeStepsKm: List<Double> = Tuning.RANGE_DEFAULT_STEPS_KM,
+    val initialRangeKm: Double = Tuning.INITIAL_RANGE_KM,
+    val autoRange: Boolean = true,
+    val autoMinRangeKm: Double = Tuning.AUTO_MIN_RANGE_KM,
+    val autoMaxRangeKm: Double = Tuning.AUTO_MAX_RANGE_KM,
+    val autoRangeZoomInDelaySec: Int = Tuning.AUTO_RANGE_ZOOM_IN_DELAY_SEC,
+    val autoHoldAfterWpSec: Int = Tuning.AUTO_HOLD_AFTER_WP_SEC,
+    val autoZoomInDistRatio: Double = Tuning.AUTO_ZOOM_IN_DIST_RATIO,
+    /** 地図の項目の表・ランドマークの表・標高プロファイル（20261121-D03 からプリセットの値） */
+    val mapItems: Map<MapItem, MapRange> = NavSettings.DEFAULT_MAP_ITEMS,
+    val landmarks: Map<LandmarkItem, MapRange> = NavSettings.DEFAULT_LANDMARKS,
+    val profileSize: ProfileSize = ProfileSize.OFF,
 ) {
     companion object {
         /** 自動車の推奨値 */
@@ -97,7 +114,7 @@ data class ReachProfile(
             etaAverageSec = Tuning.CAR_ETA_AVERAGE_SEC,
         )
 
-        /** 歩行の値（20261121-D01。調べ 20261119-D03-WALK の案） */
+        /** 歩行の初期値（20261121-D01。調べ 20261119-D03-WALK の案。20261121-D03 で足した値は自動車と同じ） */
         val WALK = ReachProfile(
             reachRadiusM = Tuning.WALK_ARRIVAL_RADIUS_M,
             sidePass = Tuning.WALK_SIDE_PASS,
@@ -145,6 +162,8 @@ data class NavSettings(
     val gsAverageSec: Int = Tuning.CAR_GS_AVERAGE_SEC,
     /** 画面の ETA の平均速度を測る時間 [秒]（20261121-D01。移動のプリセットの値） */
     val etaAverageSec: Int = Tuning.CAR_ETA_AVERAGE_SEC,
+    /** 位置から求める向きの距離 [m]（20261121-D03。移動のプリセットの値） */
+    val trackDistanceM: Int = Tuning.TRACK_HEADING_DISTANCE_M.toInt(),
     /**
      * 移動手段（§5.4・§6.9）。下の到達判定の値（reachRadiusM〜passHoldSec）は、選んでいる移動手段の値
      * （自動車なら推奨値、カスタムならその枠の値）。切り替え・編集は selectTravelMode / editReach で行う
@@ -152,6 +171,16 @@ data class NavSettings(
     val travelMode: TravelMode = TravelMode.CAR,
     /** カスタム1〜3 の枠ごとの値（3つ）。最初は自動車の値 */
     val customReach: List<ReachProfile> = List(3) { ReachProfile.CAR },
+    /**
+     * 自動車・歩行の値（20261121-D03 から変えられる）。保存は初期値（ReachProfile.CAR / WALK）と違う所だけ。
+     * 選んでいるプリセットの値は、下の今の値（reachRadiusM など）にも入っている（selectTravelMode / storeActive）
+     */
+    val carProfile: ReachProfile = ReachProfile.CAR,
+    val walkProfile: ReachProfile = ReachProfile.WALK,
+    /** カスタム1〜3 の元（自動車か歩行。20261121-D03）。変えたかどうかは元の初期値と比べる */
+    val customBase: List<TravelMode> = List(3) { TravelMode.CAR },
+    /** カスタム1〜3 を「今の自動車 / 今の歩行」からコピーしたか（帯の「（元：今の歩行）」の出し分け。20261121-D03） */
+    val customCopied: List<Boolean> = List(3) { false },
     /** 到着半径 [m]（全体の到達半径。停車・目的地そのものへ行く場合）。10 / 15 / 20 / 30 / 50 / 100 / 200 / 500 から選ぶ（§5.4。10〜20 は 20261121-D01 から） */
     val reachRadiusM: Double = Tuning.CAR_ARRIVAL_RADIUS_M,
     /** 真横通過（§5.4）: 走行中に WP が真横か後ろになり、いちばん近づいた距離から離れたら到達 */
@@ -184,11 +213,11 @@ data class NavSettings(
      */
     val rangeStepsKm: List<Double> = Tuning.RANGE_DEFAULT_STEPS_KM,
     /** 起動時の縮尺 [km] */
-    val initialRangeKm: Double = 0.5,
+    val initialRangeKm: Double = Tuning.INITIAL_RANGE_KM,
     /** 縮尺の AUTO（次の WP が収まる最小の段）を起動時に ON にする */
     val autoRange: Boolean = true,
     /** AUTO: 詳細にする方向は、条件がこれだけ続いてから切り替える [秒] */
-    val autoRangeZoomInDelaySec: Int = 5,
+    val autoRangeZoomInDelaySec: Int = Tuning.AUTO_RANGE_ZOOM_IN_DELAY_SEC,
     /** AUTO の詳細の限度・広域の限度 [km]（段。使う段から選ぶ。画面と設定画面では R1 = 1つ目の距離環の距離で出す） */
     val autoMinRangeKm: Double = Tuning.AUTO_MIN_RANGE_KM,
     val autoMaxRangeKm: Double = Tuning.AUTO_MAX_RANGE_KM,
@@ -303,6 +332,9 @@ data class NavSettings(
         /** 到着半径 [m] の選べる値（20261121-D01 で歩行のために 10・15・20 m を足した） */
         val REACH_RADIUS_CHOICES_M = listOf(10.0, 15.0, 20.0, 30.0, 50.0, 100.0, 200.0, 500.0)
 
+        /** 位置から求める向きの距離 [m] の範囲（20261121-D03。1 m 刻み） */
+        val TRACK_DISTANCE_M_RANGE = Tuning.TRACK_HEADING_DISTANCE_MIN_M..Tuning.TRACK_HEADING_DISTANCE_MAX_M
+
         /** GS の平均 [秒] の選べる値（20261121-D01。1 = 今の点の速さ） */
         val GS_AVERAGE_CHOICES_SEC = listOf(1, 3, 5, 10)
 
@@ -398,18 +430,19 @@ data class NavSettings(
     }
 }
 
-/** 「設定を初期値に戻す」（§6.9）: すべて初期値にし、移動のプリセットは自動車に戻す。カスタム1〜3 の値は残す。 */
-fun NavSettings.resetKeepingCustomReach(): NavSettings = NavSettings(customReach = customReach)
-
-/** 今の到達判定の値（選んでいる移動手段の値）。 */
+/** 今の値（選んでいるプリセットの値）。 */
 val NavSettings.reachProfile: ReachProfile
     get() = ReachProfile(
         reachRadiusM, sidePass, sidePassMaxM, sidePassDepartM, passDetection, passMaxApproachM, passDepartM, passHoldSec, sidePassMinKmh,
         holdEnterKmh = NavSettings.holdSpeedKmh(holdEnterSpeedMps), holdExitKmh = NavSettings.holdSpeedKmh(holdExitSpeedMps),
         headingMethod = headingMethod, maxBearingAccDeg = maxGpsBearingAccDeg, gsAverageSec = gsAverageSec, etaAverageSec = etaAverageSec,
+        trackDistanceM = trackDistanceM,
+        rangeStepsKm = rangeStepsKm, initialRangeKm = initialRangeKm, autoRange = autoRange, autoMinRangeKm = autoMinRangeKm, autoMaxRangeKm = autoMaxRangeKm,
+        autoRangeZoomInDelaySec = autoRangeZoomInDelaySec, autoHoldAfterWpSec = autoHoldAfterWpSec, autoZoomInDistRatio = autoZoomInDistRatio,
+        mapItems = mapItems, landmarks = landmarks, profileSize = profileSize,
     )
 
-/** 到達判定の値を p にする（移動手段・カスタムの枠は変えない）。 */
+/** 今の値を p にする（プリセットの選択・それぞれのプリセットの値は変えない）。 */
 fun NavSettings.withReachValues(p: ReachProfile): NavSettings = copy(
     reachRadiusM = p.reachRadiusM,
     sidePass = p.sidePass,
@@ -426,9 +459,21 @@ fun NavSettings.withReachValues(p: ReachProfile): NavSettings = copy(
     maxGpsBearingAccDeg = p.maxBearingAccDeg,
     gsAverageSec = p.gsAverageSec,
     etaAverageSec = p.etaAverageSec,
+    trackDistanceM = p.trackDistanceM,
+    rangeStepsKm = p.rangeStepsKm,
+    initialRangeKm = p.initialRangeKm,
+    autoRange = p.autoRange,
+    autoMinRangeKm = p.autoMinRangeKm,
+    autoMaxRangeKm = p.autoMaxRangeKm,
+    autoRangeZoomInDelaySec = p.autoRangeZoomInDelaySec,
+    autoHoldAfterWpSec = p.autoHoldAfterWpSec,
+    autoZoomInDistRatio = p.autoZoomInDistRatio,
+    mapItems = p.mapItems,
+    landmarks = p.landmarks,
+    profileSize = p.profileSize,
 )
 
-/** カスタムの枠の番号（0〜2）。自動車・歩行（値が決まっている）なら null。 */
+/** カスタムの枠の番号（0〜2）。自動車・歩行なら null。 */
 val TravelMode.customIndex: Int?
     get() = when (this) {
         TravelMode.CAR, TravelMode.WALK -> null
@@ -437,23 +482,31 @@ val TravelMode.customIndex: Int?
         TravelMode.CUSTOM3 -> 2
     }
 
-/** 値が決まっているプリセット（自動車・歩行）の値。カスタムなら null */
-val TravelMode.fixedProfile: ReachProfile?
-    get() = when (this) {
-        TravelMode.CAR -> ReachProfile.CAR
-        TravelMode.WALK -> ReachProfile.WALK
-        else -> null
+/** そのプリセットの値（選んでいなくても）。 */
+fun NavSettings.profileOf(m: TravelMode): ReachProfile = when (m) {
+    TravelMode.CAR -> carProfile
+    TravelMode.WALK -> walkProfile
+    else -> customReach.getOrNull(m.customIndex!!) ?: ReachProfile.CAR
+}
+
+/** そのプリセットの値を p にする。選んでいるプリセットなら、今の値も p にする。 */
+fun NavSettings.withProfile(m: TravelMode, p: ReachProfile): NavSettings {
+    val next = when (m) {
+        TravelMode.CAR -> copy(carProfile = p)
+        TravelMode.WALK -> copy(walkProfile = p)
+        else -> copy(customReach = customReach.toMutableList().also { it[m.customIndex!!] = p })
     }
-
-/** 移動のプリセットを切り替える。自動車・歩行なら決まった値、カスタムならその枠の値を今の値にする（ほかの枠の値は残す）。 */
-fun NavSettings.selectTravelMode(m: TravelMode): NavSettings {
-    val p = m.fixedProfile ?: m.customIndex?.let { customReach.getOrNull(it) } ?: ReachProfile.CAR
-    return withReachValues(p).copy(travelMode = m)
+    return if (m == travelMode) next.withReachValues(p) else next
 }
 
-/** カスタムの枠の値を変える（今の値と、その枠に保存する値の両方）。自動車・歩行のときは変えない（決まった値）。 */
-fun NavSettings.editReach(f: (ReachProfile) -> ReachProfile): NavSettings {
-    val i = travelMode.customIndex ?: return this
-    val p = f(reachProfile)
-    return withReachValues(p).copy(customReach = customReach.toMutableList().also { it[i] = p })
-}
+/**
+ * 今の値（設定画面で変えた値）を、選んでいるプリセットの値に入れる（20261121-D03）。設定を変えたあと（NavViewModel.updateSettings）に呼ぶ。
+ * 縮尺・地図の表などを今の値（copy）で変えても、プリセットに残るようにするため
+ */
+fun NavSettings.storeActive(): NavSettings = withProfile(travelMode, reachProfile)
+
+/** 移動のプリセットを切り替える。そのプリセットの値を今の値にする（ほかのプリセットの値は残す）。 */
+fun NavSettings.selectTravelMode(m: TravelMode): NavSettings = withReachValues(profileOf(m)).copy(travelMode = m)
+
+/** 選んでいるプリセットの値を変える（今の値と、そのプリセットに残す値の両方。20261121-D03 から自動車・歩行も変えられる）。 */
+fun NavSettings.editReach(f: (ReachProfile) -> ReachProfile): NavSettings = withProfile(travelMode, f(reachProfile))

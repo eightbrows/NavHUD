@@ -110,10 +110,14 @@ class MapItemSettingsTest {
         assertEquals(MapRange.UPTO_100KM, old.landmarkRangeOf(LandmarkItem.RUNWAY))
         // 滑走路の延長線は前の保存にないので初期値（〜100k）
         assertEquals(MapRange.UPTO_100KM, old.landmarkRangeOf(LandmarkItem.RUNWAY_EXT))
+        // 20261121-D03: 前の全体の表は全部のプリセットに入れ、保存は初期値と違う行だけ（「car.」などを付けて）
         val enc = SettingsCodec.encode(old)
-        assertTrue(enc.getValue("mapItems").startsWith("COASTLINE:UPTO_100KM,"))
-        assertTrue(enc.getValue("landmarkItems").contains("RUNWAY:UPTO_100KM,RUNWAY_EXT:UPTO_100KM,"))
+        assertEquals("MOTORWAY:OFF", enc["car.mapItems"])
+        assertEquals("MOTORWAY:OFF", enc["walk.mapItems"])
+        assertEquals("MOTORWAY:OFF", enc["custom3.mapItems"])
+        assertEquals("AIRPORT_CODE:UPTO_10KM", enc["car.landmarkItems"])
         assertTrue(enc.values.none { it.contains(":ALL") })
+        assertEquals(null, enc["mapItems"])
     }
 
     @Test
@@ -122,8 +126,8 @@ class MapItemSettingsTest {
             .withMapRange(MapItem.MOTORWAY, MapRange.UPTO_100KM).withMapRange(MapItem.NATIONAL_ROAD, MapRange.UPTO_50KM)
             .withMapRange(MapItem.PREF_ROAD, MapRange.UPTO_10KM).withMapRange(MapItem.WATER, MapRange.UPTO_25KM)
         val enc = SettingsCodec.encode(s)
-        // 全部の項目を「名前:縮尺」で（MapItem の順）
-        assertTrue(enc.getValue("mapItems").startsWith("COASTLINE:UPTO_100KM,PREF_BOUNDARY:UPTO_100KM,MUNI_BOUNDARY:UPTO_5KM,MOTORWAY:UPTO_100KM,OTHER_MOTORWAY:OFF,NATIONAL_ROAD:UPTO_50KM,PREF_ROAD:UPTO_10KM,"))
+        // 初期値と違う項目だけを「名前:縮尺」で（MapItem の順。20261121-D03 から。自動車高速道路は初期値の 〜100k と同じなので書かない）
+        assertEquals("NATIONAL_ROAD:UPTO_50KM,PREF_ROAD:UPTO_10KM,WATER:UPTO_25KM", enc["car.mapItems"])
         assertEquals("3", enc["mapLineWidthLevel"])
         val back = SettingsCodec.decode(enc)
         assertEquals(s.mapItems, back.mapItems)
@@ -141,15 +145,12 @@ class MapItemSettingsTest {
         val oldPoints = SettingsCodec.decode(mapOf("mapItems" to "MOTORWAY:OFF,PEAK:OFF,AIRPORT:UPTO_10KM"))
         assertEquals(MapRange.OFF, oldPoints.mapRangeOf(MapItem.MOTORWAY))
         assertEquals(NavSettings.DEFAULT_LANDMARKS, oldPoints.landmarks)
-        assertTrue(SettingsCodec.encode(oldPoints).getValue("mapItems").split(',').none { it.startsWith("AIRPORT:") || it.startsWith("PEAK:") })
+        assertTrue(SettingsCodec.encode(oldPoints).getValue("car.mapItems").split(',').none { it.startsWith("AIRPORT:") || it.startsWith("PEAK:") })
         // ランドマークは「landmarkItems」に「名前:縮尺」で保存し、読み戻せる（20261022-D01）。読めない名前・縮尺は飛ばす（その項目は初期値）
         val lm = NavSettings(landmarkBrightness = 6).withLandmarkRange(LandmarkItem.PEAK_LOW, MapRange.OFF).withLandmarkRange(LandmarkItem.AIRPORT_CODE, MapRange.UPTO_100KM)
         val lmEnc = SettingsCodec.encode(lm)
-        assertEquals(
-            "AIRPORT_CIVIL_LARGE:UPTO_100KM,AIRPORT_CIVIL_SMALL:UPTO_100KM,AIRPORT_MIL_LARGE:UPTO_100KM,AIRPORT_MIL_SMALL:UPTO_100KM," +
-                "AIRPORT_AREA:UPTO_5KM,AIRPORT_CODE:UPTO_100KM,RUNWAY:UPTO_100KM,RUNWAY_EXT:UPTO_100KM,PEAK_HIGH:UPTO_100KM,PEAK_MID:UPTO_100KM,PEAK_LOW:OFF",
-            lmEnc["landmarkItems"],
-        )
+        // 20261121-D03 から初期値と違う行だけ（略号の 〜100k は初期値と同じなので書かない）
+        assertEquals("PEAK_LOW:OFF", lmEnc["car.landmarkItems"])
         assertEquals("6", lmEnc["landmarkBrightnessLevel"])
         assertEquals(lm.landmarks, SettingsCodec.decode(lmEnc).landmarks)
         assertEquals(6, SettingsCodec.decode(lmEnc).landmarkBrightness)
@@ -169,7 +170,7 @@ class MapItemSettingsTest {
         val removed = SettingsCodec.decode(mapOf("mapItems" to "PORT:ALL,STATION:ALL,DAM_POINT:ALL,CITY:ALL,BUILT_UP_AREA:ALL,DAM_LINE:ALL,RAILWAY:UPTO_50KM"))
         assertEquals(MapRange.UPTO_50KM, removed.mapRangeOf(MapItem.RAILWAY))
         assertEquals(NavSettings.DEFAULT_MAP_ITEMS - MapItem.RAILWAY, removed.mapItems - MapItem.RAILWAY)
-        val savedNames = SettingsCodec.encode(removed).getValue("mapItems").split(',').map { it.substringBefore(':') }
+        val savedNames = SettingsCodec.encode(removed).getValue("car.mapItems").split(',').map { it.substringBefore(':') }
         assertTrue(listOf("PORT", "STATION", "DAM_POINT", "CITY", "BUILT_UP_AREA", "DAM_LINE").none { it in savedNames })
         assertEquals(NavSettings.DEFAULT_MAP_LINE_WIDTH, bad.mapLineWidth)
         assertEquals(NavSettings.DEFAULT_MAP_LINE_BRIGHTNESS, bad.mapLineBrightness)
@@ -188,7 +189,7 @@ class MapItemSettingsTest {
             baseMap = false, mapItems = MapItem.entries.associateWith { MapRange.UPTO_10KM }, mapLineWidth = 1, mapLineBrightness = 6,
             landmarks = LandmarkItem.entries.associateWith { MapRange.OFF }, landmarkBrightness = 1,
         )
-        val reset = changed.resetKeepingCustomReach()
+        val reset = changed.resetAll()
         assertTrue(reset.baseMap)
         assertEquals(NavSettings.DEFAULT_MAP_ITEMS, reset.mapItems)
         assertEquals(NavSettings.DEFAULT_LANDMARKS, reset.landmarks)

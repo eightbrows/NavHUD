@@ -4,18 +4,21 @@ import org.junit.Assert.assertTrue
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-/** 移動手段: 自動車（推奨値で固定）/ カスタム1〜3（枠ごとに保存）。§5.4・§6.9 */
+/** 移動のプリセット: 自動車 / 歩行 / カスタム1〜3（20261121-D03 から、どれも値を変えられる）。§5.4・§6.9 */
 class TravelModeTest {
 
     private val car = ReachProfile.CAR
 
     @Test
-    fun carIsFixedAndCustomSlotsKeepTheirValues() {
+    fun presetsKeepTheirValues() {
         val s0 = NavSettings()
         assertEquals(TravelMode.CAR, s0.travelMode)
         assertEquals(car, s0.reachProfile)
-        // 自動車では値を変えられない
-        assertEquals(s0, s0.editReach { it.copy(reachRadiusM = 100.0) })
+        // 20261121-D03: 自動車も値を変えられる（自動車の値に残る）
+        val ce = s0.editReach { it.copy(reachRadiusM = 100.0) }
+        assertEquals(100.0, ce.reachRadiusM, 0.0)
+        assertEquals(100.0, ce.carProfile.reachRadiusM, 0.0)
+        assertEquals(car, ce.customReach[0])
         // カスタム1 で到着半径 50m、カスタム2 で真横通過 OFF
         val s1 = s0.selectTravelMode(TravelMode.CUSTOM1).editReach { it.copy(reachRadiusM = 50.0) }
         assertEquals(50.0, s1.reachRadiusM, 0.0)
@@ -49,19 +52,16 @@ class TravelModeTest {
     }
 
     @Test
-    fun resetKeepsCustomSlots() {
-        // カスタム2 を選んで値を変え、ほかの設定も変えてから「初期値に戻す」: 移動手段は自動車、カスタム1〜3 の値は残る
+    fun resetAllResetsEveryPreset() {
+        // 20261121-D03: 「設定を初期値に戻す」は全部のプリセットと共通の値を初期値にする（前はカスタム1〜3 の値を残した）
         val edited = NavSettings(uiTheme = ColorTheme.AMBER, noFixTimeoutSec = 30)
+            .editReach { it.copy(reachRadiusM = 50.0) }
             .selectTravelMode(TravelMode.CUSTOM2)
             .editReach { it.copy(reachRadiusM = 100.0, passHoldSec = 9) }
-        val r = edited.resetKeepingCustomReach()
+        val r = edited.resetAll()
+        assertEquals(NavSettings(), r)
         assertEquals(TravelMode.CAR, r.travelMode)
-        assertEquals(car, r.reachProfile)
-        assertEquals(edited.customReach, r.customReach)
-        assertEquals(NavSettings(), r.copy(customReach = NavSettings().customReach))
-        // カスタム2 に切り替えれば、変えた値が戻る
-        assertEquals(100.0, r.selectTravelMode(TravelMode.CUSTOM2).reachRadiusM, 0.0)
-        assertEquals(9, r.selectTravelMode(TravelMode.CUSTOM2).passHoldSec)
+        assertEquals(car, r.selectTravelMode(TravelMode.CUSTOM2).reachProfile)
     }
 
     @Test
@@ -97,8 +97,8 @@ class TravelModeTest {
         val s0 = NavSettings()
         assertEquals(11, s0.sidePassMinKmh)
         assertEquals(listOf(11, 11, 11), s0.customReach.map { it.sidePassMinKmh })
-        // 自動車では変えられない
-        assertEquals(s0, s0.editReach { it.copy(sidePassMinKmh = 20) })
+        // 自動車も変えられる（20261121-D03）
+        assertEquals(20, s0.editReach { it.copy(sidePassMinKmh = 20) }.sidePassMinKmh)
         // カスタムでは変えられ、枠に残る。自動車に戻すと 11 km/h
         val c1 = s0.selectTravelMode(TravelMode.CUSTOM1).editReach { it.copy(sidePassMinKmh = 20) }
         assertEquals(20, c1.sidePassMinKmh)
@@ -126,8 +126,8 @@ class TravelModeTest {
         val s0 = NavSettings()
         assertEquals(4 to 6, kmh(s0))
         assertEquals(listOf(4 to 6, 4 to 6, 4 to 6), s0.customReach.map { it.holdEnterKmh to it.holdExitKmh })
-        // 自動車では変えられない
-        assertEquals(s0, s0.editReach { it.copy(holdEnterKmh = 9, holdExitKmh = 20) })
+        // 自動車も変えられる（20261121-D03）
+        assertEquals(9, s0.editReach { it.copy(holdEnterKmh = 9, holdExitKmh = 20) }.carProfile.holdEnterKmh)
         // カスタムでは変えられ、枠に残る。プリセットを切り替えると、すぐにその値になる
         val c1 = s0.selectTravelMode(TravelMode.CUSTOM1).editReach { it.copy(holdEnterKmh = 9, holdExitKmh = 20) }
         assertEquals(9 to 20, kmh(c1))
@@ -136,10 +136,10 @@ class TravelModeTest {
         assertEquals(9 to 20, kmh(c1.selectTravelMode(TravelMode.CAR).selectTravelMode(TravelMode.CUSTOM1)))
         // 今の値（reachProfile）にも入る
         assertEquals(9 to 20, c1.reachProfile.holdEnterKmh to c1.reachProfile.holdExitKmh)
-        // 「設定を初期値に戻す」: 自動車の 4 / 6 km/h に戻り、カスタムの枠の値は残る
-        val r = c1.resetKeepingCustomReach()
+        // 「設定を初期値に戻す」: 全部初期値（20261121-D03 からカスタムも）
+        val r = c1.resetAll()
         assertEquals(4 to 6, kmh(r))
-        assertEquals(9 to 20, kmh(r.selectTravelMode(TravelMode.CUSTOM1)))
+        assertEquals(4 to 6, kmh(r.selectTravelMode(TravelMode.CUSTOM1)))
         // 保存して読み直しても同じ
         assertEquals(c1, SettingsCodec.decode(SettingsCodec.encode(c1)))
         // NavEngine に渡ると、その値で保持する（HeadingSelector は NavSettings の m/s の値を使う）
@@ -153,9 +153,9 @@ class TravelModeTest {
         assertEquals(listOf(TravelMode.CAR, TravelMode.WALK, TravelMode.CUSTOM1, TravelMode.CUSTOM2, TravelMode.CUSTOM3), TravelMode.entries)
     }
 
-    /** 20261121-D01: 歩行のプリセット。値は決まっていて変えられない（自動車と同じ形） */
+    /** 20261121-D01: 歩行のプリセットの初期値（20261121-D03 から変えられる。足した値は自動車と同じ） */
     @Test
-    fun walkPresetIsFixed() {
+    fun walkPresetDefaults() {
         val w = ReachProfile.WALK
         assertEquals(15.0, w.reachRadiusM, 0.0)
         assertEquals(true, w.sidePass)
@@ -171,7 +171,7 @@ class TravelModeTest {
         assertEquals(30f, w.maxBearingAccDeg)
         assertEquals(5, w.gsAverageSec)
         assertEquals(60, w.etaAverageSec)
-        // 選ぶと今の値が全部歩行の値になる。変えられない
+        // 選ぶと今の値が全部歩行の値になる。変えると歩行の値に残る（20261121-D03）
         val s = NavSettings().selectTravelMode(TravelMode.WALK)
         assertEquals(w, s.reachProfile)
         assertEquals(HeadingMethod.GPS_TRACK, s.headingMethod)
@@ -179,7 +179,15 @@ class TravelModeTest {
         assertEquals(5, s.gsAverageSec)
         assertEquals(60, s.etaAverageSec)
         assertEquals(1 / 3.6f, s.holdEnterSpeedMps, 1e-6f)
-        assertEquals(s, s.editReach { it.copy(reachRadiusM = 100.0, maxBearingAccDeg = 45f) })
+        val e = s.editReach { it.copy(reachRadiusM = 100.0, maxBearingAccDeg = 45f) }
+        assertEquals(100.0, e.walkProfile.reachRadiusM, 0.0)
+        assertEquals(2, e.changedCount(TravelMode.WALK))
+        // 足した値（縮尺・表・標高プロファイル・向きを求める距離）は自動車と同じ
+        assertEquals(car.rangeStepsKm, w.rangeStepsKm)
+        assertEquals(car.mapItems, w.mapItems)
+        assertEquals(car.landmarks, w.landmarks)
+        assertEquals(car.profileSize, w.profileSize)
+        assertEquals(8, w.trackDistanceM)
         // 歩行の値は選べる値・範囲の中（設定画面・保存と同じ決まり）
         assertTrue(w.reachRadiusM in NavSettings.REACH_RADIUS_CHOICES_M)
         assertTrue(w.gsAverageSec in NavSettings.GS_AVERAGE_CHOICES_SEC)

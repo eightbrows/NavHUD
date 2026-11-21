@@ -32,6 +32,10 @@ object Tuning {
      */
     const val TRACK_HEADING_DISTANCE_M = 8.0
 
+    /** 位置から求める向きの距離 [m] の範囲（20261121-D03 から移動のプリセットの値。1 m 刻み） */
+    const val TRACK_HEADING_DISTANCE_MIN_M = 3
+    const val TRACK_HEADING_DISTANCE_MAX_M = 20
+
     /** 位置から求める向き: この速さ [km/h] 未満の点では向きを変えない（止まっている間は変えない） */
     const val TRACK_HEADING_MIN_KMH = 1.0
 
@@ -109,6 +113,12 @@ object Tuning {
     const val RANGE_DISTANCE_FIT_RATIO = 0.9
 
     /** AUTO の詳細の限度・広域の限度の既定 [km]（段。R1 = 1つ目の距離環はこの半分: 50m / 250m） */
+    /** 起動時の縮尺 [km] の初期値（20261121-D03 から移動のプリセットの値） */
+    const val INITIAL_RANGE_KM = 0.5
+
+    /** 自動縮尺で詳細に切り替える待機時間 [秒] の初期値（20261121-D03 から移動のプリセットの値） */
+    const val AUTO_RANGE_ZOOM_IN_DELAY_SEC = 5
+
     const val AUTO_MIN_RANGE_KM = 0.1
     const val AUTO_MAX_RANGE_KM = 0.5
 

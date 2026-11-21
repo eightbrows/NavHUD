@@ -50,7 +50,8 @@ class AglTextTest {
     fun settingIsSavedAndDefaultsToZero() {
         // 初期値は「0 にする」。保存の名前は aglNegative（値は ZERO / SHOW）
         assertEquals(AglNegative.ZERO, NavSettings().aglNegative)
-        assertEquals("ZERO", SettingsCodec.encode(NavSettings())["aglNegative"])
+        // 初期値は書かない（20261121-D03）
+        assertEquals(null, SettingsCodec.encode(NavSettings())["aglNegative"])
         val show = NavSettings(aglNegative = AglNegative.SHOW)
         assertEquals("SHOW", SettingsCodec.encode(show)["aglNegative"])
         assertEquals(AglNegative.SHOW, SettingsCodec.decode(SettingsCodec.encode(show)).aglNegative)

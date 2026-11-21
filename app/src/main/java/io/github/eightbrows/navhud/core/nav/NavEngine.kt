@@ -139,7 +139,7 @@ class NavEngine(
         prevFix = lastFix
         lastFix = fix
         headingSelector.update(fix)
-        trackHeading.update(fix, settings.maxGpsAccM, settings.noFixTimeoutSec * 1000L)
+        trackHeading.update(fix, settings.maxGpsAccM, settings.noFixTimeoutSec * 1000L, settings.trackDistanceM.toDouble())
         addGroundSpeed(fix)
         rateTracker.add(fix)
         addVerticalSpeed(fix)

@@ -17,11 +17,15 @@ class SettingsStore(context: Context) {
         return SettingsCodec.decode(prefs.all.mapValues { it.value?.toString() })
     }
 
+    /**
+     * 保存する（20261121-D03 から初期値から変えた所だけ）。前に保存した設定の名前のうち、今回書かないもの（初期値に戻した値・
+     * 前の形の全体の値・もう使わない値）は消す。設定以外の名前（INPUT・スクロール位置など）は残す
+     */
     fun save(s: NavSettings) {
+        val next = SettingsCodec.encode(s)
         prefs.edit {
-            SettingsCodec.encode(s).forEach { (k, v) -> putString(k, v) }
-            // もう使わない値は消す（20261104-D03: RATE の窓）
-            SettingsCodec.OBSOLETE_KEYS.forEach { remove(it) }
+            prefs.all.keys.filter { SettingsCodec.isSettingsKey(it) && it !in next }.forEach { remove(it) }
+            next.forEach { (k, v) -> putString(k, v) }
         }
     }
 

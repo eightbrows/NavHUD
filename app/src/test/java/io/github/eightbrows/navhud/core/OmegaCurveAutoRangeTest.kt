@@ -150,7 +150,8 @@ class OmegaCurveAutoRangeTest {
         val road = TestRoad().straight(600.0)
         val wp = TestRoad.waypoint("寄らない", road.offset(rightM = 30.0, aheadM = 150.0))
         road.straight(110.0).left(20.0, 90.0).straight(1_500.0)
-        val noReach = TestSettings.BEFORE_D03.selectTravelMode(TravelMode.CUSTOM1).editReach { it.copy(sidePass = false, passDetection = false) }
+        // 20261121-D03: 自動車も値を変えられる（前はカスタム1 に切り替えて変えた。カスタム1 に切り替えると、縮尺もカスタム1 の値になる）
+        val noReach = TestSettings.BEFORE_D03.editReach { it.copy(sidePass = false, passDetection = false) }
         val rows = run(road, listOf(wp), emulator, noReach)
         write("omega_leave_route", rows)
         describe("omega_leave_route", rows)

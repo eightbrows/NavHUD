@@ -21,7 +21,8 @@ import io.github.eightbrows.navhud.core.nav.SourceKind
 import io.github.eightbrows.navhud.core.nav.TemporaryWaypoints
 import io.github.eightbrows.navhud.core.nav.Trail
 import io.github.eightbrows.navhud.core.nav.WaypointTimes
-import io.github.eightbrows.navhud.core.nav.resetKeepingCustomReach
+import io.github.eightbrows.navhud.core.nav.resetAll
+import io.github.eightbrows.navhud.core.nav.storeActive
 import io.github.eightbrows.navhud.core.replay.LiveClock
 import io.github.eightbrows.navhud.core.replay.ReplayClock
 import io.github.eightbrows.navhud.core.replay.ReplaySpeed
@@ -363,7 +364,8 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
     /** 設定を変える（すぐ画面に反映し、保存する）。 */
     fun updateSettings(transform: (NavSettings) -> NavSettings) {
         val before = engine.settings.mapLayersInUse()
-        val next = transform(engine.settings)
+        // 今の値（縮尺・地図の表など）を変えたら、選んでいるプリセットの値にも入れる（20261121-D03）
+        val next = transform(engine.settings).storeActive()
         publish(engine.updateSettings(next))
         settingsStore.save(next)
         // 地図レイヤを足したら、そのレイヤの線を別のスレッドで読む（読み終わるまでは、そのレイヤだけ描かない。次の刻みで出る）
@@ -381,8 +383,8 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
         get() = SettingsOutline.decodeClosed(settingsStore.settingsClosedSections)
         set(v) { settingsStore.settingsClosedSections = SettingsOutline.encodeClosed(v) }
 
-    /** 設定を初期値に戻す。カスタム1〜3 の値は残す（移動手段は自動車に戻る）。 */
-    fun resetSettings() = updateSettings { it.resetKeepingCustomReach() }
+    /** 設定を初期値に戻す（20261121-D03 から全部のプリセットと共通の値。前はカスタム1〜3 の値を残した）。 */
+    fun resetSettings() = updateSettings { it.resetAll() }
 
     /** 縮尺の ＋ / − / AUTO */
     fun zoomIn() {

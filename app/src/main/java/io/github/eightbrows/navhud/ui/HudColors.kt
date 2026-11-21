@@ -174,6 +174,21 @@ object HudColors {
 
     /** 注意（締切が近いなど）と警告（NO FIX、締切超過） */
     val Caution = Color(0xFFFFC107)
+
+    /** 移動のプリセットの色（20261121-D03。設定画面の帯の選んでいるボタンの枠・欄の小見出し「自動車の値」など） */
+    val PresetCar = Color(0xFF4FC3F7)
+    val PresetWalk = Color(0xFF81C784)
+    val PresetCustom = Color(0xFFB39DDB)
+
+    /** 設定画面の、初期値から変えた値の強調（黄色の地に黒の太字。20261121-D03） */
+    val Changed = Color(0xFFFFD54F)
+
+    /**
+     * 方位の出し方の色（20261121-D03）: GPS の向き（HDG の付記 GPS / HLD）は水色、位置から求める向き（TRK）は橙。
+     * 設定画面の「GPS の向き」「位置から求める向き」の囲みの札と同じ色
+     */
+    val HeadingGps = Color(0xFF4FC3F7)
+    val HeadingTrack = Color(0xFFFFA726)
     val Warning = Color(0xFFFF5252)
 
     /** 上部バーなどの枠 */

@@ -824,7 +824,9 @@ private fun NumberFieldCell(
             val small = SpanStyle(fontSize = Caption.fontSize * textScale)
             val value = buildAnnotatedString {
                 append(HudFormat.bearing(state.heading.deg))
-                if (src.isNotEmpty()) withStyle(small) { append(" $src") }
+                // 付記の色（20261121-D03）: GPS / HLD は水色、TRK は橙（設定画面の囲みの札と同じ）
+                val srcColor = if (state.heading.src == HeadingSrc.TRACK) HudColors.HeadingTrack else HudColors.HeadingGps
+                if (src.isNotEmpty()) withStyle(small.copy(color = srcColor)) { append(" $src") }
             }
             NumberCell(c, value, valueColor, modifier.then(n), textScale)
         }

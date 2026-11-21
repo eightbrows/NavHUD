@@ -40,7 +40,9 @@ class RingBrightnessTest {
         assertEquals(listOf(20, 40, 60, 80, 100), NavSettings.RING_BRIGHTNESS_CHOICES_PCT)
         assertEquals(80, NavSettings().ringBrightnessPct)
         val enc = SettingsCodec.encode(NavSettings())
-        assertEquals("80", enc["ringLineBrightnessPct"])
+        // 初期値は書かない（20261121-D03）
+        assertNull(enc["ringLineBrightnessPct"])
+        assertEquals("60", SettingsCodec.encode(NavSettings(ringBrightnessPct = 60))["ringLineBrightnessPct"])
         assertNull(enc["ringLineBrightnessLevel"])
         assertNull(enc["ringBrightnessLevel"])
         for (v in NavSettings.RING_BRIGHTNESS_CHOICES_PCT) assertEquals(v, SettingsCodec.decode(SettingsCodec.encode(NavSettings(ringBrightnessPct = v))).ringBrightnessPct)

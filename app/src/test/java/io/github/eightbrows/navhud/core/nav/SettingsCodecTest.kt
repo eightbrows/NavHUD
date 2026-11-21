@@ -61,10 +61,23 @@ class SettingsCodecTest {
             travelMode = TravelMode.CUSTOM2,
             customReach = listOf(p1, p2, p3),
         ).withReachValues(p2)
-        val d = NavSettings()
-        // 念のため、ほんとうに全項目が既定値と違うことを確かめる（項目を足したらここも足す）
-        assertEquals(SettingsCodec.encode(d).keys, SettingsCodec.encode(s).keys)
-        SettingsCodec.encode(d).forEach { (k, v) -> assert(SettingsCodec.encode(s)[k] != v) { "既定値と同じ: $k" } }
+        // 20261121-D03: 保存は初期値から変えた所だけ。初期値のままなら、保存の形・移動のプリセット・カスタムの元だけ
+        assertEquals(
+            setOf("settingsFormat", "travelMode", "custom1.base", "custom2.base", "custom3.base"),
+            SettingsCodec.encode(NavSettings()).keys,
+        )
+        // 共通の値は、全部初期値と違うので全部書く
+        val common = listOf(
+            "maxGpsAccM", "noFixTimeoutSec", "altOffsetM", "aglNegative", "displayMode", "wpButtonsMax", "hudWpCount", "uiTheme", "mapTheme",
+            "ownshipPosition", "panReturnSec", "autoOpenLastList", "keepScreenOn", "baseMap", "landmarkBrightnessLevel", "mapLineWidthLevel",
+            "mapLineBrightnessLevel", "buttonOpacityPct", "numbersOpacityPct", "trackColor", "trackBrightnessPct", "ringLabelScalePct", "ringLineBrightnessPct",
+        )
+        val enc = SettingsCodec.encode(s)
+        for (k in common) assert(k in enc) { "書いていない: $k" }
+        // カスタムの値は、元（自動車）の初期値と違う所だけ
+        assertEquals("50.0", enc["custom1.reachRadiusM"])
+        assertEquals(null, enc["custom1.passMaxApproachM"].takeIf { p1.passMaxApproachM == ReachProfile.CAR.passMaxApproachM })
+        assertEquals("CUSTOM2", enc["travelMode"])
 
         assertEquals(s, SettingsCodec.decode(SettingsCodec.encode(s)))
     }
@@ -87,8 +100,9 @@ class SettingsCodecTest {
         val choices = NavSettings.AUTO_ZOOM_IN_DIST_RATIO_CHOICES
         assertEquals(11, choices.size)
         assertEquals((10..20).map { it / 10.0 }, choices)
-        // 保存は新しいキー
-        assertEquals("1.3", SettingsCodec.encode(NavSettings())["autoZoomInR1Ratio"])
+        // 保存は新しいキー（20261121-D03 からプリセットの値: 「car.」を付けて、初期値と違うときだけ）
+        assertEquals(null, SettingsCodec.encode(NavSettings())["car.autoZoomInR1Ratio"])
+        assertEquals("1.5", SettingsCodec.encode(NavSettings().editReach { it.copy(autoZoomInDistRatio = 1.5) })["car.autoZoomInR1Ratio"])
         assertEquals(null, SettingsCodec.encode(NavSettings())["autoZoomInDistRatio"])
     }
 
@@ -142,7 +156,8 @@ class SettingsCodecTest {
         // 保存して読み直すと同じ値
         for (v in NavSettings.TRACK_BRIGHTNESS_CHOICES_PCT) {
             val s = NavSettings(trackBrightnessPct = v)
-            assertEquals(v.toString(), SettingsCodec.encode(s)["trackBrightnessPct"])
+            // 初期値は書かない（20261121-D03）
+            assertEquals(v.toString().takeIf { v != NavSettings().trackBrightnessPct }, SettingsCodec.encode(s)["trackBrightnessPct"])
             assertEquals(s, SettingsCodec.decode(SettingsCodec.encode(s)))
         }
         // 20〜100 の外・読めない値は、その項目だけ既定値（ほかの項目はそのまま）
@@ -163,7 +178,7 @@ class SettingsCodecTest {
         // 保存して読み直すと同じ値
         for (v in NavSettings.RING_LABEL_SCALE_CHOICES_PCT) {
             val s = NavSettings(ringLabelScalePct = v)
-            assertEquals(v.toString(), SettingsCodec.encode(s)["ringLabelScalePct"])
+            assertEquals(v.toString().takeIf { v != NavSettings().ringLabelScalePct }, SettingsCodec.encode(s)["ringLabelScalePct"])
             assertEquals(s, SettingsCodec.decode(SettingsCodec.encode(s)))
         }
         // 選べる値にない数は一番近い段（前の版の 250 は 200。範囲の外は端の段）。ほかの項目はそのまま
@@ -193,7 +208,7 @@ class SettingsCodecTest {
         assertEquals(listOf("WHITE", "GREEN", "AMBER", "CYAN", "YELLOW", "BLUE"), TrackColor.entries.map { it.name })
         for (c in TrackColor.entries) {
             val s = NavSettings(trackColor = c)
-            assertEquals(c.name, SettingsCodec.encode(s)["trackColor"])
+            assertEquals(c.name.takeIf { c != NavSettings().trackColor }, SettingsCodec.encode(s)["trackColor"])
             assertEquals(s, SettingsCodec.decode(SettingsCodec.encode(s)))
         }
         // 軌跡の色を保存していない設定: 既定の黄。保存してある UI の色・地図の色・明るさは今まで通り読む
@@ -213,7 +228,9 @@ class SettingsCodecTest {
         // 5段（D04 から）。前からの3段の保存値（STANDARD / HIGH / HIGHER）は、同じ段のまま読む。足した2段は NEAR_CENTER / CENTER。
         // 既定は下から4段目（NEAR_CENTER。20261025-D01 で実機の設定に合わせた。前は 3段目の HIGHER）
         assertEquals(OwnshipPosition.NEAR_CENTER, NavSettings().ownshipPosition)
-        assertEquals("NEAR_CENTER", SettingsCodec.encode(NavSettings())["ownshipPosition"])
+        // 初期値は書かない（20261121-D03）
+        assertEquals(null, SettingsCodec.encode(NavSettings())["ownshipPosition"])
+        assertEquals("CENTER", SettingsCodec.encode(NavSettings(ownshipPosition = OwnshipPosition.CENTER))["ownshipPosition"])
         assertEquals(listOf("STANDARD", "HIGH", "HIGHER", "NEAR_CENTER", "CENTER"), OwnshipPosition.entries.map { it.name })
         assertEquals(OwnshipPosition.NEAR_CENTER, SettingsCodec.decode(mapOf("ownshipPosition" to "NEAR_CENTER")).ownshipPosition)
         assertEquals(OwnshipPosition.CENTER, SettingsCodec.decode(mapOf("ownshipPosition" to "CENTER")).ownshipPosition)

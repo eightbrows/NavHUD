@@ -53,7 +53,7 @@ class LanguageModeTest {
     fun languageIsKeptOutsideNavSettings() {
         // 言語は NavSettings の項目と同じ場所に、別のキーで保存する: 設定の保存（SettingsCodec）はこのキーを書かないので、
         // 設定を保存しても・初期値に戻しても、言語の保存は変わらない
-        val saved = SettingsCodec.encode(NavSettings()) + SettingsCodec.encode(NavSettings().resetKeepingCustomReach())
+        val saved = SettingsCodec.encode(NavSettings()) + SettingsCodec.encode(NavSettings().resetAll())
         assertFalse(LanguageMode.PREF_KEY in saved.keys)
         // 言語の保存がいっしょに入っていても、設定はそのまま読める（知らないキーは無視する）
         val withLanguage = SettingsCodec.encode(NavSettings()) + (LanguageMode.PREF_KEY to LanguageMode.ENGLISH.encode())
