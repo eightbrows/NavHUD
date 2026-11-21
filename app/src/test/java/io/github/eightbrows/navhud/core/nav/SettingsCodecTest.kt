@@ -1,6 +1,5 @@
 package io.github.eightbrows.navhud.core.nav
 
-import io.github.eightbrows.navhud.core.model.SourceMode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -11,13 +10,20 @@ class SettingsCodecTest {
     @Test
     fun roundTripOfEveryValue() {
         // 既定値とすべて違う値にする
-        val p1 = ReachProfile(50.0, false, 100.0, 15.0, false, 250.0, 40.0, 4, sidePassMinKmh = 8, holdEnterKmh = 5, holdExitKmh = 15)
-        val p2 = ReachProfile(200.0, false, 200.0, 20.0, false, 450.0, 80.0, 8, sidePassMinKmh = 15, holdEnterKmh = 3, holdExitKmh = 8)
-        val p3 = ReachProfile(100.0, false, 300.0, 30.0, false, 500.0, 60.0, 10, sidePassMinKmh = 20, holdEnterKmh = 7, holdExitKmh = 11)
+        val p1 = ReachProfile(
+            50.0, false, 100.0, 15.0, false, 250.0, 40.0, 4, sidePassMinKmh = 8, holdEnterKmh = 5, holdExitKmh = 15,
+            headingMethod = HeadingMethod.GPS_TRACK, maxBearingAccDeg = 25f, gsAverageSec = 3, etaAverageSec = 20,
+        )
+        val p2 = ReachProfile(
+            200.0, false, 200.0, 20.0, false, 450.0, 80.0, 8, sidePassMinKmh = 15, holdEnterKmh = 3, holdExitKmh = 8,
+            headingMethod = HeadingMethod.GPS_TRACK, maxBearingAccDeg = 35f, gsAverageSec = 5, etaAverageSec = 60,
+        )
+        val p3 = ReachProfile(
+            15.0, false, 300.0, 30.0, false, 500.0, 60.0, 10, sidePassMinKmh = 20, holdEnterKmh = 7, holdExitKmh = 11,
+            headingMethod = HeadingMethod.GPS_TRACK, maxBearingAccDeg = 40f, gsAverageSec = 10, etaAverageSec = 120,
+        )
         val s = NavSettings(
-            sourceMode = SourceMode.HYBRID,
             maxGpsAccM = 20f,
-            maxGpsBearingAccDeg = 30f,
             noFixTimeoutSec = 15,
             altOffsetM = 35.5,
             displayMode = DisplayMode.NORTH_UP,
@@ -313,7 +319,6 @@ class SettingsCodecTest {
     fun brokenValuesAreDefaults() {
         val s = SettingsCodec.decode(
             mapOf(
-                "sourceMode" to "RADAR",
                 "holdEnterSpeedMps" to "abc",
                 "rangeStepsKm" to "3,7,x",
                 "wpButtonsMax" to "99",
@@ -322,7 +327,6 @@ class SettingsCodecTest {
             ),
         )
         val d = NavSettings()
-        assertEquals(d.sourceMode, s.sourceMode)
         assertEquals(d.holdEnterSpeedMps, s.holdEnterSpeedMps)
         assertEquals(d.rangeStepsKm, s.rangeStepsKm)
         assertEquals(6, s.wpButtonsMax)
@@ -367,7 +371,7 @@ class SettingsCodecTest {
         val s = SettingsCodec.decode(
             mapOf(
                 "travelMode" to "CAR",
-                "maxGpsBearingAccDeg" to "1",
+                "custom1.maxBearingAccDeg" to "1",
                 "altOffsetM" to "-999",
                 "autoRangeZoomInDelaySec" to "-1",
                 "initialRangeKm" to "3.0",
@@ -375,8 +379,9 @@ class SettingsCodecTest {
         )
         assertEquals(d, s)
         // 範囲内なら使う（決まった値から選ぶ項目は valuesNotInTheChoicesGoToTheNearestChoice）
-        val ok = SettingsCodec.decode(mapOf("maxGpsBearingAccDeg" to "42", "altOffsetM" to "-200", "initialRangeKm" to "50.0"))
+        val ok = SettingsCodec.decode(mapOf("travelMode" to "CUSTOM1", "custom1.maxBearingAccDeg" to "42", "altOffsetM" to "-200", "initialRangeKm" to "50.0"))
         assertEquals(42f, ok.maxGpsBearingAccDeg, 0f)
+        assertEquals(42f, ok.customReach[0].maxBearingAccDeg, 0f)
         assertEquals(-200.0, ok.altOffsetM, 0.0)
         assertEquals(50.0, ok.initialRangeKm, 0.0)
     }
@@ -441,8 +446,10 @@ class SettingsCodecTest {
             )
             for (mode in TravelMode.entries) {
                 val s = SettingsCodec.decode(old + ("travelMode" to mode.name))
-                assertEquals("$enter / $exit $mode", 4 / 3.6f, s.holdEnterSpeedMps, 1e-6f)
-                assertEquals("$enter / $exit $mode", 6 / 3.6f, s.holdExitSpeedMps, 1e-6f)
+                // 歩行（20261121-D01）は決まった値 1 / 3 km/h、ほかは 4 / 6 km/h
+                val (en, ex) = if (mode == TravelMode.WALK) 1 to 3 else 4 to 6
+                assertEquals("$enter / $exit $mode", en / 3.6f, s.holdEnterSpeedMps, 1e-6f)
+                assertEquals("$enter / $exit $mode", ex / 3.6f, s.holdExitSpeedMps, 1e-6f)
                 assertEquals(listOf(4, 4, 4), s.customReach.map { it.holdEnterKmh })
                 assertEquals(listOf(6, 6, 6), s.customReach.map { it.holdExitKmh })
             }
@@ -493,5 +500,59 @@ class SettingsCodecTest {
         }
         // 前の保存で捨てる名前は、今の保存の名前と重ならない
         assertTrue(SettingsCodec.OBSOLETE_KEYS.none { it in SettingsCodec.encode(NavSettings()).keys })
+    }
+
+    /** 20261121-D01: コンパスを外した。前の「方位の求め方」（HYBRID・COMPASS・GPS）と全体の方位精度の上限は読まずに消す */
+    @Test
+    fun compassAndGlobalBearingAccuracyAreDropped() {
+        assertTrue("sourceMode" in SettingsCodec.OBSOLETE_KEYS)
+        assertTrue("maxGpsBearingAccDeg" in SettingsCodec.OBSOLETE_KEYS)
+        val keys = SettingsCodec.encode(NavSettings().selectTravelMode(TravelMode.WALK)).keys
+        assertTrue(SettingsCodec.OBSOLETE_KEYS.none { it in keys })
+        for (mode in listOf("HYBRID", "COMPASS", "GPS")) {
+            val s = SettingsCodec.decode(mapOf("travelMode" to "CAR", "sourceMode" to mode, "maxGpsBearingAccDeg" to "45.0"))
+            assertEquals(NavSettings(), s)
+            assertEquals(HeadingMethod.GPS, s.headingMethod)
+            assertEquals(20f, s.maxGpsBearingAccDeg)
+        }
+        // 前の全体の値はカスタムにも入らない（カスタムは自動車の値 20° から）
+        val c = SettingsCodec.decode(mapOf("travelMode" to "CUSTOM1", "custom1.reachRadiusM" to "50.0", "maxGpsBearingAccDeg" to "45.0", "sourceMode" to "HYBRID"))
+        assertEquals(20f, c.maxGpsBearingAccDeg)
+        assertEquals(HeadingMethod.GPS, c.headingMethod)
+        // 前の版の保存だけ（移動のプリセットの項目なし）でも、前の版の設定として扱う（カスタム1。前からの決まり）
+        assertEquals(TravelMode.CUSTOM1, SettingsCodec.decode(mapOf("sourceMode" to "HYBRID")).travelMode)
+    }
+
+    /** 20261121-D01: プリセットの値（方位の出し方・方位精度・GS・ETA）の読み込み。選べない値はその項目だけ自動車の値 */
+    @Test
+    fun presetHeadingAndAveragingValues() {
+        fun c1(vararg kv: Pair<String, String>) = SettingsCodec.decode(mapOf("travelMode" to "CUSTOM1", *kv))
+        val ok = c1("custom1.headingMethod" to "GPS_TRACK", "custom1.maxBearingAccDeg" to "45", "custom1.gsAverageSec" to "10", "custom1.etaAverageSec" to "120")
+        assertEquals(HeadingMethod.GPS_TRACK, ok.headingMethod)
+        assertEquals(45f, ok.maxGpsBearingAccDeg)
+        assertEquals(10, ok.gsAverageSec)
+        assertEquals(120, ok.etaAverageSec)
+        val bad = c1("custom1.headingMethod" to "COMPASS", "custom1.maxBearingAccDeg" to "95", "custom1.gsAverageSec" to "4", "custom1.etaAverageSec" to "45")
+        assertEquals(HeadingMethod.GPS, bad.headingMethod)
+        assertEquals(20f, bad.maxGpsBearingAccDeg)
+        assertEquals(1, bad.gsAverageSec)
+        assertEquals(10, bad.etaAverageSec)
+        assertEquals(listOf(1, 3, 5, 10), NavSettings.GS_AVERAGE_CHOICES_SEC)
+        assertEquals(listOf(10, 20, 30, 60, 120), NavSettings.ETA_AVERAGE_CHOICES_SEC)
+        // 歩行は保存に何があっても歩行の値
+        val w = SettingsCodec.decode(mapOf("travelMode" to "WALK", "custom1.maxBearingAccDeg" to "45"))
+        assertEquals(ReachProfile.WALK, w.reachProfile)
+    }
+
+    /** 20261121-D01: 到着半径の選択肢に 10・15・20 m を足した（自動車は 30 m のまま） */
+    @Test
+    fun arrivalRadiusChoices() {
+        assertEquals(listOf(10.0, 15.0, 20.0, 30.0, 50.0, 100.0, 200.0, 500.0), NavSettings.REACH_RADIUS_CHOICES_M)
+        assertEquals(30.0, NavSettings().reachRadiusM, 0.0)
+        for (r in listOf(10.0, 15.0, 20.0)) {
+            assertEquals(r, SettingsCodec.decode(mapOf("travelMode" to "CUSTOM1", "custom1.reachRadiusM" to r.toString())).reachRadiusM, 0.0)
+        }
+        // 選択肢にない値は自動車の値
+        assertEquals(30.0, SettingsCodec.decode(mapOf("travelMode" to "CUSTOM1", "custom1.reachRadiusM" to "12.0")).reachRadiusM, 0.0)
     }
 }

@@ -1,19 +1,15 @@
 package io.github.eightbrows.navhud.core.view
 
-import io.github.eightbrows.navhud.core.model.SourceMode
 import io.github.eightbrows.navhud.core.nav.DisplayMode
 import io.github.eightbrows.navhud.core.nav.SourceKind
 
 /**
  * メイン画面のボタンの置き場所（20261108-D02）。Android に依存しない。
- * 上部バー = 「HDG ○○ ｜（まん中: NO FIX のときだけ NO FIX）｜ ARC ｜ ⚙」、
+ * 上部バー = 「（まん中: NO FIX のときだけ NO FIX）｜ ARC ｜ ⚙」（20261121-D01 でコンパスを外し、左の「HDG ○○」のボタンをなくした）、
  * 左の列（軌跡の操作。数値の欄の下）= LIVE は ⇄ だけ、REPLAY は ⇄ / FILE / スライダー / ▶ / ＋ / ×N / −、
  * WP ボタン列 = いつも出す（左端に「WP」）。
  */
 object MainLayout {
-
-    /** 上部バーの左のボタン（方位ソースの選択） */
-    fun headingLabel(mode: SourceMode): String = "HDG ${mode.name}"
 
     /** 上部バーの右のボタン（表示モード） */
     fun displayLabel(mode: DisplayMode): String = if (mode == DisplayMode.ARC) "ARC" else "N-UP"
@@ -21,21 +17,19 @@ object MainLayout {
     const val SETTINGS_LABEL = "⚙"
     const val NO_FIX_LABEL = "NO FIX"
 
-    /** 方位ソースのボタンの文字のうち、いちばん長いもの（上部バーの幅を見積もるとき） */
-    val LONGEST_HEADING: String = SourceMode.entries.map(::headingLabel).maxBy { it.length }
     val LONGEST_DISPLAY: String = DisplayMode.entries.map(::displayLabel).maxBy { it.length }
 
     /**
-     * 上部バーの文字（左から）: 方位ソース・まん中の NO FIX・表示モード・⚙。
+     * 上部バーの文字（左から）: まん中の NO FIX・表示モード・⚙（20261121-D01 で左の方位ソースのボタンをなくした）。
      * 文字の倍率（TopBarFit）は NO FIX があるものとして決める（NO FIX が出ても消えても、ボタンの大きさを変えない）。
      */
-    fun topBarLabels(mode: SourceMode, display: DisplayMode): List<String> =
-        listOf(headingLabel(mode), NO_FIX_LABEL, displayLabel(display), SETTINGS_LABEL)
+    fun topBarLabels(display: DisplayMode): List<String> =
+        listOf(NO_FIX_LABEL, displayLabel(display), SETTINGS_LABEL)
 
     /**
      * まん中の NO FIX の左端 [dp か px]: 上部バーのまん中に置く。左右のボタンにかかるときは、その間のまん中に寄せる。
      * @param barW 上部バーの幅
-     * @param leftEnd 左のボタン（HDG）の右端
+     * @param leftEnd 左の端（20261121-D01 から左のボタンはないので 0）
      * @param rightStart 右のボタン（表示モード）の左端
      * @param itemW NO FIX の枠の幅
      * @param gap ボタンとの間にあけるすき間

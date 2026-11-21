@@ -4,7 +4,6 @@ import io.github.eightbrows.navhud.core.TestSettings
 import io.github.eightbrows.navhud.core.TestGeo
 import io.github.eightbrows.navhud.core.model.Fix
 import io.github.eightbrows.navhud.core.model.HeadingSrc
-import io.github.eightbrows.navhud.core.model.SourceMode
 import io.github.eightbrows.navhud.core.model.Waypoint
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -39,7 +38,11 @@ class NavEngineTest {
     @Test
     fun defaultSettings() {
         val s = NavSettings()
-        assertEquals(SourceMode.GPS, s.sourceMode)
+        // 方位の出し方は GPS（20261121-D01。前の「方位の求め方」の初期値も GPS）、方位精度の上限 20°、GS は今の点の速さ、ETA は 10 秒の平均
+        assertEquals(HeadingMethod.GPS, s.headingMethod)
+        assertEquals(20f, s.maxGpsBearingAccDeg)
+        assertEquals(1, s.gsAverageSec)
+        assertEquals(10, s.etaAverageSec)
         // 保持に入る / 解く速度は 4 / 6 km/h（20261119-D01 から。D04〜は 7 / 11 km/h、前は 2.0 / 3.0 m/s）
         assertEquals(4 / 3.6f, s.holdEnterSpeedMps, 1e-6f)
         assertEquals(6 / 3.6f, s.holdExitSpeedMps, 1e-6f)
@@ -188,28 +191,6 @@ class NavEngineTest {
     }
 
     @Test
-    fun hybridUsesCompassWhenNoFixOrStopped() {
-        val e = engine(NavSettings(sourceMode = SourceMode.HYBRID))
-        e.onCompass(45f, t0)
-        assertEquals(Heading(90f, HeadingSrc.GPS), e.onFix(fix(t0, bearing = 90f), t0).heading)
-        // 欠損中は古い Fix の方位を使わない
-        assertEquals(Heading(45f, HeadingSrc.COMPASS), e.onTick(t0 + 20_000).heading)
-        // 停止（方位なし）
-        assertEquals(Heading(45f, HeadingSrc.COMPASS), e.onFix(fix(t0 + 21_000, speed = 0f, bearing = null), t0 + 21_000).heading)
-    }
-
-    @Test
-    fun sourceModeChange() {
-        val e = engine()
-        e.onCompass(45f, t0)
-        e.onFix(fix(t0, bearing = 90f), t0)
-        val s = e.setSourceMode(SourceMode.COMPASS)
-        assertEquals(SourceMode.COMPASS, s.sourceMode)
-        assertEquals(Heading(45f, HeadingSrc.COMPASS), s.heading)
-        assertEquals(Heading(90f, HeadingSrc.GPS), e.setSourceMode(SourceMode.GPS).heading)
-    }
-
-    @Test
     fun timeGoingBackwardsClearsHistory() {
         val e = engine()
         for (s in 0..60) e.onFix(fix(t0 + s * 1000L), t0 + s * 1000L)
@@ -221,7 +202,7 @@ class NavEngineTest {
 
     @Test
     fun resetPositionKeepsWaypointsAndSettings() {
-        val e = engine(NavSettings(sourceMode = SourceMode.GPS))
+        val e = engine(NavSettings(gsAverageSec = 5))
         e.setWaypoints(listOf(Waypoint("A", 33.1, 133.0)))
         e.onFix(fix(t0), t0)
         val s = e.resetPosition()
@@ -229,7 +210,7 @@ class NavEngineTest {
         assertNull(s.nowMs)
         assertTrue(s.noFix)
         assertEquals(1, s.waypoints.size)
-        assertEquals(SourceMode.GPS, s.sourceMode)
+        assertEquals(5, s.settings.gsAverageSec)
     }
 
     @Test
@@ -250,20 +231,6 @@ class NavEngineTest {
         assertTrue(live.noFix)
         assertTrue(live.waypoints[0].reached)
         assertEquals(1, live.nextWpIndex)
-    }
-
-    @Test
-    fun compassQualityIsExposedOnlyWithACompassValue() {
-        val e = engine(NavSettings(sourceMode = SourceMode.HYBRID))
-        assertNull(e.state.compass)
-        val q = io.github.eightbrows.navhud.core.sensor.CompassQuality(lowAccuracy = true, declinationUnknown = true)
-        val s = e.onCompass(45f, t0, q)
-        assertEquals(q, s.compass)
-        assertEquals(Heading(45f, HeadingSrc.COMPASS), s.heading)
-        // コンパスがなくなれば null
-        assertNull(e.onCompass(null, null).compass)
-        // 時刻を渡さなければ時刻は進めない
-        assertEquals(t0, e.state.nowMs)
     }
 
     @Test
@@ -353,5 +320,93 @@ class NavEngineTest {
         // 自動車に戻すと、次の Fix から GPS の向き（8 km/h は 6 km/h より速い）
         e.updateSettings(car)
         assertFalse(step().held)
+    }
+
+    /** 20261121-D01: 画面の GS は移動のプリセットの「GS の平均」秒の平均（1 秒は今の点の速さ）。到達などほかの計算には使わない */
+    @Test
+    fun groundSpeedAverage() {
+        val speeds = listOf(1f, 2f, 3f, 4f, 5f, 6f, 7f)
+        val one = engine(NavSettings())
+        val five = engine(NavSettings(gsAverageSec = 5))
+        var a: NavState? = null
+        var b: NavState? = null
+        speeds.forEachIndexed { i, v ->
+            val f = fix(t0 + i * 1000L, speed = v)
+            a = one.onFix(f, f.timeMs)
+            b = five.onFix(f, f.timeMs)
+        }
+        assertEquals(7f, a!!.groundSpeedMps!!, 1e-6f)
+        // 直前 5 秒（3〜7）の平均
+        assertEquals(5f, b!!.groundSpeedMps!!, 1e-6f)
+        // 速さのない点は数えない。全部ないなら null
+        val e = engine(NavSettings(gsAverageSec = 3))
+        e.onFix(fix(t0, speed = 2f), t0)
+        assertEquals(2f, e.onFix(fix(t0 + 1000, speed = null), t0 + 1000).groundSpeedMps!!, 1e-6f)
+        val n = engine(NavSettings(gsAverageSec = 3))
+        assertNull(n.onFix(fix(t0, speed = null), t0).groundSpeedMps)
+        // 止まったら、平均の秒数のあいだは 0 にならない（遅れはそのまま）
+        val s = engine(NavSettings(gsAverageSec = 5))
+        for (i in 0..9) s.onFix(fix(t0 + i * 1000L, speed = 5f), t0 + i * 1000L)
+        assertEquals(4f, s.onFix(fix(t0 + 10_000, speed = 0f), t0 + 10_000).groundSpeedMps!!, 1e-6f)
+        for (i in 11..14) s.onFix(fix(t0 + i * 1000L, speed = 0f), t0 + i * 1000L)
+        assertEquals(0f, s.state.groundSpeedMps!!, 1e-6f)
+        // 巻き戻し・切り替えで履歴を捨てる
+        assertEquals(9f, s.onFix(fix(t0 - 100_000, speed = 9f), t0 - 100_000).groundSpeedMps!!, 1e-6f)
+    }
+
+    /** 20261121-D01: ETA の平均速度の秒数は移動のプリセットの値（自動車 10 秒・歩行 60 秒）。走り始めは、ある分（最低 10 秒） */
+    @Test
+    fun etaAverageSeconds() {
+        fun run(s: NavSettings): List<Long?> {
+            val e = engine(s)
+            e.setWaypoints(listOf(Waypoint("FAR", 34.0, 133.0)))
+            // 60 秒は 2 m/s、そのあと 10 秒は 10 m/s
+            return (0..70).map { i ->
+                val v = if (i <= 60) 2f else 10f
+                val f = fix(t0 + i * 1000L, speed = v)
+                e.onFix(f, f.timeMs).etaMs?.let { it - f.timeMs }
+            }
+        }
+        val ten = run(NavSettings())
+        val sixty = run(NavSettings(etaAverageSec = 60))
+        // 10 秒たつまでは出さない（どちらも同じ。走り始めの決まり）
+        assertNull(ten[9])
+        assertNull(sixty[9])
+        assertEquals(ten[10], sixty[10])
+        assertEquals(ten[30], sixty[30])
+        // 速くなったあと: 10 秒の平均はすぐ 10 m/s 近く、60 秒の平均はゆっくり
+        assertTrue(ten[70]!! < sixty[70]!! / 2)
+        val dist = io.github.eightbrows.navhud.core.geo.Geo.distanceM(33.0, 133.0, 34.0, 133.0)
+        // 10 秒の窓: 最初の 1 秒は 2→10 m/s の台形（平均 6）、あとの 9 秒は 10 m/s → 平均 9.6 m/s
+        assertEquals(dist / 9.6 * 1000, ten[70]!!.toDouble(), 1000.0)
+    }
+
+    /** 20261121-D01: 方位の出し方「GPS ＋ 位置」で、GPS の方位が使えないとき TRK。自動車（GPS）は位置から求める向きを使わない */
+    @Test
+    fun trackHeadingOnlyWithGpsTrack() {
+        // 東へ 1.5 m/s で歩く（GPS の方位は北を指すが、方位精度 40° で使えない）
+        fun walk(s: NavSettings): NavState {
+            val e = engine(s)
+            var st: NavState? = null
+            for (i in 0..12) {
+                val f = Fix(
+                    timeMs = t0 + i * 1000L, lat = 33.0, lon = TestGeo.lon(1.5 * i, 33.0, 133.0), speedMps = 1.5f,
+                    bearingDeg = 0f, bearingAccDeg = 40f, horizAccM = 4f,
+                )
+                st = e.onFix(f, f.timeMs)
+            }
+            return st!!
+        }
+        val walk = walk(NavSettings().selectTravelMode(TravelMode.WALK))
+        assertEquals(HeadingSrc.TRACK, walk.heading.src)
+        assertEquals(90.0, walk.heading.deg!!.toDouble(), 0.5)
+        // 自動車（GPS）: GPS の方位は方位精度 40° で一度も使えないので、向きなし（位置から求める向きは使わない）
+        val car = walk(NavSettings())
+        assertEquals(HeadingSrc.NONE, car.heading.src)
+        // 時刻が戻ったら位置から求める向きも捨てる
+        val e = engine(NavSettings().selectTravelMode(TravelMode.WALK))
+        for (i in 0..12) e.onFix(Fix(timeMs = t0 + i * 1000L, lat = 33.0, lon = TestGeo.lon(1.5 * i, 33.0, 133.0), speedMps = 1.5f, horizAccM = 4f), t0 + i * 1000L)
+        assertEquals(HeadingSrc.TRACK, e.state.heading.src)
+        assertEquals(HeadingSrc.NONE, e.onFix(Fix(timeMs = t0 - 1000, lat = 33.0, lon = 133.0, speedMps = 0f), t0 - 1000).heading.src)
     }
 }

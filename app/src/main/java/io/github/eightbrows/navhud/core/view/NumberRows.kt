@@ -39,8 +39,8 @@ object NumberRows {
 
     /**
      * 欄ごとの、いちばん長くなる見出しと値。TGT・DDL は ±12 時間まで（"+11:59:59"）、LAT/LON は日本の緯度経度、ALT は 4 桁、
-     * AGL は負の 3 桁、V/S は符号つきの 3 桁（Tuning.VS_DISPLAY_MAX_MPM）。HDG は方位と、方位ソースとコンパスの印 1 つ
-     * （印が MAG と CAL の 2 つとも出るときは欄の端が切れる。今までと同じ）
+     * AGL は負の 3 桁、V/S は符号つきの 3 桁（Tuning.VS_DISPLAY_MAX_MPM）。HDG は方位と、方位ソースの付記（GPS / HLD / TRK。
+     * 20261121-D01 でコンパスの印（CMP・CAL・MAG）をなくした）
      */
     val SAMPLES: Map<NumberField, NumberSample> = mapOf(
         NumberField.TIME to NumberSample("TIME", "88:88:88"),
@@ -49,7 +49,7 @@ object NumberRows {
         NumberField.DDL to NumberSample("DDL", "+88:88:88"),
         NumberField.LAT_LON to NumberSample("LAT/LON", "88.88888, 888.88888"),
         NumberField.GS to NumberSample("GS", "888 km/h"),
-        NumberField.HDG to NumberSample("HDG", "888°", " CMP CAL"),
+        NumberField.HDG to NumberSample("HDG", "888°", " TRK"),
         NumberField.ALT to NumberSample("ALT", "8888 m"),
         NumberField.AGL to NumberSample("AGL", "-888 m"),
         NumberField.VS to NumberSample("V/S", "+888 m/min"),

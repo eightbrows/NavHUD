@@ -1,5 +1,6 @@
 package io.github.eightbrows.navhud.core.nav
 
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -144,5 +145,92 @@ class TravelModeTest {
         // NavEngine に渡ると、その値で保持する（HeadingSelector は NavSettings の m/s の値を使う）
         assertEquals(NavSettings.kmhToMps(9), c1.holdEnterSpeedMps, 1e-6f)
         assertEquals(NavSettings.kmhToMps(20), c1.holdExitSpeedMps, 1e-6f)
+    }
+
+    /** 20261121-D01: 移動のプリセットは 自動車 / 歩行 / カスタム1〜3 の並び（画面のボタンの並び） */
+    @Test
+    fun presetOrder() {
+        assertEquals(listOf(TravelMode.CAR, TravelMode.WALK, TravelMode.CUSTOM1, TravelMode.CUSTOM2, TravelMode.CUSTOM3), TravelMode.entries)
+    }
+
+    /** 20261121-D01: 歩行のプリセット。値は決まっていて変えられない（自動車と同じ形） */
+    @Test
+    fun walkPresetIsFixed() {
+        val w = ReachProfile.WALK
+        assertEquals(15.0, w.reachRadiusM, 0.0)
+        assertEquals(true, w.sidePass)
+        assertEquals(2, w.sidePassMinKmh)
+        assertEquals(50.0, w.sidePassMaxM, 0.0)
+        assertEquals(5.0, w.sidePassDepartM, 0.0)
+        assertEquals(true, w.passDetection)
+        assertEquals(50.0, w.passMaxApproachM, 0.0)
+        assertEquals(10.0, w.passDepartM, 0.0)
+        assertEquals(3, w.passHoldSec)
+        assertEquals(1 to 3, w.holdEnterKmh to w.holdExitKmh)
+        assertEquals(HeadingMethod.GPS_TRACK, w.headingMethod)
+        assertEquals(30f, w.maxBearingAccDeg)
+        assertEquals(5, w.gsAverageSec)
+        assertEquals(60, w.etaAverageSec)
+        // 選ぶと今の値が全部歩行の値になる。変えられない
+        val s = NavSettings().selectTravelMode(TravelMode.WALK)
+        assertEquals(w, s.reachProfile)
+        assertEquals(HeadingMethod.GPS_TRACK, s.headingMethod)
+        assertEquals(30f, s.maxGpsBearingAccDeg)
+        assertEquals(5, s.gsAverageSec)
+        assertEquals(60, s.etaAverageSec)
+        assertEquals(1 / 3.6f, s.holdEnterSpeedMps, 1e-6f)
+        assertEquals(s, s.editReach { it.copy(reachRadiusM = 100.0, maxBearingAccDeg = 45f) })
+        // 歩行の値は選べる値・範囲の中（設定画面・保存と同じ決まり）
+        assertTrue(w.reachRadiusM in NavSettings.REACH_RADIUS_CHOICES_M)
+        assertTrue(w.gsAverageSec in NavSettings.GS_AVERAGE_CHOICES_SEC)
+        assertTrue(w.etaAverageSec in NavSettings.ETA_AVERAGE_CHOICES_SEC)
+        assertTrue(w.maxBearingAccDeg in NavSettings.MAX_GPS_BEARING_ACC_DEG_RANGE)
+        assertTrue(w.sidePassMaxM in NavSettings.SIDE_PASS_MAX_M_RANGE)
+        assertTrue(w.sidePassDepartM in NavSettings.SIDE_PASS_DEPART_M_RANGE)
+        assertTrue(w.passMaxApproachM in NavSettings.PASS_MAX_APPROACH_M_RANGE)
+        assertTrue(w.passDepartM in NavSettings.PASS_DEPART_M_RANGE)
+        assertEquals(NavSettings.holdSpeedsKmh(1, 3), w.holdEnterKmh to w.holdExitKmh)
+        // 保存して読み直しても歩行
+        assertEquals(s, SettingsCodec.decode(SettingsCodec.encode(s)))
+        // 自動車に戻すと自動車の値（方位の出し方 GPS・精度 20°・GS 1 秒・ETA 10 秒）
+        val c = s.selectTravelMode(TravelMode.CAR)
+        assertEquals(car, c.reachProfile)
+        assertEquals(NavSettings(), c)
+    }
+
+    /** 20261121-D01: 方位の出し方・方位精度の上限・GS の平均・ETA の平均速度もプリセットの値。カスタムでは変えられる */
+    @Test
+    fun headingAndAveragingAreReachValues() {
+        assertEquals(HeadingMethod.GPS, car.headingMethod)
+        assertEquals(20f, car.maxBearingAccDeg)
+        assertEquals(1, car.gsAverageSec)
+        assertEquals(10, car.etaAverageSec)
+        // カスタムの初期値は自動車と同じ
+        assertEquals(List(3) { car }, NavSettings().customReach)
+        val c2 = NavSettings().selectTravelMode(TravelMode.CUSTOM2)
+            .editReach { it.copy(headingMethod = HeadingMethod.GPS_TRACK, maxBearingAccDeg = 45f, gsAverageSec = 3, etaAverageSec = 120) }
+        assertEquals(HeadingMethod.GPS_TRACK, c2.headingMethod)
+        assertEquals(45f, c2.maxGpsBearingAccDeg)
+        assertEquals(3, c2.gsAverageSec)
+        assertEquals(120, c2.etaAverageSec)
+        // 切り替えるとすぐその値。戻すと枠の値
+        assertEquals(20f, c2.selectTravelMode(TravelMode.CAR).maxGpsBearingAccDeg)
+        assertEquals(30f, c2.selectTravelMode(TravelMode.WALK).maxGpsBearingAccDeg)
+        assertEquals(45f, c2.selectTravelMode(TravelMode.WALK).selectTravelMode(TravelMode.CUSTOM2).maxGpsBearingAccDeg)
+        assertEquals(c2, SettingsCodec.decode(SettingsCodec.encode(c2)))
+    }
+
+    /** 20261121-D01: カスタムの「歩行の値にする」・「自動車の値にする」（どちらも枠の値を全部入れ替える） */
+    @Test
+    fun customCanTakeWalkOrCarValues() {
+        val c1 = NavSettings().selectTravelMode(TravelMode.CUSTOM1).editReach { ReachProfile.WALK }
+        assertEquals(ReachProfile.WALK, c1.customReach[0])
+        assertEquals(ReachProfile.WALK, c1.reachProfile)
+        assertEquals(TravelMode.CUSTOM1, c1.travelMode)
+        // そのあと変えられる（歩行のプリセットそのものは変わらない）
+        val c1b = c1.editReach { it.copy(reachRadiusM = 20.0) }
+        assertEquals(20.0, c1b.reachRadiusM, 0.0)
+        assertEquals(15.0, c1b.selectTravelMode(TravelMode.WALK).reachRadiusM, 0.0)
+        assertEquals(car, c1b.editReach { ReachProfile.CAR }.reachProfile)
     }
 }

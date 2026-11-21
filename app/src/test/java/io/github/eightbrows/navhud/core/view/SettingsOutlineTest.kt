@@ -22,10 +22,11 @@ class SettingsOutlineTest {
     private val sections = SettingsOutline.SECTIONS
 
     @Test
-    fun nineSectionsInOrder() {
+    fun tenSectionsInOrder() {
+        // 20261121-D02: いちばん上に「移動のプリセット」
         assertEquals(
             listOf(
-                SettingsSectionId.POSITION_HEADING, SettingsSectionId.RANGE, SettingsSectionId.WP, SettingsSectionId.DISPLAY,
+                SettingsSectionId.TRAVEL_PRESET, SettingsSectionId.POSITION_HEADING, SettingsSectionId.RANGE, SettingsSectionId.WP, SettingsSectionId.DISPLAY,
                 SettingsSectionId.RINGS_TRACK, SettingsSectionId.MAP, SettingsSectionId.LANDMARKS, SettingsSectionId.OTHER, SettingsSectionId.INFO,
             ),
             sections.map { it.id },
@@ -37,38 +38,45 @@ class SettingsOutlineTest {
     @Test
     fun itemsOfEachSection() {
         fun sec(id: SettingsSectionId) = sections.single { it.id == id }
-        with(sec(SettingsSectionId.POSITION_HEADING)) {
-            // 変化を測る時間（前の RATE の窓）は 20261104-D03 でなくした。地上高の負の値は 20261105-D01 で画面から移した
-            assertEquals(listOf(SettingKey.HEADING_SOURCE, SettingKey.AGL_NEGATIVE), items)
+        with(sec(SettingsSectionId.TRAVEL_PRESET)) {
+            // 20261121-D02: プリセットの選択とボタン、その下に 方位 → 到達の判定 → 数値の平均 の小見出しで、プリセットの値の項目を全部
+            assertEquals(listOf(SettingKey.TRAVEL_MODE, SettingKey.PRESET_BUTTONS), items)
+            assertEquals(listOf(SettingsGroupHeading.HEADING, SettingsGroupHeading.REACH, SettingsGroupHeading.AVERAGE), groups.map { it.heading })
+            assertEquals(listOf(SettingKey.HEADING_METHOD, SettingKey.HOLD_ENTER, SettingKey.HOLD_EXIT, SettingKey.MAX_GPS_BEARING_ACC), groups[0].items)
+            // 到達の判定は前（WP の細かい調整）と同じ並び
             assertEquals(
-                listOf(SettingKey.HOLD_ENTER, SettingKey.HOLD_EXIT, SettingKey.MAX_GPS_ACC, SettingKey.MAX_GPS_BEARING_ACC, SettingKey.NO_FIX_TIMEOUT, SettingKey.ALT_OFFSET),
-                fine,
+                listOf(
+                    SettingKey.ARRIVAL_RADIUS, SettingKey.SIDE_PASS, SettingKey.SIDE_PASS_MAX, SettingKey.SIDE_PASS_DEPART, SettingKey.SIDE_PASS_MIN_SPEED,
+                    SettingKey.PASS_DETECTION, SettingKey.PASS_MAX, SettingKey.PASS_DEPART, SettingKey.PASS_HOLD,
+                ),
+                groups[1].items,
             )
+            assertEquals(listOf(SettingKey.GS_AVERAGE, SettingKey.ETA_AVERAGE), groups[2].items)
+            assertTrue(fine.isEmpty())
+        }
+        with(sec(SettingsSectionId.POSITION_HEADING)) {
+            // 変化を測る時間（前の RATE の窓）は 20261104-D03 でなくした。地上高の負の値は 20261105-D01 で画面から移した。
+            // 20261121-D02: 方位の出し方・止める / 戻す速度・方位精度の上限は移動のプリセットの欄へ移した（全体の値だけが残る）
+            assertEquals(listOf(SettingKey.AGL_NEGATIVE), items)
+            assertEquals(listOf(SettingKey.MAX_GPS_ACC, SettingKey.NO_FIX_TIMEOUT, SettingKey.ALT_OFFSET), fine)
         }
         with(sec(SettingsSectionId.RANGE)) {
             assertEquals(listOf(SettingKey.RANGE_STEPS, SettingKey.INITIAL_RANGE, SettingKey.AUTO_ON_START, SettingKey.AUTO_MIN, SettingKey.AUTO_MAX), items)
             assertEquals(listOf(SettingKey.ZOOM_IN_DELAY, SettingKey.HOLD_AFTER_WP, SettingKey.ZOOM_IN_RATIO, SettingKey.PAN_RETURN), fine)
         }
         with(sec(SettingsSectionId.WP)) {
-            // 20261105-D01: 前回の WP リストを自動で開く（その他から）・標高プロファイル（画面から）を足し、到達判定のプリセットを最後に
-            assertEquals(
-                listOf(SettingKey.AUTO_OPEN_LAST, SettingKey.WP_BUTTONS, SettingKey.HUD_WP_COUNT, SettingKey.PROFILE, SettingKey.TRAVEL_MODE),
-                items,
-            )
-            // 到達の判定は前と同じ並び
-            assertEquals(
-                listOf(
-                    SettingKey.ARRIVAL_RADIUS, SettingKey.SIDE_PASS, SettingKey.SIDE_PASS_MAX, SettingKey.SIDE_PASS_DEPART, SettingKey.SIDE_PASS_MIN_SPEED,
-                    SettingKey.PASS_DETECTION, SettingKey.PASS_MAX, SettingKey.PASS_DEPART, SettingKey.PASS_HOLD,
-                ),
-                fine,
-            )
+            // 20261105-D01: 前回の WP リストを自動で開く（その他から）・標高プロファイル（画面から）を足した。
+            // 20261121-D02: 移動のプリセットと到達の判定は移動のプリセットの欄へ移した（WP リストに関わる項目だけ）
+            assertEquals(listOf(SettingKey.AUTO_OPEN_LAST, SettingKey.WP_BUTTONS, SettingKey.HUD_WP_COUNT, SettingKey.PROFILE), items)
+            assertTrue(fine.isEmpty())
         }
         assertEquals(
             // 20261105-D01: 表示モードはなくした（上部バーだけ）
             listOf(SettingKey.UI_COLOR, SettingKey.MAP_COLOR, SettingKey.BUTTON_OPACITY, SettingKey.NUMBERS_OPACITY, SettingKey.OWNSHIP_POSITION),
             sec(SettingsSectionId.DISPLAY).items,
         )
+        // 画面の細かい調整（数値の平均。20261121-D01）は 20261121-D02 で移動のプリセットの欄へ移した
+        assertTrue(sec(SettingsSectionId.DISPLAY).fine.isEmpty())
         assertEquals(
             listOf(SettingKey.RING_BRIGHTNESS, SettingKey.RING_LABEL_SIZE, SettingKey.TRACK_COLOR, SettingKey.TRACK_BRIGHTNESS),
             sec(SettingsSectionId.RINGS_TRACK).items,
@@ -77,16 +85,19 @@ class SettingsOutlineTest {
         assertEquals(listOf(SettingKey.LANDMARK_BRIGHTNESS, SettingKey.LANDMARK_TABLE), sec(SettingsSectionId.LANDMARKS).items)
         assertEquals(listOf(SettingKey.KEEP_SCREEN_ON, SettingKey.APP_LANGUAGE), sec(SettingsSectionId.OTHER).items)
         assertEquals(listOf(SettingKey.PERMISSIONS, SettingKey.ABOUT, SettingKey.SOURCES), sec(SettingsSectionId.INFO).items)
-        // 「細かい調整」があるのは測位と方位・縮尺・WP だけ
+        // 「細かい調整」があるのは測位と方位・縮尺だけ（20261121-D02 から。WP・画面の細かい調整は移動のプリセットへ移した）
         assertEquals(
-            setOf(SettingsSectionId.POSITION_HEADING, SettingsSectionId.RANGE, SettingsSectionId.WP),
+            setOf(SettingsSectionId.POSITION_HEADING, SettingsSectionId.RANGE),
             sections.filter { it.fine.isNotEmpty() }.map { it.id }.toSet(),
         )
+        // 小見出しで分けるのは移動のプリセットだけ
+        assertEquals(listOf(SettingsSectionId.TRAVEL_PRESET), sections.filter { it.groups.isNotEmpty() }.map { it.id })
     }
 
     @Test
     fun everyItemAppearsExactlyOnce() {
-        val all = sections.flatMap { it.items + it.fine }
+        val all = sections.flatMap { it.allItems }
+        assertEquals(sections.flatMap { it.items + it.groups.flatMap { g -> g.items } + it.fine }, all)
         assertEquals(all.size, all.toSet().size)
         assertEquals(SettingKey.entries.toSet(), all.toSet())
         // INPUT（LIVE / REPLAY）は設定画面にない（上部バーで切り替える）
@@ -118,9 +129,15 @@ class SettingsOutlineTest {
         assertEquals(setOf(SettingsSectionId.WP, SettingsSectionId.OTHER), SettingsOutline.decodeClosed(" wp ,old,,other"))
         // 保存の名前は変えない（前のバージョンで閉じたセクションがそのまま戻るように）
         assertEquals(
-            listOf("position", "range", "wp", "display", "ringsTrack", "map", "landmarks", "other", "info"),
+            listOf("travelPreset", "position", "range", "wp", "display", "ringsTrack", "map", "landmarks", "other", "info"),
             SettingsSectionId.entries.map { it.key },
         )
+        // 20261121-D02: 前の版の覚え（移動のプリセットの欄がない）では、新しい欄は開いた状態。前に閉じた欄は閉じたまま
+        assertEquals(setOf(SettingsSectionId.POSITION_HEADING, SettingsSectionId.WP), SettingsOutline.decodeClosed("position,wp"))
+        assertFalse(SettingsSectionId.TRAVEL_PRESET in SettingsOutline.decodeClosed("position,range,wp,display,ringsTrack,map,landmarks,other,info"))
+        // 閉じれば覚える。全部閉じるにも入る
+        assertEquals("travelPreset,map", SettingsOutline.encodeClosed(setOf(SettingsSectionId.MAP, SettingsSectionId.TRAVEL_PRESET)))
+        assertTrue(SettingsSectionId.TRAVEL_PRESET in SettingsOutline.closeAll())
         // 設定の保存（NavSettings）とは別: 設定を初期値に戻しても変わらない（SettingsCodec の保存の名前に入っていない）
         assertFalse(io.github.eightbrows.navhud.core.nav.SettingsCodec.encode(NavSettings()).keys.any { it.contains("Closed") || it.contains("closed") })
     }
@@ -139,7 +156,7 @@ class SettingsOutlineTest {
         // 全て開く・全て閉じる
         assertEquals(emptySet<SettingsSectionId>(), SettingsOutline.openAll())
         assertEquals(SettingsSectionId.entries.toSet(), SettingsOutline.closeAll())
-        assertEquals("position,range,wp,display,ringsTrack,map,landmarks,other,info", SettingsOutline.encodeClosed(SettingsOutline.closeAll()))
+        assertEquals("travelPreset,position,range,wp,display,ringsTrack,map,landmarks,other,info", SettingsOutline.encodeClosed(SettingsOutline.closeAll()))
     }
 
     @Test

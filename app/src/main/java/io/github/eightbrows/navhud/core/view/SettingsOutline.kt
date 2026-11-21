@@ -11,6 +11,8 @@ import kotlin.math.abs
  * key は閉じたセクションを覚えるときの名前（保存に使うので変えない）。
  */
 enum class SettingsSectionId(val key: String) {
+    /** 移動のプリセット（20261121-D02 で、いちばん上に作った。プリセットの選択と、プリセットの値の項目を全部まとめた） */
+    TRAVEL_PRESET("travelPreset"),
     POSITION_HEADING("position"),
     RANGE("range"),
     WP("wp"),
@@ -24,17 +26,26 @@ enum class SettingsSectionId(val key: String) {
 
 /** 設定画面の項目（1 行、または表や欄のまとまり）。画面はこの並びのとおりに描く */
 enum class SettingKey {
-    // 測位と方位（20261105-D01: 地上高の負の値を画面から移した）
-    HEADING_SOURCE, AGL_NEGATIVE,
-    HOLD_ENTER, HOLD_EXIT, MAX_GPS_ACC, MAX_GPS_BEARING_ACC, NO_FIX_TIMEOUT, ALT_OFFSET,
+    // 移動のプリセット（20261121-D02）: 選択・「自動車の値にする」「歩行の値にする」（カスタムのときだけ）
+    TRAVEL_MODE, PRESET_BUTTONS,
+    // 移動のプリセット: 方位（20261121-D02 で測位と方位から移した）
+    HEADING_METHOD, HOLD_ENTER, HOLD_EXIT, MAX_GPS_BEARING_ACC,
+    // 移動のプリセット: 到達の判定（20261121-D02 で WP から移した）
+    ARRIVAL_RADIUS, SIDE_PASS, SIDE_PASS_MAX, SIDE_PASS_DEPART, SIDE_PASS_MIN_SPEED, PASS_DETECTION, PASS_MAX, PASS_DEPART, PASS_HOLD,
+    // 移動のプリセット: 数値の平均（20261121-D02 で画面から移した）
+    GS_AVERAGE, ETA_AVERAGE,
+
+    // 測位と方位（20261105-D01: 地上高の負の値を画面から移した。20261121-D02: プリセットの値の項目を移動のプリセットへ移した）
+    AGL_NEGATIVE,
+    MAX_GPS_ACC, NO_FIX_TIMEOUT, ALT_OFFSET,
 
     // 縮尺
     RANGE_STEPS, INITIAL_RANGE, AUTO_ON_START, AUTO_MIN, AUTO_MAX,
     ZOOM_IN_DELAY, HOLD_AFTER_WP, ZOOM_IN_RATIO, PAN_RETURN,
 
-    // WP（20261105-D01: 前回の WP リストを自動で開くをその他から、標高プロファイルを画面から移した。TRAVEL_MODE の名前は「到達判定のプリセット」）
-    AUTO_OPEN_LAST, WP_BUTTONS, HUD_WP_COUNT, PROFILE, TRAVEL_MODE,
-    ARRIVAL_RADIUS, SIDE_PASS, SIDE_PASS_MAX, SIDE_PASS_DEPART, SIDE_PASS_MIN_SPEED, PASS_DETECTION, PASS_MAX, PASS_DEPART, PASS_HOLD,
+    // WP（20261105-D01: 前回の WP リストを自動で開くをその他から、標高プロファイルを画面から移した。
+    // 20261121-D02: 移動のプリセットと到達の判定を移動のプリセットの欄へ移した。WP リストに関わる項目だけ）
+    AUTO_OPEN_LAST, WP_BUTTONS, HUD_WP_COUNT, PROFILE,
 
     // 画面（20261105-D01: 表示モードは設定画面からなくした。切り替えは上部バーだけ）
     UI_COLOR, MAP_COLOR, BUTTON_OPACITY, NUMBERS_OPACITY, OWNSHIP_POSITION,
@@ -55,30 +66,63 @@ enum class SettingKey {
     PERMISSIONS, ABOUT, SOURCES,
 }
 
-/** セクションの中身: 上の項目 items と、「細かい調整」の見出しの下の項目 fine（なければ空。たたまない） */
-data class SettingsSectionDef(val id: SettingsSectionId, val items: List<SettingKey>, val fine: List<SettingKey> = emptyList())
+/** セクションの中の小見出し（移動のプリセットの欄。20261121-D02） */
+enum class SettingsGroupHeading { HEADING, REACH, AVERAGE }
+
+/** 小見出しと、その下の項目 */
+data class SettingsGroup(val heading: SettingsGroupHeading, val items: List<SettingKey>)
+
+/**
+ * セクションの中身: 上の項目 items、小見出しごとの項目 groups（移動のプリセットの欄）、「細かい調整」の見出しの下の項目 fine
+ * （なければ空。たたまない）。並びは items → groups → fine
+ */
+data class SettingsSectionDef(
+    val id: SettingsSectionId,
+    val items: List<SettingKey>,
+    val fine: List<SettingKey> = emptyList(),
+    val groups: List<SettingsGroup> = emptyList(),
+) {
+    /** この欄の全部の項目（並びのとおり） */
+    val allItems: List<SettingKey> get() = items + groups.flatMap { it.items } + fine
+}
 
 object SettingsOutline {
 
     val SECTIONS: List<SettingsSectionDef> = listOf(
+        // 移動のプリセット（20261121-D02）: 選択とボタンの下に、方位 → 到達の判定 → 数値の平均 の小見出しで、プリセットの値の項目を全部
+        SettingsSectionDef(
+            SettingsSectionId.TRAVEL_PRESET,
+            listOf(SettingKey.TRAVEL_MODE, SettingKey.PRESET_BUTTONS),
+            groups = listOf(
+                SettingsGroup(
+                    SettingsGroupHeading.HEADING,
+                    listOf(SettingKey.HEADING_METHOD, SettingKey.HOLD_ENTER, SettingKey.HOLD_EXIT, SettingKey.MAX_GPS_BEARING_ACC),
+                ),
+                // 到達の判定（並び・名前は 20261104-D01 までと同じ。20261119-D01 で真横通過の後ろに「判定を始める速さ」を足した）
+                SettingsGroup(
+                    SettingsGroupHeading.REACH,
+                    listOf(
+                        SettingKey.ARRIVAL_RADIUS, SettingKey.SIDE_PASS, SettingKey.SIDE_PASS_MAX, SettingKey.SIDE_PASS_DEPART, SettingKey.SIDE_PASS_MIN_SPEED,
+                        SettingKey.PASS_DETECTION, SettingKey.PASS_MAX, SettingKey.PASS_DEPART, SettingKey.PASS_HOLD,
+                    ),
+                ),
+                SettingsGroup(SettingsGroupHeading.AVERAGE, listOf(SettingKey.GS_AVERAGE, SettingKey.ETA_AVERAGE)),
+            ),
+        ),
         SettingsSectionDef(
             SettingsSectionId.POSITION_HEADING,
-            listOf(SettingKey.HEADING_SOURCE, SettingKey.AGL_NEGATIVE),
-            listOf(SettingKey.HOLD_ENTER, SettingKey.HOLD_EXIT, SettingKey.MAX_GPS_ACC, SettingKey.MAX_GPS_BEARING_ACC, SettingKey.NO_FIX_TIMEOUT, SettingKey.ALT_OFFSET),
+            listOf(SettingKey.AGL_NEGATIVE),
+            listOf(SettingKey.MAX_GPS_ACC, SettingKey.NO_FIX_TIMEOUT, SettingKey.ALT_OFFSET),
         ),
         SettingsSectionDef(
             SettingsSectionId.RANGE,
             listOf(SettingKey.RANGE_STEPS, SettingKey.INITIAL_RANGE, SettingKey.AUTO_ON_START, SettingKey.AUTO_MIN, SettingKey.AUTO_MAX),
             listOf(SettingKey.ZOOM_IN_DELAY, SettingKey.HOLD_AFTER_WP, SettingKey.ZOOM_IN_RATIO, SettingKey.PAN_RETURN),
         ),
+        // WP リストに関わる項目だけ（20261121-D02 で移動のプリセットと到達の判定を移した）
         SettingsSectionDef(
             SettingsSectionId.WP,
-            listOf(SettingKey.AUTO_OPEN_LAST, SettingKey.WP_BUTTONS, SettingKey.HUD_WP_COUNT, SettingKey.PROFILE, SettingKey.TRAVEL_MODE),
-            // 到達の判定（並び・名前は 20261104-D01 までと同じ。20261119-D01 で真横通過の後ろに「判定を始める速さ」を足した）
-            listOf(
-                SettingKey.ARRIVAL_RADIUS, SettingKey.SIDE_PASS, SettingKey.SIDE_PASS_MAX, SettingKey.SIDE_PASS_DEPART, SettingKey.SIDE_PASS_MIN_SPEED,
-                SettingKey.PASS_DETECTION, SettingKey.PASS_MAX, SettingKey.PASS_DEPART, SettingKey.PASS_HOLD,
-            ),
+            listOf(SettingKey.AUTO_OPEN_LAST, SettingKey.WP_BUTTONS, SettingKey.HUD_WP_COUNT, SettingKey.PROFILE),
         ),
         SettingsSectionDef(
             SettingsSectionId.DISPLAY,

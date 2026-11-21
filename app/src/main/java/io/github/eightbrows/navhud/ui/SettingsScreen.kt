@@ -54,9 +54,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.eightbrows.navhud.R
 import io.github.eightbrows.navhud.core.Tuning
-import io.github.eightbrows.navhud.core.model.SourceMode
 import io.github.eightbrows.navhud.core.nav.AglNegative
 import io.github.eightbrows.navhud.core.nav.ColorTheme
+import io.github.eightbrows.navhud.core.nav.HeadingMethod
 import io.github.eightbrows.navhud.core.nav.LandmarkItem
 import io.github.eightbrows.navhud.core.nav.LanguageMode
 import io.github.eightbrows.navhud.core.nav.MapItem
@@ -68,10 +68,12 @@ import io.github.eightbrows.navhud.core.nav.RangeAuto
 import io.github.eightbrows.navhud.core.nav.ReachProfile
 import io.github.eightbrows.navhud.core.nav.TrackColor
 import io.github.eightbrows.navhud.core.nav.TravelMode
+import io.github.eightbrows.navhud.core.nav.customIndex
 import io.github.eightbrows.navhud.core.nav.editReach
 import io.github.eightbrows.navhud.core.nav.selectTravelMode
 import io.github.eightbrows.navhud.core.view.HudFormat
 import io.github.eightbrows.navhud.core.view.SettingKey
+import io.github.eightbrows.navhud.core.view.SettingsGroupHeading
 import io.github.eightbrows.navhud.core.view.SettingsOutline
 import io.github.eightbrows.navhud.core.view.SettingsSectionId
 import io.github.eightbrows.navhud.source.AppPermission
@@ -131,17 +133,9 @@ fun SettingsScreen(
 
     // 1 項目を描く（項目の並びは SettingsOutline.SECTIONS）
     val item: @Composable (SettingKey) -> Unit = { key ->
-        val custom = s.travelMode != TravelMode.CAR
+        // カスタムのときだけ、移動のプリセットの値を変えられる（自動車・歩行は値が決まっている）
+        val custom = s.travelMode.customIndex != null
         fun judge(f: (ReachProfile) -> ReachProfile) = onChange { it.editReach(f) }
-        // 今選んでいる到達判定のプリセットの名前（方位を止める / 戻す速度の説明に出す。20261119-D03）
-        val presetName = stringResource(
-            when (s.travelMode) {
-                TravelMode.CAR -> R.string.travel_car
-                TravelMode.CUSTOM1 -> R.string.travel_custom1
-                TravelMode.CUSTOM2 -> R.string.travel_custom2
-                TravelMode.CUSTOM3 -> R.string.travel_custom3
-            },
-        )
         val colors = listOf(
             stringResource(R.string.color_white) to ColorTheme.WHITE,
             stringResource(R.string.color_green) to ColorTheme.GREEN,
@@ -151,19 +145,21 @@ fun SettingsScreen(
         val (lo, hi) = RangeAuto.limitsKm(s.rangeStepsKm, s.autoMinRangeKm, s.autoMaxRangeKm)
         when (key) {
             // ---- 測位と方位 ----
-            SettingKey.HEADING_SOURCE -> Choice(
-                stringResource(R.string.heading_source),
-                listOf("GPS" to SourceMode.GPS, "HYBRID" to SourceMode.HYBRID, "COMPASS" to SourceMode.COMPASS),
-                s.sourceMode,
-                note = stringResource(R.string.heading_source_note),
-                default = def.sourceMode,
-            ) { v -> onChange { it.copy(sourceMode = v) } }
+            // 方位の出し方（20261121-D01。移動のプリセットの値。前の「方位の求め方」（GPS / HYBRID / COMPASS）はコンパスとともになくした）
+            SettingKey.HEADING_METHOD -> Choice(
+                stringResource(R.string.heading_method),
+                listOf("GPS" to HeadingMethod.GPS, stringResource(R.string.heading_method_gps_track) to HeadingMethod.GPS_TRACK),
+                s.headingMethod,
+                note = stringResource(R.string.heading_method_note),
+                enabled = custom,
+                default = def.headingMethod,
+            ) { v -> judge { it.copy(headingMethod = v) } }
             // 方位を止める・戻す速度: km/h の整数（1〜36）、1 km/h 刻み。戻す速度は止める速度より 2 km/h 以上大きい（20261119-D01。
             // 前は 1 km/h 以上。止める速度を上げて差が足りなくなれば、戻す速度も上げる。NavSettings.holdSpeedsKmh）。
             // 20261119-D03 から到達判定のプリセットの値: 選んでいるプリセットの値を出し、自動車では変えられない（真横通過の項目と同じ）
             SettingKey.HOLD_ENTER -> Stepper(
                 stringResource(R.string.hold_enter), kmh(NavSettings.holdSpeedKmh(s.holdEnterSpeedMps)),
-                note = stringResource(R.string.hold_enter_note) + "\n" + stringResource(R.string.preset_value_note, presetName),
+                note = stringResource(R.string.hold_enter_note),
                 defaultText = kmh(NavSettings.holdSpeedKmh(def.holdEnterSpeedMps)), enabled = custom,
             ) { d ->
                 judge {
@@ -173,7 +169,7 @@ fun SettingsScreen(
             }
             SettingKey.HOLD_EXIT -> Stepper(
                 stringResource(R.string.hold_exit), kmh(NavSettings.holdSpeedKmh(s.holdExitSpeedMps)),
-                note = stringResource(R.string.hold_exit_note) + "\n" + stringResource(R.string.preset_value_note, presetName),
+                note = stringResource(R.string.hold_exit_note),
                 defaultText = kmh(NavSettings.holdSpeedKmh(def.holdExitSpeedMps)), enabled = custom,
             ) { d ->
                 // 戻す速度は止める速度 + 2 より下げない（止める速度は動かさない）
@@ -187,10 +183,12 @@ fun SettingsScreen(
                 stringResource(R.string.max_gps_acc), meters(s.maxGpsAccM),
                 note = stringResource(R.string.max_gps_acc_note), defaultText = meters(def.maxGpsAccM),
             ) { d -> onChange { it.copy(maxGpsAccM = stepChoice(NavSettings.MAX_GPS_ACC_CHOICES_M, it.maxGpsAccM, d)) } }
+            // 方位精度の上限（20261121-D01 から移動のプリセットの値。5° 刻み）
             SettingKey.MAX_GPS_BEARING_ACC -> Stepper(
                 stringResource(R.string.max_gps_bearing_acc), deg(s.maxGpsBearingAccDeg),
-                note = stringResource(R.string.max_gps_bearing_acc_note), defaultText = deg(def.maxGpsBearingAccDeg),
-            ) { d -> onChange { it.copy(maxGpsBearingAccDeg = (it.maxGpsBearingAccDeg + d * 5).coerceIn(NavSettings.MAX_GPS_BEARING_ACC_DEG_RANGE)) } }
+                note = stringResource(R.string.max_gps_bearing_acc_note),
+                defaultText = deg(def.maxGpsBearingAccDeg), enabled = custom,
+            ) { d -> judge { it.copy(maxBearingAccDeg = (it.maxBearingAccDeg + d * 5).coerceIn(NavSettings.MAX_GPS_BEARING_ACC_DEG_RANGE)) } }
             // 決まった値から選ぶ: 3 / 5 / 10 / 15 / 20 / 30 / 60 / 120 秒
             SettingKey.NO_FIX_TIMEOUT -> Stepper(
                 stringResource(R.string.no_fix_timeout), seconds(s.noFixTimeoutSec),
@@ -253,6 +251,7 @@ fun SettingsScreen(
                 stringResource(R.string.travel_mode),
                 listOf(
                     stringResource(R.string.travel_car) to TravelMode.CAR,
+                    stringResource(R.string.travel_walk) to TravelMode.WALK,
                     stringResource(R.string.travel_custom1) to TravelMode.CUSTOM1,
                     stringResource(R.string.travel_custom2) to TravelMode.CUSTOM2,
                     stringResource(R.string.travel_custom3) to TravelMode.CUSTOM3,
@@ -267,17 +266,20 @@ fun SettingsScreen(
             SettingKey.HUD_WP_COUNT -> Stepper(stringResource(R.string.hud_wp_count), count(s.hudWpCount), defaultText = count(def.hudWpCount)) { d ->
                 onChange { it.copy(hudWpCount = (it.hudWpCount + d).coerceIn(NavSettings.HUD_WP_COUNT_RANGE)) }
             }
-            SettingKey.ARRIVAL_RADIUS -> {
-                // カスタムのときだけ、到達の判定の値を自動車の値に戻すボタン（細かい調整のいちばん上）
-                if (custom) HudButton(stringResource(R.string.reset_to_car), { onChange { it.editReach { ReachProfile.CAR } } })
-                Choice(
-                    stringResource(R.string.arrival_radius),
-                    NavSettings.REACH_RADIUS_CHOICES_M.map { "%.0f".format(Locale.US, it) to it },
-                    s.reachRadiusM,
-                    default = def.reachRadiusM,
-                    enabled = custom,
-                ) { v -> judge { it.copy(reachRadiusM = v) } }
+            // カスタムのときだけ、移動のプリセットの値を全部、自動車の値・歩行の値にするボタン（選択のすぐ下。20261121-D02 で到達の判定の上から移した）
+            SettingKey.PRESET_BUTTONS -> if (custom) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    HudButton(stringResource(R.string.reset_to_car), { onChange { it.editReach { ReachProfile.CAR } } })
+                    HudButton(stringResource(R.string.set_walk_values), { onChange { it.editReach { ReachProfile.WALK } } })
+                }
             }
+            SettingKey.ARRIVAL_RADIUS -> Choice(
+                stringResource(R.string.arrival_radius),
+                NavSettings.REACH_RADIUS_CHOICES_M.map { "%.0f".format(Locale.US, it) to it },
+                s.reachRadiusM,
+                default = def.reachRadiusM,
+                enabled = custom,
+            ) { v -> judge { it.copy(reachRadiusM = v) } }
             SettingKey.SIDE_PASS -> Toggle(stringResource(R.string.side_pass), s.sidePass, note = stringResource(R.string.side_pass_note), enabled = custom, default = def.sidePass) { v ->
                 judge { it.copy(sidePass = v) }
             }
@@ -310,6 +312,23 @@ fun SettingsScreen(
             }
 
             // ---- 画面 ----
+            // 数値の平均（20261121-D01。移動のプリセットの値。自動車は GS 1 秒（今の点の速さ）・ETA 10 秒、歩行は 5 秒・60 秒）
+            SettingKey.GS_AVERAGE -> Choice(
+                stringResource(R.string.gs_average),
+                NavSettings.GS_AVERAGE_CHOICES_SEC.map { seconds(it) to it },
+                s.gsAverageSec,
+                note = stringResource(R.string.gs_average_note),
+                enabled = custom,
+                default = def.gsAverageSec,
+            ) { v -> judge { it.copy(gsAverageSec = v) } }
+            SettingKey.ETA_AVERAGE -> Choice(
+                stringResource(R.string.eta_average),
+                NavSettings.ETA_AVERAGE_CHOICES_SEC.map { seconds(it) to it },
+                s.etaAverageSec,
+                note = stringResource(R.string.eta_average_note),
+                enabled = custom,
+                default = def.etaAverageSec,
+            ) { v -> judge { it.copy(etaAverageSec = v) } }
             SettingKey.UI_COLOR -> Choice(stringResource(R.string.ui_color), colors, s.uiTheme, note = stringResource(R.string.ui_color_note), default = def.uiTheme) { v ->
                 onChange { it.copy(uiTheme = v) }
             }
@@ -552,9 +571,19 @@ fun SettingsScreen(
             ) {
                 // 縮尺の見出しのすぐ下に 1 回だけ: 「自動縮尺」は画面の AUTO のこと
                 if (sec.id == SettingsSectionId.RANGE) Text(stringResource(R.string.range_auto_meaning), style = RowNote)
+                // 移動のプリセットの見出しのすぐ下: 今のプリセットの名前と、自動車・歩行は値が決まっていること（20261121-D02。
+                // 前は項目ごとの説明に「移動のプリセット（○○）の値」と書いていた）
+                if (sec.id == SettingsSectionId.TRAVEL_PRESET) {
+                    Text(stringResource(R.string.travel_preset_current, presetName(settings.travelMode)), style = RowNote)
+                }
                 for (k in sec.items) item(k)
+                // 小見出しで分けた項目（移動のプリセット: 方位 → 到達の判定 → 数値の平均）
+                for (g in sec.groups) {
+                    SubHeading(stringResource(groupTitle(g.heading)))
+                    for (k in g.items) item(k)
+                }
                 if (sec.fine.isNotEmpty()) {
-                    SubHeading(stringResource(if (sec.id == SettingsSectionId.WP) R.string.settings_fine_reach else R.string.settings_fine))
+                    SubHeading(stringResource(R.string.settings_fine))
                     for (k in sec.fine) item(k)
                 }
             }
@@ -564,9 +593,29 @@ fun SettingsScreen(
     }
 }
 
+/** 移動のプリセットの名前 */
+@Composable
+private fun presetName(m: TravelMode): String = stringResource(
+    when (m) {
+        TravelMode.CAR -> R.string.travel_car
+        TravelMode.WALK -> R.string.travel_walk
+        TravelMode.CUSTOM1 -> R.string.travel_custom1
+        TravelMode.CUSTOM2 -> R.string.travel_custom2
+        TravelMode.CUSTOM3 -> R.string.travel_custom3
+    },
+)
+
+/** 移動のプリセットの欄の小見出し（20261121-D02） */
+private fun groupTitle(h: SettingsGroupHeading): Int = when (h) {
+    SettingsGroupHeading.HEADING -> R.string.preset_group_heading
+    SettingsGroupHeading.REACH -> R.string.preset_group_reach
+    SettingsGroupHeading.AVERAGE -> R.string.preset_group_average
+}
+
 @Composable
 private fun sectionTitle(id: SettingsSectionId): String = stringResource(
     when (id) {
+        SettingsSectionId.TRAVEL_PRESET -> R.string.sec_travel_preset
         SettingsSectionId.POSITION_HEADING -> R.string.sec_position_heading
         SettingsSectionId.RANGE -> R.string.sec_range
         SettingsSectionId.WP -> R.string.sec_wp

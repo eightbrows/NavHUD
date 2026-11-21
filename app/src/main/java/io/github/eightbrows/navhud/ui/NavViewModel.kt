@@ -11,7 +11,6 @@ import io.github.eightbrows.navhud.core.Tuning
 import io.github.eightbrows.navhud.core.io.BaseMap
 import io.github.eightbrows.navhud.core.io.CoordinateText
 import io.github.eightbrows.navhud.core.model.Fix
-import io.github.eightbrows.navhud.core.model.SourceMode
 import io.github.eightbrows.navhud.core.model.Waypoint
 import io.github.eightbrows.navhud.core.nav.DisplayMode
 import io.github.eightbrows.navhud.core.nav.LastPositionSaver
@@ -30,8 +29,6 @@ import io.github.eightbrows.navhud.core.view.HudViewport
 import io.github.eightbrows.navhud.core.view.LoadSummary
 import io.github.eightbrows.navhud.core.view.SettingsOutline
 import io.github.eightbrows.navhud.core.view.SettingsSectionId
-import io.github.eightbrows.navhud.source.CompassSource
-import io.github.eightbrows.navhud.source.GeoPoint
 import io.github.eightbrows.navhud.source.AppLanguage
 import io.github.eightbrows.navhud.source.BaseMapStore
 import io.github.eightbrows.navhud.source.LiveGpsSource
@@ -169,8 +166,6 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
     private var trackFixes: List<Fix> = emptyList()
     private var fixJob: Job? = null
 
-    private val compass = CompassSource(app) { declinationPoint() }
-    private var compassJob: Job? = null
     private var panJob: Job? = null
     private var foreground = false
 
@@ -388,14 +383,6 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
 
     /** 設定を初期値に戻す。カスタム1〜3 の値は残す（移動手段は自動車に戻る）。 */
     fun resetSettings() = updateSettings { it.resetKeepingCustomReach() }
-
-    fun setSourceMode(mode: SourceMode) = updateSettings { it.copy(sourceMode = mode) }
-
-    /** HYBRID → GPS → COMPASS → HYBRID … */
-    fun cycleSourceMode() {
-        val modes = SourceMode.entries
-        setSourceMode(modes[(engine.settings.sourceMode.ordinal + 1) % modes.size])
-    }
 
     /** 縮尺の ＋ / − / AUTO */
     fun zoomIn() {
@@ -757,17 +744,15 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
         else -> null
     }
 
-    /** 画面が前面に来た（onStart）。コンパスと、LIVE なら位置のサービスを開始する。 */
+    /** 画面が前面に来た（onStart）。LIVE なら位置のサービスを開始する（20261121-D01 でコンパスを外した）。 */
     fun onForeground() {
         foreground = true
-        startCompass()
         updateService()
     }
 
     /** 画面が裏に回った（onStop）。フォアグラウンドのみで動作する（§6.8）。 */
     fun onBackground() {
         foreground = false
-        stopCompass()
         pauseReplay()
         updateService()
     }
@@ -813,31 +798,6 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private fun startCompass() {
-        if (compassJob != null) return
-        if (!compass.available) {
-            _live.value = _live.value.copy(hasCompass = false)
-            return
-        }
-        compassJob = viewModelScope.launch {
-            compass.readings.collect { r -> publish(engine.onCompass(r.trueDeg, nowMs(), r.quality)) }
-        }
-    }
-
-    private fun stopCompass() {
-        compassJob?.cancel()
-        compassJob = null
-        publish(engine.onCompass(null, nowMs()))
-    }
-
-    /** 偏角の計算に使う位置: 今の Fix → 最後に分かっている位置 → なし。 */
-    private fun declinationPoint(): GeoPoint? {
-        engine.state.fix?.let { return GeoPoint(it.lat, it.lon, it.altRawM ?: 0.0, it.timeMs) }
-        return LiveGpsSource.lastKnown(getApplication())?.let {
-            GeoPoint(it.latitude, it.longitude, if (it.hasAltitude()) it.altitude else 0.0, it.time)
-        }
-    }
-
     private fun publish(s: NavState) {
         _state.value = s
     }
@@ -862,8 +822,6 @@ data class LiveUiState(
     val permission: LocationPermission = LocationPermission.UNKNOWN,
     /** 端末の位置情報（GPS）がオン */
     val gpsEnabled: Boolean = true,
-    /** コンパスがある端末 */
-    val hasCompass: Boolean = true,
 )
 
 /** 例外の理由（メッセージがなければ例外の種類）。 */

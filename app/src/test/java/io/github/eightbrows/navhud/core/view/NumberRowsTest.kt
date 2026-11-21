@@ -55,8 +55,9 @@ class NumberRowsTest {
         // V/S: 符号つきの 3 桁まで（それより大きい値は ±999 で出す）
         for (v in listOf(999.0, -999.0, 5_000.0, -5_000.0, 0.0, 42.0)) fits(NumberField.VS, HudFormat.verticalSpeed(v))
         assertEquals(sample(NumberField.VS).value.length, HudFormat.verticalSpeed(-999.0).length)
-        // HDG の小さな文字: 方位ソース 1 つとコンパスの印 1 つ
-        assertTrue(listOf("GPS", "HLD", "CMP").all { " $it CAL".length <= sample(NumberField.HDG).small.length })
+        // HDG の小さな文字: 方位ソース 1 つ（GPS / HLD / TRK。20261121-D01 でコンパスの CMP・CAL・MAG をなくした）
+        assertTrue(listOf("GPS", "HLD", "TRK").all { " $it".length <= sample(NumberField.HDG).small.length })
+        assertEquals(" TRK", sample(NumberField.HDG).small)
     }
 
     @Test

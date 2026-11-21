@@ -6,15 +6,13 @@ import io.github.eightbrows.navhud.core.io.TerrainLookup
 import io.github.eightbrows.navhud.core.model.Fix
 import io.github.eightbrows.navhud.core.model.ReachInfo
 import io.github.eightbrows.navhud.core.model.ReachReason
-import io.github.eightbrows.navhud.core.model.SourceMode
 import io.github.eightbrows.navhud.core.model.Waypoint
-import io.github.eightbrows.navhud.core.sensor.CompassQuality
 import java.time.LocalTime
 import java.time.ZoneId
 
 /**
  * NavState を更新する純粋ロジック。Android に依存しない。
- * 入力は「Fix 到着」「コンパス値」「時刻の tick」の3種類。時刻は常に呼び出し側が渡す。
+ * 入力は「Fix 到着」「時刻の tick」の2種類（20261121-D01 でコンパスを外した）。時刻は常に呼び出し側が渡す。
  * スレッドセーフではないので、1つのスレッドから呼ぶこと。
  *
  * @param zone 目標/締切時刻（ローカル時刻）を解釈するタイムゾーン
@@ -28,12 +26,21 @@ class NavEngine(
         private set
 
     private val headingSelector = HeadingSelector()
+
+    /** 位置から求める向き（TRK。20261121-D01。方位の出し方が「GPS ＋ 位置」のときだけ使う） */
+    private val trackHeading = TrackHeading()
+
+    /** 画面の GS の平均に使う、直前の Fix（20261121-D01。GS の平均の選べる値のいちばん長い秒数まで持つ） */
+    private val gsHistory = ArrayDeque<Fix>()
     private val rangeSelector = RangeSelector(
         settings.rangeStepsKm, settings.initialRangeKm, settings.autoRange,
         autoMinKm = settings.autoMinRangeKm, autoMaxKm = settings.autoMaxRangeKm,
     )
-    /** ETA の平均速度（Tuning.ETA_WINDOW_SEC 秒。20261104-D03 から RATE の表示はなく、ETA だけに使う） */
-    private val rateTracker = RateTracker(maxWindowSec = Tuning.ETA_WINDOW_SEC)
+    /**
+     * ETA の平均速度（20261104-D03 から RATE の表示はなく、ETA だけに使う）。秒数は移動のプリセットの値（20261121-D01。自動車 10 秒・歩行 60 秒）。
+     * 履歴は選べる値のいちばん長い秒数まで持つ（短い秒数の値は、前の 10 秒だけ持っていたときと同じ）
+     */
+    private val rateTracker = RateTracker(maxWindowSec = NavSettings.ETA_AVERAGE_CHOICES_SEC.max())
 
     /** V/S（20261104-D03。20261108-D01 から、点ごとの傾きを時定数 τ でなまらせる） */
     private val vsTracker = VerticalSpeedTracker()
@@ -63,8 +70,6 @@ class NavEngine(
     private var lastFix: Fix? = null
     /** 最後に Fix を受け取った時刻（onFix / onFixes の nowMs）。LIVE の NO FIX の判定に使う */
     private var lastFixAtMs: Long? = null
-    private var compassDeg: Float? = null
-    private var compassQuality = CompassQuality()
     private var waypoints: List<Waypoint> = emptyList()
     private var nowMs: Long? = null
     private var sourceKind = sourceKind
@@ -134,6 +139,8 @@ class NavEngine(
         prevFix = lastFix
         lastFix = fix
         headingSelector.update(fix)
+        trackHeading.update(fix, settings.maxGpsAccM, settings.noFixTimeoutSec * 1000L)
+        addGroundSpeed(fix)
         rateTracker.add(fix)
         addVerticalSpeed(fix)
         val nextBefore = WaypointNav.nextIndex(waypoints)
@@ -147,15 +154,24 @@ class NavEngine(
         if (sourceKind == SourceKind.LIVE) liveTrail.add(fix)
     }
 
+    /** 画面の GS の平均に点を入れる（時刻が戻ったら捨てる。いちばん長い選べる秒数より古い点は捨てる） */
+    private fun addGroundSpeed(fix: Fix) {
+        if (gsHistory.isNotEmpty() && fix.timeMs < gsHistory.last().timeMs) gsHistory.clear()
+        gsHistory.addLast(fix)
+        val keep = NavSettings.GS_AVERAGE_CHOICES_SEC.max() * 1000L
+        while (fix.timeMs - gsHistory.first().timeMs >= keep) gsHistory.removeFirst()
+    }
+
     /**
-     * @param deg コンパス方位（真北）。センサがなくなった・値が使えないなら null
-     * @param nowMs 現在時刻。null なら時刻は進めない（REPLAY でトラックがまだないときなど）
+     * 画面の GS [m/s]（20261121-D01）: 直前 gsAverageSec 秒（最後の Fix の時刻から数えて、その秒数より新しい点）の速さの平均。
+     * 1 秒なら今の点の速さ（前からの出し方）。速さのある点がなければ null。到達の判定・方位など、ほかの計算には使わない
      */
-    fun onCompass(deg: Float?, nowMs: Long?, quality: CompassQuality = CompassQuality()): NavState {
-        compassDeg = deg
-        compassQuality = quality
-        if (nowMs != null) this.nowMs = nowMs
-        return recompute()
+    private fun groundSpeed(fix: Fix?): Float? {
+        if (fix == null) return null
+        val n = settings.gsAverageSec
+        if (n <= 1) return fix.speedMps
+        val v = gsHistory.filter { fix.timeMs - it.timeMs < n * 1000L }.mapNotNull { it.speedMps }
+        return if (v.isEmpty()) null else (v.sumOf { it.toDouble() } / v.size).toFloat()
     }
 
     /** 時刻だけを進める。Fix が来なくても NO FIX とカウントダウンが更新される。 */
@@ -343,7 +359,6 @@ class NavEngine(
         return recompute()
     }
 
-    fun setSourceMode(mode: SourceMode): NavState = updateSettings(settings.copy(sourceMode = mode))
 
     fun setWaypoints(wps: List<Waypoint>): NavState {
         // 通り過ぎるのを待っていた WP が、同じ番号・同じ位置で残っていなければ（別のリストなど）待つのをやめる
@@ -544,6 +559,8 @@ class NavEngine(
         rateTracker.clear()
         vsTracker.clear()
         headingSelector.reset()
+        trackHeading.reset()
+        gsHistory.clear()
         passDetector.reset()
         sidePassDetector.reset()
         prevFix = null
@@ -558,7 +575,7 @@ class NavEngine(
         val lastFixMs = if (sourceKind == SourceKind.LIVE) lastFixAtMs else fix?.timeMs
         val noFix = now == null || isNoFix(now, lastFixMs, settings.noFixTimeoutSec * 1000L)
         // NO FIX 中の古い Fix の方位は「今使える GPS 方位」として扱わない
-        val heading = headingSelector.select(settings.sourceMode, noFix, compassDeg, compassQuality.lowAccuracy)
+        val heading = headingSelector.select(settings.headingMethod, noFix, trackHeading.deg)
         // V/S: NO FIX のときは出さない。測り始め・測り直しから τ 秒は出さない
         val vs = if (noFix) null else vsTracker.metersPerMinute()
 
@@ -566,8 +583,8 @@ class NavEngine(
         val wp = next?.let { waypoints[it] }
         val dist = if (fix != null && wp != null) Geo.distanceM(fix.lat, fix.lon, wp.lat, wp.lon) else null
         val bearing = if (fix != null && wp != null) Geo.bearingDeg(fix.lat, fix.lon, wp.lat, wp.lon) else null
-        // ETA: 直前 10 秒の平均速度（Tuning.ETA_WINDOW_SEC。前の RATE の窓の初期値）。履歴が足りなければ、ある分（最低 10 秒）の平均速度
-        val eta = if (now != null && dist != null) WaypointNav.etaMs(now, dist, rateTracker.etaSpeed(Tuning.ETA_WINDOW_SEC)) else null
+        // ETA: 直前 etaAverageSec 秒（移動のプリセットの値。自動車 10 秒）の平均速度。履歴が足りなければ、ある分（最低 10 秒）の平均速度
+        val eta = if (now != null && dist != null) WaypointNav.etaMs(now, dist, rateTracker.etaSpeed(settings.etaAverageSec)) else null
         // 到達した WP を通り過ぎたら（真横通過・手動は到達したら）、そこから設定の秒数のあいだ AUTO の段を動かさない（時刻はトラックの時刻）
         if (wpChanged && now != null) {
             rangeSelector.holdForWpChange(now)
@@ -592,8 +609,7 @@ class NavEngine(
             fix = fix,
             noFix = noFix,
             heading = heading,
-            sourceMode = settings.sourceMode,
-            groundSpeedMps = fix?.speedMps,
+            groundSpeedMps = groundSpeed(fix),
             altM = fix?.let(::seaLevelM),
             aglM = if (noFix || fix == null) null else aboveGroundM(fix),
             verticalSpeedMpm = vs,
@@ -607,7 +623,6 @@ class NavEngine(
             sourceKind = sourceKind,
             playing = playing,
             settings = settings,
-            compass = if (compassDeg != null) compassQuality else null,
             rangeM = rangeM,
             rangeAuto = rangeSelector.auto,
             pan = pan,

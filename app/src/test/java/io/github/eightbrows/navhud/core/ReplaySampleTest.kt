@@ -2,7 +2,6 @@ package io.github.eightbrows.navhud.core
 
 import io.github.eightbrows.navhud.core.model.Fix
 import io.github.eightbrows.navhud.core.model.HeadingSrc
-import io.github.eightbrows.navhud.core.model.SourceMode
 import io.github.eightbrows.navhud.core.nav.Heading
 import io.github.eightbrows.navhud.core.nav.NavEngine
 import io.github.eightbrows.navhud.core.nav.NavSettings
@@ -26,7 +25,6 @@ class ReplaySampleTest {
 
     companion object {
         private val JST: ZoneId = ZoneId.of("Asia/Tokyo")
-        private const val COMPASS_DEG = 45f
 
         private fun ms(iso: String) = Instant.parse(iso).toEpochMilli()
     }
@@ -78,36 +76,6 @@ class ReplaySampleTest {
         assertEquals(ms("2026-08-14T01:06:30Z"), paused.nowMs)
         assertFalse(paused.playing)
     }
-
-    @Test
-    fun hybridSwitchesToCompassWhileStopped() {
-        val all = fixes
-        // 速度 0 が 61 点以上続く最初の区間
-        var run = 0
-        var runStart = -1
-        for (i in all.indices) {
-            run = if (all[i].speedMps == 0f) run + 1 else 0
-            if (run == 1) runStart = i
-            if (run >= 61) break
-        }
-        assertTrue(run >= 61)
-
-        val e = NavEngine(NavSettings(sourceMode = SourceMode.HYBRID, noFixTimeoutSec = 10), JST, SourceKind.REPLAY)
-        e.onCompass(COMPASS_DEG, all.first().timeMs)
-        val states = all.subList(0, runStart + 61).map { e.onFix(it, it.timeMs) }
-
-        // 停止前、最後に GPS 方位が使えた地点では GPS
-        val lastMoving = (runStart - 1 downTo 0).first { isUsable(all[it]) }
-        assertEquals(Heading(all[lastMoving].bearingDeg, HeadingSrc.GPS), states[lastMoving].heading)
-        // 停止区間ではずっとコンパス
-        for (i in runStart until runStart + 61) {
-            assertEquals("index $i", Heading(COMPASS_DEG, HeadingSrc.COMPASS), states[i].heading)
-        }
-    }
-
-    /** 保持を解く速度（3 m/s）を超えていて、GPS 方位が使える Fix（この時点では保持していない）。 */
-    private fun isUsable(f: Fix): Boolean =
-        f.bearingDeg != null && (f.speedMps ?: 99f) > 3.0f && (f.horizAccM ?: 0f) <= 15f && (f.bearingAccDeg ?: 0f) <= 20f
 
     @Test
     fun temporaryWaypointsArePassedInOrder() {

@@ -160,7 +160,6 @@ class MainActivity : ComponentActivity() {
                             replay = replay,
                             onPickTrack = onFileButton,
                             onTogglePlay = vm::togglePlay,
-                            onCycleSource = vm::cycleSourceMode,
                             onToggleDisplay = vm::toggleDisplayMode,
                             onOpenDebug = { screen = Screen.DEBUG },
                             onOpenWpSettings = {
@@ -233,7 +232,6 @@ class MainActivity : ComponentActivity() {
                             replay = replay,
                             onPickTrack = onPickTrack,
                             onTogglePlay = vm::togglePlay,
-                            onSourceMode = vm::setSourceMode,
                             onToggleWp = vm::toggleReached,
                             onClose = { screen = Screen.MAIN },
                             canLoadTemporaryWaypoints = state.waypoints.isEmpty() && replay.fileName != null,

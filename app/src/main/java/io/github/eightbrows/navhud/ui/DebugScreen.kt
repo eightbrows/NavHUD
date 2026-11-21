@@ -22,7 +22,6 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.eightbrows.navhud.R
-import io.github.eightbrows.navhud.core.model.SourceMode
 import io.github.eightbrows.navhud.core.nav.NavState
 import java.time.Instant
 import java.time.ZoneId
@@ -42,7 +41,6 @@ fun DebugScreen(
     replay: ReplayUiState,
     onPickTrack: () -> Unit,
     onTogglePlay: () -> Unit,
-    onSourceMode: (SourceMode) -> Unit,
     onToggleWp: (Int) -> Unit,
     onClose: () -> Unit,
     canLoadTemporaryWaypoints: Boolean,
@@ -76,16 +74,6 @@ fun DebugScreen(
                 )
             }
         }
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            SourceMode.entries.forEach { m ->
-                if (m == state.sourceMode) {
-                    Button(onClick = { onSourceMode(m) }) { Text(m.name) }
-                } else {
-                    OutlinedButton(onClick = { onSourceMode(m) }) { Text(m.name) }
-                }
-            }
-        }
-
         Line("FILE", replay.fileName ?: stringResource(R.string.debug_none), Mono)
         if (replay.fileName != null) Line("", stringResource(R.string.debug_track_info, replay.fixCount.toString(), replay.skippedLines.toString()), Mono)
         if (replay.loading) Line("", stringResource(R.string.loading), Warn)
@@ -100,7 +88,7 @@ fun DebugScreen(
         Line("ALT", state.altM?.let { "%.0f m".format(Locale.US, it) } ?: "---", value)
         Line("GS", state.groundSpeedMps?.let { "%.1f km/h".format(Locale.US, it * 3.6) } ?: "---", value)
         Line("HDG", state.heading.deg?.let { "%03.0f°".format(Locale.US, it) } ?: "---", value)
-        Line("HDG SRC", "${state.heading.src}  (mode ${state.sourceMode})", value)
+        Line("HDG SRC", "${state.heading.src}  (${state.settings.headingMethod})", value)
         Line("V/S", state.verticalSpeedMpm?.let { "%+.1f m/min".format(Locale.US, it) } ?: "---", value)
 
         val next = state.nextWpIndex

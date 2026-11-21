@@ -40,17 +40,6 @@ class LiveGpsSource(context: Context, private val onGpsEnabledChanged: (Boolean)
 
     companion object {
         const val INTERVAL_MS = Tuning.GPS_INTERVAL_MS
-
-        /** 最後に分かっている位置（偏角の計算用）。権限がなければ null。 */
-        @SuppressLint("MissingPermission")
-        fun lastKnown(context: Context): Location? = try {
-            val lm = context.applicationContext.getSystemService(Context.LOCATION_SERVICE) as LocationManager
-            listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER, LocationManager.PASSIVE_PROVIDER)
-                .mapNotNull { runCatching { lm.getLastKnownLocation(it) }.getOrNull() }
-                .maxByOrNull { it.time }
-        } catch (_: SecurityException) {
-            null
-        }
     }
 }
 

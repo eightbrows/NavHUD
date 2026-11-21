@@ -1,9 +1,7 @@
 package io.github.eightbrows.navhud.core.nav
 
 import io.github.eightbrows.navhud.core.model.Fix
-import io.github.eightbrows.navhud.core.model.SourceMode
 import io.github.eightbrows.navhud.core.model.Waypoint
-import io.github.eightbrows.navhud.core.sensor.CompassQuality
 
 /** 位置のもと。 */
 enum class SourceKind { LIVE, REPLAY }
@@ -16,8 +14,7 @@ data class NavState(
     val fix: Fix? = null,
     val noFix: Boolean = true,
     val heading: Heading = Heading.NONE,
-    val sourceMode: SourceMode = SourceMode.HYBRID,
-    /** 対地速度 [m/s] */
+    /** 画面の対地速度 GS [m/s]（20261121-D01 から、直前の移動のプリセットの「GS の平均」秒の平均。1 秒なら今の点の速さ） */
     val groundSpeedMps: Float? = null,
     /** 標高（海抜高度）[m]: AltitudeConverter で求めた海抜高度（Fix.mslAltM）、なければ 楕円体高 − 標高オフセット（20261025-D08） */
     val altM: Double? = null,
@@ -47,8 +44,6 @@ data class NavState(
     val playing: Boolean = false,
     /** 表示に使う設定（表示モード、距離環など） */
     val settings: NavSettings = NavSettings(),
-    /** コンパスの状態（CAL / MAG の印）。コンパスの値がなければ null */
-    val compass: CompassQuality? = null,
     /** 縮尺 [m]（ARC では基準の距離環が左右端に接する距離、North Up では縮尺の距離環。方位サークルはその1つ外側） */
     val rangeM: Double = 1_000.0,
     /** 縮尺の AUTO が ON */

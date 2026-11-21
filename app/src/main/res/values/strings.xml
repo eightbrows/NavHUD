@@ -82,11 +82,11 @@
     <string name="settings_open_all">▼ Open all</string>
     <string name="settings_close_all">▲ Close all</string>
     <string name="settings_fine">Fine tuning</string>
-    <string name="settings_fine_reach">Fine tuning (arrival detection)</string>
     <string name="settings_mark_default">Filled / gray cell = default</string>
     <string name="settings_mark_selected">Blue border / blue circle = selected</string>
     <string name="back_to_toc">▲ Top</string>
     <string name="default_value">(Default: %1$s)</string>
+    <string name="sec_travel_preset">Travel preset</string>
     <string name="sec_position_heading">Position &amp; heading</string>
     <string name="sec_rings_track">Range rings &amp; track</string>
     <string name="sec_info">Permissions, about &amp; sources</string>
@@ -124,13 +124,13 @@
     <string name="agl_negative_zero">Show 0</string>
     <string name="agl_negative_show">Show negative</string>
     <string name="agl_negative_note">Shown in red when left negative</string>
-    <string name="heading_source">Heading method</string>
-    <string name="heading_source_note">GPS uses the direction of travel, COMPASS the compass, HYBRID the compass only when slow</string>
+    <string name="heading_method">Heading method</string>
+    <string name="heading_method_gps_track">GPS+position</string>
+    <string name="heading_method_note">GPS+position: when the GPS direction cannot be used (while HLD, or heading accuracy worse than the limit), shows the direction from the walked positions (TRK)</string>
     <string name="hold_enter">Heading hold speed</string>
     <string name="hold_enter_note">Below this, the heading is held (HLD)</string>
     <string name="hold_exit">Heading resume speed</string>
     <string name="hold_exit_note">Above this, the GPS direction is used again</string>
-    <string name="preset_value_note">Value of the arrival preset (%1$s)</string>
     <string name="max_gps_acc">Position accuracy limit</string>
     <string name="max_gps_acc_note">Positions worse than this are not used</string>
     <string name="max_gps_bearing_acc">Heading accuracy limit</string>
@@ -152,13 +152,23 @@
     <string name="zoom_in_ratio_note">Goes to Detail when the next WP is within this multiple of the first ring</string>
     <string name="pan_return">Return to position after scrolling the map</string>
     <string name="sec_wp">WP</string>
-    <string name="travel_mode">Arrival preset</string>
+    <string name="travel_mode">Travel preset</string>
     <string name="travel_car">Car</string>
+    <string name="travel_walk">Walk</string>
     <string name="travel_custom1">Custom 1</string>
     <string name="travel_custom2">Custom 2</string>
     <string name="travel_custom3">Custom 3</string>
-    <string name="travel_mode_note">Switches the set of arrival values. Car uses fixed values</string>
-    <string name="reset_to_car">Reset to Car values</string>
+    <string name="travel_mode_note">Switches the set of arrival, heading and number-averaging values</string>
+    <string name="travel_preset_current">Current preset: %1$s. Car and Walk use fixed values (Custom 1–3 can be changed)</string>
+    <string name="preset_group_heading">Heading</string>
+    <string name="preset_group_reach">Arrival detection</string>
+    <string name="preset_group_average">Number averaging</string>
+    <string name="reset_to_car">Use Car values</string>
+    <string name="set_walk_values">Use Walk values</string>
+    <string name="gs_average">GS averaging</string>
+    <string name="gs_average_note">Shows the average speed over this many seconds (1 s is the current speed)</string>
+    <string name="eta_average">ETA speed averaging</string>
+    <string name="eta_average_note">Time over which the average speed for ETA is measured</string>
     <string name="arrival_radius">Arrival radius (all)</string>
     <string name="side_pass">Abeam pass</string>
     <string name="side_pass_note">Reached when the WP comes abeam or behind while moving</string>

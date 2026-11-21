@@ -109,7 +109,6 @@ fun MainScreen(
     replay: ReplayUiState,
     onPickTrack: () -> Unit,
     onTogglePlay: () -> Unit,
-    onCycleSource: () -> Unit,
     onToggleDisplay: () -> Unit,
     onOpenDebug: () -> Unit,
     onOpenWpSettings: () -> Unit,
@@ -191,7 +190,7 @@ fun MainScreen(
         // 上: 上部バーと数値（4行）
         Column(Modifier.align(Alignment.TopStart).fillMaxWidth().onSizeChanged { topPx = it.height }) {
             Box(Modifier.onSizeChanged { topBarPx = it.height }) {
-                TopBar(state, onCycleSource, onToggleDisplay, onOpenSettings, onOpenDebug)
+                TopBar(state, onToggleDisplay, onOpenSettings, onOpenDebug)
             }
             NumbersPanel(state, zone, valueColor)
         }
@@ -653,28 +652,26 @@ private fun WpStripButton(
 }
 
 /**
- * 上部バー（20261108-D02）: 「HDG ○○ ｜（まん中）｜ ARC ｜ ⚙」。まん中には位置がないとき（NO FIX）だけ、赤い枠の「NO FIX」。
+ * 上部バー（20261108-D02。20261121-D01 で左の「HDG ○○」をなくした）: 「（まん中）｜ ARC ｜ ⚙」。まん中には位置がないとき（NO FIX）だけ、赤い枠の「NO FIX」。
  * ボタンは全部同じ見た目（高さ Tuning.TOP_BAR_BUTTON_HEIGHT_DP・角・枠・文字の大きさ）。NO FIX の枠も同じ高さ。
  * NO FIX は上部バーのまん中に置き、左右のボタンにかかるときはその間のまん中に寄せる（core の MainLayout.centerStart）。
  */
 @Composable
 private fun TopBar(
     state: NavState,
-    onCycleSource: () -> Unit,
     onToggleDisplay: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenDebug: () -> Unit,
 ) {
-    val hdg = MainLayout.headingLabel(state.sourceMode)
     val mode = MainLayout.displayLabel(state.settings.displayMode)
     val tm = rememberTextMeasurer()
     val density = LocalDensity.current
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         // 入りきらないときだけ、文字を全部同じ倍率で小さくする（20261025-D09。余白・枠・すき間は縮めない）。
-        // NO FIX があるものとし、方位ソースと表示モードはいちばん長い文字で見積もる（NO FIX や方位ソースが変わっても大きさを変えない）
+        // NO FIX があるものとし、表示モードはいちばん長い文字で見積もる（NO FIX や表示モードが変わっても大きさを変えない）
         val scale = with(density) {
-            val labels = MainLayout.topBarLabels(state.sourceMode, state.settings.displayMode)
-                .map { if (it == hdg) MainLayout.LONGEST_HEADING else if (it == mode) MainLayout.LONGEST_DISPLAY else it }
+            val labels = MainLayout.topBarLabels(state.settings.displayMode)
+                .map { if (it == mode) MainLayout.LONGEST_DISPLAY else it }
             val textDp = labels.sumOf { tm.measure(it, hudButtonStyle(false)).size.width.toDp().value.toDouble() }.toFloat()
             // ボタンごとに内側の左右の余白と枠（左右 1dp。NO FIX は 2dp）、丸めの分 1dp。ボタンの間のすき間と、上部バーの左右の余白
             val fixedDp = labels.size * (hudButtonPadH(false).value * Tuning.TOP_BAR_BUTTON_PAD_SCALE * 2 + 3f) + Tuning.TOP_BAR_NO_FIX_BORDER_DP * 2 +
@@ -689,8 +686,8 @@ private fun TopBar(
         // 空いている所は地図に渡さない（上部バーの下で地図の操作を受け付ける）
         Layout(
             content = {
-                // 方位ソースの選択（HYBRID / GPS / COMPASS）
-                HudButton(hdg, onCycleSource, overlayAlpha = a, padScale = pad, textScale = scale, height = h)
+                // 左: 何も置かない（20261121-D01 まで方位ソースの選択 HDG ○○）
+                Box {}
                 // まん中: NO FIX のときだけ
                 Box { if (state.noFix) NoFixBadge(scale, h, pad) }
                 Row(horizontalArrangement = Arrangement.spacedBy(gap), verticalAlignment = Alignment.CenterVertically) {
@@ -741,18 +738,14 @@ private fun NoFixBadge(textScale: Float, height: Dp, padScale: Float) {
     }
 }
 
-/** HDG の値の横に付ける、実際に使っている方位ソース（GPS / CMP、GPS 方位を保持中は HLD）。方位がなければ空。 */
+/**
+ * HDG の値の横に付ける、実際に使っている方位ソース（GPS、GPS 方位を保持中は HLD、位置から求めた向きは TRK。20261121-D01 で CMP をなくした）。
+ * 方位がなければ空。
+ */
 private fun headingSourceLabel(state: NavState): String = when (state.heading.src) {
     HeadingSrc.GPS -> if (state.heading.held) "HLD" else "GPS"
-    HeadingSrc.COMPASS -> "CMP"
+    HeadingSrc.TRACK -> "TRK"
     HeadingSrc.NONE -> ""
-}
-
-/** コンパスの印: MAG（偏角が分からず磁北のまま）、CAL（精度が低い）。コンパスを使っているときだけ。 */
-private fun compassMarks(state: NavState): String {
-    val q = state.compass
-    if (state.heading.src != HeadingSrc.COMPASS || q == null) return ""
-    return listOfNotNull("MAG".takeIf { q.declinationUnknown }, "CAL".takeIf { q.lowAccuracy }).joinToString(" ")
 }
 
 /**
@@ -826,17 +819,14 @@ private fun NumberFieldCell(
         NumberField.LAT_LON -> NumberCell(c, AnnotatedString(HudFormat.latLon(state.fix?.lat, state.fix?.lon)), valueColor, modifier.then(n), textScale)
         NumberField.GS -> NumberCell(c, AnnotatedString(HudFormat.speedKmh(state.groundSpeedMps)), valueColor, modifier.then(n), textScale)
         NumberField.HDG -> {
-            // 値の横に実際のソース（小さく）と、コンパスの印（黄色）。コンパスの印は警告なので、出ているときはセルごと 100%
+            // 値の横に実際のソース（小さく。GPS / HLD / TRK）
             val src = headingSourceLabel(state)
-            val marks = compassMarks(state)
             val small = SpanStyle(fontSize = Caption.fontSize * textScale)
             val value = buildAnnotatedString {
                 append(HudFormat.bearing(state.heading.deg))
                 if (src.isNotEmpty()) withStyle(small) { append(" $src") }
-                // コンパス自体の状態なので、NO FIX 中も黄色のまま
-                if (marks.isNotEmpty()) withStyle(small.copy(color = HudColors.Caution)) { append(" $marks") }
             }
-            NumberCell(c, value, valueColor, if (marks.isNotEmpty()) modifier else modifier.then(n), textScale)
+            NumberCell(c, value, valueColor, modifier.then(n), textScale)
         }
         NumberField.ALT -> NumberCell(c, AnnotatedString(HudFormat.altitude(state.altM)), valueColor, modifier.then(n), textScale)
         // 地上高（20261025-D08）: 設定「地上高の負の値」が「負のまま出す」で 0 未満なら、DDL を過ぎたときと同じ警告の色・100%

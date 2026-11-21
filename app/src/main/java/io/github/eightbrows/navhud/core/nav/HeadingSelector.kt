@@ -2,11 +2,10 @@ package io.github.eightbrows.navhud.core.nav
 
 import io.github.eightbrows.navhud.core.model.Fix
 import io.github.eightbrows.navhud.core.model.HeadingSrc
-import io.github.eightbrows.navhud.core.model.SourceMode
 
 /**
  * 実際に使う方位。deg == null のとき src == NONE。
- * @param held GPS 方位を保持している（低速・停止中）。画面の HDG の付記は HLD
+ * @param held GPS 方位を保持している（低速・停止中）。画面の HDG の付記は HLD（TRACK のときは false。付記は TRK）
  */
 data class Heading(val deg: Float?, val src: HeadingSrc, val held: Boolean = false) {
     companion object {
@@ -15,7 +14,7 @@ data class Heading(val deg: Float?, val src: HeadingSrc, val held: Boolean = fal
 }
 
 /**
- * 方位ソースの選択（§5.2）。
+ * 方位ソースの選択（§5.2。20261121-D01 でコンパスを外し、位置から求める向き（TRK）を足した）。
  *
  * GPS 方位は低速でふらつくので、ヒステリシス付きで保持する:
  * - 速度が holdEnterSpeedMps 未満になったら保持に入る
@@ -45,6 +44,13 @@ class HeadingSelector(
     var stableGpsDeg: Float? = null
         private set
 
+    /**
+     * 最後の Fix の GPS 方位をそのまま使えたか（保持していない・方位が使える）。false なら、画面の GPS の値は保持の値か
+     * 「前に使えた値のまま」（20261121-D01。方位の出し方「GPS ＋ 位置」で、位置から求める向きに替える所）
+     */
+    var gpsFresh: Boolean = false
+        private set
+
     /** GPS 方位が使えるか（方位あり、水平精度・方位の精度が閾値以内）。速度は見ない。 */
     fun isGpsUsable(fix: Fix): Boolean {
         val acc = fix.horizAccM
@@ -70,27 +76,25 @@ class HeadingSelector(
         }
         // 速度を出さない端末は、方位が使える限り安定とみなす
         if (!holding && ok && (speed == null || speed >= holdExitSpeedMps)) stableGpsDeg = fix.bearingDeg
+        gpsFresh = !holding && ok
     }
 
     /**
      * 使う方位を選ぶ。
+     * @param method 方位の出し方（移動のプリセットの値）
      * @param noFix NO FIX 中なら true（古い Fix の方位を「今の GPS 方位」として使わない）
-     * @param compassDeg コンパス方位（真北）。センサがない端末や未取得なら null
-     * @param compassLowAccuracy コンパスの精度が低い（CAL）
+     * @param trackDeg 位置から求めた向き（TrackHeading.deg）。まだなければ null。方位の出し方が GPS_TRACK のときだけ使う
      */
-    fun select(mode: SourceMode, noFix: Boolean, compassDeg: Float?, compassLowAccuracy: Boolean = false): Heading {
+    fun select(method: HeadingMethod, noFix: Boolean, trackDeg: Float? = null): Heading {
         val live = liveGpsDeg?.takeIf { !noFix }?.let { Heading(it, HeadingSrc.GPS) }
         val held = stableGpsDeg?.let { Heading(it, HeadingSrc.GPS, held = true) }
-        val compass = compassDeg?.let { Heading(it, HeadingSrc.COMPASS) }
-        return when (mode) {
-            SourceMode.GPS -> live ?: held ?: Heading.NONE
-            SourceMode.COMPASS -> compass ?: Heading.NONE
-            // GPS が使えないとき、コンパスが CAL でなければコンパス。CAL なら保持した GPS 方位
-            SourceMode.HYBRID -> live
-                ?: compass?.takeIf { !compassLowAccuracy }
-                ?: held
-                ?: compass
-                ?: Heading.NONE
+        return when (method) {
+            HeadingMethod.GPS -> live ?: held ?: Heading.NONE
+            // GPS の方位がこの Fix でそのまま使えるときは GPS。使えないとき（保持の間・方位精度が上限を超えて前の値のまま・NO FIX）は、
+            // 位置から求めた向きがあればそれ（TRK）。なければ GPS と同じ
+            HeadingMethod.GPS_TRACK -> live?.takeIf { gpsFresh }
+                ?: trackDeg?.let { Heading(it, HeadingSrc.TRACK) }
+                ?: live ?: held ?: Heading.NONE
         }
     }
 
@@ -98,5 +102,6 @@ class HeadingSelector(
         holding = false
         liveGpsDeg = null
         stableGpsDeg = null
+        gpsFresh = false
     }
 }

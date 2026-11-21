@@ -24,19 +24,22 @@ object Tuning {
      */
     const val IDLE_RANGE_KM = 20.0
 
-    // ---- 方位・コンパス（§5.2・§6.8） ----
+    // ---- 方位（§5.2）。20261121-D01 でコンパスの機能を外した（方位は GPS と、位置から求める向き） ----
 
-    /** コンパスの平滑化の係数（新しい値の重み。単位ベクトルの指数平滑） */
-    const val COMPASS_SMOOTHING = 0.2
+    /**
+     * 位置から求める向き（TRK。20261121-D01。調べ 20261119-D03-WALK の「P 8 m」）: 直前にこの距離 [m] を歩いた所（速さの積分で測る）と
+     * 今の位置を結ぶ向き。点ごとに更新する
+     */
+    const val TRACK_HEADING_DISTANCE_M = 8.0
 
-    /** 磁気偏角を計算し直す間隔 [ms] */
-    const val COMPASS_DECLINATION_INTERVAL_MS = 10_000L
+    /** 位置から求める向き: この速さ [km/h] 未満の点では向きを変えない（止まっている間は変えない） */
+    const val TRACK_HEADING_MIN_KMH = 1.0
 
-    /** 端末の姿勢: 画面の傾きがこれ以上で立て置き [°] */
-    const val COMPASS_TO_UPRIGHT_DEG = 55.0
+    /** 位置から求める向き: 2 点の間の直線の距離が、歩いた距離のこの割合より短ければ使わない（その場で行ったり来たりしたとき） */
+    const val TRACK_HEADING_MIN_CHORD_RATIO = 0.6
 
-    /** 端末の姿勢: 画面の傾きがこれ以下で平置き [°] */
-    const val COMPASS_TO_FLAT_DEG = 35.0
+    /** 位置から求める向き: これより古い点とは結ばない [秒] */
+    const val TRACK_HEADING_MAX_AGE_SEC = 90
 
     // ---- 測位・欠損（§5.5・§6.8） ----
 
@@ -68,10 +71,13 @@ object Tuning {
     const val VS_DISPLAY_MAX_MPM = 999
 
     /**
-     * ETA の平均速度を測る時間 [秒]（20261104-D03。前は RATE の窓（初期値 10 秒）と同じだった。RATE の窓の設定をなくしたので、
-     * 前の初期値の 10 秒で固定）
+     * ETA の平均速度を測る時間の、自動車の値 [秒]（20261104-D03。前は RATE の窓（初期値 10 秒）と同じだった）。
+     * 20261121-D01 から移動のプリセットの値（歩行 60 秒。カスタムは NavSettings.ETA_AVERAGE_CHOICES_SEC から選ぶ）
      */
-    const val ETA_WINDOW_SEC = 10
+    const val CAR_ETA_AVERAGE_SEC = 10
+
+    /** GS の平均の、自動車の値 [秒]（20261121-D01。1 秒 = 今の点の速さ。前からの出し方） */
+    const val CAR_GS_AVERAGE_SEC = 1
 
     /** ETA: base が窓の起点よりこれを超えて古ければ欠損とみなす [ms] */
     const val RATE_BASE_MAX_LAG_MS = 2_000L
@@ -154,6 +160,31 @@ object Tuning {
     const val CAR_PASS_MAX_APPROACH_M = 300.0
     const val CAR_PASS_DEPART_M = 50.0
     const val CAR_PASS_HOLD_SEC = 5
+    /** 方位精度の上限 [°]（20261121-D01 から移動のプリセットの値。前は全体の値で、初期値 20°） */
+    const val CAR_MAX_BEARING_ACC_DEG = 20f
+
+    // ---- 移動のプリセット「歩行」（20261121-D01。調べ 20261119-D03-WALK の案）。値は決まっていて変えられない ----
+
+    /** 方位を止める / 戻す速度 [km/h]（歩く速さ 4〜6 km/h より下に戻す速度を置く） */
+    const val WALK_HOLD_ENTER_KMH = 1
+    const val WALK_HOLD_EXIT_KMH = 3
+    /** 方位精度の上限 [°]（歩くと方位精度が実際より悪く出るので、自動車より大きい） */
+    const val WALK_MAX_BEARING_ACC_DEG = 30f
+    /** 到着半径 [m]（30 m では近づく 15〜20 秒前に到達になる） */
+    const val WALK_ARRIVAL_RADIUS_M = 15.0
+    /** 真横通過: ON / OFF、判定を始める速さ [km/h]、WP までの距離の上限 [m]、離れたとみなす距離 [m] */
+    const val WALK_SIDE_PASS = true
+    const val WALK_SIDE_PASS_MIN_SPEED_KMH = 2
+    const val WALK_SIDE_PASS_MAX_M = 50.0
+    const val WALK_SIDE_PASS_DEPART_M = 5.0
+    /** 通過判定: ON / OFF、最接近距離の上限 [m]、離れたとみなす距離 [m]、離れた状態が続く時間 [秒] */
+    const val WALK_PASS_DETECTION = true
+    const val WALK_PASS_MAX_APPROACH_M = 50.0
+    const val WALK_PASS_DEPART_M = 10.0
+    const val WALK_PASS_HOLD_SEC = 3
+    /** GS の平均 [秒]・ETA の平均速度 [秒] */
+    const val WALK_GS_AVERAGE_SEC = 5
+    const val WALK_ETA_AVERAGE_SEC = 60
 
     // ---- 地図の描画（HudMetrics の既定値。dp） ----
 

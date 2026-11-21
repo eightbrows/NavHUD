@@ -64,11 +64,11 @@ enum class ReachReason {
  */
 data class ReachInfo(val reason: ReachReason, val timeMs: Long?, val closestM: Double? = null, val viaSeek: Boolean = false)
 
-/** ユーザーが選ぶ方位ソース。 */
-enum class SourceMode { HYBRID, GPS, COMPASS }
-
-/** 実際に使われている方位ソース。 */
-enum class HeadingSrc { GPS, COMPASS, NONE }
+/**
+ * 実際に使われている方位ソース。GPS = GPS の方位（保持中は Heading.held）、TRACK = 位置から求める向き（画面の付記 TRK。20261121-D01）。
+ * 20261121-D01 でコンパス（COMPASS）を外した
+ */
+enum class HeadingSrc { GPS, TRACK, NONE }
 
 /** Live GPS / Replay。 */
 interface PositionSource {

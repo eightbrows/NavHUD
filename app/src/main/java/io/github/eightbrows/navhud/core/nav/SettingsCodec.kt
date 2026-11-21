@@ -2,8 +2,6 @@ package io.github.eightbrows.navhud.core.nav
 
 import io.github.eightbrows.navhud.core.Tuning
 
-import io.github.eightbrows.navhud.core.model.SourceMode
-
 /**
  * NavSettings ⇔ 文字列のマップ（SharedPreferences に保存するため）。Android に依存しない。
  * 読めない値・ない値は既定値にする（アプリの更新で項目が増減しても落ちない）。
@@ -19,12 +17,14 @@ object SettingsCodec {
         OLD_KEY_HOLD_ENTER, OLD_KEY_HOLD_EXIT,
         // 20261119-D02 の一度だけの移し替えの印（移し替えは 20261119-D03 で外した）
         "holdDefaultsMigrated",
+        // 20261121-D01: コンパスを外したので、方位の求め方（HYBRID / GPS / COMPASS）は読まずに消す（方位の出し方は移動のプリセットの値）
+        OLD_KEY_SOURCE_MODE,
+        // 20261121-D01: 方位精度の上限を移動のプリセットの値にした。前の全体の値は読まずに消す（自動車は 20°）
+        OLD_KEY_MAX_BEARING_ACC,
     )
 
     fun encode(s: NavSettings): Map<String, String> = mapOf(
-        "sourceMode" to s.sourceMode.name,
         "maxGpsAccM" to s.maxGpsAccM.toString(),
-        "maxGpsBearingAccDeg" to s.maxGpsBearingAccDeg.toString(),
         "travelMode" to s.travelMode.name,
         "reachRadiusM" to s.reachRadiusM.toString(),
         "sidePass" to s.sidePass.toString(),
@@ -88,10 +88,21 @@ object SettingsCodec {
         // 方位を止める / 戻す速度 [km/h]（20261119-D03 からプリセットの値。保存がなければ 4 / 6 km/h）
         "${prefix}holdEnterKmh" to p.holdEnterKmh.toString(),
         "${prefix}holdExitKmh" to p.holdExitKmh.toString(),
+        // 方位の出し方・方位精度の上限・GS の平均・ETA の平均速度（20261121-D01。保存がなければ自動車の値）
+        "${prefix}headingMethod" to p.headingMethod.name,
+        "${prefix}maxBearingAccDeg" to p.maxBearingAccDeg.toString(),
+        "${prefix}gsAverageSec" to p.gsAverageSec.toString(),
+        "${prefix}etaAverageSec" to p.etaAverageSec.toString(),
     )
 
     /** 設定の項目のキー（今の版と、前の版の colorTheme）。移行の判定に使う */
-    private val SETTINGS_KEYS: Set<String> by lazy { encode(NavSettings()).keys + "colorTheme" + OLD_KEY_ZOOM_IN_RATIO + OLD_KEY_HOLD_ENTER + OLD_KEY_HOLD_EXIT }
+    private val SETTINGS_KEYS: Set<String> by lazy {
+        encode(NavSettings()).keys + "colorTheme" + OLD_KEY_ZOOM_IN_RATIO + OLD_KEY_HOLD_ENTER + OLD_KEY_HOLD_EXIT + OLD_KEY_SOURCE_MODE + OLD_KEY_MAX_BEARING_ACC
+    }
+
+    /** 20261119-D03 までの方位の求め方と、全体の方位精度の上限。読まない（前の版の設定かどうかの見分けにだけ使う） */
+    private const val OLD_KEY_SOURCE_MODE = "sourceMode"
+    private const val OLD_KEY_MAX_BEARING_ACC = "maxGpsBearingAccDeg"
 
     /** 20261119-D03 までの全体の方位を止める / 戻す速度（m/s）。読まない（前の版の設定かどうかの見分けにだけ使う） */
     private const val OLD_KEY_HOLD_ENTER = "holdEnterSpeedMps"
@@ -123,7 +134,7 @@ object SettingsCodec {
             ?.takeIf { it.isNotEmpty() }
             ?: d.rangeStepsKm
 
-        // 移動手段: 保存がなければ既定（自動車）。前の版の「CUSTOM」と、移動手段の項目がない設定（D06 より前）は
+        // 移動のプリセット（前の名前は移動手段・到達判定のプリセット）: 保存がなければ既定（自動車）。前の版の「CUSTOM」と、移動手段の項目がない設定（D06 より前）は
         // カスタム1 として読み、保存してあった到達判定の値をカスタム1 に移す（カスタム2・3 は自動車の値で始める）。
         // 同じ保存先にある設定以外の項目（INPUT など）だけなら、前の版の設定ではない
         val savedMode = str("travelMode")
@@ -148,6 +159,10 @@ object SettingsCodec {
                 sidePassMinKmh = int("${pre}sidePassMinKmh", base.sidePassMinKmh).inOr(NavSettings.SIDE_PASS_MIN_SPEED_KMH_RANGE, base.sidePassMinKmh),
                 holdEnterKmh = enter,
                 holdExitKmh = exit,
+                headingMethod = enum("${pre}headingMethod", HeadingMethod.entries.toTypedArray(), base.headingMethod),
+                maxBearingAccDeg = f("${pre}maxBearingAccDeg", base.maxBearingAccDeg).inOr(NavSettings.MAX_GPS_BEARING_ACC_DEG_RANGE, base.maxBearingAccDeg),
+                gsAverageSec = int("${pre}gsAverageSec", base.gsAverageSec).takeIf { it in NavSettings.GS_AVERAGE_CHOICES_SEC } ?: base.gsAverageSec,
+                etaAverageSec = int("${pre}etaAverageSec", base.etaAverageSec).takeIf { it in NavSettings.ETA_AVERAGE_CHOICES_SEC } ?: base.etaAverageSec,
             )
         }
         val flat = reach("", ReachProfile.CAR)
@@ -164,12 +179,10 @@ object SettingsCodec {
         val holdExit = NavSettings.kmhToMps(flat.holdExitKmh)
 
         return NavSettings(
-            sourceMode = enum("sourceMode", SourceMode.entries.toTypedArray(), d.sourceMode),
             holdEnterSpeedMps = holdEnter,
             holdExitSpeedMps = holdExit,
             // 選べる値にない数は、一番近い値に読み替える（数でなければ既定値）
             maxGpsAccM = NavSettings.nearestFloat(NavSettings.MAX_GPS_ACC_CHOICES_M, f("maxGpsAccM", d.maxGpsAccM)),
-            maxGpsBearingAccDeg = f("maxGpsBearingAccDeg", d.maxGpsBearingAccDeg).inOr(NavSettings.MAX_GPS_BEARING_ACC_DEG_RANGE, d.maxGpsBearingAccDeg),
             travelMode = travelMode,
             customReach = customReach,
             reachRadiusM = flat.reachRadiusM,

@@ -1,6 +1,5 @@
 package io.github.eightbrows.navhud.core.view
 
-import io.github.eightbrows.navhud.core.model.SourceMode
 import io.github.eightbrows.navhud.core.nav.DisplayMode
 import io.github.eightbrows.navhud.core.nav.SourceKind
 import io.github.eightbrows.navhud.core.view.MainLayout.TrackControl
@@ -15,15 +14,14 @@ class MainLayoutTest {
     // ---- 上部バー ----
 
     @Test
-    fun topBarIsHeadingNoFixDisplayAndSettings() {
-        // 左から HDG ○○・（まん中）NO FIX・表示モード・⚙。WP・⇄・FILE は上部バーにない
-        assertEquals(listOf("HDG GPS", "NO FIX", "ARC", "⚙"), MainLayout.topBarLabels(SourceMode.GPS, DisplayMode.ARC))
-        assertEquals(listOf("HDG HYBRID", "NO FIX", "N-UP", "⚙"), MainLayout.topBarLabels(SourceMode.HYBRID, DisplayMode.NORTH_UP))
-        for (m in SourceMode.entries) for (d in DisplayMode.entries) {
-            val labels = MainLayout.topBarLabels(m, d)
-            assertTrue(labels.none { it == "WP" || it.startsWith("⇄") || it == "FILE" })
+    fun topBarIsNoFixDisplayAndSettings() {
+        // （まん中）NO FIX・表示モード・⚙。20261121-D01 でコンパスを外し、左の HDG ○○ をなくした。WP・⇄・FILE も上部バーにない
+        assertEquals(listOf("NO FIX", "ARC", "⚙"), MainLayout.topBarLabels(DisplayMode.ARC))
+        assertEquals(listOf("NO FIX", "N-UP", "⚙"), MainLayout.topBarLabels(DisplayMode.NORTH_UP))
+        for (d in DisplayMode.entries) {
+            val labels = MainLayout.topBarLabels(d)
+            assertTrue(labels.none { it == "WP" || it.startsWith("⇄") || it == "FILE" || it.startsWith("HDG") })
         }
-        assertEquals("HDG COMPASS", MainLayout.LONGEST_HEADING)
         assertEquals("N-UP", MainLayout.LONGEST_DISPLAY)
     }
 
@@ -32,7 +30,7 @@ class MainLayoutTest {
     fun topBarFitsIn360dpWithoutShrinking() {
         // 等幅の文字 13sp の 1 文字 ≒ 7.8dp（0.6em）。ボタンの内側の左右の余白 10dp × 0.6、枠と丸めの分 3dp（MainScreen と同じ見積もり）
         val charDp = 7.8f
-        val labels = listOf(MainLayout.LONGEST_HEADING, MainLayout.NO_FIX_LABEL, MainLayout.LONGEST_DISPLAY, MainLayout.SETTINGS_LABEL)
+        val labels = listOf(MainLayout.NO_FIX_LABEL, MainLayout.LONGEST_DISPLAY, MainLayout.SETTINGS_LABEL)
         fun w(s: String) = s.length * charDp
         val pad = 10f * 0.6f * 2 + 3f
         val textDp = labels.sumOf { w(it).toDouble() }.toFloat()
@@ -40,7 +38,8 @@ class MainLayoutTest {
         assertEquals(1f, TopBarFit.textScale(360f, textDp, fixedDp), 0f)
         // 置き方: 左右の余白 8dp を除いた 344dp の中で
         val barW = 360f - 8f * 2
-        val left = w(MainLayout.LONGEST_HEADING) + pad
+        // 左のボタンはない（20261121-D01）
+        val left = 0f
         val right = w(MainLayout.LONGEST_DISPLAY) + pad + 4f + w(MainLayout.SETTINGS_LABEL) + pad
         val center = w(MainLayout.NO_FIX_LABEL) + pad + 2f * 2
         val x = MainLayout.centerStart(barW, left, barW - right, center, 4f)
@@ -49,7 +48,7 @@ class MainLayoutTest {
         assertTrue(x >= left + 4f)
         assertTrue(x + center <= barW - right - 4f)
         // 前の上部バー（HDG・WP・⇄ REPLAY・FILE・表示モード・⚙）より、文字の幅が短い
-        val before = listOf(MainLayout.LONGEST_HEADING, "WP", "⇄ REPLAY", "FILE", MainLayout.LONGEST_DISPLAY, "⚙")
+        val before = listOf("HDG COMPASS", "WP", "⇄ REPLAY", "FILE", MainLayout.LONGEST_DISPLAY, "⚙")
         assertTrue(labels.sumOf { it.length } - MainLayout.NO_FIX_LABEL.length < before.sumOf { it.length })
     }
 
