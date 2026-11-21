@@ -5,7 +5,8 @@ import io.github.eightbrows.navhud.core.nav.SourceKind
 
 /**
  * メイン画面のボタンの置き場所（20261108-D02）。Android に依存しない。
- * 上部バー = 「（まん中: NO FIX のときだけ NO FIX）｜ ARC ｜ ⚙」（20261121-D01 でコンパスを外し、左の「HDG ○○」のボタンをなくした）、
+ * 上部バー = 「今の移動のプリセット（押せない）｜（まん中: NO FIX のときだけ NO FIX）｜ ARC ｜ ⚙」
+ * （20261121-D01 でコンパスを外し、左の「HDG ○○」のボタンをなくした。20261121-D05 で左に今のプリセットの名前）、
  * 左の列（軌跡の操作。数値の欄の下）= LIVE は ⇄ だけ、REPLAY は ⇄ / FILE / スライダー / ▶ / ＋ / ×N / −、
  * WP ボタン列 = いつも出す（左端に「WP」）。
  */
@@ -20,16 +21,21 @@ object MainLayout {
     val LONGEST_DISPLAY: String = DisplayMode.entries.map(::displayLabel).maxBy { it.length }
 
     /**
-     * 上部バーの文字（左から）: まん中の NO FIX・表示モード・⚙（20261121-D01 で左の方位ソースのボタンをなくした）。
+     * 上部バーの文字（左から）: 今の移動のプリセット・まん中の NO FIX・表示モード・⚙
+     * （20261121-D01 で左の方位ソースのボタンをなくし、20261121-D05 でそこにプリセットの名前を置いた）。
      * 文字の倍率（TopBarFit）は NO FIX があるものとして決める（NO FIX が出ても消えても、ボタンの大きさを変えない）。
+     * プリセットの名前も、いちばん幅の大きい名前（longestBy）で決める（プリセットを切り替えても大きさを変えない）。
      */
-    fun topBarLabels(display: DisplayMode): List<String> =
-        listOf(NO_FIX_LABEL, displayLabel(display), SETTINGS_LABEL)
+    fun topBarLabels(display: DisplayMode, preset: String): List<String> =
+        listOf(preset, NO_FIX_LABEL, displayLabel(display), SETTINGS_LABEL)
+
+    /** names のうち、widthOf でいちばん幅の大きいもの（上部バーの文字の倍率の見積もりに使う） */
+    fun longestBy(names: List<String>, widthOf: (String) -> Float): String = names.maxBy(widthOf)
 
     /**
      * まん中の NO FIX の左端 [dp か px]: 上部バーのまん中に置く。左右のボタンにかかるときは、その間のまん中に寄せる。
      * @param barW 上部バーの幅
-     * @param leftEnd 左の端（20261121-D01 から左のボタンはないので 0）
+     * @param leftEnd 左のもの（20261121-D05 から今のプリセットの名前）の右端
      * @param rightStart 右のボタン（表示モード）の左端
      * @param itemW NO FIX の枠の幅
      * @param gap ボタンとの間にあけるすき間

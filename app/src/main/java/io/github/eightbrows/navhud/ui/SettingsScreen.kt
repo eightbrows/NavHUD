@@ -680,24 +680,7 @@ fun SettingsScreen(
     }
 }
 
-/** 移動のプリセットの名前 */
-@Composable
-private fun presetName(m: TravelMode): String = stringResource(
-    when (m) {
-        TravelMode.CAR -> R.string.travel_car
-        TravelMode.WALK -> R.string.travel_walk
-        TravelMode.CUSTOM1 -> R.string.travel_custom1
-        TravelMode.CUSTOM2 -> R.string.travel_custom2
-        TravelMode.CUSTOM3 -> R.string.travel_custom3
-    },
-)
-
-/** 移動のプリセットの色（20261121-D03。自動車 水色・歩行 緑・カスタム 紫） */
-private fun presetColor(m: TravelMode): Color = when (m) {
-    TravelMode.CAR -> HudColors.PresetCar
-    TravelMode.WALK -> HudColors.PresetWalk
-    else -> HudColors.PresetCustom
-}
+// 移動のプリセットの名前と色（presetName・presetColor）は PresetLabels.kt（20261121-D05。メイン画面の上部バーでも使う）
 
 @Composable
 private fun sectionTitle(id: SettingsSectionId): String = stringResource(

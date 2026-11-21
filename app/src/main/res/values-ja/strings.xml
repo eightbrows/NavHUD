@@ -166,7 +166,7 @@
     <string name="band_changed">変えた所 %1$d</string>
     <string name="band_unchanged">初期値のまま</string>
     <string name="band_common">共通</string>
-    <string name="dialog_reset_all">全部のプリセット（カスタムも）と共通の値を初期値にします。</string>
+    <string name="dialog_reset_all">全部のプリセット（カスタムも）と共通の値を初期値にします。表示言語はそのままです。</string>
     <string name="band_reset">初期値に戻す</string>
     <string name="band_reset_custom">初期値に戻す…</string>
     <string name="band_copy">コピーする…</string>

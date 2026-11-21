@@ -1,6 +1,8 @@
 package io.github.eightbrows.navhud.core.view
 
+import io.github.eightbrows.navhud.core.nav.DisplayMode
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** 上部バーの文字の倍率（20261025-D09）: 入るときは縮めない。入らないときだけ全部同じ倍率で小さくする。 */
@@ -28,5 +30,25 @@ class TopBarFitTest {
     fun neverBelowTheMinimum() {
         assertEquals(TopBarFit.MIN_SCALE, TopBarFit.textScale(availDp = 150f, textDp = 260f, fixedDp = 100f), 0f)
         assertEquals(TopBarFit.MIN_SCALE, TopBarFit.textScale(availDp = 50f, textDp = 260f, fixedDp = 100f), 0f)
+    }
+
+    /**
+     * 20261121-D05: 上部バーの左に今のプリセットの名前。倍率はいちばん幅の大きい名前で決めるので、
+     * どのプリセットを選んでいても同じ倍率（切り替えてもボタンの大きさが変わらない）。幅が足りない画面では全部同じ倍率で縮める
+     */
+    @Test
+    fun presetNameDoesNotChangeTheScale() {
+        for (names in listOf(MainLayoutTest.JA, MainLayoutTest.EN)) {
+            for (avail in listOf(360f, 230f)) {
+                val scales = names.map { _ ->
+                    val labels = MainLayout.topBarLabels(DisplayMode.NORTH_UP, MainLayout.longestBy(names, MainLayoutTest::w))
+                    val textDp = labels.sumOf { MainLayoutTest.w(it).toDouble() }.toFloat()
+                    val fixedDp = labels.size * MainLayoutTest.PAD + 2f * 2 + 4f * (labels.size - 1) + 8f * 2
+                    TopBarFit.textScale(avail, textDp, fixedDp)
+                }.toSet()
+                assertEquals(1, scales.size)
+                if (avail == 360f) assertEquals(1f, scales.single(), 0f) else assertTrue(scales.single() < 1f)
+            }
+        }
     }
 }

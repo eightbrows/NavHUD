@@ -168,7 +168,7 @@
     <string name="band_changed">Changed: %1$d</string>
     <string name="band_unchanged">Defaults</string>
     <string name="band_common">Common</string>
-    <string name="dialog_reset_all">Resets all presets (including custom ones) and the common values to the defaults.</string>
+    <string name="dialog_reset_all">Resets all presets (including custom ones) and the common values to the defaults. The display language stays as it is.</string>
     <string name="band_reset">Reset to defaults</string>
     <string name="band_reset_custom">Reset to defaults…</string>
     <string name="band_copy">Copy…</string>

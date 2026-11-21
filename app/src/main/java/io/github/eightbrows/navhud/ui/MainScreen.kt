@@ -76,6 +76,7 @@ import io.github.eightbrows.navhud.core.io.BaseMap
 import io.github.eightbrows.navhud.core.nav.NavState
 import io.github.eightbrows.navhud.core.nav.ProfileSize
 import io.github.eightbrows.navhud.core.nav.SourceKind
+import io.github.eightbrows.navhud.core.nav.TravelMode
 import io.github.eightbrows.navhud.core.replay.ReplaySpeed
 import io.github.eightbrows.navhud.core.view.HudFormat
 import io.github.eightbrows.navhud.core.view.HudInsets
@@ -666,11 +667,16 @@ private fun TopBar(
     val mode = MainLayout.displayLabel(state.settings.displayMode)
     val tm = rememberTextMeasurer()
     val density = LocalDensity.current
+    // 今の移動のプリセット（20261121-D05）。倍率の見積もりは、いちばん幅の大きい名前で（切り替えても大きさを変えない）
+    val travel = state.settings.travelMode
+    val presetNames = TravelMode.entries.map { presetName(it) }
+    val preset = presetNames[travel.ordinal]
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         // 入りきらないときだけ、文字を全部同じ倍率で小さくする（20261025-D09。余白・枠・すき間は縮めない）。
-        // NO FIX があるものとし、表示モードはいちばん長い文字で見積もる（NO FIX や表示モードが変わっても大きさを変えない）
+        // NO FIX があるものとし、表示モードとプリセットはいちばん長い文字で見積もる（NO FIX・表示モード・プリセットが変わっても大きさを変えない）
         val scale = with(density) {
-            val labels = MainLayout.topBarLabels(state.settings.displayMode)
+            val widest = MainLayout.longestBy(presetNames) { tm.measure(it, hudButtonStyle(false)).size.width.toFloat() }
+            val labels = MainLayout.topBarLabels(state.settings.displayMode, widest)
                 .map { if (it == mode) MainLayout.LONGEST_DISPLAY else it }
             val textDp = labels.sumOf { tm.measure(it, hudButtonStyle(false)).size.width.toDp().value.toDouble() }.toFloat()
             // ボタンごとに内側の左右の余白と枠（左右 1dp。NO FIX は 2dp）、丸めの分 1dp。ボタンの間のすき間と、上部バーの左右の余白
@@ -686,8 +692,8 @@ private fun TopBar(
         // 空いている所は地図に渡さない（上部バーの下で地図の操作を受け付ける）
         Layout(
             content = {
-                // 左: 何も置かない（20261121-D01 まで方位ソースの選択 HDG ○○）
-                Box {}
+                // 左: 今の移動のプリセット（20261121-D05。押しても何も起きない。20261121-D01 まで方位ソースの選択 HDG ○○）
+                PresetBadge(preset, presetColor(travel), scale, h, pad, a)
                 // まん中: NO FIX のときだけ
                 Box { if (state.noFix) NoFixBadge(scale, h, pad) }
                 Row(horizontalArrangement = Arrangement.spacedBy(gap), verticalAlignment = Alignment.CenterVertically) {
@@ -715,6 +721,24 @@ private fun TopBar(
                 center.place(x.roundToInt(), (height - center.height) / 2)
             }
         }
+    }
+}
+
+/**
+ * 上部バーの左の、今の移動のプリセット（20261121-D05）: ARC・⚙ と同じ高さの枠。枠と文字はプリセットの色（設定画面の帯と同じ）。
+ * 運転中に触って変わらないよう、押しても何も起きない。不透明度はボタンと同じ（設定）
+ */
+@Composable
+private fun PresetBadge(text: String, color: Color, textScale: Float, height: Dp, padScale: Float, alpha: Float) {
+    val shape = RoundedCornerShape(4.dp)
+    Box(
+        Modifier
+            .height(height)
+            .overlayButton(color, false, alpha, shape)
+            .padding(horizontal = hudButtonPadH(false) * padScale),
+        contentAlignment = Alignment.Center,
+    ) {
+        OverlayButtonText(text, color, false, alpha, hudButtonStyle(false, textScale))
     }
 }
 

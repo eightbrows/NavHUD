@@ -11,45 +11,80 @@ import org.junit.Test
 /** メイン画面のボタンの置き場所（20261108-D02）: 上部バー・左の列・地図の操作を受け付けない所・WP ボタン列。 */
 class MainLayoutTest {
 
+    companion object {
+        /** 移動のプリセットの名前（values-ja・values の strings.xml と同じ） */
+        val JA = listOf("自動車", "歩行", "カスタム1", "カスタム2", "カスタム3")
+        val EN = listOf("Car", "Walk", "Custom 1", "Custom 2", "Custom 3")
+
+        /** ボタンの内側の左右の余白 10dp × 0.6、枠と丸めの分 3dp（MainScreen と同じ見積もり） */
+        const val PAD = 10f * 0.6f * 2 + 3f
+
+        /** 13sp の文字の幅の見積もり [dp]: 半角（等幅）は 0.6em、日本語の文字は 1em */
+        fun w(s: String): Float = s.sumOf { (if (it.code < 0x2000) 0.6 else 1.0) * 13.0 }.toFloat()
+    }
+
     // ---- 上部バー ----
 
     @Test
-    fun topBarIsNoFixDisplayAndSettings() {
-        // （まん中）NO FIX・表示モード・⚙。20261121-D01 でコンパスを外し、左の HDG ○○ をなくした。WP・⇄・FILE も上部バーにない
-        assertEquals(listOf("NO FIX", "ARC", "⚙"), MainLayout.topBarLabels(DisplayMode.ARC))
-        assertEquals(listOf("NO FIX", "N-UP", "⚙"), MainLayout.topBarLabels(DisplayMode.NORTH_UP))
+    fun topBarIsPresetNoFixDisplayAndSettings() {
+        // 左に今のプリセット（20261121-D05）・（まん中）NO FIX・表示モード・⚙。20261121-D01 でコンパスを外し、左の HDG ○○ をなくした。
+        // WP・⇄・FILE も上部バーにない
+        assertEquals(listOf("自動車", "NO FIX", "ARC", "⚙"), MainLayout.topBarLabels(DisplayMode.ARC, "自動車"))
+        assertEquals(listOf("Walk", "NO FIX", "N-UP", "⚙"), MainLayout.topBarLabels(DisplayMode.NORTH_UP, "Walk"))
         for (d in DisplayMode.entries) {
-            val labels = MainLayout.topBarLabels(d)
+            val labels = MainLayout.topBarLabels(d, "Car")
             assertTrue(labels.none { it == "WP" || it.startsWith("⇄") || it == "FILE" || it.startsWith("HDG") })
         }
         assertEquals("N-UP", MainLayout.LONGEST_DISPLAY)
+        // 倍率の見積もりは、いちばん幅の大きいプリセットの名前で
+        assertEquals("カスタム1", MainLayout.longestBy(JA, ::w))
+        assertEquals("Custom 1", MainLayout.longestBy(EN, ::w))
     }
 
-    /** 幅 360dp の画面: 文字を縮めずに入り、まん中の NO FIX は左右のボタンにかからない */
+    /**
+     * 幅 360dp の画面（日本語・英語）: いちばん長いプリセットの名前でも文字を縮めずに入り、
+     * まん中の NO FIX は左のプリセット・右のボタンにかからない（20261121-D05）
+     */
     @Test
     fun topBarFitsIn360dpWithoutShrinking() {
-        // 等幅の文字 13sp の 1 文字 ≒ 7.8dp（0.6em）。ボタンの内側の左右の余白 10dp × 0.6、枠と丸めの分 3dp（MainScreen と同じ見積もり）
-        val charDp = 7.8f
-        val labels = listOf(MainLayout.NO_FIX_LABEL, MainLayout.LONGEST_DISPLAY, MainLayout.SETTINGS_LABEL)
-        fun w(s: String) = s.length * charDp
-        val pad = 10f * 0.6f * 2 + 3f
+        for (names in listOf(JA, EN)) {
+            for (preset in names) {
+                val longest = MainLayout.longestBy(names, ::w)
+                // 倍率はいちばん長い名前で見積もる（MainScreen と同じ）
+                val labels = listOf(longest, MainLayout.NO_FIX_LABEL, MainLayout.LONGEST_DISPLAY, MainLayout.SETTINGS_LABEL)
+                val textDp = labels.sumOf { w(it).toDouble() }.toFloat()
+                val fixedDp = labels.size * PAD + 2f * 2 + 4f * (labels.size - 1) + 8f * 2
+                assertEquals(preset, 1f, TopBarFit.textScale(360f, textDp, fixedDp), 0f)
+                // 置き方: 左右の余白 8dp を除いた 344dp の中で
+                val barW = 360f - 8f * 2
+                val left = w(preset) + PAD
+                val right = w(MainLayout.LONGEST_DISPLAY) + PAD + 4f + w(MainLayout.SETTINGS_LABEL) + PAD
+                val center = w(MainLayout.NO_FIX_LABEL) + PAD + 2f * 2
+                val x = MainLayout.centerStart(barW, left, barW - right, center, 4f)
+                // 上部バーのまん中のまま、左右にかからない
+                assertEquals(preset, barW / 2, x + center / 2, 0.01f)
+                assertTrue(preset, x >= left + 4f)
+                assertTrue(preset, x + center <= barW - right - 4f)
+            }
+        }
+    }
+
+    /** 幅の足りない画面（280dp）: TopBarFit で文字を全部同じ倍率で縮め、縮めた幅で NO FIX はまだ左右にかからない */
+    @Test
+    fun topBarShrinksOnNarrowScreens() {
+        val labels = listOf(MainLayout.longestBy(JA, ::w), MainLayout.NO_FIX_LABEL, MainLayout.LONGEST_DISPLAY, MainLayout.SETTINGS_LABEL)
         val textDp = labels.sumOf { w(it).toDouble() }.toFloat()
-        val fixedDp = labels.size * pad + 2f * 2 + 4f * (labels.size - 1) + 8f * 2
-        assertEquals(1f, TopBarFit.textScale(360f, textDp, fixedDp), 0f)
-        // 置き方: 左右の余白 8dp を除いた 344dp の中で
-        val barW = 360f - 8f * 2
-        // 左のボタンはない（20261121-D01）
-        val left = 0f
-        val right = w(MainLayout.LONGEST_DISPLAY) + pad + 4f + w(MainLayout.SETTINGS_LABEL) + pad
-        val center = w(MainLayout.NO_FIX_LABEL) + pad + 2f * 2
+        val fixedDp = labels.size * PAD + 2f * 2 + 4f * (labels.size - 1) + 8f * 2
+        val avail = 230f
+        val s = TopBarFit.textScale(avail, textDp, fixedDp)
+        assertTrue(s < 1f && s >= TopBarFit.MIN_SCALE)
+        val barW = avail - 8f * 2
+        val left = w(labels[0]) * s + PAD
+        val right = w(MainLayout.LONGEST_DISPLAY) * s + PAD + 4f + w(MainLayout.SETTINGS_LABEL) * s + PAD
+        val center = w(MainLayout.NO_FIX_LABEL) * s + PAD + 2f * 2
         val x = MainLayout.centerStart(barW, left, barW - right, center, 4f)
-        // 上部バーのまん中
-        assertEquals(barW / 2, x + center / 2, 0.01f)
-        assertTrue(x >= left + 4f)
-        assertTrue(x + center <= barW - right - 4f)
-        // 前の上部バー（HDG・WP・⇄ REPLAY・FILE・表示モード・⚙）より、文字の幅が短い
-        val before = listOf("HDG COMPASS", "WP", "⇄ REPLAY", "FILE", MainLayout.LONGEST_DISPLAY, "⚙")
-        assertTrue(labels.sumOf { it.length } - MainLayout.NO_FIX_LABEL.length < before.sumOf { it.length })
+        assertTrue(x >= left + 4f - 0.01f)
+        assertTrue(x + center <= barW - right - 4f + 0.01f)
     }
 
     @Test
