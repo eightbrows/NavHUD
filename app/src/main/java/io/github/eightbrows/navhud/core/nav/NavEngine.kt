@@ -34,6 +34,9 @@ class NavEngine(
     /** 位置から求める向き（TRK。20261121-D01。方位の出し方が「GPS ＋ 位置」のときだけ使う） */
     private val trackHeading = TrackHeading()
 
+    /** 平均した方位（20261122-D03。線を描くだけに使う） */
+    private val avgHeading = AvgHeading()
+
     /** 画面の GS の平均に使う、直前の Fix（20261121-D01。GS の平均の選べる値のいちばん長い秒数まで持つ） */
     private val gsHistory = ArrayDeque<Fix>()
     private val rangeSelector = RangeSelector(
@@ -83,6 +86,9 @@ class NavEngine(
     /** LIVE の軌跡と、REPLAY のトラック全体（軌跡の表示） */
     private val liveTrail = LiveTrail()
     private var replayTrack: List<TrackPoint> = emptyList()
+
+    /** 間引く前の REPLAY のトラック（20261122-D03） */
+    private var replayRaw: List<TrackPoint> = emptyList()
     /** PAN の表示（null なら通常の表示） */
     private var pan: PanView? = null
 
@@ -144,6 +150,8 @@ class NavEngine(
         lastFix = fix
         headingSelector.update(fix)
         trackHeading.update(fix, settings.maxGpsAccM, settings.noFixTimeoutSec * 1000L, settings.trackDistanceM.toDouble())
+        // 平均した方位: この Fix のときの HDG（select は状態を変えない）を、動いた距離の重みで平均する
+        avgHeading.update(fix, headingSelector.select(settings.headingMethod, false, trackHeading.deg).deg, settings.avgHeadingSec, settings.noFixTimeoutSec * 1000L)
         addGroundSpeed(fix)
         rateTracker.add(fix)
         addVerticalSpeed(fix)
@@ -189,12 +197,16 @@ class NavEngine(
         if (s.displayMode != settings.displayMode) pan = null
         // 標高オフセットが変わると高さが跳ぶ（楕円体高 − オフセットのとき）ので、V/S は測り直す（20261108-D01）
         if (s.altOffsetM != settings.altOffsetM) vsTracker.clear()
+        // 軌跡の点の間隔（プリセットの値）が変わったら、読み込んだ軌跡を間引き直す（LIVE の軌跡は、これから足す点から）
+        val restep = s.trackStepM != settings.trackStepM
         settings = s
         applySettings(s)
+        if (restep) replayTrack = Trail.thin(replayRaw, s.trackStepM.toDouble())
         return recompute()
     }
 
     private fun applySettings(s: NavSettings) {
+        liveTrail.minStepM = Trail.liveStepM(s.trackStepM)
         headingSelector.holdEnterSpeedMps = s.holdEnterSpeedMps
         headingSelector.holdExitSpeedMps = s.holdExitSpeedMps
         headingSelector.maxAccM = s.maxGpsAccM
@@ -412,9 +424,13 @@ class NavEngine(
         return recompute()
     }
 
-    /** REPLAY のトラック全体（間引いたもの）。軌跡の表示に使う。 */
+    /**
+     * REPLAY のトラック全体。軌跡の表示に使う。軌跡の点の間隔（プリセットの値）に間引いて持つ（20261122-D03。
+     * 間隔を変えたら間引き直すので、間引く前の点も持つ）
+     */
     fun setReplayTrack(points: List<TrackPoint>): NavState {
-        replayTrack = points
+        replayRaw = points
+        replayTrack = Trail.thin(points, settings.trackStepM.toDouble())
         return recompute()
     }
 
@@ -426,6 +442,7 @@ class NavEngine(
      */
     fun clearReplayTrack(): NavState {
         replayTrack = emptyList()
+        replayRaw = emptyList()
         if (sourceKind == SourceKind.REPLAY) {
             clearHistory()
             nowMs = null
@@ -564,6 +581,7 @@ class NavEngine(
         vsTracker.clear()
         headingSelector.reset()
         trackHeading.reset()
+        avgHeading.reset()
         gsHistory.clear()
         passDetector.reset()
         sidePassDetector.reset()
@@ -613,6 +631,8 @@ class NavEngine(
             fix = fix,
             noFix = noFix,
             heading = heading,
+            // NO FIX 中は平均した方位も出さない（線を描かない）
+            avgHeadingDeg = if (noFix) null else avgHeading.deg,
             groundSpeedMps = groundSpeed(fix),
             altM = fix?.let(::seaLevelM),
             aglM = if (noFix || fix == null) null else aboveGroundM(fix),

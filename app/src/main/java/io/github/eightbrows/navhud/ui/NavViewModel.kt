@@ -710,8 +710,8 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
             engine.setSource(SourceKind.REPLAY, playing = false)
             publish(engine.onTick(clock.nowMs()))
         }
-        // 軌跡の表示に使うトラック全体（10m 間隔に間引く）。倍速は読み直したら ×1
-        publish(engine.setReplayTrack(Trail.decimate(fixes)))
+        // 軌跡の表示に使うトラック全体（エンジンが、軌跡の点の間隔（プリセットの値。自動車 10 m・歩行 3 m）に間引く）。倍速は読み直したら ×1
+        publish(engine.setReplayTrack(Trail.decimate(fixes, 0.0)))
         clock.setSpeed(1)
         // ひとこと（20261103-D01）: 「軌跡 11,172 点・7:52〜11:01（track.csv）」（zip はファイル名 / セッションの名前）
         LoadSummary.track(fixes, zone)?.let { t ->

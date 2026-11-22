@@ -11,17 +11,26 @@ data class TrackPoint(val lat: Double, val lon: Double, val timeMs: Long)
 object Trail {
 
     /** REPLAY のトラック全体: 前の点から minM 未満の点を間引く（最初と最後の点は残す）。 */
-    fun decimate(fixes: List<Fix>, minM: Double = Tuning.TRACK_DECIMATE_M): List<TrackPoint> {
-        if (fixes.isEmpty()) return emptyList()
-        val out = mutableListOf(fixes.first().toPoint())
-        for (f in fixes.subList(1, fixes.size)) {
+    fun decimate(fixes: List<Fix>, minM: Double = Tuning.TRACK_DECIMATE_M): List<TrackPoint> = thin(fixes.map { it.toPoint() }, minM)
+
+    /**
+     * 軌跡の点を、前に残した点から minM 未満の点を間引く（最初と最後の点は残す。20261122-D03 で TrackPoint にも使えるようにした）。
+     * 間引いた結果をもう一度同じ minM で間引いても変わらない
+     */
+    fun thin(points: List<TrackPoint>, minM: Double): List<TrackPoint> {
+        if (points.isEmpty()) return emptyList()
+        val out = mutableListOf(points.first())
+        for (p in points.subList(1, points.size)) {
             val last = out.last()
-            if (Geo.distanceM(last.lat, last.lon, f.lat, f.lon) >= minM) out += f.toPoint()
+            if (Geo.distanceM(last.lat, last.lon, p.lat, p.lon) >= minM) out += p
         }
-        val end = fixes.last().toPoint()
+        val end = points.last()
         if (out.last() != end) out += end
         return out
     }
+
+    /** LIVE の軌跡の点の間隔 [m]: 軌跡の点の間隔（プリセットの値）の半分（自動車 10 m → 5 m、歩行 3 m → 1.5 m） */
+    fun liveStepM(trackStepM: Int): Double = trackStepM / 2.0
 
     /** トラックのうち時刻 untilMs までの点の数（再生済みの部分。点は時刻順）。 */
     fun playedCount(points: List<TrackPoint>, untilMs: Long?): Int {
@@ -43,7 +52,8 @@ object Trail {
  * maxPoints を超えたら古い方から捨てる。
  */
 class LiveTrail(
-    private val minStepM: Double = Tuning.LIVE_TRAIL_MIN_STEP_M,
+    /** 前の点からこれ以上動いたら足す [m]（20261122-D03 から移動のプリセットの値で変わる。足してある点はそのまま） */
+    var minStepM: Double = Tuning.LIVE_TRAIL_MIN_STEP_M,
     private val maxPoints: Int = Tuning.LIVE_TRAIL_MAX_POINTS,
 ) {
 

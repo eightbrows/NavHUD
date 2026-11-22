@@ -270,8 +270,29 @@ object Tuning {
 
     // ---- 軌跡（§6.7・§6.8） ----
 
-    /** REPLAY のトラック全体: この間隔未満の点を間引く [m] */
+    /**
+     * REPLAY のトラック全体: この間隔未満の点を間引く [m]。20261122-D03 から移動のプリセットの値（軌跡の点の間隔）で、
+     * これは自動車の初期値。LIVE の軌跡はその半分（自動車 5 m = LIVE_TRAIL_MIN_STEP_M）
+     */
     const val TRACK_DECIMATE_M = 10.0
+
+    /** 歩行の軌跡の点の間隔 [m]（20261122-D03。角や細い道の形が見える細かさ。LIVE の軌跡はその半分の 1.5 m） */
+    const val WALK_TRACK_STEP_M = 3
+
+    /** 平均した方位線（20261122-D03）: 平均する秒数の範囲と初期値 [秒] */
+    const val AVG_HEADING_MIN_SEC = 3
+    const val AVG_HEADING_MAX_SEC = 10
+    const val AVG_HEADING_DEFAULT_SEC = 5
+
+    /** 平均した方位線: 窓の中で動いた距離の合計がこれ未満なら、前の向きのまま [m]（止まっている間） */
+    const val AVG_HEADING_MIN_DIST_M = 2.0
+
+    /** 平均した方位線: 足したベクトルの長さが、動いた距離の合計のこの割合未満なら（行ったり来たり）、前の向きのまま */
+    const val AVG_HEADING_MIN_RESULTANT = 0.3
+
+    /** 平均した方位線: 今の方位線（ラバーライン）の長さに対する割合と、線の太さ [dp] */
+    const val AVG_HEADING_LINE_RATIO = 0.5f
+    const val AVG_HEADING_LINE_DP = 3f
 
     /** LIVE の軌跡: 前の点からこれ以上動いたら点を足す [m] */
     const val LIVE_TRAIL_MIN_STEP_M = 5.0

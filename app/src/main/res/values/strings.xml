@@ -185,6 +185,11 @@
     <string name="box_gps">GPS direction</string>
     <string name="box_trk">Direction from positions</string>
     <string name="box_not_used">Not used</string>
+    <string name="avg_heading_line">Average heading line</string>
+    <string name="avg_heading_line_note">Draws the recent average direction as a short cyan line (a guide for walking straight; the map and HDG still use the current heading)</string>
+    <string name="avg_heading_sec">Seconds to average</string>
+    <string name="track_step">Track point spacing</string>
+    <string name="track_step_note">Thins the loaded track to this spacing (your own trail uses half). Smaller keeps corners sharper</string>
     <string name="track_distance">Distance for the direction</string>
     <string name="track_distance_note">Direction from the point walked this far back to the current position</string>
     <string name="range_steps_all">All</string>

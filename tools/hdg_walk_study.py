@@ -261,6 +261,28 @@ def scenes(P):
     return C
 
 
+POOR_H = 8.0      # 精度が悪いとみなす水平精度 [m]
+POOR_MIN_S = 3    # これ以上続いたら「精度が悪い所」 [秒]（記録の始めは 1 点でも）
+SETTLE_WIN_S = 60  # 落ち着くのを待つ上限 [秒]
+
+
+def poor_events(P):
+    """精度が悪い所（水平精度 POOR_H を超える点が続く所）。記録の始めは長さを問わない。(始めの番号, 終わりの番号) の一覧"""
+    ev = []
+    i = 0
+    while i < len(P):
+        if P[i]['h'] is not None and P[i]['h'] > POOR_H:
+            j = i
+            while j + 1 < len(P) and P[j + 1]['h'] is not None and P[j + 1]['h'] > POOR_H and P[j + 1]['t'] - P[j]['t'] <= 10:
+                j += 1
+            if i == 0 or P[j]['t'] - P[i]['t'] + 1 >= POOR_MIN_S:
+                ev.append((i, j))
+            i = j + 1
+        else:
+            i += 1
+    return ev
+
+
 def setup(path):
     P = load_track(path)
     enu(P)
@@ -269,6 +291,7 @@ def setup(path):
     prep(P)
     add_line_truth(P)
     C = scenes(P)
+    C['poor'] = poor_events(P)
     return dict(P=P, C=C, name=os.path.basename(os.path.dirname(path) if path.endswith('.csv') else path.rstrip('/\\')))
 
 
@@ -299,16 +322,19 @@ class Selector:
             s.stable = p['brg']
 
 
-def track_series(P, D=8.0, kacc=None, gate_kmh=1.0, max_acc=15.0, gap_s=10.0, age_s=90.0, minr=0.6):
+def track_series(P, D=8.0, kacc=None, gate_kmh=1.0, max_acc=15.0, gap_s=10.0, age_s=90.0, minr=0.6, good_run=None):
     """
     位置から求める向き（TrackHeading）。点ごとの向き（まだなければ None）。
     kacc = (k, lo, hi) なら、その点の距離 D = 水平精度 × k を lo〜hi に収めたもの（調べの案）
+    good_run = (hmax, N) なら（20261122-D03 の調べの案）、水平精度 hmax 以内の点が N 点続いてから点を使う。
+    hmax を超える点が来たら、それまでの点を捨てる（向きはそのまま保つ）
     """
     out = []
     hist = []
     S = 0.0
     deg = None
     prev = None
+    run = 0
     for p in P:
         if prev is not None:
             dt = p['t'] - prev['t']
@@ -322,6 +348,14 @@ def track_series(P, D=8.0, kacc=None, gate_kmh=1.0, max_acc=15.0, gap_s=10.0, ag
                 S += math.hypot(p['e'] - prev['e'], p['n'] - prev['n'])
         prev = p
         good = p['h'] is None or p['h'] <= max_acc
+        if good_run is not None:
+            hmax, n_run = good_run
+            if p['h'] is not None and p['h'] > hmax:
+                run = 0
+                hist = []
+            else:
+                run += 1
+            good = good and run >= n_run
         Dp = D
         if kacc is not None:
             k, lo, hi = kacc
@@ -518,10 +552,49 @@ def switches(recs, H):
     return n / max(1e-9, walk / 60), trk / max(1, walk)
 
 
+def settle_after_poor(recs, H):
+    """
+    精度が悪い所のあと（20261122-D03）: 悪い所の終わりから、HDG が答え 1（ref10）の 10° 以内に入り、そのあと 3 秒 15° 以内にとどまるまでの
+    時間（曲がり角の遅れと同じ考え）。SETTLE_WIN_S のうちに落ち着かなければ None。悪い所の始めから終わりの 30 秒後までの、
+    1 秒ごとの HDG の変わり方（揺れ）の 95% と、終わりから 30 秒の誤差（答え 1）の 95% も
+    """
+    per = []
+    dh = []
+    err = []
+    for r, h in zip(recs, H):
+        P = r['P']
+        for (i, j) in r['C']['poor']:
+            t_end = P[j]['t']
+            settle = None
+            k = j + 1
+            while k < len(P) and P[k]['t'] - t_end <= SETTLE_WIN_S:
+                ok = lambda q, lim: h[q][0] is not None and P[q]['ref10'] is not None and abs(ang(h[q][0], P[q]['ref10'])) <= lim
+                if ok(k, 10):
+                    tail = [q for q in range(k, len(P)) if P[q]['t'] - P[k]['t'] <= 3]
+                    if all(P[q]['ref10'] is None or (h[q][0] is not None and abs(ang(h[q][0], P[q]['ref10'])) <= 15) for q in tail):
+                        settle = P[k]['t'] - t_end
+                        break
+                k += 1
+            ev_dh = []
+            for q in range(max(1, i), len(P)):
+                if P[q]['t'] - t_end > 30:
+                    break
+                if h[q][0] is not None and h[q - 1][0] is not None and P[q]['t'] - P[q - 1]['t'] <= 1.01:
+                    ev_dh.append(abs(ang(h[q][0], h[q - 1][0])))
+                if P[q]['t'] > t_end and P[q]['kmh'] >= 2 and P[q]['ref10'] is not None and h[q][0] is not None:
+                    err.append(abs(ang(h[q][0], P[q]['ref10'])))
+            dh += ev_dh
+            per.append(dict(t=P[i]['t'] - P[0]['t'], len=P[j]['t'] - P[i]['t'] + 1, hmax=max(p['h'] for p in P[i:j + 1]), settle=settle, dh95=pct(ev_dh, 95)))
+    s_ok = [p['settle'] for p in per if p['settle'] is not None]
+    return dict(events=per, settle50=pct(s_ok, 50), settle_max=max(s_ok) if s_ok else None, unsettled=sum(p['settle'] is None for p in per),
+                dh95=pct(dh, 95), err95=pct(err, 95))
+
+
 def metrics(recs, H):
     sw, trk = switches(recs, H)
     m = dict(a1=err_block(recs, H, 'ref10'), a2=err_block(recs, H, 'line'), dh95=jitter(recs, H), sw=sw, trk=trk)
     m.update(stops_turns(recs, H))
+    m['poor'] = settle_after_poor(recs, H)
     # 前半・後半（記録ごとに時刻のまん中で分ける）
     for half in (0, 1):
         sel_recs = []
@@ -597,13 +670,18 @@ def search(recs, quick=False):
     # GPS だけ（自動車の初期値 4 / 6・20° と、歩き向け 1 / 3・30°）
     for en, ex, mb in ((4, 6, 20.0), (1, 3, 30.0)):
         add('GPS', dict(en=en, ex=ex, mb=mb), [gps_only(r['P'], en, ex, mb) for r in recs])
+    # 位置だけ: 精度の良い点（水平精度 8 m 以内）が N 点続いてから使う（20261122-D03）。D 3・4 m
+    for D in (3, 4):
+        for N in range(1, 6):
+            T = [track_series(r['P'], D=D, good_run=(POOR_H, N)) for r in recs]
+            add('TRACK_ONLY_GOOD', dict(D=D, H=POOR_H, N=N), [track_only(r['P'], t) for r, t in zip(recs, T)])
     # 位置だけ: D = 3〜20 m
     for D in range(3, 21):
         T = T_of(D)
         add('TRACK_ONLY', dict(D=D), [track_only(r['P'], t) for r, t in zip(recs, T)])
     # 位置だけ: D = 水平精度 × k（lo〜hi）
     for k in (0.5, 1.0, 1.5, 2.0):
-        for lo in (3, 5, 8):
+        for lo in (3, 4, 5, 8):
             for hi in (10, 15, 20):
                 if hi <= lo:
                     continue

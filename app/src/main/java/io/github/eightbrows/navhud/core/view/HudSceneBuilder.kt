@@ -117,8 +117,23 @@ object HudSceneBuilder {
             baseMapLabels = map?.labels.orEmpty(),
             // PAN のときだけ、地図の中心（PAN の中心 = 投影の原点）に十字（20261023-D01）
             crosshair = if (pan != null) proj.origin else null,
+            avgLine = avgHeadingLine(state, proj, rect, headingDeg),
         )
         return if (noFix) scene.stale() else scene
+    }
+
+    /**
+     * 平均した方位線（20261122-D03）: 今の方位線（ラバーライン。ARC は描画の枠の上端まで、North Up は描画の枠の端まで）の
+     * Tuning.AVG_HEADING_LINE_RATIO の長さで、平均した方位へ。地図の向き（ARC の上）は今の HDG のまま（線を描くだけ）。
+     * 設定がオフ・平均した方位や今の方位がない・PAN 中・NO FIX（avgHeadingDeg が null）なら描かない
+     */
+    private fun avgHeadingLine(state: NavState, proj: HudProjection, rect: HudRect, headingDeg: Double?): Segment? {
+        val avg = state.avgHeadingDeg ?: return null
+        if (!state.settings.avgHeadingLine || headingDeg == null || state.pan != null || state.fix == null) return null
+        val o = proj.origin
+        val rubberPx = if (state.settings.displayMode == DisplayMode.ARC) o.y - rect.top else HudGeometry.dist(o, HudGeometry.rayToRect(o, headingDeg, rect))
+        if (rubberPx <= 0f) return null
+        return Segment(o, HudGeometry.pointAt(o, proj.screenAngle(avg.toDouble()), rubberPx * Tuning.AVG_HEADING_LINE_RATIO), Ink.OWNSHIP, bold = true)
     }
 
     /**

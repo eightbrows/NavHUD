@@ -212,6 +212,24 @@ fun SettingsScreen(
                 defaultText = "${def.trackDistanceM} m", changed = s.trackDistanceM != def.trackDistanceM,
             ) { d -> judge { it.copy(trackDistanceM = (it.trackDistanceM + d).coerceIn(NavSettings.TRACK_DISTANCE_M_RANGE)) } }
             SettingKey.GPS_BOX, SettingKey.TRK_BOX -> Unit // 囲みはセクションの描き方で（renderKey）
+            // 平均した方位線（20261122-D03）: オン / オフと、平均する秒数（3〜10 秒）
+            SettingKey.AVG_LINE -> Toggle(
+                stringResource(R.string.avg_heading_line), s.avgHeadingLine, note = stringResource(R.string.avg_heading_line_note),
+                default = def.avgHeadingLine, changed = s.avgHeadingLine != def.avgHeadingLine,
+            ) { v -> judge { it.copy(avgHeadingLine = v) } }
+            SettingKey.AVG_SEC -> Stepper(
+                stringResource(R.string.avg_heading_sec), seconds(s.avgHeadingSec),
+                defaultText = seconds(def.avgHeadingSec), changed = s.avgHeadingSec != def.avgHeadingSec, enabled = s.avgHeadingLine,
+            ) { d -> judge { it.copy(avgHeadingSec = (it.avgHeadingSec + d).coerceIn(NavSettings.AVG_HEADING_SEC_RANGE)) } }
+            // 軌跡の点の間隔（20261122-D03）: 2 / 3 / 5 / 10 / 20 m
+            SettingKey.TRACK_STEP -> Choice(
+                stringResource(R.string.track_step),
+                NavSettings.TRACK_STEP_CHOICES_M.map { "$it m" to it },
+                s.trackStepM,
+                note = stringResource(R.string.track_step_note),
+                default = def.trackStepM,
+                changed = s.trackStepM != def.trackStepM,
+            ) { v -> judge { it.copy(trackStepM = v) } }
 
             // ---- 測位と方位（共通の値）----
             // 決まった値から選ぶ（＋ / − で次の値へ）: 3 / 5 / 10 / 15 / 20 / 30 / 50 / 100 m

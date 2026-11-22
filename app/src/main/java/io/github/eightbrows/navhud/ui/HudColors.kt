@@ -188,6 +188,9 @@ object HudColors {
      * 設定画面の「GPS の向き」「位置から求める向き」の囲みの札と同じ色
      */
     val HeadingGps = Color(0xFF4FC3F7)
+    /** 平均した方位線（20261122-D03）: 水色がかったシアン。今の方位線（地図の色の細い実線）・次の WP（マゼンタ）・読み込んだ軌跡（黄）と見分ける */
+    val AvgHeading = Color(0xFF00E5FF)
+
     val HeadingTrack = Color(0xFFFFA726)
     val Warning = Color(0xFFFF5252)
 

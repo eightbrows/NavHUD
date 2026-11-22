@@ -29,6 +29,8 @@ enum class SettingKey {
     // 測位と方位: プリセットの値（方位の出し方と、GPS の向き・位置から求める向きの 2 つの囲み。20261121-D03）
     HEADING_METHOD, GPS_BOX, TRK_BOX,
     HOLD_ENTER, HOLD_EXIT, MAX_GPS_BEARING_ACC, TRACK_DISTANCE,
+    // 平均した方位線（20261122-D03。プリセットの値。方位の囲みのあと）
+    AVG_LINE, AVG_SEC,
     // 測位と方位: 共通の値
     AGL_NEGATIVE, MAX_GPS_ACC, NO_FIX_TIMEOUT, ALT_OFFSET,
 
@@ -54,6 +56,8 @@ enum class SettingKey {
 
     // 距離環と軌跡
     RING_BRIGHTNESS, RING_LABEL_SIZE, TRACK_COLOR, TRACK_BRIGHTNESS,
+    // 軌跡の点の間隔（20261122-D03。プリセットの値）
+    TRACK_STEP,
 
     // その他
     KEEP_SCREEN_ON, APP_LANGUAGE,
@@ -100,7 +104,7 @@ object SettingsOutline {
     val SECTIONS: List<SettingsSectionDef> = listOf(
         SettingsSectionDef(
             SettingsSectionId.POSITION_HEADING,
-            preset = listOf(SettingKey.HEADING_METHOD, SettingKey.GPS_BOX, SettingKey.TRK_BOX),
+            preset = listOf(SettingKey.HEADING_METHOD, SettingKey.GPS_BOX, SettingKey.TRK_BOX, SettingKey.AVG_LINE, SettingKey.AVG_SEC),
             common = listOf(SettingKey.AGL_NEGATIVE),
             commonFine = listOf(SettingKey.MAX_GPS_ACC, SettingKey.NO_FIX_TIMEOUT, SettingKey.ALT_OFFSET),
         ),
@@ -132,6 +136,8 @@ object SettingsOutline {
         SettingsSectionDef(SettingsSectionId.WP, common = listOf(SettingKey.AUTO_OPEN_LAST, SettingKey.WP_BUTTONS, SettingKey.HUD_WP_COUNT)),
         SettingsSectionDef(
             SettingsSectionId.RINGS_TRACK,
+            // 軌跡の点の間隔はプリセットの値（20261122-D03）
+            preset = listOf(SettingKey.TRACK_STEP),
             common = listOf(SettingKey.RING_BRIGHTNESS, SettingKey.RING_LABEL_SIZE, SettingKey.TRACK_COLOR, SettingKey.TRACK_BRIGHTNESS),
         ),
         SettingsSectionDef(SettingsSectionId.OTHER, common = listOf(SettingKey.KEEP_SCREEN_ON, SettingKey.APP_LANGUAGE)),

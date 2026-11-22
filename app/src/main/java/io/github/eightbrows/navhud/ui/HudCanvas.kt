@@ -467,6 +467,10 @@ private fun DrawScope.drawScene(scene: HudScene, tm: TextMeasurer, density: Floa
 
     // 線: 方位目盛り・方位線・ラバーライン・WP を結ぶ線（次の WP への線は、あとで上に描く）
     for (s in scene.baseSegments) segment(s)
+    // 平均した方位線（20261122-D03）: ラバーラインの上に、太い（3dp）シアンの実線・丸い端
+    scene.avgLine?.let { s ->
+        drawLine(HudColors.AvgHeading, s.a.o(), s.b.o(), strokeWidth = Tuning.AVG_HEADING_LINE_DP * density, cap = StrokeCap.Round)
+    }
     for (l in scene.labels) {
         // 距離環の数字は UI の色で、不透明度はボタンと同じ
         val c = HudColors.ofMap(l.ink).let { if (l.ink == Ink.RING_LABEL) it.copy(alpha = it.alpha * buttonAlpha) else it }

@@ -82,6 +82,11 @@ data class ReachProfile(
     val etaAverageSec: Int = Tuning.CAR_ETA_AVERAGE_SEC,
     /** 位置から求める向きの距離 [m]（20261121-D03。3〜20 m） */
     val trackDistanceM: Int = Tuning.TRACK_HEADING_DISTANCE_M.toInt(),
+    /** 平均した方位線のオン / オフと、平均する秒数（20261122-D03。3〜10 秒） */
+    val avgHeadingLine: Boolean = false,
+    val avgHeadingSec: Int = Tuning.AVG_HEADING_DEFAULT_SEC,
+    /** 軌跡の点の間隔 [m]（20261122-D03。読み込んだ軌跡はこの間隔に間引き、LIVE の軌跡はその半分ずつ足す） */
+    val trackStepM: Int = Tuning.TRACK_DECIMATE_M.toInt(),
     /** 縮尺（20261121-D03 からプリセットの値。意味は NavSettings の同じ名前の値） */
     val rangeStepsKm: List<Double> = Tuning.RANGE_DEFAULT_STEPS_KM,
     val initialRangeKm: Double = Tuning.INITIAL_RANGE_KM,
@@ -133,6 +138,9 @@ data class ReachProfile(
             headingMethod = HeadingMethod.TRACK_ONLY,
             // 20261122-D01 から 4 m（調べ 20261122-HDGCORNER。前は 8 m）
             trackDistanceM = Tuning.WALK_TRACK_DISTANCE_M,
+            // 20261122-D03: 平均した方位線はオン（5 秒）、軌跡は 3 m 間隔
+            avgHeadingLine = true,
+            trackStepM = Tuning.WALK_TRACK_STEP_M,
             maxBearingAccDeg = Tuning.WALK_MAX_BEARING_ACC_DEG,
             gsAverageSec = Tuning.WALK_GS_AVERAGE_SEC,
             etaAverageSec = Tuning.WALK_ETA_AVERAGE_SEC,
@@ -169,6 +177,10 @@ data class NavSettings(
     val etaAverageSec: Int = Tuning.CAR_ETA_AVERAGE_SEC,
     /** 位置から求める向きの距離 [m]（20261121-D03。移動のプリセットの値） */
     val trackDistanceM: Int = Tuning.TRACK_HEADING_DISTANCE_M.toInt(),
+    /** 平均した方位線・平均する秒数・軌跡の点の間隔（20261122-D03。移動のプリセットの値） */
+    val avgHeadingLine: Boolean = false,
+    val avgHeadingSec: Int = Tuning.AVG_HEADING_DEFAULT_SEC,
+    val trackStepM: Int = Tuning.TRACK_DECIMATE_M.toInt(),
     /**
      * 移動手段（§5.4・§6.9）。下の到達判定の値（reachRadiusM〜passHoldSec）は、選んでいる移動手段の値
      * （自動車なら推奨値、カスタムならその枠の値）。切り替え・編集は selectTravelMode / editReach で行う
@@ -340,6 +352,12 @@ data class NavSettings(
         /** 位置から求める向きの距離 [m] の範囲（20261121-D03。1 m 刻み） */
         val TRACK_DISTANCE_M_RANGE = Tuning.TRACK_HEADING_DISTANCE_MIN_M..Tuning.TRACK_HEADING_DISTANCE_MAX_M
 
+        /** 平均した方位線の秒数（20261122-D03） */
+        val AVG_HEADING_SEC_RANGE = Tuning.AVG_HEADING_MIN_SEC..Tuning.AVG_HEADING_MAX_SEC
+
+        /** 軌跡の点の間隔 [m]（20261122-D03。自動車 10 m・歩行 3 m） */
+        val TRACK_STEP_CHOICES_M = listOf(2, 3, 5, 10, 20)
+
         /** GS の平均 [秒] の選べる値（20261121-D01。1 = 今の点の速さ） */
         val GS_AVERAGE_CHOICES_SEC = listOf(1, 3, 5, 10)
 
@@ -442,6 +460,7 @@ val NavSettings.reachProfile: ReachProfile
         holdEnterKmh = NavSettings.holdSpeedKmh(holdEnterSpeedMps), holdExitKmh = NavSettings.holdSpeedKmh(holdExitSpeedMps),
         headingMethod = headingMethod, maxBearingAccDeg = maxGpsBearingAccDeg, gsAverageSec = gsAverageSec, etaAverageSec = etaAverageSec,
         trackDistanceM = trackDistanceM,
+        avgHeadingLine = avgHeadingLine, avgHeadingSec = avgHeadingSec, trackStepM = trackStepM,
         rangeStepsKm = rangeStepsKm, initialRangeKm = initialRangeKm, autoRange = autoRange, autoMinRangeKm = autoMinRangeKm, autoMaxRangeKm = autoMaxRangeKm,
         autoRangeZoomInDelaySec = autoRangeZoomInDelaySec, autoHoldAfterWpSec = autoHoldAfterWpSec, autoZoomInDistRatio = autoZoomInDistRatio,
         mapItems = mapItems, landmarks = landmarks, profileSize = profileSize,
@@ -465,6 +484,9 @@ fun NavSettings.withReachValues(p: ReachProfile): NavSettings = copy(
     gsAverageSec = p.gsAverageSec,
     etaAverageSec = p.etaAverageSec,
     trackDistanceM = p.trackDistanceM,
+    avgHeadingLine = p.avgHeadingLine,
+    avgHeadingSec = p.avgHeadingSec,
+    trackStepM = p.trackStepM,
     rangeStepsKm = p.rangeStepsKm,
     initialRangeKm = p.initialRangeKm,
     autoRange = p.autoRange,

@@ -14,6 +14,11 @@ data class NavState(
     val fix: Fix? = null,
     val noFix: Boolean = true,
     val heading: Heading = Heading.NONE,
+    /**
+     * 平均した方位 [°]（20261122-D03。直近 settings.avgHeadingSec 秒の HDG を、動いた距離で重みを付けてベクトルで平均）。
+     * 画面の「平均した方位線」を描くだけに使う（地図の向き・HDG の数値・到達の判定は heading）。まだなければ null
+     */
+    val avgHeadingDeg: Float? = null,
     /** 画面の対地速度 GS [m/s]（20261121-D01 から、直前の移動のプリセットの「GS の平均」秒の平均。1 秒なら今の点の速さ） */
     val groundSpeedMps: Float? = null,
     /** 標高（海抜高度）[m]: AltitudeConverter で求めた海抜高度（Fix.mslAltM）、なければ 楕円体高 − 標高オフセット（20261025-D08） */

@@ -183,6 +183,11 @@
     <string name="box_gps">GPS の向き</string>
     <string name="box_trk">位置から求める向き</string>
     <string name="box_not_used">使わない</string>
+    <string name="avg_heading_line">平均した方位線</string>
+    <string name="avg_heading_line_note">直近の向きの平均を、短い水色の線で描く（まっすぐ歩くときの目安。地図の向き・HDG は今の向きのまま）</string>
+    <string name="avg_heading_sec">平均する秒数</string>
+    <string name="track_step">軌跡の点の間隔</string>
+    <string name="track_step_note">読み込んだ軌跡をこの間隔に間引いて描く（走った跡はその半分）。小さいほど角の形が出る</string>
     <string name="track_distance">向きを求める距離</string>
     <string name="track_distance_note">直前にこの距離を歩いた所と、今の位置を結ぶ向き</string>
     <string name="range_steps_all">全部</string>

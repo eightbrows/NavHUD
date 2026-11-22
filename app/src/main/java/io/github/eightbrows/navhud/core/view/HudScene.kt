@@ -183,6 +183,11 @@ data class HudScene(
     val baseMapLabels: List<MapLabel> = emptyList(),
     /** PAN のときだけ、地図の中心（PAN の中心を描く点）に出す細い十字。PAN でなければ null（20261023-D01） */
     val crosshair: P? = null,
+    /**
+     * 平均した方位線（20261122-D03）: 自機から、平均した方位へ、今の方位線（ラバーライン）の半分の長さの線。
+     * 設定がオフ・平均した方位がない・PAN 中・NO FIX は null。ラバーラインの上に描く
+     */
+    val avgLine: Segment? = null,
 ) {
     // 描く順番（§6.1。下から）: 背景地図（線 → 点）→ 距離環 → 軌跡 → baseSegments → labels（方位目盛りの文字・距離環の数字）→ otherWpMarks
     // → pointers（方位の三角）→ nextWpSegments → nextWpMarks → arrows（画面外の次の WP の文字）→ 自機。

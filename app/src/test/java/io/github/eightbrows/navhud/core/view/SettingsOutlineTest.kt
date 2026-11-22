@@ -41,7 +41,8 @@ class SettingsOutlineTest {
         fun sec(id: SettingsSectionId) = sections.single { it.id == id }
         with(sec(SettingsSectionId.POSITION_HEADING)) {
             // 方位の出し方の下に、GPS の向き・位置から求める向きの 2 つの囲み
-            assertEquals(listOf(SettingKey.HEADING_METHOD, SettingKey.GPS_BOX, SettingKey.TRK_BOX), preset)
+            // 20261122-D03: 方位の囲みのあとに平均した方位線・平均する秒数
+            assertEquals(listOf(SettingKey.HEADING_METHOD, SettingKey.GPS_BOX, SettingKey.TRK_BOX, SettingKey.AVG_LINE, SettingKey.AVG_SEC), preset)
             assertEquals(listOf(SettingKey.HOLD_ENTER, SettingKey.HOLD_EXIT, SettingKey.MAX_GPS_BEARING_ACC), SettingsOutline.boxItems(SettingKey.GPS_BOX))
             assertEquals(listOf(SettingKey.TRACK_DISTANCE), SettingsOutline.boxItems(SettingKey.TRK_BOX))
             assertEquals(listOf(SettingKey.AGL_NEGATIVE), common)
@@ -86,11 +87,16 @@ class SettingsOutlineTest {
             listOf(SettingKey.RING_BRIGHTNESS, SettingKey.RING_LABEL_SIZE, SettingKey.TRACK_COLOR, SettingKey.TRACK_BRIGHTNESS),
             sec(SettingsSectionId.RINGS_TRACK).common,
         )
+        // 20261122-D03: 軌跡の点の間隔はプリセットの値
+        assertEquals(listOf(SettingKey.TRACK_STEP), sec(SettingsSectionId.RINGS_TRACK).preset)
         assertEquals(listOf(SettingKey.KEEP_SCREEN_ON, SettingKey.APP_LANGUAGE), sec(SettingsSectionId.OTHER).common)
         assertEquals(listOf(SettingKey.PERMISSIONS, SettingKey.ABOUT, SettingKey.SOURCES), sec(SettingsSectionId.INFO).plain)
         // プリセットの値がある欄・共通の値がある欄
         assertEquals(
-            listOf(SettingsSectionId.POSITION_HEADING, SettingsSectionId.REACH, SettingsSectionId.RANGE, SettingsSectionId.MAP, SettingsSectionId.LANDMARKS, SettingsSectionId.DISPLAY),
+            listOf(
+                SettingsSectionId.POSITION_HEADING, SettingsSectionId.REACH, SettingsSectionId.RANGE, SettingsSectionId.MAP, SettingsSectionId.LANDMARKS, SettingsSectionId.DISPLAY,
+                SettingsSectionId.RINGS_TRACK,
+            ),
             sections.filter { it.preset.isNotEmpty() }.map { it.id },
         )
         assertEquals(
@@ -114,6 +120,7 @@ class SettingsOutlineTest {
                 SettingKey.RANGE_STEPS, SettingKey.INITIAL_RANGE, SettingKey.AUTO_ON_START, SettingKey.AUTO_MIN, SettingKey.AUTO_MAX,
                 SettingKey.ZOOM_IN_DELAY, SettingKey.HOLD_AFTER_WP, SettingKey.ZOOM_IN_RATIO,
                 SettingKey.MAP_TABLE, SettingKey.LANDMARK_TABLE, SettingKey.PROFILE, SettingKey.GS_AVERAGE, SettingKey.ETA_AVERAGE,
+                SettingKey.AVG_LINE, SettingKey.AVG_SEC, SettingKey.TRACK_STEP,
             ),
             items,
         )
