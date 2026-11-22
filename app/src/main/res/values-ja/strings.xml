@@ -188,8 +188,11 @@
     <string name="avg_heading_sec">平均する秒数</string>
     <string name="track_step">軌跡の点の間隔</string>
     <string name="track_step_note">読み込んだ軌跡をこの間隔に間引いて描く（走った跡はその半分）。小さいほど角の形が出る</string>
+    <string name="track_smooth">軌跡のなめらかさ</string>
+    <string name="track_smooth_note">描く線だけ、前後の点の位置を平均して GPS のジグザグを減らす。大きいほどなめらか（角は少し丸くなる）。走った跡は、その 3 倍の距離だけ後ろから決まる。記録と計算には使わない</string>
+    <string name="track_smooth_off">なし</string>
     <string name="track_distance">向きを求める距離</string>
-    <string name="track_distance_note">直前にこの距離を歩いた所と、今の位置を結ぶ向き</string>
+    <string name="track_distance_note">直前にこの距離を歩いた所と、今の位置を結ぶ向き。位置の精度が悪いときは自動で長くなる（最長 %1$d m）</string>
     <string name="range_steps_all">全部</string>
     <string name="gs_average">GS の平均</string>
     <string name="gs_average_note">直前のこの秒数の平均の速さを出す（1 秒は今の速さ）</string>

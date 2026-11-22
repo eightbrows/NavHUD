@@ -87,8 +87,8 @@ class SettingsOutlineTest {
             listOf(SettingKey.RING_BRIGHTNESS, SettingKey.RING_LABEL_SIZE, SettingKey.TRACK_COLOR, SettingKey.TRACK_BRIGHTNESS),
             sec(SettingsSectionId.RINGS_TRACK).common,
         )
-        // 20261122-D03: 軌跡の点の間隔はプリセットの値
-        assertEquals(listOf(SettingKey.TRACK_STEP), sec(SettingsSectionId.RINGS_TRACK).preset)
+        // 20261122-D03: 軌跡の点の間隔、20261122-D04: 軌跡のなめらかさ（その下）はプリセットの値
+        assertEquals(listOf(SettingKey.TRACK_STEP, SettingKey.TRACK_SMOOTH), sec(SettingsSectionId.RINGS_TRACK).preset)
         assertEquals(listOf(SettingKey.KEEP_SCREEN_ON, SettingKey.APP_LANGUAGE), sec(SettingsSectionId.OTHER).common)
         assertEquals(listOf(SettingKey.PERMISSIONS, SettingKey.ABOUT, SettingKey.SOURCES), sec(SettingsSectionId.INFO).plain)
         // プリセットの値がある欄・共通の値がある欄
@@ -120,7 +120,7 @@ class SettingsOutlineTest {
                 SettingKey.RANGE_STEPS, SettingKey.INITIAL_RANGE, SettingKey.AUTO_ON_START, SettingKey.AUTO_MIN, SettingKey.AUTO_MAX,
                 SettingKey.ZOOM_IN_DELAY, SettingKey.HOLD_AFTER_WP, SettingKey.ZOOM_IN_RATIO,
                 SettingKey.MAP_TABLE, SettingKey.LANDMARK_TABLE, SettingKey.PROFILE, SettingKey.GS_AVERAGE, SettingKey.ETA_AVERAGE,
-                SettingKey.AVG_LINE, SettingKey.AVG_SEC, SettingKey.TRACK_STEP,
+                SettingKey.AVG_LINE, SettingKey.AVG_SEC, SettingKey.TRACK_STEP, SettingKey.TRACK_SMOOTH,
             ),
             items,
         )

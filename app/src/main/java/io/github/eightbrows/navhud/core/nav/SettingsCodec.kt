@@ -95,6 +95,7 @@ object SettingsCodec {
         "avgHeadingLine" to p.avgHeadingLine.toString(),
         "avgHeadingSec" to p.avgHeadingSec.toString(),
         "trackStepM" to p.trackStepM.toString(),
+        "trackSmoothM" to p.trackSmoothM.toString(),
         "rangeStepsKm" to p.rangeStepsKm.joinToString(","),
         "initialRangeKm" to p.initialRangeKm.toString(),
         "autoRange" to p.autoRange.toString(),
@@ -323,6 +324,7 @@ object SettingsCodec {
             avgHeadingLine = v("avgHeadingLine", { r.bool("${pre}avgHeadingLine", base.avgHeadingLine) }, base.avgHeadingLine),
             avgHeadingSec = v("avgHeadingSec", { r.int("${pre}avgHeadingSec", base.avgHeadingSec).inOr(NavSettings.AVG_HEADING_SEC_RANGE, base.avgHeadingSec) }, base.avgHeadingSec),
             trackStepM = v("trackStepM", { r.int("${pre}trackStepM", base.trackStepM).let { if (it in NavSettings.TRACK_STEP_CHOICES_M) it else base.trackStepM } }, base.trackStepM),
+            trackSmoothM = v("trackSmoothM", { r.int("${pre}trackSmoothM", base.trackSmoothM).let { if (it in NavSettings.TRACK_SMOOTH_CHOICES_M) it else base.trackSmoothM } }, base.trackSmoothM),
             rangeStepsKm = steps ?: base.rangeStepsKm,
             // 起動時の縮尺: 段の一覧にない値は初期値（使う段にない段は、設定画面ではいちばん近い段に見える）
             initialRangeKm = v("initialRangeKm", { r.dbl("${pre}initialRangeKm", base.initialRangeKm).takeIf { it in RangeAuto.ALL_STEPS_KM } ?: base.initialRangeKm }, base.initialRangeKm),

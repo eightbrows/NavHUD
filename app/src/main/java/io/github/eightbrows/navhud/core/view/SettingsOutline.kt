@@ -56,8 +56,8 @@ enum class SettingKey {
 
     // 距離環と軌跡
     RING_BRIGHTNESS, RING_LABEL_SIZE, TRACK_COLOR, TRACK_BRIGHTNESS,
-    // 軌跡の点の間隔（20261122-D03。プリセットの値）
-    TRACK_STEP,
+    // 軌跡の点の間隔（20261122-D03）・軌跡のなめらかさ（20261122-D04）。プリセットの値
+    TRACK_STEP, TRACK_SMOOTH,
 
     // その他
     KEEP_SCREEN_ON, APP_LANGUAGE,
@@ -136,8 +136,8 @@ object SettingsOutline {
         SettingsSectionDef(SettingsSectionId.WP, common = listOf(SettingKey.AUTO_OPEN_LAST, SettingKey.WP_BUTTONS, SettingKey.HUD_WP_COUNT)),
         SettingsSectionDef(
             SettingsSectionId.RINGS_TRACK,
-            // 軌跡の点の間隔はプリセットの値（20261122-D03）
-            preset = listOf(SettingKey.TRACK_STEP),
+            // 軌跡の点の間隔（20261122-D03）・軌跡のなめらかさ（20261122-D04）はプリセットの値
+            preset = listOf(SettingKey.TRACK_STEP, SettingKey.TRACK_SMOOTH),
             common = listOf(SettingKey.RING_BRIGHTNESS, SettingKey.RING_LABEL_SIZE, SettingKey.TRACK_COLOR, SettingKey.TRACK_BRIGHTNESS),
         ),
         SettingsSectionDef(SettingsSectionId.OTHER, common = listOf(SettingKey.KEEP_SCREEN_ON, SettingKey.APP_LANGUAGE)),

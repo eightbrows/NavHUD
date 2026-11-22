@@ -87,7 +87,8 @@ class TrackStepAndAvgLineTest {
         val e = NavEngine(NavSettings(), ZoneId.of("Asia/Tokyo"), SourceKind.REPLAY)
         val car = e.setReplayTrack(pts).replayTrack
         assertEquals(Trail.thin(pts, 10.0), car)
-        val walk = NavSettings().selectTravelMode(TravelMode.WALK)
+        // 間隔だけを確かめる（軌跡のなめらかさ（20261122-D04）はなしにする。なめらかさは TrackDistanceAndSmoothTest）
+        val walk = NavSettings().selectTravelMode(TravelMode.WALK).editReach { it.copy(trackSmoothM = 0) }
         assertEquals(Trail.thin(pts, 3.0), e.updateSettings(walk).replayTrack)
         assertTrue(Trail.thin(pts, 3.0).size > car.size * 2)
         assertEquals(car, e.updateSettings(NavSettings()).replayTrack)

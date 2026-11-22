@@ -64,6 +64,7 @@ object PresetFields {
         "avgHeadingLine" to { it.avgHeadingLine },
         "avgHeadingSec" to { it.avgHeadingSec },
         "trackStepM" to { it.trackStepM },
+        "trackSmoothM" to { it.trackSmoothM },
         "reachRadiusM" to { it.reachRadiusM },
         "sidePass" to { it.sidePass },
         "sidePassMaxM" to { it.sidePassMaxM },

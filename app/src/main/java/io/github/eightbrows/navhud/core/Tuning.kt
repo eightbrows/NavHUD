@@ -45,6 +45,14 @@ object Tuning {
     /** 位置から求める向き: これより古い点とは結ばない [秒] */
     const val TRACK_HEADING_MAX_AGE_SEC = 90
 
+    /**
+     * 位置から求める向きの距離を水平精度に合わせて伸ばす（20261122-D04。調べ 20261122-SMOOTH・20261122-WALK3 の「D = 水平精度 × 1.0（4〜15 m）」）:
+     * その点の距離 = max(設定の「向きを求める距離」, min(TRACK_HEADING_ACC_MAX_M, 水平精度 × TRACK_HEADING_ACC_FACTOR))。
+     * 水平精度がない点は設定の距離。設定には出さない
+     */
+    const val TRACK_HEADING_ACC_FACTOR = 1.0
+    const val TRACK_HEADING_ACC_MAX_M = 15.0
+
     // ---- 測位・欠損（§5.5・§6.8） ----
 
     /** GPS の更新間隔 [ms] */
@@ -278,6 +286,19 @@ object Tuning {
 
     /** 歩行の軌跡の点の間隔 [m]（20261122-D03。角や細い道の形が見える細かさ。LIVE の軌跡はその半分の 1.5 m） */
     const val WALK_TRACK_STEP_M = 3
+
+    /**
+     * 軌跡のなめらかさ（20261122-D04。移動のプリセットの値。調べ 20261122-SMOOTH・20261122-WALK3）: 前後の点の位置を、歩いた距離（速さの積分）の
+     * ガウスの重み（σ [m]）で平均する。選べる値 [m]（0 = なし）と歩行の初期値。自動車はなし。画面に描く線だけに使う
+     */
+    val TRACK_SMOOTH_CHOICES_M = listOf(0, 2, 3, 4)
+    const val WALK_TRACK_SMOOTH_M = 3
+
+    /** 軌跡のなめらかさ: 前後 σ のこの倍まで（歩いた距離）の点を使う（走った跡は、その距離だけ遅れて決まる） */
+    const val TRACK_SMOOTH_WINDOW_SIGMA = 3.0
+
+    /** 軌跡のなめらかさ: 水平精度がこれを超える点は平均に使わない [m]（その点自身の位置は、前後の点から作る） */
+    const val TRACK_SMOOTH_MAX_ACC_M = 15.0
 
     /** 平均した方位線（20261122-D03）: 平均する秒数の範囲と初期値 [秒] */
     const val AVG_HEADING_MIN_SEC = 3

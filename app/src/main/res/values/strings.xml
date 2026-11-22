@@ -190,8 +190,11 @@
     <string name="avg_heading_sec">Seconds to average</string>
     <string name="track_step">Track point spacing</string>
     <string name="track_step_note">Thins the loaded track to this spacing (your own trail uses half). Smaller keeps corners sharper</string>
+    <string name="track_smooth">Track smoothing</string>
+    <string name="track_smooth_note">Averages nearby points on the drawn line only, to reduce GPS zigzag. Larger is smoother (corners round off a little). Your own trail settles three times this distance behind you. Not used for the log or any calculation</string>
+    <string name="track_smooth_off">Off</string>
     <string name="track_distance">Distance for the direction</string>
-    <string name="track_distance_note">Direction from the point walked this far back to the current position</string>
+    <string name="track_distance_note">Direction from the point walked this far back to the current position. Lengthens automatically when position accuracy is poor (up to %1$d m)</string>
     <string name="range_steps_all">All</string>
     <string name="gs_average">GS averaging</string>
     <string name="gs_average_note">Shows the average speed over this many seconds (1 s is the current speed)</string>

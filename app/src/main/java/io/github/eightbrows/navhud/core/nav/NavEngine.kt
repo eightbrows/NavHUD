@@ -87,7 +87,7 @@ class NavEngine(
     private val liveTrail = LiveTrail()
     private var replayTrack: List<TrackPoint> = emptyList()
 
-    /** 間引く前の REPLAY のトラック（20261122-D03） */
+    /** 間引く前の REPLAY のトラック（20261122-D03。20261122-D04 からなめらかにする前の点でもある） */
     private var replayRaw: List<TrackPoint> = emptyList()
     /** PAN の表示（null なら通常の表示） */
     private var pan: PanView? = null
@@ -197,16 +197,18 @@ class NavEngine(
         if (s.displayMode != settings.displayMode) pan = null
         // 標高オフセットが変わると高さが跳ぶ（楕円体高 − オフセットのとき）ので、V/S は測り直す（20261108-D01）
         if (s.altOffsetM != settings.altOffsetM) vsTracker.clear()
-        // 軌跡の点の間隔（プリセットの値）が変わったら、読み込んだ軌跡を間引き直す（LIVE の軌跡は、これから足す点から）
-        val restep = s.trackStepM != settings.trackStepM
+        // 軌跡の点の間隔・なめらかさ（プリセットの値）が変わったら、読み込んだ軌跡を作り直す（LIVE の軌跡は、これから足す点から）
+        val restep = s.trackStepM != settings.trackStepM || s.trackSmoothM != settings.trackSmoothM || s.noFixTimeoutSec != settings.noFixTimeoutSec
         settings = s
         applySettings(s)
-        if (restep) replayTrack = Trail.thin(replayRaw, s.trackStepM.toDouble())
+        if (restep) replayTrack = replayTrackOf(replayRaw)
         return recompute()
     }
 
     private fun applySettings(s: NavSettings) {
         liveTrail.minStepM = Trail.liveStepM(s.trackStepM)
+        liveTrail.gapMs = s.noFixTimeoutSec * 1000L
+        liveTrail.smoothM = s.trackSmoothM.toDouble()
         headingSelector.holdEnterSpeedMps = s.holdEnterSpeedMps
         headingSelector.holdExitSpeedMps = s.holdExitSpeedMps
         headingSelector.maxAccM = s.maxGpsAccM
@@ -430,9 +432,16 @@ class NavEngine(
      */
     fun setReplayTrack(points: List<TrackPoint>): NavState {
         replayRaw = points
-        replayTrack = Trail.thin(points, settings.trackStepM.toDouble())
+        replayTrack = replayTrackOf(points)
         return recompute()
     }
+
+    /**
+     * 描く REPLAY のトラック: 軌跡のなめらかさ（20261122-D04。プリセットの値。0 ならそのまま）でなめらかにしてから、軌跡の点の間隔に間引く。
+     * 画面に描く線だけで、到達の判定・向き・GS などの計算には使わない
+     */
+    private fun replayTrackOf(points: List<TrackPoint>): List<TrackPoint> =
+        Trail.smoothThenThin(points, settings.trackSmoothM.toDouble(), settings.noFixTimeoutSec * 1000L, settings.trackStepM.toDouble())
 
     /**
      * 読み込んでいるトラックをクリアする（20261102-D01）: トラックを読み込んでいないときと同じにする。

@@ -208,7 +208,8 @@ fun SettingsScreen(
             // 位置から求める向きの距離（20261121-D03。3〜20 m、1 m 刻み）
             SettingKey.TRACK_DISTANCE -> Stepper(
                 stringResource(R.string.track_distance), "${s.trackDistanceM} m",
-                note = stringResource(R.string.track_distance_note),
+                // 精度が悪いときは自動で長くなる（20261122-D04。最長 Tuning.TRACK_HEADING_ACC_MAX_M）
+                note = stringResource(R.string.track_distance_note, Tuning.TRACK_HEADING_ACC_MAX_M.toInt()),
                 defaultText = "${def.trackDistanceM} m", changed = s.trackDistanceM != def.trackDistanceM,
             ) { d -> judge { it.copy(trackDistanceM = (it.trackDistanceM + d).coerceIn(NavSettings.TRACK_DISTANCE_M_RANGE)) } }
             SettingKey.GPS_BOX, SettingKey.TRK_BOX -> Unit // 囲みはセクションの描き方で（renderKey）
@@ -230,6 +231,15 @@ fun SettingsScreen(
                 default = def.trackStepM,
                 changed = s.trackStepM != def.trackStepM,
             ) { v -> judge { it.copy(trackStepM = v) } }
+            // 軌跡のなめらかさ（20261122-D04）: なし / 2 / 3 / 4 m
+            SettingKey.TRACK_SMOOTH -> Choice(
+                stringResource(R.string.track_smooth),
+                NavSettings.TRACK_SMOOTH_CHOICES_M.map { (if (it == 0) stringResource(R.string.track_smooth_off) else "$it m") to it },
+                s.trackSmoothM,
+                note = stringResource(R.string.track_smooth_note),
+                default = def.trackSmoothM,
+                changed = s.trackSmoothM != def.trackSmoothM,
+            ) { v -> judge { it.copy(trackSmoothM = v) } }
 
             // ---- 測位と方位（共通の値）----
             // 決まった値から選ぶ（＋ / − で次の値へ）: 3 / 5 / 10 / 15 / 20 / 30 / 50 / 100 m
