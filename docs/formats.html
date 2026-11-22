@@ -75,7 +75,7 @@
 <main class="sheet">
   <header>
     <h1>NavHUD ファイル形式</h1>
-    <p class="ver">目標針路案内アプリ ・ 20261103-D01 時点 ・ このアプリが読み書きするファイルの説明</p>
+    <p class="ver">目標針路案内アプリ ・ 20261122-D02 時点 ・ このアプリが読み書きするファイルの説明</p>
   </header>
 
   <h2>1 WP リスト</h2>
@@ -85,7 +85,7 @@
     <table>
       <thead><tr><th>形式</th><th>読み込み</th><th>書き出し</th><th>入れ方</th></tr></thead>
       <tbody>
-        <tr><th>CSV</th><td class="nw">できる</td><td class="nw">できる</td><td>起動時の「リストを選ぶ」、または「WP設定」→ インポート / エクスポート</td></tr>
+        <tr><th>CSV</th><td class="nw">できる</td><td class="nw">できる</td><td>起動時の「リストを選ぶ」、または「WP設定」（WP ボタン列の左端の「WP」）→ インポート / エクスポート。インポートはファイルの画面（最近のファイル 5 件・ファイルを選ぶ…）から</td></tr>
         <tr><th>GPX</th><td class="nw">できる</td><td class="nw">できない</td><td>CSV と同じ（インポート）。読むのは <code>&lt;wpt&gt;</code> だけ</td></tr>
         <tr><th>座標の文字</th><td class="nw">できる（1点）</td><td class="nw">—</td><td>「WP設定」→ 貼り付け（クリップボードの <code>緯度, 経度</code>）、または 追加・編集の入力欄</td></tr>
       </tbody>
@@ -124,7 +124,7 @@
         <tr><th>target_time</th><td>目標時刻（端末の時刻）。TGT の計算に使います</td><td class="nw">省略可</td><td>目標時刻なし（TGT は <code>---</code>）</td><td><code>08:30</code> <code>8:30</code> <code>8:30:00</code></td></tr>
         <tr><th>deadline_time</th><td>締切時刻（端末の時刻）。DDL の計算に使います</td><td class="nw">省略可</td><td>締切時刻なし（DDL は <code>---</code>）</td><td><code>08:45</code></td></tr>
         <tr><th>enabled</th><td>有効か無効か。無効の WP は目標にせず、グレーの破線で描きます</td><td class="nw">省略可</td><td>有効</td><td><code>1</code>（有効）<code>0</code>（無効）。<code>true</code> / <code>false</code> も可</td></tr>
-        <tr><th>radius</th><td><b>この WP だけの到達半径</b> [m]。0 より大きい数。この半径に入ったら到達にします</td><td class="nw">省略可</td><td>全体の設定（到着半径。初期値 30 m）を使う</td><td><code>100</code></td></tr>
+        <tr><th>radius</th><td><b>この WP だけの到達半径</b> [m]。0 より大きい数。この半径に入ったら到達にします</td><td class="nw">省略可</td><td>今の移動のプリセットの到着半径（初期値は自動車 30 m・歩行 15 m）を使う</td><td><code>100</code></td></tr>
       </tbody>
     </table>
   </div>
@@ -215,7 +215,7 @@
 &lt;/gpx&gt;</code></pre>
 
   <h2>2 軌跡（再生用の記録）</h2>
-  <p>REPLAY で再生する記録です。上部の ⇄ で REPLAY にして、FILE で選びます。読めるのは、GpsLogger が記録する <code>track.csv</code> と、GpsLogger で書き出した zip です。書き出しはありません。</p>
+  <p>REPLAY で再生する記録です。左の列の ⇄ で REPLAY にして、その下の FILE で開くファイルの画面から選びます（最近のファイル 5 件からも開けます）。読めるのは、GpsLogger が記録する <code>track.csv</code> と、GpsLogger で書き出した zip です。書き出しはありません。</p>
   <p>GpsLogger の形式そのものの説明は、GpsLogger の説明を見てください: <a href="https://github.com/eightbrows/GpsLogger">https://github.com/eightbrows/GpsLogger</a></p>
 
   <h3>track.csv でこのアプリが使う列</h3>
@@ -227,11 +227,11 @@
         <tr><th>longitude</th><td>経度 [度]</td><td>位置（必須）</td></tr>
         <tr><th>epoch_ms</th><td>時刻（1970 年からのミリ秒）</td><td>時刻（必須。再生の進み方、TIME、TGT・DDL・ETA の計算）</td></tr>
         <tr><th>utc_iso8601</th><td>時刻（<code>2026-08-13T22:52:35.000Z</code> の形）</td><td><code>epoch_ms</code> が読めない行で、代わりに使う</td></tr>
-        <tr><th>altitude_ellipsoid_m</th><td>高さ（楕円体高）[m]</td><td>ALT（ここから標高オフセットを引く）、RATE の高度差、標高プロファイルの現在地</td></tr>
-        <tr><th>speed_mps</th><td>速度 [m/s]</td><td>GS、RATE の移動距離、ETA、方位の保持、真横通過の判定</td></tr>
+        <tr><th>altitude_ellipsoid_m</th><td>高さ（楕円体高）[m]</td><td>ALT（海抜高度。Android 14 以上は端末の仕組みで求め、それより前はここから標高オフセットを引く）、V/S（高さの変化）、標高プロファイルの現在地、AGL</td></tr>
+        <tr><th>speed_mps</th><td>速度 [m/s]</td><td>GS、ETA、方位の保持、真横通過の判定、位置から求める向き（TRK）の歩いた距離</td></tr>
         <tr><th>bearing_deg</th><td>進行方位 [度]</td><td>HDG（GPS の方位）、真横通過の判定</td></tr>
         <tr><th>bearing_acc_deg</th><td>方位の精度 [度]</td><td>GPS の方位を使うかどうか。0 か空の行は「方位なし」（停止中）として扱う</td></tr>
-        <tr><th>horizontal_acc_m</th><td>位置の精度 [m]</td><td>GPS の方位を使うかどうか（設定の上限と比べる）</td></tr>
+        <tr><th>horizontal_acc_m</th><td>位置の精度 [m]</td><td>GPS の方位と、位置から求める向き（TRK）に使うかどうか（設定の位置精度の上限と比べる）</td></tr>
       </tbody>
     </table>
   </div>
@@ -246,7 +246,7 @@
 
   <h3>zip から読むとき</h3>
   <ul>
-    <li>GpsLogger で書き出した zip を、そのまま FILE で選べます。zip かどうかは、名前ではなくファイルの中身で見分けます。</li>
+    <li>GpsLogger で書き出した zip を、そのままファイルの画面で選べます。zip かどうかは、名前ではなくファイルの中身で見分けます。</li>
     <li>zip の中の <code>session_yyyyMMdd_HHmmss/track.csv</code> を探します。名前が <code>track.csv</code> のファイルなら、フォルダの深さは問いません。ほかのファイルは読み飛ばします。</li>
     <li>zip を開くと、中のセッションの一覧が出ます。<b>セッションが1つだけでも一覧を出します</b>。1つ選ぶと、その記録を再生します。セッションをつないで1本にはしません。</li>
     <li>一覧は、<b>開始時刻の新しい順</b>です。1行に、開始時刻（端末の時刻帯）、長さ、点の数、フォルダの名前が出ます。読める行のないセッションは、一覧には出ますが選べません。</li>
