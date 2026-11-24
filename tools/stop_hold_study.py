@@ -18,6 +18,7 @@
         run N X    端末の速さが N 点続けて X km/h を超える
         away D     速さが 1 km/h 未満になった点（止まりに入った位置）から D m 以上離れるまで変えない（k なら D = max(D, 水平精度 × k)）
         disp T L   T 秒前の位置から L m 以上離れている（位置の差から出した速さ。止まっている間の揺れは積み重ならない）
+        steps N    直近 N 秒（経過時間）に歩数（steps.csv の detector）がある（20261124-D01。steps.csv がない記録は今の歩行と同じ）
     - 止まり（hdg_walk_study.scenes。端末の速さ 0 が 4 秒以上）の前後の遅い所も含めた「止まりの区間」を作り、
       区間の中で向きが変わった点、区間の中で回った角度の最大、歩き出しの遅れを数える。
 """
@@ -252,12 +253,43 @@ def gates():
             g.append((f'止まりに入った位置から max({D} m, 水平精度 × {k})', 'away_acc', dict(D=D, k=k), lambda D=D, k=k: Away(D, k)))
     for T in (2, 3, 5):
         for X in (1.5, 2.0, 3.0):
-            L = round(X * T / 3.6, 2)
-            g.append((f'{T} 秒前の位置から {L} m（{X} km/h）', 'disp', dict(T=T, X=X), lambda T=T, L=L: Disp(T, L)))
+            L = X * T / 3.6
+            g.append((f'{T} 秒前の位置から {L:.2f} m（{X} km/h）', 'disp', dict(T=T, X=X), lambda T=T, L=L: Disp(T, L)))
     for N, X in ((2, 2), (3, 2)):
         for D in (3, 5):
             g.append((f'速さが {N} 点続けて {X} km/h ＋ 止まりから {D} m', 'run_away', dict(N=N, X=X, D=D), lambda N=N, X=X, D=D: Both(Run(N, X), Away(D))))
+    # 歩数を使う形（20261124-D01。steps.csv がある記録だけ。ない記録は今の歩行（5 秒前の位置から 4.2 m）と同じ）
+    for N in (1, 2, 3, 4):
+        g.append((f'直近 {N} 秒に歩数（detector）がある', 'steps', dict(N=N), lambda N=N: Steps(N, 'only')))
+        g.append((f'直近 {N} 秒に歩数 ＋ 5 秒前の位置から 4.2 m', 'steps_and_move', dict(N=N), lambda N=N: Steps(N, 'and')))
+        g.append((f'直近 {N} 秒に歩数 または 5 秒前の位置から 4.2 m', 'steps_or_move', dict(N=N), lambda N=N: Steps(N, 'or')))
     return g
+
+
+class Steps:
+    """
+    歩数を使う形（20261124-D01）: 直近 N 秒（経過時間。その点の経過時間以前）に detector があるか。mode = only（歩数と速さ 1 km/h 以上）・
+    and（＋ 5 秒前の位置から 4.2 m）・or（どちらか）。steps.csv がない・使えない記録では、今の歩行（5 秒前の位置から 4.2 m）と同じ
+    """
+
+    def __init__(s, N, mode):
+        s.N, s.mode = N, mode
+        s.fb = Disp(S.MOVE[0], S.MOVE[1])
+
+    def reset(s):
+        s.fb.reset()
+
+    def allow(s, P, i):
+        fb = s.fb.allow(P, i)
+        p = P[i]
+        if not p.get('has_steps'):
+            return fb
+        st = p['det_age'] is not None and p['det_age'] <= s.N and p['kmh'] >= 1.0
+        if s.mode == 'only':
+            return st
+        if s.mode == 'and':
+            return st and fb
+        return st or fb
 
 
 def main():

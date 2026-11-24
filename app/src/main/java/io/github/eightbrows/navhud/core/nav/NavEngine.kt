@@ -89,6 +89,9 @@ class NavEngine(
 
     /** 間引く前の REPLAY のトラック（20261122-D03。20261122-D04 からなめらかにする前の点でもある） */
     private var replayRaw: List<TrackPoint> = emptyList()
+
+    /** 読み込んだ軌跡の歩数（20261124-D01。軌跡の時刻に置いたもの）。なければ null */
+    private var replaySteps: StepsTimeline? = null
     /** PAN の表示（null なら通常の表示） */
     private var pan: PanView? = null
 
@@ -437,6 +440,15 @@ class NavEngine(
     }
 
     /**
+     * 読み込んだ軌跡の歩数（20261124-D01）。REPLAY では、軌跡と同じ時刻（トラックの時計）に流す（シーク・倍速も同じ。今の時刻までの数を数えるので）。
+     * 軌跡を読み直すときは、軌跡と一緒に入れ直す（歩数がなければ null）
+     */
+    fun setReplaySteps(steps: StepsTimeline?): NavState {
+        replaySteps = steps
+        return recompute()
+    }
+
+    /**
      * 描く REPLAY のトラック: 軌跡のなめらかさ（20261122-D04。プリセットの値。0 ならそのまま）でなめらかにしてから、軌跡の点の間隔に間引く。
      * 画面に描く線だけで、到達の判定・向き・GS などの計算には使わない
      */
@@ -452,6 +464,7 @@ class NavEngine(
     fun clearReplayTrack(): NavState {
         replayTrack = emptyList()
         replayRaw = emptyList()
+        replaySteps = null
         if (sourceKind == SourceKind.REPLAY) {
             clearHistory()
             nowMs = null
@@ -661,9 +674,17 @@ class NavEngine(
             pan = pan,
             liveTrail = liveTrail.points,
             replayTrack = replayTrack,
+            steps = stepsState(now),
             idleCenter = idleCenter,
         )
         return state
+    }
+
+    /** 今の時刻（REPLAY のトラックの時計）までの歩数。REPLAY で歩数があるときだけ */
+    private fun stepsState(now: Long?): StepsState? {
+        val s = replaySteps ?: return null
+        if (sourceKind != SourceKind.REPLAY || now == null) return null
+        return StepsState(s.total, s.countUntil(now), s.lastStepMs(now))
     }
 
     /**

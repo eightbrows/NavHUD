@@ -60,6 +60,11 @@ data class NavState(
     /** REPLAY のトラック全体（間引き済み）。再生済みの部分は fix の時刻まで */
     val replayTrack: List<TrackPoint> = emptyList(),
     /**
+     * 歩数（20261124-D01）: REPLAY で、歩数（steps.csv）のある軌跡を読み込んでいるとき、今の時刻（トラックの時計）までの歩数。
+     * ほかは null。今は向き・到達の判定などには使わない
+     */
+    val steps: StepsState? = null,
+    /**
      * 位置（Fix）がなく PAN でもないときに、地図の中心にする地点（緯度, 経度）（20261024-D04）。前回最後にいた位置（LIVE で覚えた位置）、
      * なければ皇居（Tuning.DEFAULT_MAP_CENTER_*）。null なら今までどおり地図を描かない
      */

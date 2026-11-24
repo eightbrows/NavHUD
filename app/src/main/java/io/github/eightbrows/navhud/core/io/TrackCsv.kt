@@ -33,6 +33,8 @@ object TrackCsv {
         val iBearing = col["bearing_deg"]
         val iBearingAcc = col["bearing_acc_deg"]
         val iHorizAcc = col["horizontal_acc_m"]
+        // 歩数との時刻合わせ（20261124-D01）。列がない・読めない点は null
+        val iElapsed = col["elapsed_realtime_ns"]
 
         val fixes = ArrayList<Fix>()
         var skipped = 0
@@ -69,6 +71,7 @@ object TrackCsv {
                 bearingDeg = if (bearingValid) flt(iBearing) else null,
                 horizAccM = flt(iHorizAcc),
                 bearingAccDeg = if (bearingValid) flt(iBearingAcc) else null,
+                elapsedNs = str(iElapsed)?.toLongOrNull(),
             )
         }
         return TrackParseResult(fixes, skipped)

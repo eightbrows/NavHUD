@@ -14,17 +14,20 @@ import io.github.eightbrows.navhud.core.io.LastFileMemory
 import io.github.eightbrows.navhud.core.io.RecentFile
 import io.github.eightbrows.navhud.core.io.RecentFiles
 import io.github.eightbrows.navhud.core.io.SessionZip
+import io.github.eightbrows.navhud.core.io.StepsLoad
 import io.github.eightbrows.navhud.core.io.TrackCsv
 import io.github.eightbrows.navhud.core.io.TrackParseResult
 import io.github.eightbrows.navhud.core.io.ZipSession
 
 /**
  * 読み込んだトラック。displayName は画面のひとことに出す名前（zip は「ファイル名 / セッションの名前」）。
- * fileName はファイルの名前だけ、session は zip のセッションの名前（zip でなければ null。20261104-D03）
+ * fileName はファイルの名前だけ、session は zip のセッションの名前（zip でなければ null。20261104-D03）。
+ * steps は同じセッションの歩数（steps.csv。20261124-D01。zip のときだけ読む）
  */
 data class LoadedTrack(
     val uri: Uri, val displayName: String, val result: TrackParseResult,
     val fileName: String = displayName, val session: String? = null,
+    val steps: StepsLoad = StepsLoad.NONE,
 )
 
 /** GpsLogger の zip の中のセッションの一覧（どれを再生するか選んでもらう）。 */
@@ -90,9 +93,9 @@ class TrackDocumentStore(context: Context) {
 
     /**
      * URI のファイルを開く。ファイル削除・権限失効などで読めなければ例外を投げる。WP リストのファイルなら FileKindException（20261103-D01）。ブロッキングなので IO スレッドで呼ぶ。
-     * - track.csv: そのまま読む。
+     * - track.csv: そのまま読む。歩数は読まない（ファイルを 1 つだけ選んでもらうので、同じフォルダの steps.csv を読む権限がない。20261124-D01）。
      * - zip（先頭が PK）: entryName のセッションがあればそれを読む。なければ（選んでいない・見つからない）セッションの一覧を返す。
-     *   中身は展開せず、必要な track.csv だけを流し読みする。
+     *   中身は展開せず、必要な track.csv と、同じセッションの steps.csv・meta.json（20261124-D01）だけを流し読みする。
      * @throws io.github.eightbrows.navhud.core.io.SessionZipException 壊れた zip、track.csv のない zip
      */
     fun open(uri: Uri, entryName: String?): OpenedTrack {
@@ -104,9 +107,11 @@ class TrackDocumentStore(context: Context) {
             return OpenedTrack.Track(LoadedTrack(uri, name, stream(uri).use { TrackCsv.parse(it) }))
         }
         if (entryName != null) {
-            stream(uri).use { SessionZip.read(it, entryName) }?.let { result ->
+            stream(uri).use { SessionZip.readSession(it, entryName) }?.let { data ->
                 val session = SessionZip.sessionName(entryName)
-                return OpenedTrack.Track(LoadedTrack(uri, if (session.isEmpty()) name else "$name / $session", result, name, session.ifEmpty { null }))
+                return OpenedTrack.Track(
+                    LoadedTrack(uri, if (session.isEmpty()) name else "$name / $session", data.track, name, session.ifEmpty { null }, data.steps),
+                )
             }
         }
         return OpenedTrack.Sessions(ZipSessions(uri, name, stream(uri).use { SessionZip.list(it) }))

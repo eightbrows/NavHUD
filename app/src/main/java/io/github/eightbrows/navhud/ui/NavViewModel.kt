@@ -10,6 +10,7 @@ import io.github.eightbrows.navhud.R
 import io.github.eightbrows.navhud.core.Tuning
 import io.github.eightbrows.navhud.core.io.BaseMap
 import io.github.eightbrows.navhud.core.io.CoordinateText
+import io.github.eightbrows.navhud.core.io.StepsStatus
 import io.github.eightbrows.navhud.core.model.Fix
 import io.github.eightbrows.navhud.core.model.Waypoint
 import io.github.eightbrows.navhud.core.nav.DisplayMode
@@ -18,6 +19,7 @@ import io.github.eightbrows.navhud.core.nav.NavEngine
 import io.github.eightbrows.navhud.core.nav.NavSettings
 import io.github.eightbrows.navhud.core.nav.NavState
 import io.github.eightbrows.navhud.core.nav.SourceKind
+import io.github.eightbrows.navhud.core.nav.StepsTimeline
 import io.github.eightbrows.navhud.core.nav.TemporaryWaypoints
 import io.github.eightbrows.navhud.core.nav.Trail
 import io.github.eightbrows.navhud.core.nav.WaypointTimes
@@ -712,10 +714,24 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
         }
         // 軌跡の表示に使うトラック全体（エンジンが、軌跡の点の間隔（プリセットの値。自動車 10 m・歩行 3 m）に間引く）。倍速は読み直したら ×1
         publish(engine.setReplayTrack(Trail.decimate(fixes, 0.0)))
+        // 歩数（20261124-D01）: 使えるときだけ、軌跡の時刻に置いてエンジンに渡す（REPLAY で軌跡と一緒に流れる）
+        val steps = track.steps
+        publish(engine.setReplaySteps(if (steps.status == StepsStatus.OK) steps.csv?.let { StepsTimeline.align(fixes, it) } else null))
         clock.setSpeed(1)
-        // ひとこと（20261103-D01）: 「軌跡 11,172 点・7:52〜11:01（track.csv）」（zip はファイル名 / セッションの名前）
+        // ひとこと（20261103-D01）: 「軌跡 11,172 点・7:52〜11:01（track.csv）」（zip はファイル名 / セッションの名前）。
+        // 歩数があれば「・歩数 1,234 歩」を足す。使えない歩数（時刻の基準が合わない・軌跡に経過時間がない）は、そう出す（20261124-D01）
         LoadSummary.track(fixes, zone)?.let { t ->
-            showNotice(uiText(R.string.notice_track_loaded, t.points, t.start, t.end, track.displayName))
+            val n = steps.steps
+            if (n != null && n > 0) {
+                showNotice(uiText(R.string.notice_track_loaded_steps, t.points, t.start, t.end, track.displayName, LoadSummary.points(n)))
+            } else {
+                showNotice(uiText(R.string.notice_track_loaded, t.points, t.start, t.end, track.displayName))
+            }
+            when (steps.status) {
+                StepsStatus.TIMEBASE -> showNotice(uiText(R.string.notice_steps_timebase))
+                StepsStatus.NO_ELAPSED -> showNotice(uiText(R.string.notice_steps_no_elapsed))
+                else -> Unit
+            }
         }
         _replay.value = ReplayUiState(
             fileName = track.displayName,

@@ -13,6 +13,9 @@
 中身（アプリのコードと同じ計算）:
     - 位置から求める向き（TrackHeading）: 直前に D m 歩いた所（速さの積分。2 秒を超える間は直線の距離）と今の位置を結ぶ向き。
       20261122-D04 から、アプリの D は その点の水平精度 × 1.0 を「向きを求める距離」〜15 m に収めたもの（kacc = (1.0, 距離, 15)）。
+      20261124-D01 から、向きを変えるのは 5 秒前の位置から 4.2 m 以上離れている点だけ（move = MOVE）。
+    - 歩数（20261124-D01）: 記録のフォルダ（session_yyyyMMdd_HHmmss）に steps.csv があれば読む（load_steps。時刻は経過時間で合わせる）。
+      点ごとに直近の歩からの秒数（det_age）を足す。steps.csv がなければ今までと同じ。
       1 km/h 未満・水平精度が 15 m を超える点では変えない。10 秒を超える欠けをまたがない。結ぶ相手は 90 秒以内、
       まっすぐの距離が 0.6 × D 以上。
     - GPS の向き（HeadingSelector）: 止める速度より遅くなると保持（HLD）、戻す速度を超え方位精度が上限以内の点で戻る。
@@ -32,6 +35,7 @@ import csv
 import json
 import math
 import os
+import re
 import struct
 import sys
 import time
@@ -94,7 +98,9 @@ def load_track(path):
     with open(path, encoding='utf-8-sig', newline='') as h:
         for r in csv.DictReader(h):
             # 緯度・経度は Double、速さ・水平精度・方位・方位精度は Float（アプリの Fix と同じ）
+            el = (r.get('elapsed_realtime_ns') or '').strip()
             p = dict(t=int(r['epoch_ms']) / 1000.0, lat=fnum(r['latitude']), lon=fnum(r['longitude']),
+                     el=int(el) if el.lstrip('-').isdigit() else None,
                      h=f32(fnum(r['horizontal_acc_m'])), v=f32(fnum(r['speed_mps'])), brg0=f32(fnum(r['bearing_deg'])), ba0=f32(fnum(r['bearing_acc_deg'])))
             if p['lat'] is None or p['lon'] is None:
                 continue
@@ -262,6 +268,10 @@ def scenes(P):
     return C
 
 
+# 位置から求める向きを変えてよい点（20261124-D01 のアプリの TurnGate）: 5 秒前の位置から 3 km/h × 5 秒 = 4.2 m
+MOVE_KMH = 3.0
+MOVE = (5, MOVE_KMH * 5 / 3.6)
+
 POOR_H = 8.0      # 精度が悪いとみなす水平精度 [m]
 POOR_MIN_S = 3    # これ以上続いたら「精度が悪い所」 [秒]（記録の始めは 1 点でも）
 SETTLE_WIN_S = 60  # 落ち着くのを待つ上限 [秒]
@@ -284,8 +294,74 @@ def poor_events(P):
     return ev
 
 
+STEPS_FOLDER = re.compile(r'^session_\d{8}_\d{6}$')
+
+
+def load_steps(path, P):
+    """
+    歩数（steps.csv。20261124-D01。GpsLogger エクスポートZIP 読み込み仕様（歩数 steps.csv）と同じ決まり）。track.csv と同じフォルダで、
+    フォルダの名前が session_yyyyMMdd_HHmmss のときだけ読む。列は名前で引く。LF・CRLF。event_elapsed_ns で並べ替える。
+    戻り値: dict(status, det=[detector の経過時間 ns（昇順）], counter=[(経過時間 ns, 累計)]）。status は
+    none（steps.csv がない）・empty（行がない）・timebase（meta.json の timebaseAnomalies > 0）・no_elapsed（軌跡に経過時間がない点がある）・ok
+    """
+    folder = path if os.path.isdir(path) else os.path.dirname(path)
+    f = os.path.join(folder, 'steps.csv')
+    if not STEPS_FOLDER.match(os.path.basename(os.path.normpath(folder))) or not os.path.isfile(f):
+        return dict(status='none', det=[], counter=[])
+    det, cnt = [], []
+    with open(f, encoding='utf-8-sig', newline='') as h:
+        for r in csv.DictReader(h):
+            r = {(k or '').strip(): (v or '').strip() for k, v in r.items()}
+            try:
+                e = int(r.get('event_elapsed_ns', ''))
+            except ValueError:
+                continue
+            if r.get('type') == 'detector':
+                det.append(e)
+            elif r.get('type') == 'counter' and r.get('count', '').isdigit():
+                cnt.append((e, int(r['count'])))
+    det.sort()
+    cnt.sort(key=lambda x: x[0])
+    anomalies = 0
+    mf = os.path.join(folder, 'meta.json')
+    if os.path.isfile(mf):
+        try:
+            st = json.load(open(mf, encoding='utf-8')).get('steps') or {}
+            for k in ('detector', 'counter'):
+                anomalies += int((st.get(k) or {}).get('timebaseAnomalies') or 0)
+        except (ValueError, AttributeError):
+            pass
+    if not det and not cnt:
+        status = 'empty'
+    elif anomalies > 0:
+        status = 'timebase'
+    elif not P or any(p.get('el') is None for p in P):
+        status = 'no_elapsed'
+    else:
+        status = 'ok'
+    return dict(status=status, det=det, counter=cnt)
+
+
+def add_steps(P, steps):
+    """点ごとに、直近の detector からの秒数（経過時間で合わせる。その点の経過時間以前で最後の歩。なければ None）と、歩数を使えるか"""
+    ok = steps['status'] == 'ok'
+    det = steps['det']
+    k = 0
+    for p in P:
+        p['has_steps'] = ok
+        p['det_age'] = None
+        if not ok:
+            continue
+        while k < len(det) and det[k] <= p['el']:
+            k += 1
+        if k:
+            p['det_age'] = (p['el'] - det[k - 1]) / 1e9
+
+
 def setup(path):
     P = load_track(path)
+    steps = load_steps(path, P)
+    add_steps(P, steps)
     enu(P)
     add_ref(P, 'ref10', D=10.0, W=40.0, min_chord=14.0)
     add_ref(P, 'ref', D=5.0, W=20.0, min_chord=7.0)
@@ -293,7 +369,7 @@ def setup(path):
     add_line_truth(P)
     C = scenes(P)
     C['poor'] = poor_events(P)
-    return dict(P=P, C=C, name=os.path.basename(os.path.dirname(path) if path.endswith('.csv') else path.rstrip('/\\')))
+    return dict(P=P, C=C, steps=steps, name=os.path.basename(os.path.dirname(path) if path.endswith('.csv') else path.rstrip('/\\')))
 
 
 # ---------------------------------------------------------------- 出し方（アプリと同じ計算）
@@ -323,12 +399,14 @@ class Selector:
             s.stable = p['brg']
 
 
-def track_series(P, D=8.0, kacc=None, gate_kmh=1.0, max_acc=15.0, gap_s=10.0, age_s=90.0, minr=0.6, good_run=None):
+def track_series(P, D=8.0, kacc=None, gate_kmh=1.0, max_acc=15.0, gap_s=10.0, age_s=90.0, minr=0.6, good_run=None, move=None):
     """
     位置から求める向き（TrackHeading）。点ごとの向き（まだなければ None）。
     kacc = (k, lo, hi) なら、その点の距離 D = 水平精度 × k を lo〜hi に収めたもの（調べの案）
     good_run = (hmax, N) なら（20261122-D03 の調べの案）、水平精度 hmax 以内の点が N 点続いてから点を使う。
     hmax を超える点が来たら、それまでの点を捨てる（向きはそのまま保つ）
+    move = (T, L) なら（20261124-D01 のアプリの TurnGate）、T 秒前の位置（それより前でいちばん新しい点。水平精度によらず）から L m 以上
+    離れている点だけ向きを変える（tools/stop_hold_study.py の Disp と同じ）
     """
     out = []
     hist = []
@@ -336,6 +414,7 @@ def track_series(P, D=8.0, kacc=None, gate_kmh=1.0, max_acc=15.0, gap_s=10.0, ag
     deg = None
     prev = None
     run = 0
+    recent = []
     for p in P:
         if prev is not None:
             dt = p['t'] - prev['t']
@@ -343,6 +422,7 @@ def track_series(P, D=8.0, kacc=None, gate_kmh=1.0, max_acc=15.0, gap_s=10.0, ag
                 hist = []
                 deg = None
                 S = 0.0
+                recent = []
             elif p['v'] is not None and prev['v'] is not None and dt <= 2.0:
                 S += (p['v'] + prev['v']) / 2 * dt
             else:
@@ -361,7 +441,15 @@ def track_series(P, D=8.0, kacc=None, gate_kmh=1.0, max_acc=15.0, gap_s=10.0, ag
         if kacc is not None:
             k, lo, hi = kacc
             Dp = min(hi, max(lo, k * (p['h'] or 0.0)))
-        if good and p['kmh'] >= gate_kmh:
+        moved = True
+        if move is not None:
+            T_, L_ = move
+            recent.append(p)
+            while len(recent) > 1 and p['t'] - recent[1]['t'] >= T_:
+                recent.pop(0)
+            q0 = recent[0]
+            moved = p['t'] - q0['t'] >= T_ and math.hypot(p['e'] - q0['e'], p['n'] - q0['n']) >= L_
+        if good and p['kmh'] >= gate_kmh and moved:
             for q in reversed(hist):
                 if p['t'] - q[0] > age_s:
                     break
@@ -680,6 +768,9 @@ def search(recs, quick=False):
     for D in range(3, 21):
         T = T_of(D)
         add('TRACK_ONLY', dict(D=D), [track_only(r['P'], t) for r, t in zip(recs, T)])
+    # 位置だけ: 今の歩行の初期値（20261124-D01）: D = 水平精度 × 1.0（4〜15 m）・5 秒前の位置から 4.2 m（3 km/h × 5 秒）
+    T = [track_series(r['P'], kacc=(1.0, 4, 15), move=MOVE) for r in recs]
+    add('TRACK_ONLY_ACC_MOVE', dict(k=1.0, lo=4, hi=15, T=MOVE[0], X=MOVE_KMH), [track_only(r['P'], t) for r, t in zip(recs, T)])
     # 位置だけ: D = 水平精度 × k（lo〜hi）
     for k in (0.5, 1.0, 1.5, 2.0):
         for lo in (3, 4, 5, 8):
@@ -729,9 +820,11 @@ def summary(recs):
 
 # 見比べる組（20261121-D05-HDGWALK のまとめの表と同じ組）
 CANDIDATES = [
-    # 歩行の初期値: 20261122-D04 から「位置だけ・D = 水平精度 × 1.0（4〜15 m）」、20261122-D01〜D03 は「位置だけ・4 m」、
+    # 歩行の初期値: 20261124-D01 から「位置だけ・D = 水平精度 × 1.0（4〜15 m）・5 秒前の位置から 4.2 m」、
+    # 20261122-D04 は「位置だけ・D = 水平精度 × 1.0（4〜15 m）」、20261122-D01〜D03 は「位置だけ・4 m」、
     # 20261121-D06 は「位置だけ・8 m」、その前は「GPS＋位置・1 / 3 km/h・30°・8 m」。3 m は 20261122-WALK3 で詰めないと決めたが、比べに残す
-    ('今の歩行の初期値（位置だけ・D = 水平精度 × 1.0（4〜15 m））', 'TRACK_ONLY_ACC', dict(k=1.0, lo=4, hi=15)),
+    ('今の歩行の初期値（位置だけ・D = 水平精度 × 1.0（4〜15 m）・5 秒前の位置から 4.2 m）', 'TRACK_ONLY_ACC_MOVE', dict(k=1.0, lo=4, hi=15, T=5, X=3.0)),
+    ('20261122-D04 の歩行の初期値（位置だけ・D = 水平精度 × 1.0（4〜15 m））', 'TRACK_ONLY_ACC', dict(k=1.0, lo=4, hi=15)),
     ('20261122-D01〜D03 の歩行の初期値（位置だけ・4 m）', 'TRACK_ONLY', dict(D=4)),
     ('位置だけ・3 m', 'TRACK_ONLY', dict(D=3)),
     ('20261121-D06 の歩行の初期値（位置だけ・8 m）', 'TRACK_ONLY', dict(D=8)),

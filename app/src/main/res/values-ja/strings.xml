@@ -324,6 +324,9 @@
     <string name="notice_wp_loaded">WP %1$s 件を読み込みました（%2$s）</string>
     <string name="notice_wp_loaded_disabled">WP %1$s 件（うち無効 %2$s）を読み込みました（%3$s）</string>
     <string name="notice_track_loaded">軌跡 %1$s 点・%2$s〜%3$s（%4$s）</string>
+    <string name="notice_track_loaded_steps">軌跡 %1$s 点・%2$s〜%3$s・歩数 %5$s 歩（%4$s）</string>
+    <string name="notice_steps_timebase">歩数は使いません（歩数の時刻の基準が合わない記録です）</string>
+    <string name="notice_steps_no_elapsed">歩数は使いません（軌跡に経過時間がなく、時刻を合わせられません）</string>
     <string name="wp_editor">WP エディタ</string>
     <string name="track_clear">クリア</string>
     <string name="track_clear_title">軌跡をクリア</string>

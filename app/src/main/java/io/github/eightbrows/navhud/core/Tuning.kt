@@ -53,6 +53,14 @@ object Tuning {
     const val TRACK_HEADING_ACC_FACTOR = 1.0
     const val TRACK_HEADING_ACC_MAX_M = 15.0
 
+    /**
+     * 位置から求める向きを変えてよい点（20261124-D01。TurnGate。調べ 20261122-STOPHOLD の案 A）: この秒数前の位置から、この速さ × 秒数
+     * （3 km/h × 5 秒 = 4.2 m）以上離れているときだけ変える（止まっている間・止まりの前後のゆっくり動く所で、位置の揺れで向きが回らないように）。
+     * 設定には出さない。どのプリセットにも同じ決まり
+     */
+    const val TRACK_HEADING_MOVE_KMH = 3.0
+    const val TRACK_HEADING_MOVE_SEC = 5
+
     // ---- 測位・欠損（§5.5・§6.8） ----
 
     /** GPS の更新間隔 [ms] */

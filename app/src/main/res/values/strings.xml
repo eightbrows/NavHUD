@@ -326,6 +326,9 @@
     <string name="notice_wp_loaded">Loaded %1$s WPs (%2$s)</string>
     <string name="notice_wp_loaded_disabled">Loaded %1$s WPs, %2$s disabled (%3$s)</string>
     <string name="notice_track_loaded">Track: %1$s points, %2$s–%3$s (%4$s)</string>
+    <string name="notice_track_loaded_steps">Track: %1$s points, %2$s–%3$s, %5$s steps (%4$s)</string>
+    <string name="notice_steps_timebase">Steps not used (the step times use a different time base in this log)</string>
+    <string name="notice_steps_no_elapsed">Steps not used (the track has no elapsed time to align them)</string>
     <string name="wp_editor">WP editor</string>
     <string name="track_clear">Clear</string>
     <string name="track_clear_title">Clear the track</string>

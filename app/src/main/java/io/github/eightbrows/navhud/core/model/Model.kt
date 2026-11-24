@@ -21,6 +21,11 @@ data class Fix(
      * null なら、地上高の計算は楕円体高 − 標高オフセットを使う
      */
     val mslAltM: Double? = null,
+    /**
+     * 端末の起動からの経過時間 [ns]（track.csv の elapsed_realtime_ns。20261124-D01）。歩数（steps.csv）との時刻合わせだけに使う。
+     * 列がない記録・LIVE では null
+     */
+    val elapsedNs: Long? = null,
 )
 
 data class Waypoint(
