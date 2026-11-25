@@ -71,8 +71,9 @@ class StepsCsvTest {
     fun metaTimebaseAnomalies() {
         val ok = """{"schemaVersion":1,"steps":{"status":"recorded","detector":{"present":true,"timebaseAnomalies":0},"counter":{"timebaseAnomalies":0}}}"""
         val bad = """{"steps":{"status":"recorded","detector":{"timebaseAnomalies":2},"counter":{"name":"x \"y\"","timebaseAnomalies":1}}, "tags":["a",1.5,null,true]}"""
-        assertEquals(StepsMeta("recorded", 0), StepsMeta.parse(ok))
-        assertEquals(StepsMeta("recorded", 3), StepsMeta.parse(bad))
+        assertEquals(StepsMeta("recorded", 0, 0), StepsMeta.parse(ok))
+        assertEquals(StepsMeta("recorded", 2, 1), StepsMeta.parse(bad))
+        assertEquals(3L, StepsMeta.parse(bad).timebaseAnomalies)
         // steps がない古い meta.json・JSON でない
         assertEquals(StepsMeta.NONE, StepsMeta.parse("""{"comment":"歩行"}"""))
         assertEquals(StepsMeta.NONE, StepsMeta.parse("not json"))
@@ -80,7 +81,9 @@ class StepsCsvTest {
         assertEquals(StepsStatus.TIMEBASE, StepsLoad.of(example, bad, listOf(1L, 2L)).status)
         assertEquals(StepsStatus.OK, StepsLoad.of(example, ok, listOf(1L, 2L)).status)
         assertEquals(StepsStatus.NO_ELAPSED, StepsLoad.of(example, ok, listOf(1L, null)).status)
-        assertEquals(3, StepsLoad.of(example, ok, listOf(1L)).steps)
+        // 合計の歩数（20261125-D01）: counter があれば区間の「最後の値 − 基準値」。この例の counter は基準値の 1 行だけなので 0
+        assertEquals(0, StepsLoad.of(example, ok, listOf(1L)).steps)
+        assertEquals(3, StepsLoad.of(example.lines().filter { !it.startsWith("counter") }.joinToString("\n"), ok, listOf(1L)).steps)
         assertNull(StepsLoad.of(example, bad, listOf(1L)).steps)
     }
 
@@ -114,7 +117,8 @@ class StepsCsvTest {
         assertEquals(3, d.track.fixes.size)
         assertEquals(1854211000000000, d.track.fixes[1].elapsedNs)
         assertEquals(StepsStatus.OK, d.steps.status)
-        assertEquals(3, d.steps.steps)
+        assertEquals(0, d.steps.steps)
+        assertEquals(3, d.steps.csv!!.detector.size)
         // 今までの read は軌跡だけ（同じ結果）
         assertEquals(d.track, SessionZip.read(ByteArrayInputStream(z), "$s/track.csv"))
         // steps.csv がないセッションは「歩数なし」（エラーにしない）
@@ -166,7 +170,8 @@ class StepsCsvTest {
         assertEquals(1, tl.countUntil(t0))
         assertEquals(3, tl.countUntil(t0 + 1000))
         assertEquals(t0 + 1000, tl.lastStepMs(t0 + 1100))
-        assertEquals(listOf(100L), tl.counterCount.toList())
+        // counter の 1 行は基準値なので、時刻は使わない（20261125-D01）
+        assertEquals(emptyList<Long>(), tl.counterCount.toList())
         // 経過時間のない点があれば合わせない
         assertNull(StepsTimeline.align(fixes.mapIndexed { i, f -> if (i == 1) f.copy(elapsedNs = null) else f }, csv))
         assertNull(StepsTimeline.align(emptyList<Fix>(), csv))

@@ -75,7 +75,7 @@
 <main class="sheet">
   <header>
     <h1>NavHUD ファイル形式</h1>
-    <p class="ver">目標針路案内アプリ ・ 20261122-D02 時点 ・ このアプリが読み書きするファイルの説明</p>
+    <p class="ver">目標針路案内アプリ ・ 20261125-D02 時点 ・ このアプリが読み書きするファイルの説明</p>
   </header>
 
   <h2>1 WP リスト</h2>
@@ -231,28 +231,58 @@
         <tr><th>speed_mps</th><td>速度 [m/s]</td><td>GS、ETA、方位の保持、真横通過の判定、位置から求める向き（TRK）の歩いた距離</td></tr>
         <tr><th>bearing_deg</th><td>進行方位 [度]</td><td>HDG（GPS の方位）、真横通過の判定</td></tr>
         <tr><th>bearing_acc_deg</th><td>方位の精度 [度]</td><td>GPS の方位を使うかどうか。0 か空の行は「方位なし」（停止中）として扱う</td></tr>
-        <tr><th>horizontal_acc_m</th><td>位置の精度 [m]</td><td>GPS の方位と、位置から求める向き（TRK）に使うかどうか（設定の位置精度の上限と比べる）</td></tr>
+        <tr><th>horizontal_acc_m</th><td>位置の精度 [m]</td><td>GPS の方位と、位置から求める向き（TRK）に使うかどうか（設定の位置精度の上限と比べる）。TRK で結ぶ距離（精度が悪いと長くする。最長 15 m）。軌跡のなめらかさ（15 m を超える点は平均に使わない）</td></tr>
+        <tr><th>elapsed_realtime_ns</th><td>端末の起動からの経過時間 [ns]</td><td>歩数（steps.csv）との時刻合わせだけに使う（この下の「歩数」）。列がない・読めない点がある記録では、歩数を使わない</td></tr>
+        <tr><th>gap_before</th><td><code>true</code> = 一時停止からの再開後の最初の点</td><td>合計の歩数を数える区間の境目だけに使う（この下の「歩数」）。列がない記録は区切らない</td></tr>
       </tbody>
     </table>
   </div>
   <ul>
-    <li>これ以外の列（<code>provider</code>・<code>gdop</code> など）は読みません。GpsLogger のほかのファイル（<code>sats.csv</code>・<code>meta.json</code>・<code>track.gpx</code>・<code>track.kmz</code>）も読みません。</li>
+    <li>これ以外の列（<code>provider</code>・<code>gdop</code> など）は読みません。GpsLogger のほかのファイルは、zip のときの <code>steps.csv</code>・<code>meta.json</code>（この下の「歩数」）のほかは読みません（<code>sats.csv</code>・<code>track.gpx</code>・<code>track.kmz</code>）。</li>
     <li>1行目は見出しです。列は見出しの名前で探すので、順番が違っても、列が増えていても読めます（名前の大文字・小文字は区別します）。区切りはカンマ、文字コードは UTF-8 です。</li>
     <li>緯度・経度・時刻のどれかが読めない行は飛ばします。読める行が1つもないと、「○○ に読める行がありません」と出ます。</li>
     <li><code>bearing_acc_deg</code> の列がない記録では、速度が 0 の行を「方位なし」として扱います。</li>
     <li>記録の途中の抜け（時刻の間があいた所）は、そのまま再生します。抜けが長いと NO FIX になります。</li>
-    <li>読み込みのあと、地図の画面に数秒だけ「軌跡 11,172 点・7:52〜11:02（track.csv）」の形で、点の数と、最初と最後の時刻（端末の時刻帯。日をまたぐ記録は日付も）が出ます。zip のときは、ファイルの名前のあとにセッションの名前が付きます。起動のときに前回のファイルを開いたときも出ます。</li>
+    <li>読み込みのあと、地図の画面に数秒だけ「軌跡 11,172 点・7:52〜11:02（track.csv）」の形で、点の数と、最初と最後の時刻（端末の時刻帯。日をまたぐ記録は日付も）が出ます。zip のときは、ファイルの名前のあとにセッションの名前が付きます。歩数（この下の「歩数」）を使える記録で合計が 1 歩以上なら「軌跡 1,223 点・17:01〜17:21・歩数 2,083 歩（…）」と合計の歩数も出ます。起動のときに前回のファイルを開いたときも出ます。</li>
   </ul>
 
   <h3>zip から読むとき</h3>
   <ul>
     <li>GpsLogger で書き出した zip を、そのままファイルの画面で選べます。zip かどうかは、名前ではなくファイルの中身で見分けます。</li>
-    <li>zip の中の <code>session_yyyyMMdd_HHmmss/track.csv</code> を探します。名前が <code>track.csv</code> のファイルなら、フォルダの深さは問いません。ほかのファイルは読み飛ばします。</li>
+    <li>zip の中の <code>session_yyyyMMdd_HHmmss/track.csv</code> を探します。名前が <code>track.csv</code> のファイルなら、フォルダの深さは問いません。選んだセッションの <code>steps.csv</code>・<code>meta.json</code>（この下の「歩数」）のほかのファイル（<code>sats.csv</code> など）は読み飛ばします。</li>
     <li>zip を開くと、中のセッションの一覧が出ます。<b>セッションが1つだけでも一覧を出します</b>。1つ選ぶと、その記録を再生します。セッションをつないで1本にはしません。</li>
     <li>一覧は、<b>開始時刻の新しい順</b>です。1行に、開始時刻（端末の時刻帯）、長さ、点の数、フォルダの名前が出ます。読める行のないセッションは、一覧には出ますが選べません。</li>
     <li>選んだ zip とセッションを覚えていて、次の起動では同じセッションを開きます。そのセッションが zip の中に見つからないときは、一覧を出します。</li>
-    <li>zip の中身は、端末に展開しません。必要な <code>track.csv</code> だけを読みます。</li>
+    <li>zip の中身は、端末に展開しません。必要な <code>track.csv</code>（と同じセッションの <code>steps.csv</code>・<code>meta.json</code>）だけを読みます。</li>
     <li>壊れた zip や途中で切れた zip は「zip として読めませんでした」、<code>track.csv</code> の入っていない zip は「zip に track.csv がありません」と出ます。</li>
+  </ul>
+
+  <h3>歩数（steps.csv・meta.json）</h3>
+  <p>GpsLogger の記録には、歩数の記録（<code>steps.csv</code>）が入っていることがあります。このアプリは、<b>GpsLogger の zip から歩数を読み込み、読み込みの知らせに合計の歩数を出し、REPLAY で軌跡と同じ時刻に流します。今は、方位・到達の判定・GS・ETA などの計算には使っていません</b>（画面にも数を出していません）。LIVE で端末の歩数のセンサーは使いません。</p>
+  <ul>
+    <li><b>読むファイル</b>: zip の中で、名前が <code>session_yyyyMMdd_HHmmss/steps.csv</code> の形（正規表現 <code>^session_\d{8}_\d{6}/steps\.csv$</code>）に完全一致し、選んだ <code>track.csv</code> と同じフォルダのものだけです。zip の直下・深い所・名前の形が違うもの・別のセッションのものは読みません。同じフォルダの <code>meta.json</code> も読みます。</li>
+    <li><b>track.csv を 1 つ選んだとき</b>（zip でないとき）は、歩数を読みません（ファイルの選択で読めるのは選んだファイルだけで、同じフォルダの <code>steps.csv</code> を読む権限がないため）。</li>
+    <li><code>steps.csv</code> がない・見出しだけのときは「歩数なし」で、エラーにしません（知らせにも出しません）。</li>
+  </ul>
+  <div class="tw">
+    <table class="cols">
+      <thead><tr><th>steps.csv の列</th><th>意味</th><th>このアプリでの使い道</th></tr></thead>
+      <tbody>
+        <tr><th>type</th><td><code>detector</code>（1 歩ごとに 1 行）か <code>counter</code>（累計歩数の更新ごとに 1 行）</td><td>行の種類。ほかの値の行は飛ばす</td></tr>
+        <tr><th>event_elapsed_ns</th><td>歩のイベントの時刻（端末の起動からの経過時間 [ns]）</td><td>並べ替えと時刻合わせ（必須。数でない行は飛ばす）</td></tr>
+        <tr><th>recv_elapsed_ns</th><td>アプリが受け取った時刻（同じ経過時間）</td><td>counter の行を区間に振り分ける。REPLAY で「届いた時刻」でも数える（列がなければ event_elapsed_ns）</td></tr>
+        <tr><th>epoch_ms</th><td>イベントの時刻を端末の時計で直した参考値</td><td>使わない（時刻合わせにも使わない）</td></tr>
+        <tr><th>count</th><td>counter の累計歩数（detector は空欄）</td><td>合計の歩数（count のない counter の行は飛ばす）</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <ul>
+    <li>1 行目は見出しです。列は見出しの名前で探します（順番の違い・知らない列・末尾の欠けに強い）。区切りはカンマ（引用符は使わない）、文字コードは UTF-8、改行は LF・CRLF のどちらも読みます。</li>
+    <li>行は届いた順に並んでいるので、読んだあと <code>event_elapsed_ns</code> の順に並べ替えます。</li>
+    <li><b>時刻合わせ</b>: <code>steps.csv</code> の <code>event_elapsed_ns</code>・<code>recv_elapsed_ns</code> と、<code>track.csv</code> の <code>elapsed_realtime_ns</code> で合わせます（どちらも端末の起動からの経過時間）。<b><code>epoch_ms</code> どうしでは合わせません</b>（track.csv は GNSS の時刻、steps.csv は端末の時計で、ずれがあるため）。軌跡の点と点の経過時間の間にある歩は、その 2 点の時刻の間に置きます。<code>track.csv</code> に <code>elapsed_realtime_ns</code> のない点があれば、歩数を使いません（知らせに「歩数は使いません（軌跡に経過時間がなく、時刻を合わせられません）」）。</li>
+    <li><b>合計の歩数</b>（知らせに出す数）: <code>counter</code> の行があれば、区間（一時停止で区切られた記録の範囲）ごとに「区間の最後の値 − 区間の最初に届いた行（基準値）」を求めて足します。区間の境目は <code>track.csv</code> の <code>gap_before=true</code> の点で、<code>counter</code> の行は <code>recv_elapsed_ns</code>（届いた時刻）で区間に振り分けます（基準値の行の時刻は一時停止より前のことがあるため）。差が負なら 0。基準値の行の時刻は、解析・REPLAY に使いません。<code>counter</code> の行がなければ、<code>detector</code> の行の数です。セッション全体で「最後の値 − 最初の値」を取ると、一時停止中に歩いた分まで入るので、そうしません。</li>
+    <li><b>meta.json</b>: トップレベルの <code>steps</code> の <code>detector.timebaseAnomalies</code> が 1 以上、または <code>counter.timebaseAnomalies</code> が 2 以上なら、時刻の基準が経過時間でない疑いがあるので、歩数を使いません（知らせに「歩数は使いません（歩数の時刻の基準が合わない記録です）」）。<code>counter</code> の 1 は、前の版の GpsLogger で基準値が数えられていることが多いので使います。<code>meta.json</code> がない・<code>steps</code> がない・JSON として読めないときは、異常なしとして扱います。ほかのキー（<code>status</code>・<code>events</code> など）は使いません。</li>
+    <li><b>REPLAY</b>: 今の時刻（記録の時計）までの歩数を、歩の時刻で数えた数と、届いた時刻で数えた数の両方で持ちます（シーク・倍速でも、その時刻までの数）。今は、画面にも計算にも使っていません。</li>
   </ul>
 
   <h2>3 違う種類のファイルを選んだとき</h2>

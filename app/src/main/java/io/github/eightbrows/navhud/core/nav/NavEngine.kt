@@ -684,7 +684,7 @@ class NavEngine(
     private fun stepsState(now: Long?): StepsState? {
         val s = replaySteps ?: return null
         if (sourceKind != SourceKind.REPLAY || now == null) return null
-        return StepsState(s.total, s.countUntil(now), s.lastStepMs(now))
+        return StepsState(s.total, s.countUntil(now), s.lastStepMs(now), s.countUntil(now, byRecv = true))
     }
 
     /**

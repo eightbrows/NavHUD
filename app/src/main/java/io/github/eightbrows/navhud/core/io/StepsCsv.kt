@@ -72,9 +72,17 @@ object StepsCsv {
 
 /**
  * meta.json の歩数の記録状態（トップレベルの steps。20261124-D01）。steps がない古い meta.json は status = null・異常 0。
- * timebaseAnomalies は detector・counter の合計（どちらかが 0 より大きければ、歩数の時刻合わせができない疑いがある）
+ * 時刻の基準の異常（timebaseAnomalies）は detector・counter ごとに持つ（20261125-D01）。
+ * 使えないとみなすのは、detector が 1 以上・counter が 2 以上のとき（usable）。仕様の 5 章「この修正より前の版で記録したセッションでは、
+ * counter の基準値が 1 件数えられていることがある。counter の値が 1 なら問題ないことが多い」により、counter の 1 は許す
  */
-data class StepsMeta(val status: String?, val timebaseAnomalies: Long) {
+data class StepsMeta(val status: String?, val detectorAnomalies: Long, val counterAnomalies: Long = 0) {
+    /** detector・counter の合計 */
+    val timebaseAnomalies: Long get() = detectorAnomalies + counterAnomalies
+
+    /** 時刻合わせに使えるか（detector は 0、counter は 1 まで） */
+    val usable: Boolean get() = detectorAnomalies <= 0 && counterAnomalies <= 1
+
     companion object {
         val NONE = StepsMeta(null, 0)
 
@@ -83,7 +91,7 @@ data class StepsMeta(val status: String?, val timebaseAnomalies: Long) {
             val root = runCatching { MiniJson.parse(text) }.getOrNull() as? Map<*, *> ?: return NONE
             val steps = root["steps"] as? Map<*, *> ?: return NONE
             fun anomalies(key: String): Long = ((steps[key] as? Map<*, *>)?.get("timebaseAnomalies") as? Number)?.toLong() ?: 0L
-            return StepsMeta(steps["status"] as? String, anomalies("detector") + anomalies("counter"))
+            return StepsMeta(steps["status"] as? String, anomalies("detector"), anomalies("counter"))
         }
     }
 }
@@ -92,34 +100,75 @@ data class StepsMeta(val status: String?, val timebaseAnomalies: Long) {
  * 歩数を読んだ結果（20261124-D01）。軌跡と一緒に持つ。
  * - NONE: steps.csv がない（古い記録・歩数の設定がオフ・権限なし・センサーなし）。エラーにしない
  * - EMPTY: steps.csv はあるが、歩数の行がない（ヘッダーだけ）
- * - TIMEBASE: meta.json の timebaseAnomalies が 0 より大きい（時刻合わせができない疑い）ので使わない
+ * - TIMEBASE: meta.json の timebaseAnomalies が、detector で 1 以上・counter で 2 以上（時刻合わせができない疑い）なので使わない（20261125-D01 から counter の 1 は許す）
  * - NO_ELAPSED: 軌跡（track.csv）に elapsed_realtime_ns がない点があるので、時刻合わせができず使わない
  * - OK: 使う
  */
 enum class StepsStatus { NONE, EMPTY, TIMEBASE, NO_ELAPSED, OK }
 
-data class StepsLoad(val status: StepsStatus, val csv: StepsCsvResult? = null, val meta: StepsMeta = StepsMeta.NONE) {
-    /** 歩数（detector の数。使えるときだけ。知らせに出す） */
-    val steps: Int? get() = if (status == StepsStatus.OK) csv?.detector?.size else null
+data class StepsLoad(
+    val status: StepsStatus,
+    val csv: StepsCsvResult? = null,
+    val meta: StepsMeta = StepsMeta.NONE,
+    /** 一時停止からの再開点（track.csv の gap_before=true の点）の経過時間 [ns]。区間の境目 */
+    val resumeElapsedNs: List<Long> = emptyList(),
+) {
+    /**
+     * 合計の歩数（20261125-D01。使えるときだけ。知らせに出す）: counter があれば区間ごとの「最後の値 − 基準値」の合計（CounterSegments）、
+     * counter がなければ detector の数
+     */
+    val steps: Int? get() = if (status == StepsStatus.OK) csv?.let { totalSteps(it, resumeElapsedNs) } else null
 
     companion object {
         val NONE = StepsLoad(StepsStatus.NONE)
 
         /**
-         * steps.csv の文字（なければ null）・meta.json の文字（なければ null）・軌跡の点の elapsed_realtime_ns から決める。
+         * steps.csv の文字（なければ null）・meta.json の文字（なければ null）・軌跡の点の elapsed_realtime_ns・再開点の経過時間から決める。
          * 軌跡に点がない・どれかの点に elapsed がないときは NO_ELAPSED（steps.csv があるときだけ）
          */
-        fun of(stepsText: String?, metaText: String?, trackElapsedNs: List<Long?>): StepsLoad {
+        fun of(stepsText: String?, metaText: String?, trackElapsedNs: List<Long?>, resumeElapsedNs: List<Long> = emptyList()): StepsLoad {
             if (stepsText == null) return NONE
             val csv = StepsCsv.parse(stepsText)
             val meta = metaText?.let { StepsMeta.parse(it) } ?: StepsMeta.NONE
             val status = when {
                 csv.isEmpty -> StepsStatus.EMPTY
-                meta.timebaseAnomalies > 0 -> StepsStatus.TIMEBASE
+                !meta.usable -> StepsStatus.TIMEBASE
                 trackElapsedNs.isEmpty() || trackElapsedNs.any { it == null } -> StepsStatus.NO_ELAPSED
                 else -> StepsStatus.OK
             }
-            return StepsLoad(status, csv, meta)
+            return StepsLoad(status, csv, meta, resumeElapsedNs.sorted())
+        }
+
+        /** 合計の歩数: counter があれば区間ごとの合計、なければ detector の数 */
+        fun totalSteps(csv: StepsCsvResult, resumeElapsedNs: List<Long>): Int =
+            if (csv.counter.isEmpty()) csv.detector.size else CounterSegments.of(csv.counter, resumeElapsedNs).sumOf { it.steps }.toInt()
+    }
+}
+
+/**
+ * counter の区間（20261125-D01。仕様の 3 章「セッション全体の歩数」）。区間は一時停止で区切られた記録の範囲で、境目は track.csv の
+ * gap_before=true の点（再開後の最初の測位点）の経過時間。counter の行は recv_elapsed_ns（届いた時刻。ない行は event_elapsed_ns）で区間に振り分ける
+ * （基準値の行の時刻は一時停止より前のことがあるため）。区間の最初に届いた行が基準値で、区間の歩数は「最後の値 − 基準値」
+ * （負になれば 0）。基準値の行の時刻は解析・REPLAY に使わない（rows には入れない）
+ */
+data class CounterSegments(
+    /** 区間の番号（0 から。再開ごとに 1 つ増える） */
+    val index: Int,
+    val baseline: StepEvent,
+    /** 基準値のあとの行（届いた順） */
+    val rows: List<StepEvent>,
+) {
+    val steps: Long get() = maxOf(0L, (rows.lastOrNull()?.count ?: baseline.count ?: 0L) - (baseline.count ?: 0L))
+
+    companion object {
+        fun of(counter: List<StepEvent>, resumeElapsedNs: List<Long>): List<CounterSegments> {
+            val bounds = resumeElapsedNs.sorted()
+            fun recv(e: StepEvent) = e.recvElapsedNs ?: e.eventElapsedNs
+            // 区間の番号 = 届いた時刻以前の再開点の数
+            return counter.sortedBy { recv(it) }
+                .groupBy { e -> bounds.count { it <= recv(e) } }
+                .toSortedMap()
+                .map { (k, rows) -> CounterSegments(k, rows.first(), rows.drop(1)) }
         }
     }
 }

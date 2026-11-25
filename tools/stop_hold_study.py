@@ -266,6 +266,111 @@ def gates():
     return g
 
 
+class Walk:
+    """
+    歩いているかの判定（20261125-D01）。その点までに届いた歩（recv ≤ その点）と、その点の GPS の速さだけを使う（リアルタイム）。
+    kind: 'or' = 過去 N 秒に K 歩以上 または 速さ ≥ v（GpsLogger のおすすめは N 2・K 2・v 0.3）、'and' = 両方、'steps' = 歩だけ、
+    'gps' = 速さだけ、'now' = 今の形（端末の速さ 1 km/h 以上・5 秒前の位置から 4.2 m）。
+    TurnGate に入れるとき: mode 'replace'（この判定だけ）・'add'（今の形と両方）。歩数のない・使えない記録は今の形と同じ
+    """
+
+    def __init__(s, kind, N=2, K=2, v=0.3, mode='replace'):
+        s.kind, s.N, s.K, s.v, s.mode = kind, N, K, v, mode
+        s.now = Disp(S.MOVE[0], S.MOVE[1])
+
+    def reset(s):
+        s.now.reset()
+
+    def walking(s, P, i):
+        p = P[i]
+        st = p['det_n'][s.N] >= s.K
+        gp = (p['v'] or 0.0) >= s.v
+        return {'or': st or gp, 'and': st and gp, 'steps': st, 'gps': gp}[s.kind]
+
+    def allow(s, P, i):
+        now = s.now.allow(P, i)
+        if s.kind == 'now' or not P[i].get('has_steps'):
+            return now
+        w = s.walking(P, i)
+        return w and now if s.mode == 'add' else w and P[i]['kmh'] >= 1.0
+
+
+def truth(rec):
+    """
+    答え（あとから記録全体を見て決める。20261125-D01）: detector の歩の時刻を、間が 1.5 秒以内のものでまとめた塊のうち、
+    10 歩以上で、塊の中の GPS の速さの中央が 0.5 m/s 以上のものを「歩いた」とし、塊の最初の歩から最後の歩 + 0.5 秒までを歩いている、
+    ほかを止まっているとする（止まっている間の揺れの短い塊（2〜11 歩・速さ 0）は止まり）。点ごとの True / False と、歩いた塊の一覧
+    """
+    P = rec['P']
+    det = rec['steps']['det']
+    bouts = []
+    cur = []
+    for e in det:
+        if cur and e - cur[-1] > 1_500_000_000:
+            bouts.append(cur)
+            cur = []
+        cur.append(e)
+    if cur:
+        bouts.append(cur)
+    walk = []
+    for b in bouts:
+        v = sorted(p['v'] or 0.0 for p in P if b[0] <= p['el'] <= b[-1])
+        if len(b) >= 10 and v and v[len(v) // 2] >= 0.5:
+            walk.append((b[0], b[-1] + 500_000_000, len(b)))
+    lab = [any(a <= p['el'] <= z for a, z, _ in walk) for p in P]
+    return lab, walk
+
+
+def walk_metrics(rec, lab, walk, det):
+    """判定の物差し: 正解の割合・歩きを止まりと誤る割合・止まりを歩きと誤る割合・歩き出しを見つけるまでの秒数（5 秒以上止まったあとの歩き出し）"""
+    P = rec['P']
+    pred = []
+    det.reset()
+    for i, p in enumerate(P):
+        if i and P[i]['t'] - P[i - 1]['t'] > 10:
+            det.reset()
+        now = det.now.allow(P, i)   # 今の形（5 秒前の位置）の状態は、どの判定でも点ごとに進める
+        pred.append(now if det.kind == 'now' else det.walking(P, i))
+    n = len(P)
+    ok = sum(1 for a, b in zip(lab, pred) if a == b)
+    nw = sum(lab)
+    ns = n - nw
+    w2s = sum(1 for a, b in zip(lab, pred) if a and not b)
+    s2w = sum(1 for a, b in zip(lab, pred) if not a and b)
+    delays = []
+    for a, z, _ in walk:
+        before = [p for p in P if a - 5_000_000_000 <= p['el'] < a]
+        if len(before) < 4 or any(lb for p, lb in zip(P, lab) if a - 5_000_000_000 <= p['el'] < a):
+            continue
+        hit = next((p for p, pr in zip(P, pred) if p['el'] >= a and pr), None)
+        if hit is not None and hit['el'] <= z:
+            delays.append((hit['el'] - a) / 1e9)
+        else:
+            delays.append(None)
+    return dict(n=n, walk=nw, stop=ns, ok=ok, w2s=w2s, s2w=s2w, delays=delays)
+
+
+def walk_detectors():
+    d = [('GpsLogger のおすすめ（過去 2 秒に 2 歩以上 または 速さ ≥ 0.3 m/s）', 'or', dict(N=2, K=2, v=0.3), lambda: Walk('or', 2, 2, 0.3)),
+         ('同じ条件で「かつ」', 'and', dict(N=2, K=2, v=0.3), lambda: Walk('and', 2, 2, 0.3)),
+         ('GPS の速さだけ（≥ 0.3 m/s）', 'gps', dict(v=0.3), lambda: Walk('gps', v=0.3)),
+         ('今の形（速さ 1 km/h 以上・5 秒前の位置から 4.2 m）', 'now', {}, lambda: Walk('now'))]
+    for N in (1, 2, 3, 4):
+        for K in (1, 2, 3):
+            d.append((f'歩数だけ（過去 {N} 秒に {K} 歩以上）', 'steps', dict(N=N, K=K), lambda N=N, K=K: Walk('steps', N, K)))
+    return d
+
+
+def walk_gates():
+    g = [('今の形（速さ 1 km/h 以上・5 秒前の位置から 4.2 m）', 'now', {}, lambda: Walk('now'))]
+    for mode, mname in (('replace', '置き換え'), ('add', '今の形に足す')):
+        g.append((f'GpsLogger のおすすめ（2 秒 2 歩 または 0.3 m/s）・{mname}', 'or', dict(mode=mode), lambda mode=mode: Walk('or', 2, 2, 0.3, mode)))
+        g.append((f'「かつ」（2 秒 2 歩 かつ 0.3 m/s）・{mname}', 'and', dict(mode=mode), lambda mode=mode: Walk('and', 2, 2, 0.3, mode)))
+        for N, K in ((2, 2), (3, 2), (3, 3), (4, 3)):
+            g.append((f'歩数だけ（{N} 秒に {K} 歩）・{mname}', 'steps', dict(N=N, K=K, mode=mode), lambda N=N, K=K, mode=mode: Walk('steps', N, K, mode=mode)))
+    return g
+
+
 class Steps:
     """
     歩数を使う形（20261124-D01）: 直近 N 秒（経過時間。その点の経過時間以前）に detector があるか。mode = only（歩数と速さ 1 km/h 以上）・
@@ -313,6 +418,28 @@ def main():
         row['all'] = dict(m=m, ep=summarize([e for em in epm for e in em]))
         out['walk'].append(row)
         print(name, file=sys.stderr)
+    # 歩いている / 止まっているの判定と、それを TurnGate に入れた向き（20261125-D01。歩数を使える記録だけ。判定は歩数のある記録すべて）
+    with_steps = [r for r in walks if r['steps']['status'] == 'ok']
+    if with_steps:
+        truths = [truth(r) for r in with_steps]
+        out['walkdet_records'] = [dict(name=r['name'], walk_bouts=len(t[1]), walk_pts=sum(t[0]), pts=len(r['P'])) for r, t in zip(with_steps, truths)]
+        out['walkdet'] = []
+        for name, kind, params, mk in walk_detectors():
+            per = [walk_metrics(r, t[0], t[1], mk()) for r, t in zip(with_steps, truths)]
+            out['walkdet'].append(dict(name=name, kind=kind, params=params, per=per))
+        out['walkgate'] = []
+        for name, kind, params, mk in walk_gates():
+            Ts = [track_series_gate(r['P'], mk()) for r in walks]
+            Hs = [S.track_only(r['P'], T) for r, T in zip(walks, Ts)]
+            epm = [episode_metrics(r, H, e) for r, H, e in zip(walks, Hs, eps)]
+            row = dict(name=name, kind=kind, params=params, per=[], all=None, series=[[h[0] for h in H] for H in Hs])
+            for r, H, em in zip(walks, Hs, epm):
+                row['per'].append(dict(m=S.metrics([r], [H]), ep=summarize(em)))
+            sel = [k for k, r in enumerate(walks) if r['steps']['status'] == 'ok']
+            row['all_steps'] = dict(m=S.metrics([walks[k] for k in sel], [Hs[k] for k in sel]), ep=summarize([e for k in sel for e in epm[k]])) if sel else None
+            row['all'] = dict(m=S.metrics(walks, Hs), ep=summarize([e for em in epm for e in em]))
+            out['walkgate'].append(row)
+            print('walkgate', name, file=sys.stderr)
     if a.car:
         car = S.setup(a.car)
         out['car'] = []

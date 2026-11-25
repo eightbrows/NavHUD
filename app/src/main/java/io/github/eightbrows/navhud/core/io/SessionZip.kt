@@ -90,7 +90,7 @@ object SessionZip {
             false
         }
         val t = track ?: return null
-        return SessionData(t, StepsLoad.of(steps, meta, t.fixes.map { it.elapsedNs }))
+        return SessionData(t, StepsLoad.of(steps, meta, t.fixes.map { it.elapsedNs }, t.resumeElapsedNs))
     }
 
     /**
@@ -98,7 +98,7 @@ object SessionZip {
      * session_yyyyMMdd_HHmmss でなければ歩数は読まない。stepsText・metaText はそのファイルの中身（なければ null）
      */
     fun stepsForFolder(folderName: String, stepsText: String?, metaText: String?, track: TrackParseResult): StepsLoad =
-        if (STEPS_ENTRY.matches("$folderName/$STEPS_FILE")) StepsLoad.of(stepsText, metaText, track.fixes.map { it.elapsedNs }) else StepsLoad.NONE
+        if (STEPS_ENTRY.matches("$folderName/$STEPS_FILE")) StepsLoad.of(stepsText, metaText, track.fixes.map { it.elapsedNs }, track.resumeElapsedNs) else StepsLoad.NONE
 
     /** track.csv のあるフォルダの名前（いちばん下のフォルダ）。 */
     fun sessionName(entryName: String): String =

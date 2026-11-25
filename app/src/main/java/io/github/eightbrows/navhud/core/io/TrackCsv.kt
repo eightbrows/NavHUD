@@ -4,7 +4,11 @@ import io.github.eightbrows.navhud.core.model.Fix
 import java.io.InputStream
 import java.time.Instant
 
-data class TrackParseResult(val fixes: List<Fix>, val skippedLines: Int)
+/**
+ * 読んだ track.csv。resumeElapsedNs は一時停止からの再開点（gap_before=true の点）の経過時間 [ns]（20261125-D01。歩数の区間の境目。
+ * 列がない・経過時間がない点は入れない）
+ */
+data class TrackParseResult(val fixes: List<Fix>, val skippedLines: Int, val resumeElapsedNs: List<Long> = emptyList())
 
 /**
  * GPSロガーのトラックCSV（track.csv 形式）を読む。
@@ -35,8 +39,11 @@ object TrackCsv {
         val iHorizAcc = col["horizontal_acc_m"]
         // 歩数との時刻合わせ（20261124-D01）。列がない・読めない点は null
         val iElapsed = col["elapsed_realtime_ns"]
+        // 一時停止からの再開点（20261125-D01。歩数の区間の境目）
+        val iGap = col["gap_before"]
 
         val fixes = ArrayList<Fix>()
+        val resumes = ArrayList<Long>()
         var skipped = 0
         while (iter.hasNext()) {
             val line = iter.next()
@@ -73,8 +80,9 @@ object TrackCsv {
                 bearingAccDeg = if (bearingValid) flt(iBearingAcc) else null,
                 elapsedNs = str(iElapsed)?.toLongOrNull(),
             )
+            if (str(iGap).equals("true", ignoreCase = true)) str(iElapsed)?.toLongOrNull()?.let { resumes += it }
         }
-        return TrackParseResult(fixes, skipped)
+        return TrackParseResult(fixes, skipped, resumes)
     }
 
     /**

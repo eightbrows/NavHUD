@@ -301,13 +301,14 @@ def load_steps(path, P):
     """
     歩数（steps.csv。20261124-D01。GpsLogger エクスポートZIP 読み込み仕様（歩数 steps.csv）と同じ決まり）。track.csv と同じフォルダで、
     フォルダの名前が session_yyyyMMdd_HHmmss のときだけ読む。列は名前で引く。LF・CRLF。event_elapsed_ns で並べ替える。
-    戻り値: dict(status, det=[detector の経過時間 ns（昇順）], counter=[(経過時間 ns, 累計)]）。status は
-    none（steps.csv がない）・empty（行がない）・timebase（meta.json の timebaseAnomalies > 0）・no_elapsed（軌跡に経過時間がない点がある）・ok
+    戻り値: dict(status, det=[detector の経過時間 ns（昇順）], det_recv=[同じ順の届いた時刻 ns], counter=[(経過時間 ns, 届いた時刻 ns, 累計)]）。status は
+    none（steps.csv がない）・empty（行がない）・timebase（meta.json の timebaseAnomalies が detector で 1 以上・counter で 2 以上。
+    20261125-D01 から counter の 1 は許す）・no_elapsed（軌跡に経過時間がない点がある）・ok
     """
     folder = path if os.path.isdir(path) else os.path.dirname(path)
     f = os.path.join(folder, 'steps.csv')
     if not STEPS_FOLDER.match(os.path.basename(os.path.normpath(folder))) or not os.path.isfile(f):
-        return dict(status='none', det=[], counter=[])
+        return dict(status='none', det=[], det_recv=[], counter=[])
     det, cnt = [], []
     with open(f, encoding='utf-8-sig', newline='') as h:
         for r in csv.DictReader(h):
@@ -316,46 +317,75 @@ def load_steps(path, P):
                 e = int(r.get('event_elapsed_ns', ''))
             except ValueError:
                 continue
+            rv = r.get('recv_elapsed_ns', '')
+            rv = int(rv) if rv.lstrip('-').isdigit() else e
             if r.get('type') == 'detector':
-                det.append(e)
+                det.append((e, rv))
             elif r.get('type') == 'counter' and r.get('count', '').isdigit():
-                cnt.append((e, int(r['count'])))
+                cnt.append((e, rv, int(r['count'])))
     det.sort()
     cnt.sort(key=lambda x: x[0])
-    anomalies = 0
+    anomalies = {'detector': 0, 'counter': 0}
     mf = os.path.join(folder, 'meta.json')
     if os.path.isfile(mf):
         try:
             st = json.load(open(mf, encoding='utf-8')).get('steps') or {}
             for k in ('detector', 'counter'):
-                anomalies += int((st.get(k) or {}).get('timebaseAnomalies') or 0)
+                anomalies[k] = int((st.get(k) or {}).get('timebaseAnomalies') or 0)
         except (ValueError, AttributeError):
             pass
     if not det and not cnt:
         status = 'empty'
-    elif anomalies > 0:
+    elif anomalies['detector'] > 0 or anomalies['counter'] > 1:
         status = 'timebase'
     elif not P or any(p.get('el') is None for p in P):
         status = 'no_elapsed'
     else:
         status = 'ok'
-    return dict(status=status, det=det, counter=cnt)
+    return dict(status=status, det=[d[0] for d in det], det_recv=[d[1] for d in det], counter=cnt, anomalies=anomalies)
+
+
+def counter_total(steps, resume_el=()):
+    """合計の歩数（20261125-D01）: counter を届いた時刻で区間（再開点 resume_el で区切る）に分け、区間ごとに「最後の値 − 最初に届いた行（基準値）」を足す"""
+    if not steps['counter']:
+        return len(steps['det'])
+    seg = {}
+    for e, rv, c in sorted(steps['counter'], key=lambda x: x[1]):
+        k = sum(1 for b in resume_el if b <= rv)
+        seg.setdefault(k, []).append(c)
+    return sum(max(0, v[-1] - v[0]) for v in seg.values())
+
+
+DET_WINDOWS = (1, 2, 3, 4)
 
 
 def add_steps(P, steps):
-    """点ごとに、直近の detector からの秒数（経過時間で合わせる。その点の経過時間以前で最後の歩。なければ None）と、歩数を使えるか"""
+    """
+    点ごとに、その点の時刻（経過時間）までに届いた歩（recv ≤ その点。リアルタイムで使えるものだけ。20261125-D01）から:
+    det_age（最後の歩（歩の時刻）からの秒数。なければ None）と det_n[N]（過去 N 秒の歩の時刻に入る歩の数。N = DET_WINDOWS）、歩数を使えるか
+    """
+    import bisect
     ok = steps['status'] == 'ok'
     det = steps['det']
-    k = 0
+    recv = steps.get('det_recv') or det
     for p in P:
         p['has_steps'] = ok
         p['det_age'] = None
+        p['det_n'] = {N: 0 for N in DET_WINDOWS}
         if not ok:
             continue
-        while k < len(det) and det[k] <= p['el']:
-            k += 1
-        if k:
-            p['det_age'] = (p['el'] - det[k - 1]) / 1e9
+        el = p['el']
+        hi = bisect.bisect_right(det, el)
+        lo = bisect.bisect_right(det, el - max(DET_WINDOWS) * 1_000_000_000)
+        got = [k for k in range(lo, hi) if recv[k] <= el]
+        for N in DET_WINDOWS:
+            p['det_n'][N] = sum(1 for k in got if det[k] > el - N * 1_000_000_000)
+        # 最後の届いた歩（窓の外も見る）
+        k = hi - 1
+        while k >= 0 and recv[k] > el:
+            k -= 1
+        if k >= 0:
+            p['det_age'] = (el - det[k]) / 1e9
 
 
 def setup(path):

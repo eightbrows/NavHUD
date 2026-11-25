@@ -716,10 +716,10 @@ class NavViewModel(app: Application) : AndroidViewModel(app) {
         publish(engine.setReplayTrack(Trail.decimate(fixes, 0.0)))
         // 歩数（20261124-D01）: 使えるときだけ、軌跡の時刻に置いてエンジンに渡す（REPLAY で軌跡と一緒に流れる）
         val steps = track.steps
-        publish(engine.setReplaySteps(if (steps.status == StepsStatus.OK) steps.csv?.let { StepsTimeline.align(fixes, it) } else null))
+        publish(engine.setReplaySteps(if (steps.status == StepsStatus.OK) steps.csv?.let { StepsTimeline.align(fixes, it, steps.resumeElapsedNs) } else null))
         clock.setSpeed(1)
         // ひとこと（20261103-D01）: 「軌跡 11,172 点・7:52〜11:01（track.csv）」（zip はファイル名 / セッションの名前）。
-        // 歩数があれば「・歩数 1,234 歩」を足す。使えない歩数（時刻の基準が合わない・軌跡に経過時間がない）は、そう出す（20261124-D01）
+        // 歩数があれば「・歩数 1,234 歩」を足す（20261125-D01 から counter の区間ごとの合計。counter がなければ detector の数）。使えない歩数（時刻の基準が合わない・軌跡に経過時間がない）は、そう出す（20261124-D01）
         LoadSummary.track(fixes, zone)?.let { t ->
             val n = steps.steps
             if (n != null && n > 0) {
